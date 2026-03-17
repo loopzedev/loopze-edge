@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useApi } from '@/composables/useApi'
 import type { NodeCatalogEntry } from '@/types/flow'
+import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 const api = useApi()
 
@@ -61,40 +62,6 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
   event.dataTransfer.effectAllowed = 'move'
 }
 
-const NODE_ICONS: Record<string, string> = {
-  inject: '⏱',
-  debug: '⬤',
-  comment: '✎',
-  'link-in': '←',
-  'link-out': '→',
-  catch: '⚡',
-  status: '◈',
-  function: 'ƒ',
-  change: '⇄',
-  switch: '⑂',
-  template: '▤',
-  delay: '⏲',
-  filter: '⧩',
-  'http-in': '▶',
-  'http-response': '◀',
-  'http-request': '⇆',
-  'mqtt-in': '▼',
-  'mqtt-out': '▲',
-  'tcp-in': '⇊',
-  'tcp-out': '⇈',
-  'modbus-read': '⎍',
-  'modbus-write': '⎌',
-  'opc-ua': '⚙',
-  'file-in': '⤓',
-  'file-out': '⤒',
-  json: '{}',
-  xml: '⟨⟩',
-  csv: '⊞',
-}
-
-function getNodeIcon(node: NodeCatalogEntry): string {
-  return NODE_ICONS[node.type] ?? '●'
-}
 </script>
 
 <template>
@@ -164,8 +131,8 @@ function getNodeIcon(node: NodeCatalogEntry): string {
               @dragstart="onDragStart($event, node)"
             >
               <!-- Icon -->
-              <span class="w-5 h-5 flex items-center justify-center border border-terminal-border bg-terminal-bg text-[10px] text-terminal-text-dim group-hover:border-accent group-hover:text-terminal-text shrink-0 transition-colors">
-                {{ getNodeIcon(node) }}
+              <span class="w-5 h-5 flex items-center justify-center text-terminal-text-dim group-hover:text-terminal-text shrink-0 transition-colors">
+                <NodeIcon :type="node.type" />
               </span>
 
               <!-- Label -->

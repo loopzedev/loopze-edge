@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import BaseNode from '@/components/nodes/BaseNode.vue'
+import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -27,12 +28,7 @@ const messageCount = computed(() => {
     :status="props.data?.status"
     :disabled="props.data?.disabled"
   >
-    <template #icon>
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="square" d="M12 8v4m0 4h.01" />
-        <circle cx="12" cy="12" r="9" />
-      </svg>
-    </template>
+    <template #icon><NodeIcon type="debug" /></template>
 
     <template #badge>
       <span

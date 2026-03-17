@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BaseNode from '@/components/nodes/BaseNode.vue'
+import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -36,7 +37,7 @@ function firstLine(code: unknown): string {
     :status="(props.data.status as any)"
     :disabled="props.data.disabled"
   >
-    <template #icon>ƒ</template>
+    <template #icon><NodeIcon type="function" /></template>
 
     <template #body>
       <span class="truncate block" :title="String(props.data.config?.func ?? '')">

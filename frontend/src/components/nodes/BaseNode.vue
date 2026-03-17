@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 export interface BaseNodeProps {
   id: string
@@ -90,7 +91,7 @@ const outputHandles = computed(() => {
     <!-- Header -->
     <div class="flex items-center gap-2 px-2.5 py-1.5">
       <span class="shrink-0 leading-none" :style="{ color: props.accentColor }">
-        <slot name="icon">●</slot>
+        <slot name="icon"><NodeIcon :type="props.nodeType" /></slot>
       </span>
       <span class="text-xs text-terminal-text font-medium truncate flex-1">
         {{ displayLabel }}

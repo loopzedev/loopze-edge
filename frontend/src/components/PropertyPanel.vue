@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import DebugPanel from '@/components/DebugPanel.vue'
+import InjectConfig from '@/components/config/InjectConfig.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -170,23 +171,29 @@ function formatValue(value: unknown): string {
             ▸ Configuration
           </p>
 
-          <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="space-y-1.5">
-            <div
-              v-for="(value, key) in (nodeData.config as Record<string, unknown>)"
-              :key="String(key)"
-              class="flex flex-col gap-0.5"
-            >
-              <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-                {{ String(key) }}
-              </label>
-              <div class="terminal-input w-full text-xs break-all whitespace-pre-wrap max-h-20 overflow-y-auto">
-                {{ formatValue(value) }}
+          <!-- Type-specific config panels -->
+          <InjectConfig v-if="selectedNode?.type === 'inject'" />
+
+          <!-- Generic fallback for unknown node types -->
+          <template v-else>
+            <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="space-y-1.5">
+              <div
+                v-for="(value, key) in (nodeData.config as Record<string, unknown>)"
+                :key="String(key)"
+                class="flex flex-col gap-0.5"
+              >
+                <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
+                  {{ String(key) }}
+                </label>
+                <div class="terminal-input w-full text-xs break-all whitespace-pre-wrap max-h-20 overflow-y-auto">
+                  {{ formatValue(value) }}
+                </div>
               </div>
             </div>
-          </div>
-          <div v-else class="text-[10px] text-terminal-text-dim italic">
-            No configuration available
-          </div>
+            <div v-else class="text-[10px] text-terminal-text-dim italic">
+              No configuration available
+            </div>
+          </template>
         </div>
 
         <!-- Status section -->

@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 [build]
   cmd = "go build -o ./tmp/flint ./cmd/flint"
   bin = "./tmp/flint"
-  full_bin = "./tmp/flint --port 1880 --data-dir ./data"
+  full_bin = "./tmp/flint --port 1880 --data-dir ./data --log-level debug"
   include_ext = ["go"]
   exclude_dir = ["bin", "build", "tmp", "frontend", "web/dist", "data"]
   delay = 500

@@ -6,6 +6,7 @@ import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useApi } from '@/composables/useApi'
 import BaseNode from '@/components/nodes/BaseNode.vue'
 import InjectNode from '@/components/nodes/InjectNode.vue'
 import DebugNode from '@/components/nodes/DebugNode.vue'
@@ -18,6 +19,7 @@ import '@vue-flow/minimap/dist/style.css'
 
 const flowStore = useFlowStore()
 const uiStore = useUiStore()
+const api = useApi()
 
 const { onConnect, onNodeDragStop, screenToFlowCoordinate } = useVueFlow({
   id: 'flint-flow-editor',
@@ -55,6 +57,11 @@ onNodeDragStop((event) => {
     flowStore.updateNodePosition(event.node.id, event.node.position)
   }
 })
+
+function handleNodeClick(event: { node: any }): void {
+  flowStore.selectNode(event.node.id)
+  uiStore.openRightPanel('properties')
+}
 
 function handleSelectionChange(params: { nodes: any[]; edges: any[] }): void {
   if (params.nodes.length === 1) {
@@ -105,9 +112,19 @@ function onPaneClick(): void {
   flowStore.selectNode(null)
 }
 
-onMounted(() => {
-  if (flowStore.flows.length === 0) {
-    flowStore.addFlow('Flow 1')
+onMounted(async () => {
+  try {
+    const response = await api.getFlows()
+    if (response.flows && response.flows.length > 0) {
+      flowStore.loadFlows(response.flows, response.rev)
+    } else {
+      flowStore.addFlow('Flow 1')
+    }
+  } catch (err) {
+    console.error('[FlowEditor] Failed to load flows from backend:', err)
+    if (flowStore.flows.length === 0) {
+      flowStore.addFlow('Flow 1')
+    }
   }
 })
 </script>
@@ -124,6 +141,7 @@ onMounted(() => {
       v-model:edges="flowStore.edges"
       class="w-full h-full"
       @pane-click="onPaneClick"
+      @node-click="handleNodeClick"
       @selection-change="handleSelectionChange"
     >
       <!-- Custom Node Types -->

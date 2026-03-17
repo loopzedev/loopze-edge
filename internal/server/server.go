@@ -23,6 +23,8 @@ import (
 	"github.com/niceclouds/flint/internal/config"
 	"github.com/niceclouds/flint/internal/flow"
 	flintnats "github.com/niceclouds/flint/internal/nats"
+	"github.com/niceclouds/flint/internal/nodes"
+	"github.com/niceclouds/flint/internal/storage"
 	"github.com/niceclouds/flint/internal/ws"
 	"github.com/niceclouds/flint/web"
 )
@@ -53,6 +55,9 @@ type Server struct {
 
 	// broker is the embedded NATS server with JetStream for persistence and messaging.
 	broker *flintnats.Broker
+
+	// store is the persistent storage for flows and credentials.
+	store storage.Storage
 }
 
 // New creates a new Server with the given configuration. It sets up the Chi
@@ -68,12 +73,21 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("server: failed to start embedded NATS: %w", err)
 	}
 
+	engine := flow.NewEngine(cfg)
+	registerNodes(engine.Registry())
+
+	store, err := storage.NewFileStorage(cfg.FlowFilePath(), cfg.CredentialsFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to create storage: %w", err)
+	}
+
 	s := &Server{
 		router: chi.NewRouter(),
 		cfg:    cfg,
-		engine: flow.NewEngine(cfg),
+		engine: engine,
 		hub:    ws.NewHub(),
 		broker: broker,
+		store:  store,
 	}
 
 	s.setupMiddleware()
@@ -113,9 +127,13 @@ func (s *Server) setupMiddleware() {
 // setupRoutes configures all HTTP routes: API endpoints, WebSocket, and frontend.
 func (s *Server) setupRoutes() {
 	// Mount REST API routes under /api/v1/.
+	deps := &api.Deps{
+		Engine:  s.engine,
+		Storage: s.store,
+	}
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
-		api.RegisterRoutes(r)
+		api.RegisterRoutes(r, deps)
 	})
 
 	// WebSocket endpoint for real-time editor communication.
@@ -172,6 +190,17 @@ func (s *Server) Start() error {
 	// Start the flow runtime engine.
 	if err := s.engine.Start(); err != nil {
 		return fmt.Errorf("server: failed to start flow engine: %w", err)
+	}
+
+	// Load saved flows from storage and deploy them.
+	if flows, err := s.store.LoadFlows(); err != nil {
+		slog.Error("failed to load flows from storage", "error", err)
+	} else if len(flows) > 0 {
+		if err := s.engine.Deploy(flows); err != nil {
+			slog.Error("failed to deploy saved flows", "error", err)
+		} else {
+			slog.Info("saved flows deployed on startup", "count", len(flows))
+		}
 	}
 
 	slog.Info("flint server starting",
@@ -232,6 +261,11 @@ func (s *Server) Engine() *flow.Engine {
 // Broker returns the embedded NATS broker.
 func (s *Server) Broker() *flintnats.Broker {
 	return s.broker
+}
+
+// registerNodes registers all built-in node types on the engine registry.
+func registerNodes(registry *flow.NodeRegistry) {
+	registry.Register("inject", nodes.NewInjectNode, nodes.InjectTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

@@ -13,6 +13,21 @@ const statusText = computed(() => props.data?.status?.text ?? '')
 const statusFill = computed(() => props.data?.status?.fill ?? '')
 const isDisabled = computed(() => props.data?.disabled ?? false)
 
+const intervalLabel = computed(() => {
+  const cfg = props.data?.config ?? {}
+  const interval = cfg.interval as number | undefined
+  const once = cfg.once as boolean | undefined
+
+  const parts: string[] = []
+  if (once) parts.push('once')
+  if (interval && interval > 0) {
+    if (interval >= 60000) parts.push(`${interval / 60000}min`)
+    else if (interval >= 1000) parts.push(`${interval / 1000}s`)
+    else parts.push(`${interval}ms`)
+  }
+  return parts.length > 0 ? parts.join(' + ') : 'manual'
+})
+
 const statusColorClass = computed(() => {
   switch (statusFill.value) {
     case 'green':
@@ -78,15 +93,12 @@ async function handleTrigger(): Promise<void> {
     <!-- Node Body -->
     <div class="flint-node-body">
       <div class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim">
-        <span class="uppercase tracking-wider">Interval</span>
+        <span class="uppercase tracking-wider">Trigger</span>
         <span class="text-terminal-text">
-          {{ props.data?.config?.interval ?? 'once' }}
+          {{ intervalLabel }}
         </span>
       </div>
-      <div
-        v-if="props.data?.config?.payload !== undefined"
-        class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim mt-0.5"
-      >
+      <div class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim mt-0.5">
         <span class="uppercase tracking-wider">Payload</span>
         <span class="text-terminal-text truncate max-w-[100px]">
           {{ props.data?.config?.payloadType ?? 'timestamp' }}

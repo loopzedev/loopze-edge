@@ -10,9 +10,11 @@ package config
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Config holds the runtime configuration for the Flint application.
@@ -37,6 +39,9 @@ type Config struct {
 
 	// NATSPort is the TCP port for the embedded NATS server. Use -1 for auto-assigned.
 	NATSPort int
+
+	// LogLevel controls the minimum log level: debug, info, warn, error.
+	LogLevel string
 }
 
 // Build-time variables injected via ldflags.
@@ -55,6 +60,7 @@ const (
 	defaultCredentialsFile = "credentials.json"
 	defaultKeyFile         = "flint.key"
 	defaultNATSPort        = 4222
+	defaultLogLevel        = "info"
 
 	envPrefix = "FLINT_"
 )
@@ -72,6 +78,7 @@ func Load() *Config {
 	flag.StringVar(&cfg.CredentialsFile, "credentials-file", defaultCredentialsFile, "filename for encrypted credentials")
 	flag.StringVar(&cfg.KeyFile, "key-file", defaultKeyFile, "filename for encryption key")
 	flag.IntVar(&cfg.NATSPort, "nats-port", defaultNATSPort, "port for the embedded NATS server (-1 for auto)")
+	flag.StringVar(&cfg.LogLevel, "log-level", defaultLogLevel, "log level: debug, info, warn, error")
 
 	flag.Parse()
 
@@ -109,6 +116,9 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.NATSPort = port
 		}
 	}
+	if v, ok := getenv("LOG_LEVEL"); ok && !flagProvided("log-level") {
+		cfg.LogLevel = v
+	}
 }
 
 // FlowFilePath returns the full path to the flow definitions file.
@@ -129,6 +139,23 @@ func (c *Config) KeyFilePath() string {
 // ListenAddr returns the formatted host:port address string for the HTTP server.
 func (c *Config) ListenAddr() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+// ParseLogLevel converts the configured log level string to a slog.Level.
+// Defaults to slog.LevelInfo for unrecognised values.
+func (c *Config) ParseLogLevel() slog.Level {
+	switch strings.ToLower(c.LogLevel) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 // getenv looks up a FLINT_-prefixed environment variable.

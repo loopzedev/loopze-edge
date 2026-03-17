@@ -1,11 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import HeaderBar from '@/components/HeaderBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import { useUiStore } from '@/stores/uiStore'
+import { useWebSocket } from '@/composables/useWebSocket'
 
 const ui = useUiStore()
+
+// Connect WebSocket and sync status to uiStore.
+const ws = useWebSocket()
+watch(ws.status, (status) => {
+  switch (status) {
+    case 'connected':
+      ui.setConnectionStatus('connected')
+      break
+    case 'connecting':
+    case 'reconnecting':
+      ui.setConnectionStatus('connecting')
+      break
+    case 'disconnected':
+      ui.setConnectionStatus('disconnected')
+      break
+  }
+}, { immediate: true })
 
 const mainAreaStyle = computed(() => {
   const left = ui.leftPanelOpen ? '240px' : '0px'

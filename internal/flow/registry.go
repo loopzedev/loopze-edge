@@ -5,16 +5,29 @@ package flow
 
 import "sync"
 
+// SendFunc is a callback that nodes use to asynchronously send messages
+// to a specific output port. The engine provides this function via SetSend
+// before calling Start(). Source nodes (e.g. inject, mqtt-in) use this to
+// push messages downstream from background goroutines.
+type SendFunc func(port int, msg *Message)
+
 // NodeFactory is a constructor function that creates a new NodeInstance
 // from a given NodeConfig. Each registered node type provides its own factory.
 type NodeFactory func(config NodeConfig) (NodeInstance, error)
 
 // NodeInstance is the interface that all executable node implementations must satisfy.
 // The runtime engine calls these methods during the flow lifecycle.
+//
+// Lifecycle order: Factory → Init → SetSend → Start → HandleMessage… → Stop
 type NodeInstance interface {
 	// Init is called once after the node is created, before the flow starts.
 	// Use it to validate configuration and allocate resources.
 	Init() error
+
+	// SetSend provides the node with a callback to send messages to output ports.
+	// Called by the engine after Init() and before Start(). Source nodes use this
+	// to push messages from background goroutines (timers, subscriptions, etc.).
+	SetSend(fn SendFunc)
 
 	// Start is called when the flow is deployed and begins execution.
 	// Long-running nodes (e.g. MQTT subscriber, Inject timer) should
@@ -74,6 +87,7 @@ type NodeConfig struct {
 	Name string `json:"name"`
 
 	// Properties holds all user-configured properties for this node instance.
+	// Populated from Node.Config during deployment.
 	Properties map[string]any `json:"properties"`
 }
 

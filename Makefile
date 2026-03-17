@@ -48,17 +48,8 @@ build-all: build-frontend build
 
 # ─── Development ──────────────────────────────────────────────────────────────
 
-## dev: Run Flint in development mode
 .PHONY: dev
 dev:
-	@echo "▸ Starting Flint in dev mode on :1880…"
-	@echo "  Tip: Use 'air' or 'watchexec' for hot reload:"
-	@echo "    go install github.com/air-verse/air@latest && air"
-	$(GO) run ./cmd/flint --port 1880 --data-dir ./data
-
-## watch: Run backend (air) and frontend (vite) with hot reload in parallel
-.PHONY: watch
-watch:
 	@echo "▸ Starting Flint backend + frontend with hot reload…"
 	@if ! command -v air >/dev/null 2>&1; then \
 		echo "⚠ air not found. Install: go install github.com/air-verse/air@latest"; \

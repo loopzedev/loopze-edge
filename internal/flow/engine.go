@@ -20,12 +20,13 @@ import (
 //   - Each node runs in its own goroutine (goroutine-per-node model).
 //   - Node-to-node communication within a flow uses Go channels (nanosecond latency).
 //   - External communication (debug, context, fleet) uses embedded NATS.
+//   - A workspace contains multiple flows; all flows are deployed together.
 type Engine struct {
 	cfg      *config.Config
 	registry *NodeRegistry
 
 	mu      sync.RWMutex
-	flows   []Flow
+	flows   []Flow // all flows in the workspace
 	running bool
 
 	// stopCh signals all running flow goroutines to shut down.
@@ -96,9 +97,9 @@ func (e *Engine) Stop() error {
 	return nil
 }
 
-// Deploy accepts a new set of flow definitions, stops any currently running
+// Deploy accepts a workspace (all flows), stops any currently running
 // flows, instantiates nodes from the registry, wires them together, and
-// starts execution.
+// starts execution. All flows in the workspace run concurrently.
 //
 // This implements a full-restart deploy strategy: all flows are stopped and
 // restarted. A future optimisation could diff the old and new flows to only

@@ -18,6 +18,9 @@ type Flow struct {
 	// ID is the unique identifier for this flow.
 	ID string `json:"id"`
 
+	// Type is the flow type identifier, always "tab" for normal flows.
+	Type string `json:"type"`
+
 	// Label is the human-readable name displayed in the editor tab.
 	Label string `json:"label"`
 
@@ -31,7 +34,7 @@ type Flow struct {
 	Info string `json:"info,omitempty"`
 
 	// Disabled indicates whether this flow should be skipped during deployment.
-	Disabled bool `json:"disabled"`
+	Disabled bool `json:"disabled,omitempty"`
 
 	// Env holds flow-scoped environment variables available to all nodes in this flow.
 	Env map[string]string `json:"env,omitempty"`
@@ -58,18 +61,33 @@ type Node struct {
 	// Z references the flow (tab) this node belongs to.
 	Z string `json:"z"`
 
+	// Inputs is the number of input ports (0 for source nodes like inject).
+	Inputs int `json:"inputs"`
+
+	// Outputs is the number of output ports.
+	Outputs int `json:"outputs"`
+
 	// Wires defines the output connections. Each index corresponds to an output port,
 	// and the slice contains the IDs of connected target nodes.
 	Wires [][]string `json:"wires"`
 
-	// Properties holds all type-specific configuration for this node.
-	// The structure depends on the node type (e.g., topic for MQTT, interval for inject).
-	Properties map[string]any `json:"properties,omitempty"`
+	// Config holds user-configured properties for this node instance.
+	// The frontend sends this as "config" (e.g., interval, payload, topic for inject).
+	Config map[string]any `json:"config,omitempty"`
+
+	// Disabled indicates whether this node should be skipped during deployment.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 // Wire represents a connection between two nodes, linking a source output port
 // to a target node's input port.
 type Wire struct {
+	// ID is the unique identifier for this wire.
+	ID string `json:"id"`
+
+	// SourceNode is the ID of the source node.
+	SourceNode string `json:"sourceNode"`
+
 	// SourcePort is the index of the output port on the source node.
 	SourcePort int `json:"sourcePort"`
 

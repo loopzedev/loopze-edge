@@ -12,35 +12,22 @@ import (
 )
 
 // RegisterRoutes mounts all Flint API v1 route handlers onto the given router.
-// This function is called by the server during initialization to wire up
-// the REST endpoints that the frontend and external tools use to interact
-// with the flow runtime.
-func RegisterRoutes(r chi.Router) {
+// The Deps struct provides access to the flow engine and storage layer.
+func RegisterRoutes(r chi.Router, deps *Deps) {
 	// Flow management endpoints.
-	// Flows are the primary unit of work — each flow is a tab in the editor
-	// containing interconnected nodes.
-	r.Get("/flows", handleGetFlows)       // List all deployed flows.
-	r.Post("/flows", handleDeployFlows)    // Deploy (create/update) flows.
-	r.Get("/flows/{id}", handleGetFlow)    // Get a single flow by ID.
+	r.Get("/flows", deps.handleGetFlows)
+	r.Post("/flows", deps.handleDeployFlows)
+	r.Get("/flows/{id}", deps.handleGetFlow)
 
 	// Node catalog endpoint.
-	// Returns the list of registered node types so the frontend can populate
-	// the palette sidebar with available nodes.
-	r.Get("/nodes", handleGetNodes)
+	r.Get("/nodes", deps.handleGetNodes)
 
 	// Inject trigger endpoint.
-	// Allows the frontend (or external callers) to manually trigger an
-	// inject node, simulating the button press in the editor.
-	r.Post("/inject/{id}", handleInjectNode)
+	r.Post("/inject/{id}", deps.handleInjectNode)
 
 	// Runtime settings endpoint.
-	// Returns the current runtime configuration and metadata (version,
-	// available features, etc.) for the frontend settings panel.
-	r.Get("/settings", handleGetSettings)
+	r.Get("/settings", deps.handleGetSettings)
 
 	// Debug message stream endpoint.
-	// Returns recent debug messages collected from debug nodes in all
-	// active flows. The frontend debug sidebar polls this or uses the
-	// WebSocket for live streaming.
-	r.Get("/debug/messages", handleGetDebugMessages)
+	r.Get("/debug/messages", deps.handleGetDebugMessages)
 }

@@ -19,16 +19,21 @@ import (
 )
 
 func main() {
-	// Initialize structured logger with JSON output for production use.
+	// Load configuration from flags, environment variables, and defaults.
+	cfg := config.Load()
+
+	// Initialize structured logger with configured log level.
+	logLevel := cfg.ParseLogLevel()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 	slog.SetDefault(logger)
 
-	slog.Info("starting Flint", "version", config.Version, "commit", config.Commit)
-
-	// Load configuration from flags, environment variables, and defaults.
-	cfg := config.Load()
+	slog.Info("starting Flint",
+		"version", config.Version,
+		"commit", config.Commit,
+		"log_level", cfg.LogLevel,
+	)
 
 	slog.Info("configuration loaded",
 		"host", cfg.Host,

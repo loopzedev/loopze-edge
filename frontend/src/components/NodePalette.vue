@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useApi } from '@/composables/useApi'
 import type { NodeCatalogEntry } from '@/types/flow'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
+import { getTokens } from '@/components/nodes/tokens'
 
 const api = useApi()
 
@@ -61,11 +62,10 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
   )
   event.dataTransfer.effectAllowed = 'move'
 }
-
 </script>
 
 <template>
-  <aside class="h-full w-[220px] bg-terminal-surface border-r border-terminal-border flex flex-col overflow-hidden select-none">
+  <aside class="h-full bg-terminal-surface border-r border-terminal-border flex flex-col overflow-hidden select-none">
     <!-- Panel Header -->
     <div class="flex items-center px-3 py-2 border-b border-terminal-border shrink-0">
       <span class="text-terminal-text text-xs font-bold uppercase tracking-widest">Nodes</span>
@@ -83,7 +83,6 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
 
     <!-- Body -->
     <div class="flex-1 overflow-y-auto">
-
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center h-16 text-terminal-text-dim text-xs">
         loading…
@@ -94,7 +93,7 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
         {{ error }}
       </div>
 
-      <!-- Empty (after filter) -->
+      <!-- Empty -->
       <div v-else-if="categories.length === 0" class="px-3 py-2 text-xs text-terminal-text-dim">
         No nodes found.
       </div>
@@ -120,29 +119,45 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
             </span>
           </button>
 
-          <!-- Nodes -->
-          <div v-show="expandedCategories.has(cat.name) || filterText" class="pb-1">
+          <!-- Nodes — rendered like canvas nodes -->
+          <div v-show="expandedCategories.has(cat.name) || filterText" class="px-2 pb-2 flex flex-col gap-1.5">
             <div
               v-for="node in cat.nodes"
               :key="node.type"
               draggable="true"
-              class="flex items-center gap-2 mx-1 px-2 py-1 cursor-grab text-xs text-terminal-text hover:bg-terminal-border/40 active:cursor-grabbing transition-colors group"
+              class="cursor-grab active:cursor-grabbing"
               :title="node.description"
               @dragstart="onDragStart($event, node)"
             >
-              <!-- Icon -->
-              <span class="w-5 h-5 flex items-center justify-center text-terminal-text-dim group-hover:text-terminal-text shrink-0 transition-colors">
-                <NodeIcon :type="node.type" />
-              </span>
-
-              <!-- Label -->
-              <span class="truncate">{{ node.label }}</span>
-
-              <!-- Port Indicators -->
-              <span class="ml-auto flex items-center gap-0.5 text-[9px] text-terminal-text-dim shrink-0">
-                <span v-if="node.inputs > 0" title="inputs">▸{{ node.inputs }}</span>
-                <span v-if="node.outputs > 0" title="outputs">{{ node.outputs }}▸</span>
-              </span>
+              <!-- Mini node preview — same visual as BaseNode on canvas -->
+              <div
+                class="flex font-mono text-xs"
+                :style="{
+                  border: `1px solid ${getTokens(node.type).border}`,
+                  borderLeft: `3px solid ${getTokens(node.type).accent}`,
+                  borderRadius: '2px',
+                }"
+              >
+                <!-- Icon column -->
+                <div
+                  class="w-10 shrink-0 flex items-center justify-center"
+                  :style="{ background: getTokens(node.type).bgIcon, color: getTokens(node.type).accent }"
+                >
+                  <NodeIcon :type="node.type" />
+                </div>
+                <!-- Label -->
+                <div
+                  class="flex-1 min-w-0 flex items-center px-2 py-1.5"
+                  :style="{ background: getTokens(node.type).bgHdr }"
+                >
+                  <span
+                    class="text-[11px] font-medium tracking-wide truncate"
+                    :style="{ color: getTokens(node.type).accent }"
+                  >
+                    {{ node.label }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

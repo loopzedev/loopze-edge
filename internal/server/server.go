@@ -196,9 +196,25 @@ func (s *Server) Start() error {
 	if _, err := s.broker.SetupDebugStream(ctx); err != nil {
 		slog.Error("failed to setup debug stream", "error", err)
 	}
-	if _, _, err := s.broker.SetupContextKV(ctx); err != nil {
+	if memKV, persKV, err := s.broker.SetupContextKV(ctx); err != nil {
 		slog.Error("failed to setup global context KV", "error", err)
+	} else {
+		s.engine.SetContextStores(
+			flintnats.NewKVContextStore(memKV),
+			flintnats.NewKVContextStore(persKV),
+		)
 	}
+
+	// Each flow gets its own dedicated KV buckets so there is zero cross-flow
+	// key collision. The factory is called once per flow ID on every Deploy.
+	s.engine.SetFlowContextFactory(func(flowID string) (flow.ContextStore, flow.ContextStore) {
+		memKV, persKV, err := s.broker.SetupFlowContextKV(context.Background(), flowID)
+		if err != nil {
+			slog.Error("failed to create flow context KV", "flow_id", flowID, "error", err)
+			return nil, nil
+		}
+		return flintnats.NewKVContextStore(memKV), flintnats.NewKVContextStore(persKV)
+	})
 
 	// Wire engine's debug publish to NATS.
 	conn := s.broker.Conn()

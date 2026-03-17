@@ -46,7 +46,10 @@ type Engine struct {
 	// Active deployment state.
 	nodes        map[string]*runningNode // nodeID → running node
 	wires        map[string][][]string   // nodeID → wires[outputPort] = [targetNodeIDs]
-	publishDebug PublishDebugFunc        // injected by server for NATS publishing
+	publishDebug     PublishDebugFunc   // injected by server for NATS publishing
+	globalCtxMemory  ContextStore       // volatile in-memory global context store
+	globalCtxPersist ContextStore       // file-backed persistent global context store
+	flowCtxFactory   FlowContextFactory // creates dedicated KV stores per flow ID
 	running      bool
 	wg           sync.WaitGroup
 	stopCh       chan struct{}
@@ -69,6 +72,21 @@ func NewEngine(cfg *config.Config) *Engine {
 // Must be called before Deploy.
 func (e *Engine) SetPublishDebug(fn PublishDebugFunc) {
 	e.publishDebug = fn
+}
+
+// SetContextStores provides the engine with the global memory and persistent
+// ContextStores that are injected into nodes implementing ContextProvider.
+// Must be called before Deploy.
+func (e *Engine) SetContextStores(memory, persistent ContextStore) {
+	e.globalCtxMemory = memory
+	e.globalCtxPersist = persistent
+}
+
+// SetFlowContextFactory provides a factory the engine calls once per unique
+// flow ID during Deploy to obtain dedicated KV stores for that flow.
+// Must be called before Deploy.
+func (e *Engine) SetFlowContextFactory(fn FlowContextFactory) {
+	e.flowCtxFactory = fn
 }
 
 // Registry returns the node type registry associated with this engine.
@@ -206,11 +224,29 @@ func (e *Engine) Deploy(flows []Flow) error {
 	}
 
 	// Step 5 — Wire: build callbacks for each node.
+	// Cache per-flow context stores so the factory is called at most once per flow ID.
+	type flowCtxPair struct{ mem, pers ContextStore }
+	flowCtxCache := make(map[string]flowCtxPair)
+
 	for nodeID, rn := range e.nodes {
 		nodeWires := e.wires[nodeID]
 		rn.instance.SetSend(e.makeSendFunc(nodeID, nodeWires))
 		rn.instance.SetStatus(e.makeStatusFunc(nodeID))
 		rn.instance.SetDebug(e.makeDebugFunc(nodeID, rn))
+
+		// Inject context stores for nodes that opt in via ContextProvider.
+		if cp, ok := rn.instance.(ContextProvider); ok {
+			var flowMem, flowPers ContextStore
+			if e.flowCtxFactory != nil {
+				if cached, hit := flowCtxCache[rn.flowID]; hit {
+					flowMem, flowPers = cached.mem, cached.pers
+				} else {
+					flowMem, flowPers = e.flowCtxFactory(rn.flowID)
+					flowCtxCache[rn.flowID] = flowCtxPair{flowMem, flowPers}
+				}
+			}
+			cp.SetContext(e.globalCtxMemory, e.globalCtxPersist, flowMem, flowPers)
+		}
 	}
 
 	// Step 6 — Start each node in its own goroutine.

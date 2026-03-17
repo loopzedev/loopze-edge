@@ -22,18 +22,26 @@ import (
 //
 // JS API available inside the function:
 //
-//	msg                      – incoming message as a plain JS object
-//	node.send(msg | [...])   – send to ports directly (alternative to return)
-//	node.log(v)              – emit debug message (status "debug")
-//	node.warn(v)             – emit debug message (status "warn")
-//	node.error(v)            – emit debug message (status "error")
-//	node.status(fill, text)  – update node status in the editor
-//	console.log/warn/error   – alias for node.log/warn/error
+//	msg                       – incoming message as a plain JS object
+//	node.send(msg | [...])    – send to ports directly (alternative to return)
+//	node.log(v)               – emit debug message (status "debug")
+//	node.warn(v)              – emit debug message (status "warn")
+//	node.error(v)             – emit debug message (status "error")
+//	node.status(fill, text)   – update node status in the editor
+//	console.log/warn/error    – alias for node.log/warn/error
+//	global.get(key)           – read from global context KV
+//	global.set(key, value)    – write to global context KV
+//	global.delete(key)        – remove from global context KV
+//	global.keys()             – list all global context keys
 type FunctionNode struct {
 	config flow.NodeConfig
 	send   flow.SendFunc
 	status flow.StatusFunc
 	debug  flow.DebugFunc
+	ctxMem  flow.ContextStore // global volatile memory store
+	ctxPers flow.ContextStore // global persistent file-backed store
+	flowMem  flow.ContextStore // flow-scoped volatile memory store
+	flowPers flow.ContextStore // flow-scoped persistent file-backed store
 
 	// Parsed from Properties.
 	code    string // JS function body
@@ -77,6 +85,15 @@ func (n *FunctionNode) Init() error {
 func (n *FunctionNode) SetSend(fn flow.SendFunc)     { n.send = fn }
 func (n *FunctionNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
 func (n *FunctionNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
+
+// SetContext implements flow.ContextProvider.
+// Called by the engine after wiring, before Start().
+func (n *FunctionNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
+	n.ctxMem = globalMem
+	n.ctxPers = globalPers
+	n.flowMem = flowMem
+	n.flowPers = flowPers
+}
 
 // Start creates the Goja runtime and compiles the user script.
 func (n *FunctionNode) Start() error {
@@ -214,6 +231,138 @@ func (n *FunctionNode) registerGlobals() {
 		return goja.Undefined()
 	})
 	_ = n.vm.Set("console", consoleObj)
+
+	// global.get/set/delete/keys
+	//   default (no boolean arg) → memory store (volatile, fast)
+	//   third arg true           → persistent store (file-backed, survives restarts)
+	globalObj := n.vm.NewObject()
+
+	_ = globalObj.Set("get", func(call goja.FunctionCall) goja.Value {
+		store := n.pickStore(call.Argument(1))
+		if store == nil {
+			return goja.Null()
+		}
+		key := call.Argument(0).String()
+		val, err := store.Get(key)
+		if err != nil {
+			slog.Warn("global.get error", "key", key, "error", err)
+			return goja.Null()
+		}
+		if val == nil {
+			return goja.Null()
+		}
+		return n.vm.ToValue(val)
+	})
+
+	_ = globalObj.Set("set", func(call goja.FunctionCall) goja.Value {
+		store := n.pickStore(call.Argument(2))
+		if store == nil {
+			return goja.Undefined()
+		}
+		key := call.Argument(0).String()
+		val := call.Argument(1).Export()
+		if err := store.Set(key, val); err != nil {
+			slog.Warn("global.set error", "key", key, "error", err)
+		}
+		return goja.Undefined()
+	})
+
+	_ = globalObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+		store := n.pickStore(call.Argument(1))
+		if store == nil {
+			return goja.Undefined()
+		}
+		key := call.Argument(0).String()
+		if err := store.Delete(key); err != nil {
+			slog.Warn("global.delete error", "key", key, "error", err)
+		}
+		return goja.Undefined()
+	})
+
+	_ = globalObj.Set("keys", func(call goja.FunctionCall) goja.Value {
+		store := n.pickStore(call.Argument(0))
+		if store == nil {
+			return n.vm.ToValue([]string{})
+		}
+		keys, err := store.Keys()
+		if err != nil {
+			slog.Warn("global.keys error", "error", err)
+			return n.vm.ToValue([]string{})
+		}
+		if keys == nil {
+			return n.vm.ToValue([]string{})
+		}
+		return n.vm.ToValue(keys)
+	})
+
+	_ = n.vm.Set("global", globalObj)
+
+	// flow.get/set/delete/keys — identical API to global but scoped to the current flow.
+	//   flow.get(key)              → memory store
+	//   flow.get(key, true)        → persistent store
+	//   flow.set(key, value)       → memory store
+	//   flow.set(key, value, true) → persistent store
+	flowObj := n.vm.NewObject()
+
+	_ = flowObj.Set("get", func(call goja.FunctionCall) goja.Value {
+		store := n.pickFlowStore(call.Argument(1))
+		if store == nil {
+			return goja.Null()
+		}
+		key := call.Argument(0).String()
+		val, err := store.Get(key)
+		if err != nil {
+			slog.Warn("flow.get error", "key", key, "error", err)
+			return goja.Null()
+		}
+		if val == nil {
+			return goja.Null()
+		}
+		return n.vm.ToValue(val)
+	})
+
+	_ = flowObj.Set("set", func(call goja.FunctionCall) goja.Value {
+		store := n.pickFlowStore(call.Argument(2))
+		if store == nil {
+			return goja.Undefined()
+		}
+		key := call.Argument(0).String()
+		val := call.Argument(1).Export()
+		if err := store.Set(key, val); err != nil {
+			slog.Warn("flow.set error", "key", key, "error", err)
+		}
+		return goja.Undefined()
+	})
+
+	_ = flowObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+		store := n.pickFlowStore(call.Argument(1))
+		if store == nil {
+			return goja.Undefined()
+		}
+		key := call.Argument(0).String()
+		if err := store.Delete(key); err != nil {
+			slog.Warn("flow.delete error", "key", key, "error", err)
+		}
+		return goja.Undefined()
+	})
+
+	_ = flowObj.Set("keys", func(call goja.FunctionCall) goja.Value {
+		store := n.pickFlowStore(call.Argument(0))
+		if store == nil {
+			return n.vm.ToValue([]string{})
+		}
+		keys, err := store.Keys()
+		if err != nil {
+			slog.Warn("flow.keys error", "error", err)
+			return n.vm.ToValue([]string{})
+		}
+		if keys == nil {
+			return n.vm.ToValue([]string{})
+		}
+		return n.vm.ToValue(keys)
+	})
+
+	_ = n.vm.Set("flow", flowObj)
 }
 
 // messageToJS converts a *flow.Message to a Goja JS object.
@@ -319,6 +468,27 @@ func (n *FunctionNode) hasPendingSends() bool {
 		}
 	}
 	return false
+}
+
+// pickStore returns the global persistent store if the Goja argument is boolean
+// true, otherwise the global memory store. Returns nil if the chosen store is not set.
+func (n *FunctionNode) pickStore(persistArg goja.Value) flow.ContextStore {
+	if persistArg != nil && !goja.IsUndefined(persistArg) && !goja.IsNull(persistArg) {
+		if persistArg.ToBoolean() {
+			return n.ctxPers
+		}
+	}
+	return n.ctxMem
+}
+
+// pickFlowStore is the flow-scoped equivalent of pickStore.
+func (n *FunctionNode) pickFlowStore(persistArg goja.Value) flow.ContextStore {
+	if persistArg != nil && !goja.IsUndefined(persistArg) && !goja.IsNull(persistArg) {
+		if persistArg.ToBoolean() {
+			return n.flowPers
+		}
+	}
+	return n.flowMem
 }
 
 // emitDebug publishes a debug message via the debug callback.

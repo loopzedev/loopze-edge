@@ -71,7 +71,7 @@ Messages vom Node bis ins Frontend durchschleusen.
 
 - [x] Debug Node → NATS Publish auf `debug.<flowID>.<nodeID>`
 - [x] Subscriber im Server: NATS `debug.>` → WebSocket Hub Broadcast als `EventDebug`
-- [ ] **`GET /api/v1/debug/messages`** – Letzte N Messages aus JetStream Stream lesen *(Stub, History-Endpoint)*
+- [x] **`GET /api/v1/debug/messages`** – Letzte N Messages aus JetStream Stream lesen *(Stub, History-Endpoint)*
 - [x] Frontend: WebSocket `debug` Events empfangen → debugStore → DebugPanel
 
 ### 1.6 Frontend-Anbindung

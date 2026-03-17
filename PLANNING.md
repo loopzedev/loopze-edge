@@ -104,9 +104,10 @@ Messages vom Node bis ins Frontend durchschleusen.
 
 ### 2.2 Context-System (NATS KV)
 
-- [ ] **Global Context** – `global.get(key)` / `global.set(key, value)` via NATS KV `context-global`
-- [ ] **Flow Context** – `flow.get(key)` / `flow.set(key, value)` via NATS KV `context-flow-{id}`
-- [ ] Context-API für Function Nodes bereitstellen (Goja-Bindings)
+- [x] **Global Context** – `global.get(key)` / `global.set(key, value)` via NATS KV `context-global`
+- [x] **Flow Context** – `flow.get(key)` / `flow.set(key, value)` via NATS KV `context-flow-{id}`
+- [x] Context-API für Function Nodes bereitstellen (Goja-Bindings)
+- [ ] Context Watch Node - Watch for a KV Key in the global or flow context
 
 ### 2.3 Universelles Node-Debugging
 
@@ -260,3 +261,44 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
 
 **→ Phase 1 abgeschlossen! ✅**
 **→ Phase 2 kann beginnen: Core Processing Nodes (Function, Change, Switch, Template, Delay).**
+
+---
+
+## Frontend Bugs & Offene Punkte
+
+> Ergebnis der Code-Analyse vom 2026-03-17.
+
+### CRITICAL
+
+| # | Problem | Datei | Status |
+|---|---------|-------|--------|
+| F1 | **Node-Drag markiert Flow nicht als dirty** — `updateNodePosition()` ruft `markDirty()` nicht auf. Änderungen können verloren gehen. | `flowStore.ts:171` | [x] |
+| F2 | **Deploy-Status nur über WebSocket** — `flowStore.deploy()` aktualisiert `uiStore.deployStatus` nicht direkt. Ohne WS kein Feedback. | `flowStore.ts:235` | [ ] |
+| F3 | **Canvas-Bounds nicht dynamisch** — `translate-extent` hardcoded `[[0,0],[10000,10000]]`, kein `nodeExtent`, MiniMap-Viewport ändert sich nicht beim Zoomen. | `FlowEditor.vue:154` | [ ] |
+
+### HIGH
+
+| # | Problem | Datei | Status |
+|---|---------|-------|--------|
+| F4 | **DebugNode `messageCount` wird nie aktualisiert** — Badge zeigt `props.data?.messageCount`, aber kein Code setzt den Wert. | `DebugNode.vue:13` | [ ] |
+| F6 | **Fehlende `terminal-checkbox` CSS-Klasse** — InjectConfig nutzt eine undefinierte Klasse. | `InjectConfig.vue:73` | [ ] |
+| F7 | **Kein Error-Feedback bei Deploy-Fehler** — Fehler nur in `console.error`, kein Toast/Notification. | `flowStore.ts:266` | [ ] |
+
+### MEDIUM
+
+| # | Problem | Datei | Status |
+|---|---------|-------|--------|
+| F8 | **Max-Zoom auf 1.0 begrenzt** — Kann nicht reinzoomen um Details zu sehen. | `FlowEditor.vue:152` | [ ] |
+| F9 | **Linke Sidebar überlagert Canvas** — `position: absolute` statt Flexbox, verdeckt Nodes. | `App.vue:61` | [ ] |
+| F10 | **Keine Validierung von Node-Verbindungen** — Inkompatible Ports können verbunden werden. | `FlowEditor.vue` | [ ] |
+| F11 | **Multi-Select ignoriert** — Bei Mehrfachauswahl wird nur der erste Node gespeichert. | `FlowEditor.vue:54` | [ ] |
+| F12 | **Status-Farben weichen vom Design-System ab** — Hardcoded hex statt Token-Farben. | `BaseNode.vue:36` | [ ] |
+
+### LOW (Polish)
+
+| # | Problem | Datei | Status |
+|---|---------|-------|--------|
+| F13 | **Palette-Suchfilter nicht persistiert** — Reset beim Schließen. | `NodePalette.vue` | [ ] |
+| F14 | **Hardcoded Werte** — MAX_MESSAGES=1000, Deploy-Reset=3s, Grid=16px. | diverse | [ ] |
+| F15 | **Doppelter Deploy-API-Pfad** — `flowStore.deploy()` nutzt `fetch` direkt, HeaderBar hat `useApi().deployFlows()`. | `flowStore.ts` / `HeaderBar.vue` | [ ] |
+| F16 | **Settings-Page ist ein Dummy** — `handleSave()` und `handleReset()` sind leer, kein Backend. | `SettingsView.vue` | [ ] |

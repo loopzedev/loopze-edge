@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { useUiStore } from "./uiStore";
 import type {
   Node as FlintNode,
   Flow,
@@ -44,6 +45,7 @@ export const useFlowStore = defineStore("flow", () => {
   const edges = ref<FlowEdge[]>([]);
   const selectedNodeId = ref<string | null>(null);
   const dirty = ref(false);
+  const dirtyNodeIds = ref(new Set<string>());
   const revision = ref<string | null>(null);
   const deploying = ref(false);
 
@@ -74,6 +76,17 @@ export const useFlowStore = defineStore("flow", () => {
 
   function markDirty(): void {
     dirty.value = true;
+  }
+
+  function markNodeDirty(nodeId: string): void {
+    if (!dirtyNodeIds.value.has(nodeId)) {
+      dirtyNodeIds.value = new Set([...dirtyNodeIds.value, nodeId]);
+    }
+    markDirty();
+  }
+
+  function isNodeDirty(nodeId: string): boolean {
+    return dirtyNodeIds.value.has(nodeId);
   }
 
   // --------------- Actions ---------------
@@ -164,7 +177,7 @@ export const useFlowStore = defineStore("flow", () => {
     const node = nodes.value.find((n) => n.id === nodeId);
     if (node) {
       node.data = { ...node.data, ...data };
-      markDirty();
+      markNodeDirty(nodeId);
     }
   }
 
@@ -175,6 +188,7 @@ export const useFlowStore = defineStore("flow", () => {
     const node = nodes.value.find((n) => n.id === nodeId);
     if (node) {
       node.position = { ...position };
+      markNodeDirty(nodeId);
     }
   }
 
@@ -230,12 +244,15 @@ export const useFlowStore = defineStore("flow", () => {
     }
 
     dirty.value = false;
+    dirtyNodeIds.value.clear();
   }
 
   async function deploy(): Promise<DeployResponse | null> {
     if (deploying.value) return null;
 
+    const ui = useUiStore();
     deploying.value = true;
+    ui.setDeployStatus('deploying');
 
     try {
       // Sync current canvas state back into the active flow before deploying
@@ -260,10 +277,13 @@ export const useFlowStore = defineStore("flow", () => {
       const result: DeployResponse = await response.json();
       revision.value = result.rev;
       dirty.value = false;
+      dirtyNodeIds.value = new Set();
+      ui.setDeployStatus('deployed');
 
       return result;
     } catch (err) {
       console.error("[FlowStore] Deploy error:", err);
+      ui.setDeployStatus('failed');
       return null;
     } finally {
       deploying.value = false;
@@ -395,6 +415,7 @@ export const useFlowStore = defineStore("flow", () => {
     edges,
     selectedNodeId,
     dirty,
+    dirtyNodeIds,
     revision,
     deploying,
 
@@ -413,6 +434,7 @@ export const useFlowStore = defineStore("flow", () => {
     removeNode,
     updateNodeData,
     updateNodePosition,
+    isNodeDirty,
     connectNodes,
     removeEdge,
     selectNode,

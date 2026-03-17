@@ -23,7 +23,7 @@ export const TOKENS: Record<string, NodeTokens> = {
     bgHdr:      '#0b1f13',
     bgIcon:     '#0f2e1c',
     border:     '#1e4a26',
-    textSub:    '#2e5e30',
+    textSub:    '#5aad62',
   },
   process: {
     accent:     '#38b6ff',
@@ -34,7 +34,7 @@ export const TOKENS: Record<string, NodeTokens> = {
     bgHdr:      '#0c1a2e',
     bgIcon:     '#101828',
     border:     '#1a3050',
-    textSub:    '#1a3a5e',
+    textSub:    '#5a8ab8',
   },
   output: {
     accent:     '#ff6b2b',
@@ -45,7 +45,7 @@ export const TOKENS: Record<string, NodeTokens> = {
     bgHdr:      '#1a0e08',
     bgIcon:     '#150b06',
     border:     '#4a2010',
-    textSub:    '#5a2810',
+    textSub:    '#b8704a',
   },
 }
 

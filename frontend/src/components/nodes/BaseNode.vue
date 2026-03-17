@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
 import { getTokens } from '@/components/nodes/tokens'
+import { useFlowStore } from '@/stores/flowStore'
 
 export interface BaseNodeProps {
   id: string
@@ -29,8 +30,11 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
   status: null,
 })
 
+const flowStore = useFlowStore()
+
 const t = computed(() => getTokens(props.nodeType))
 const displayLabel = computed(() => props.label || props.nodeType)
+const isDirty = computed(() => flowStore.isNodeDirty(props.id))
 
 const statusColor = computed(() => {
   const colors: Record<string, string> = {
@@ -93,6 +97,14 @@ const outputHandles = computed(() =>
       :class="selected
         ? '!border-accent !bg-accent/20'
         : '!border-terminal-text-dim !bg-terminal-surface'"
+    />
+
+    <!-- Dirty indicator (undeployed changes) -->
+    <span
+      v-if="isDirty"
+      class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full z-10"
+      style="background: #58a6ff; box-shadow: 0 0 4px #58a6ff80"
+      title="Undeployed changes"
     />
 
     <!-- Left icon column -->

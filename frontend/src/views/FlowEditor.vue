@@ -36,12 +36,10 @@ onConnect((params) => {
 });
 
 onNodeDragStop((event) => {
-    if (Array.isArray(event)) {
-        for (const e of event) {
-            flowStore.updateNodePosition(e.node.id, e.node.position);
-        }
-    } else {
-        flowStore.updateNodePosition(event.node.id, event.node.position);
+    // event.nodes contains ALL dragged nodes (including multi-select)
+    const draggedNodes = event.nodes ?? [event.node];
+    for (const n of draggedNodes) {
+        flowStore.updateNodePosition(n.id, n.position);
     }
 });
 
@@ -137,13 +135,17 @@ onMounted(async () => {
             v-model:nodes="flowStore.nodes"
             v-model:edges="flowStore.edges"
             class="w-full h-full"
-            :default-edge-options="{ type: 'smoothstep', animated: false }"
+            :default-edge-options="{
+                type: 'default',
+                animated: false,
+                style: { borderRadius: '16px' },
+            }"
             :fit-view-on-init="false"
             :snap-to-grid="true"
             :snap-grid="[16, 16]"
             :delete-key-code="['Backspace', 'Delete']"
             :multi-selection-key-code="'Shift'"
-            :connection-line-type="'smoothstep' as any"
+            :connection-line-type="'default' as any"
             :min-zoom="0.25"
             :max-zoom="1"
             :default-viewport="{ x: 0, y: 0, zoom: 1 }"
@@ -277,7 +279,7 @@ onMounted(async () => {
             <!-- Background grid -->
             <Background
                 :variant="BackgroundVariant.Lines"
-                :gap="24"
+                :gap="16"
                 :size="1"
                 pattern-color="#30363d33"
             />

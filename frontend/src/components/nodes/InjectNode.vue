@@ -10,7 +10,7 @@ defineOptions({ inheritAttrs: false })
 const props = defineProps<NodeProps>()
 const api = useApi()
 
-const label = computed(() => props.data?.label ?? 'Inject')
+const label = computed(() => props.data?.label)
 
 const intervalLabel = computed(() => {
   const cfg = props.data?.config ?? {}

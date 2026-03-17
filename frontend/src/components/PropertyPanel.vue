@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import InjectConfig from '@/components/config/InjectConfig.vue'
@@ -19,10 +19,52 @@ function formatValue(value: unknown): string {
   }
   return String(value)
 }
+
+// ── Resize handle ────────────────────────────────────────────────
+const panelWidth = ref(280)
+let resizing = false
+let startX = 0
+let startWidth = 0
+
+function onResizeStart(e: MouseEvent) {
+  resizing = true
+  startX = e.clientX
+  startWidth = panelWidth.value
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onResizeMove(e: MouseEvent) {
+  if (!resizing) return
+  // Dragging left = wider panel (panel is on the right side)
+  const delta = startX - e.clientX
+  panelWidth.value = Math.max(220, startWidth + delta)
+}
+
+function onResizeEnd() {
+  resizing = false
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
 </script>
 
 <template>
-  <div class="h-full w-[280px] flex-shrink-0 flex flex-col bg-terminal-surface border-l border-terminal-border font-mono select-none">
+  <div
+    class="h-full flex-shrink-0 flex bg-terminal-surface border-l border-terminal-border font-mono select-none relative"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <!-- Resize handle (left edge) -->
+    <div
+      class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-20 hover:bg-accent/30 transition-colors"
+      @mousedown.prevent="onResizeStart"
+    />
+
+    <!-- Panel content -->
+    <div class="flex-1 flex flex-col min-w-0">
     <!-- Header -->
     <div class="flex items-center justify-between px-3 py-2 border-b border-terminal-border shrink-0">
       <span class="text-xs uppercase tracking-widest text-terminal-text-dim">Properties</span>
@@ -36,7 +78,7 @@ function formatValue(value: unknown): string {
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
       <!-- No node selected -->
       <div
         v-if="!selectedNode"
@@ -48,7 +90,7 @@ function formatValue(value: unknown): string {
       </div>
 
       <!-- Node selected -->
-      <div v-else class="flex flex-col">
+      <div v-else class="flex flex-col flex-1 min-h-0">
         <!-- Node identity -->
         <div class="px-3 py-3 border-b border-terminal-border">
           <div class="flex items-center gap-2 mb-2">
@@ -79,7 +121,7 @@ function formatValue(value: unknown): string {
         </div>
 
         <!-- Type-specific config -->
-        <div class="px-3 py-2 border-b border-terminal-border">
+        <div class="px-3 py-2 border-b border-terminal-border flex-1 flex flex-col min-h-0">
           <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2">▸ Configuration</p>
           <InjectConfig v-if="selectedNode?.type === 'inject'" />
           <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
@@ -121,5 +163,6 @@ function formatValue(value: unknown): string {
         </div>
       </div>
     </div>
+    </div><!-- end panel content -->
   </div>
 </template>

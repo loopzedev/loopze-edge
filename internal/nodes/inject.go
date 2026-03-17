@@ -21,10 +21,11 @@ type InjectNode struct {
 	debug  flow.DebugFunc
 
 	// Parsed from Properties.
-	once     bool          // send one message immediately on Start
-	interval time.Duration // recurring interval (0 = disabled)
-	payload  any           // payload value (nil = current timestamp)
-	topic    string        // message topic
+	once        bool          // send one message immediately on Start
+	interval    time.Duration // recurring interval (0 = disabled)
+	payloadType string        // "timestamp", "string", "number", "boolean", "json"
+	payload     any           // payload value (nil = current timestamp)
+	topic       string        // message topic
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -51,8 +52,15 @@ func (n *InjectNode) Init() error {
 		n.interval = time.Duration(v) * time.Millisecond
 	}
 
-	if v, exists := props["payload"]; exists {
-		n.payload = v
+	if v, ok := props["payloadType"].(string); ok {
+		n.payloadType = v
+	}
+
+	// Only use payload if type is not timestamp.
+	if n.payloadType != "" && n.payloadType != "timestamp" {
+		if v, exists := props["payload"]; exists {
+			n.payload = v
+		}
 	}
 
 	if v, ok := props["topic"].(string); ok {

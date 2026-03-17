@@ -25,7 +25,7 @@ defineOptions({ inheritAttrs: false })
 <template>
   <BaseNode
     :id="props.id"
-    :label="props.data.label || 'Context Watch'"
+    :label="props.data.label"
     node-type="context-watch"
     :inputs="props.data.inputs ?? 0"
     :outputs="props.data.outputs ?? 1"

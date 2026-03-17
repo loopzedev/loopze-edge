@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
+
+const CodeEditor = defineAsyncComponent(() =>
+  import('@/components/ui/CodeEditor.vue')
+)
 
 const flowStore = useFlowStore()
 
@@ -24,7 +28,6 @@ const outputs = computed({
   set: (v: number) => {
     if (!node.value) return
     const clamped = Math.max(1, Math.min(10, v))
-    // Update both config.outputs and data.outputs so VueFlow re-renders handles.
     flowStore.updateNodeData(node.value.id, {
       config: { ...config.value, outputs: clamped },
       outputs: clamped,
@@ -34,53 +37,20 @@ const outputs = computed({
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="flex flex-col gap-3 flex-1 min-h-0">
     <!-- Code editor -->
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-1 flex-1 min-h-0">
       <div class="flex items-center justify-between">
         <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
           Function Body
         </label>
-        <span class="text-[10px] text-terminal-text-dim opacity-60">JS</span>
+        <span class="text-[10px] text-terminal-text-dim opacity-60">JavaScript</span>
       </div>
-      <div class="relative">
-        <!-- Line-number gutter -->
-        <div
-          aria-hidden="true"
-          class="absolute top-0 left-0 bottom-0 w-6 bg-terminal-bg border-r border-terminal-border flex flex-col items-end pr-1 pt-1 pointer-events-none overflow-hidden"
-        >
-          <span
-            v-for="i in funcCode.split('\n').length"
-            :key="i"
-            class="text-[9px] text-terminal-text-dim leading-[1.45rem] opacity-50 select-none"
-          >{{ i }}</span>
-        </div>
-        <textarea
-          v-model="funcCode"
-          class="terminal-input w-full text-xs font-mono resize-y leading-[1.45rem] pl-8 py-1"
-          style="min-height: 180px; tab-size: 2;"
-          spellcheck="false"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          placeholder="return msg;"
-          @keydown.tab.prevent="
-            (e) => {
-              const el = e.target as HTMLTextAreaElement
-              const start = el.selectionStart
-              const end = el.selectionEnd
-              funcCode = funcCode.slice(0, start) + '  ' + funcCode.slice(end)
-              $nextTick(() => { el.selectionStart = el.selectionEnd = start + 2 })
-            }
-          "
-        />
-      </div>
-      <p class="text-[9px] text-terminal-text-dim opacity-60">
-        Available: <code class="text-accent">msg</code>,
-        <code class="text-accent">node.send()</code>,
-        <code class="text-accent">node.log/warn/error()</code>,
-        <code class="text-accent">console.log()</code>
-      </p>
+      <CodeEditor
+        v-model="funcCode"
+        placeholder="return msg;"
+        min-height="180px"
+      />
     </div>
 
     <!-- Outputs -->

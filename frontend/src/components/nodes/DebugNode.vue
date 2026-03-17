@@ -8,7 +8,7 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps<NodeProps>()
 
-const label = computed(() => props.data?.label ?? 'Debug')
+const label = computed(() => props.data?.label)
 
 const messageCount = computed(() => {
   const count = props.data?.messageCount

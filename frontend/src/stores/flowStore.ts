@@ -150,7 +150,7 @@ export const useFlowStore = defineStore("flow", () => {
       type,
       position,
       data: {
-        label: data?.label ?? type,
+        label: data?.label ?? '',
         nodeType: type,
         config: {},
         ...data,

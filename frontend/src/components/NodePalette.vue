@@ -55,7 +55,6 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
     'application/flint-node',
     JSON.stringify({
       type: node.type,
-      label: node.label,
       inputs: node.inputs,
       outputs: node.outputs,
     })

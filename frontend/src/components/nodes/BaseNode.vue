@@ -33,7 +33,27 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
 const flowStore = useFlowStore()
 
 const t = computed(() => getTokens(props.nodeType))
-const displayLabel = computed(() => props.label || props.nodeType)
+const typeLabel = computed(() => {
+  // Map node type to a readable display name
+  const labels: Record<string, string> = {
+    'inject': 'Inject',
+    'debug': 'Debug',
+    'function': 'Function',
+    'context-watch': 'Context Watch',
+    'change': 'Change',
+    'switch': 'Switch',
+    'template': 'Template',
+    'delay': 'Delay',
+    'filter': 'Filter',
+    'comment': 'Comment',
+  }
+  return labels[props.nodeType] ?? props.nodeType
+})
+const hasCustomLabel = computed(() => {
+  if (!props.label) return false
+  const l = props.label.toLowerCase()
+  return l !== props.nodeType.toLowerCase() && l !== typeLabel.value.toLowerCase()
+})
 const isDirty = computed(() => flowStore.isNodeDirty(props.id))
 
 const statusColor = computed(() => {
@@ -126,18 +146,19 @@ const outputHandles = computed(() =>
           class="text-[11px] font-medium tracking-wide truncate flex-1"
           :style="{ color: t.accent }"
         >
-          {{ displayLabel }}
+          {{ typeLabel }}
         </span>
         <slot name="badge" />
       </div>
 
-      <!-- Body (optional) -->
+      <!-- Body: custom label takes priority, otherwise slot content -->
       <div
-        v-if="$slots.body"
+        v-if="hasCustomLabel || $slots.body"
         class="px-2 py-1 text-[10px]"
         :style="{ background: t.bg, color: t.textSub }"
       >
-        <slot name="body" />
+        <span v-if="hasCustomLabel">{{ props.label }}</span>
+        <slot v-else name="body" />
       </div>
 
       <!-- Actions (optional) -->

@@ -26,7 +26,12 @@ const interval = computed({
 
 const payloadType = computed({
   get: () => (config.value.payloadType as string) ?? 'timestamp',
-  set: (v: string) => update('payloadType', v),
+  set: (v: string) => {
+    update('payloadType', v)
+    if (v === 'timestamp') {
+      update('payload', null)
+    }
+  },
 })
 
 const payload = computed({

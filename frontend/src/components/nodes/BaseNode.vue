@@ -59,7 +59,7 @@ const outputHandles = computed(() => {
     class="flint-node w-[180px] relative bg-terminal-surface font-mono select-none"
     :class="{ selected: props.selected, 'opacity-40': props.disabled }"
     :style="{
-      border: '1px solid #3a3a28',
+      border: '1px solid #30363d',
       borderLeft: `3px solid ${props.accentColor}`,
     }"
   >
@@ -71,8 +71,8 @@ const outputHandles = computed(() => {
       type="target"
       :position="Position.Left"
       :style="h.style"
-      class="!w-2.5 !h-2.5 !rounded-full !bg-terminal-surface !border-2 hover:!bg-amber transition-colors"
-      :class="selected ? '!border-amber' : '!border-terminal-text-dim'"
+      class="!w-2.5 !h-2.5 !rounded-full !bg-terminal-surface !border-2 hover:!bg-accent transition-colors"
+      :class="selected ? '!border-accent' : '!border-terminal-text-dim'"
     />
 
     <!-- Output Handles -->
@@ -83,8 +83,8 @@ const outputHandles = computed(() => {
       type="source"
       :position="Position.Right"
       :style="h.style"
-      class="!w-2.5 !h-2.5 !rounded-full !bg-terminal-surface !border-2 hover:!bg-amber transition-colors"
-      :class="selected ? '!border-amber' : '!border-terminal-text-dim'"
+      class="!w-2.5 !h-2.5 !rounded-full !bg-terminal-surface !border-2 hover:!bg-accent transition-colors"
+      :class="selected ? '!border-accent' : '!border-terminal-text-dim'"
     />
 
     <!-- Header -->
@@ -102,7 +102,7 @@ const outputHandles = computed(() => {
     <div
       v-if="$slots.body"
       class="px-2.5 py-1.5 text-[10px] text-terminal-text-dim"
-      style="border-top: 1px solid #3a3a2855"
+      style="border-top: 1px solid #30363d55"
     >
       <slot name="body" />
     </div>
@@ -110,7 +110,7 @@ const outputHandles = computed(() => {
     <!-- Actions (optional, e.g. buttons) -->
     <div
       v-if="$slots.actions"
-      style="border-top: 1px solid #3a3a2855"
+      style="border-top: 1px solid #30363d55"
     >
       <slot name="actions" />
     </div>
@@ -119,7 +119,7 @@ const outputHandles = computed(() => {
     <div
       v-if="props.status"
       class="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-terminal-text-dim"
-      style="border-top: 1px solid #3a3a2855"
+      style="border-top: 1px solid #30363d55"
     >
       <span
         class="w-1.5 h-1.5 shrink-0 rounded-full"
@@ -143,9 +143,9 @@ const outputHandles = computed(() => {
   transition: box-shadow 0.1s ease;
 }
 .flint-node.selected {
-  box-shadow: 0 0 0 1px #FFBF00, 0 0 12px #ffbf0033;
+  box-shadow: 0 0 0 1px #58a6ff, 0 0 12px #58a6ff33;
 }
 .flint-node:hover:not(.selected) {
-  box-shadow: 0 0 0 1px #998a00;
+  box-shadow: 0 0 0 1px #7d8590;
 }
 </style>

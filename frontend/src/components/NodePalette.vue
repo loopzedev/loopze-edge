@@ -164,7 +164,7 @@ function getNodeIcon(node: NodeCatalogEntry): string {
               @dragstart="onDragStart($event, node)"
             >
               <!-- Icon -->
-              <span class="w-5 h-5 flex items-center justify-center border border-terminal-border bg-terminal-bg text-[10px] text-terminal-text-dim group-hover:border-amber group-hover:text-terminal-text shrink-0 transition-colors">
+              <span class="w-5 h-5 flex items-center justify-center border border-terminal-border bg-terminal-bg text-[10px] text-terminal-text-dim group-hover:border-accent group-hover:text-terminal-text shrink-0 transition-colors">
                 {{ getNodeIcon(node) }}
               </span>
 

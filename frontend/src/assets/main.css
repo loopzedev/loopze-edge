@@ -3,222 +3,171 @@
 @tailwind utilities;
 
 /* ============================================
-   FLINT — Amber Terminal Theme
+   FLINT — GitHub Dark Theme
    ============================================ */
 
 @layer base {
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-  }
+  *, *::before, *::after { box-sizing: border-box; }
 
-  html,
-  body,
-  #app {
+  html, body, #app {
     height: 100%;
     width: 100%;
     margin: 0;
     padding: 0;
-    background-color: #1a1a0e;
-    color: #ffbf00;
+    background-color: #0d1117;
+    color: #e6edf3;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   }
 
   ::selection {
-    background-color: #ffbf0033;
-    color: #ffd966;
+    background-color: #58a6ff33;
+    color: #f0f6fc;
   }
 }
 
 /* ============================================
-   Custom Scrollbars (thin, amber)
+   Custom Scrollbars
    ============================================ */
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1a1a0e;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #3a3a28;
-  border: none;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #998a00;
-}
-
-::-webkit-scrollbar-corner {
-  background: #1a1a0e;
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #3a3a28 #1a1a0e;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #30363d; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+::-webkit-scrollbar-corner { background: #0d1117; }
+* { scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
 
 /* ============================================
-   Vue Flow — Dark / Amber Overrides
+   Vue Flow — GitHub Dark Overrides
    ============================================ */
 
-.vue-flow {
-  background-color: #1a1a0e !important;
-}
-
-.vue-flow__background {
-  background-color: #1a1a0e !important;
-}
+.vue-flow,
+.vue-flow__background { background-color: #0d1117 !important; }
 
 .vue-flow__background pattern circle,
-.vue-flow__background pattern rect {
-  fill: #3a3a2844;
-}
+.vue-flow__background pattern rect { fill: #30363d44; }
 
 .vue-flow__edge-path,
 .vue-flow__connection-path {
-  stroke: #998a00 !important;
+  stroke: #484f58 !important;
   stroke-width: 2px;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:hover .vue-flow__edge-path {
-  stroke: #ffbf00 !important;
-  stroke-width: 2.5px;
+  stroke: #58a6ff !important;
+  stroke-width: 2px;
 }
 
 .vue-flow__edge-text {
-  fill: #998a00;
+  fill: #7d8590;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 11px;
 }
 
 /* ============================================
-   Node Handle Styles (square, not round)
+   Node Handles — circular
    ============================================ */
 
 .vue-flow__handle {
   width: 10px !important;
   height: 10px !important;
-  border-radius: 0 !important;
-  background-color: #998a00 !important;
-  border: 1px solid #ffbf00 !important;
+  border-radius: 50% !important;
+  background-color: #161b22 !important;
+  border: 2px solid #484f58 !important;
+  transition: border-color 0.1s, background-color 0.1s;
 }
 
 .vue-flow__handle:hover {
-  background-color: #ffbf00 !important;
-  box-shadow: 0 0 6px #ffbf0066;
+  border-color: #58a6ff !important;
+  background-color: #58a6ff22 !important;
 }
 
-.vue-flow__handle-left {
-  left: -5px !important;
-}
+.vue-flow__handle-left  { left:   -5px !important; }
+.vue-flow__handle-right { right:  -5px !important; }
+.vue-flow__handle-top   { top:    -5px !important; }
+.vue-flow__handle-bottom{ bottom: -5px !important; }
 
-.vue-flow__handle-right {
-  right: -5px !important;
-}
-
-.vue-flow__handle-top {
-  top: -5px !important;
-}
-
-.vue-flow__handle-bottom {
-  bottom: -5px !important;
-}
-
-/* Connecting state */
 .vue-flow__handle.connecting {
-  background-color: #ffd966 !important;
-  box-shadow: 0 0 8px #ffbf0088;
+  border-color: #58a6ff !important;
+  background-color: #58a6ff44 !important;
 }
 
 .vue-flow__handle.valid {
-  background-color: #4ade80 !important;
-  border-color: #22c55e !important;
+  border-color: #3fb950 !important;
+  background-color: #3fb95022 !important;
 }
 
 /* ============================================
-   Minimap — Amber Theme
+   Minimap
    ============================================ */
 
 .vue-flow__minimap {
-  background-color: #252518 !important;
-  border: 1px solid #3a3a28 !important;
+  background-color: #161b22 !important;
+  border: 1px solid #30363d !important;
   border-radius: 0 !important;
 }
 
 .vue-flow__minimap-mask {
-  fill: #ffbf0011 !important;
-  stroke: #ffbf00 !important;
+  fill: #58a6ff11 !important;
+  stroke: #58a6ff !important;
   stroke-width: 1px;
 }
 
 .vue-flow__minimap-node {
-  fill: #998a00 !important;
-  stroke: #ffbf00 !important;
+  fill: #30363d !important;
+  stroke: #484f58 !important;
   stroke-width: 0.5px;
 }
 
 /* ============================================
-   Controls — Amber Theme
+   Controls
    ============================================ */
 
 .vue-flow__controls {
-  border: 1px solid #3a3a28 !important;
+  border: 1px solid #30363d !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   background: transparent !important;
 }
 
 .vue-flow__controls-button {
-  background-color: #252518 !important;
-  border: 1px solid #3a3a28 !important;
+  background-color: #161b22 !important;
+  border: 1px solid #30363d !important;
   border-radius: 0 !important;
-  color: #ffbf00 !important;
-  fill: #ffbf00 !important;
+  color: #7d8590 !important;
+  fill: #7d8590 !important;
   width: 28px !important;
   height: 28px !important;
 }
 
 .vue-flow__controls-button:hover {
-  background-color: #3a3a28 !important;
+  background-color: #21262d !important;
+  color: #e6edf3 !important;
+  fill: #e6edf3 !important;
 }
 
-.vue-flow__controls-button svg {
-  fill: #ffbf00 !important;
-}
+.vue-flow__controls-button svg { fill: inherit !important; }
 
 /* ============================================
    Selection Box
    ============================================ */
 
 .vue-flow__selection {
-  background: rgba(255, 191, 0, 0.05) !important;
-  border: 1px dashed #ffbf00 !important;
+  background: rgba(88, 166, 255, 0.05) !important;
+  border: 1px dashed #58a6ff !important;
   border-radius: 0 !important;
 }
 
 .vue-flow__nodesselection-rect {
-  background: rgba(255, 191, 0, 0.05) !important;
-  border: 1px solid #ffbf00 !important;
+  background: rgba(88, 166, 255, 0.05) !important;
+  border: 1px solid #58a6ff !important;
   border-radius: 0 !important;
 }
 
-/* ============================================
-   Attribution (hide default branding)
-   ============================================ */
-
-.vue-flow__attribution {
-  display: none !important;
-}
+.vue-flow__attribution { display: none !important; }
 
 /* ============================================
-   Terminal Utility Classes
+   Utility Classes
    ============================================ */
 
 @layer components {
@@ -227,18 +176,17 @@
   }
 
   .terminal-btn {
-    @apply bg-terminal-surface border border-terminal-border text-terminal-text
+    @apply bg-terminal-surface border border-terminal-border text-terminal-text-dim
            px-3 py-1.5 font-mono text-sm cursor-pointer
            hover:bg-terminal-border hover:text-terminal-text-bright
-           active:bg-amber active:text-terminal-bg
+           active:bg-accent active:text-white
            transition-colors duration-100;
   }
 
   .terminal-btn-primary {
-    @apply bg-amber text-terminal-bg border border-amber
+    @apply bg-accent text-white border border-accent
            px-3 py-1.5 font-mono text-sm cursor-pointer font-bold
-           hover:bg-terminal-text-bright
-           active:bg-amber-dim
+           hover:bg-accent-dim
            transition-colors duration-100;
   }
 
@@ -246,21 +194,15 @@
     @apply bg-terminal-bg border border-terminal-border text-terminal-text
            px-2 py-1.5 font-mono text-sm
            outline-none
-           focus:border-amber focus:ring-0
+           focus:border-accent focus:ring-0
            placeholder:text-terminal-text-dim;
   }
 
-  .terminal-divider {
-    @apply border-t border-terminal-border;
-  }
+  .terminal-divider { @apply border-t border-terminal-border; }
 
   .terminal-badge {
     @apply inline-block bg-terminal-border text-terminal-text-dim
            px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider;
-  }
-
-  .terminal-glow {
-    text-shadow: 0 0 8px #ffbf0044;
   }
 
   .flint-node {
@@ -270,8 +212,8 @@
   }
 
   .flint-node.selected {
-    @apply border-amber;
-    box-shadow: 0 0 10px #ffbf0033;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 1px #58a6ff, 0 0 12px #58a6ff22;
   }
 
   .flint-node-header {
@@ -280,26 +222,11 @@
            text-xs font-bold uppercase tracking-wide;
   }
 
-  .flint-node-body {
-    @apply px-2 py-1.5 text-terminal-text-dim text-xs;
-  }
+  .flint-node-body  { @apply px-2 py-1.5 text-terminal-text-dim text-xs; }
 
   .flint-node-status {
     @apply flex items-center gap-1 px-2 py-1
            border-t border-terminal-border
            text-terminal-text-dim text-[10px];
   }
-}
-
-/* ============================================
-   Ambient CRT Glow (subtle)
-   ============================================ */
-
-@keyframes flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.98; }
-}
-
-#app {
-  animation: flicker 4s infinite;
 }

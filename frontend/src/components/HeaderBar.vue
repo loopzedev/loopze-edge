@@ -59,14 +59,14 @@ async function handleDeploy(): Promise<void> {
         <!-- Flint icon: stylised lightning / spark -->
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="w-4 h-4 text-amber"
+          class="w-4 h-4 text-accent"
           viewBox="0 0 24 24"
           fill="currentColor"
         >
           <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
         </svg>
 
-        <span class="text-amber text-sm font-bold tracking-widest terminal-glow">FLINT</span>
+        <span class="text-accent text-sm font-bold tracking-widest ">FLINT</span>
       </div>
 
       <span class="text-terminal-text-dim text-[10px] tracking-wide hidden sm:inline">
@@ -81,7 +81,7 @@ async function handleDeploy(): Promise<void> {
       </span>
       <span
         v-if="flowStore.dirty"
-        class="text-amber text-[10px]"
+        class="text-accent text-[10px]"
         title="Unsaved changes"
       >
         ●
@@ -131,7 +131,7 @@ async function handleDeploy(): Promise<void> {
       <!-- Toggle Properties panel -->
       <button
         class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
-        :class="{ 'text-amber': uiStore.propertiesPanelOpen }"
+        :class="{ 'text-accent': uiStore.propertiesPanelOpen }"
         title="Toggle properties"
         @click="uiStore.togglePropertiesPanel()"
       >
@@ -143,7 +143,7 @@ async function handleDeploy(): Promise<void> {
       <!-- Toggle Debug panel -->
       <button
         class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
-        :class="{ 'text-amber': uiStore.debugPanelOpen }"
+        :class="{ 'text-accent': uiStore.debugPanelOpen }"
         title="Toggle debug"
         @click="uiStore.toggleDebugPanel()"
       >

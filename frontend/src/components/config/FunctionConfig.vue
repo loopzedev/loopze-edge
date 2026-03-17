@@ -76,10 +76,10 @@ const outputs = computed({
         />
       </div>
       <p class="text-[9px] text-terminal-text-dim opacity-60">
-        Available: <code class="text-amber">msg</code>,
-        <code class="text-amber">node.send()</code>,
-        <code class="text-amber">node.log/warn/error()</code>,
-        <code class="text-amber">console.log()</code>
+        Available: <code class="text-accent">msg</code>,
+        <code class="text-accent">node.send()</code>,
+        <code class="text-accent">node.log/warn/error()</code>,
+        <code class="text-accent">console.log()</code>
       </p>
     </div>
 
@@ -106,7 +106,7 @@ const outputs = computed({
           class="px-1.5 py-0.5 text-[10px] border border-terminal-border transition-colors duration-75"
           :class="[
             outputs === n
-              ? 'bg-amber text-terminal-bg border-amber'
+              ? 'bg-accent text-terminal-bg border-accent'
               : 'bg-terminal-bg text-terminal-text-dim hover:text-terminal-text hover:border-terminal-text',
           ]"
           @click="outputs = n"

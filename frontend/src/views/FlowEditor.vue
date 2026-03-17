@@ -263,7 +263,7 @@ onMounted(async () => {
         :variant="BackgroundVariant.Dots"
         :gap="24"
         :size="1"
-        pattern-color="#3a3a2844"
+        pattern-color="#30363d44"
       />
 
       <!-- Zoom / Fit controls -->
@@ -283,6 +283,6 @@ onMounted(async () => {
 
 <style scoped>
 .vue-flow {
-  background-color: #1a1a0e;
+  background-color: #0d1117;
 }
 </style>

@@ -33,12 +33,12 @@ function handleReset(): void {
       <div class="flex items-center gap-3 mb-2">
         <router-link
           to="/"
-          class="text-terminal-text-dim hover:text-amber text-xs uppercase tracking-wider transition-colors duration-100"
+          class="text-terminal-text-dim hover:text-accent text-xs uppercase tracking-wider transition-colors duration-100"
         >
           ← Back
         </router-link>
       </div>
-      <h1 class="text-amber text-lg font-bold uppercase tracking-widest terminal-glow">
+      <h1 class="text-accent text-lg font-bold uppercase tracking-widest ">
         ⚙ Settings
       </h1>
       <p class="text-terminal-text-dim text-xs mt-1">
@@ -52,7 +52,7 @@ function handleReset(): void {
       <!-- Section: General -->
       <section>
         <h2 class="text-xs text-terminal-text-dim uppercase tracking-widest mb-3 flex items-center gap-2">
-          <span class="w-2 h-2 bg-amber inline-block"></span>
+          <span class="w-2 h-2 bg-accent inline-block"></span>
           General
         </h2>
 
@@ -84,7 +84,7 @@ function handleReset(): void {
       <!-- Section: HTTP -->
       <section>
         <h2 class="text-xs text-terminal-text-dim uppercase tracking-widest mb-3 flex items-center gap-2">
-          <span class="w-2 h-2 bg-amber inline-block"></span>
+          <span class="w-2 h-2 bg-accent inline-block"></span>
           HTTP
         </h2>
 
@@ -116,7 +116,7 @@ function handleReset(): void {
       <!-- Section: Debug -->
       <section>
         <h2 class="text-xs text-terminal-text-dim uppercase tracking-widest mb-3 flex items-center gap-2">
-          <span class="w-2 h-2 bg-amber inline-block"></span>
+          <span class="w-2 h-2 bg-accent inline-block"></span>
           Debug
         </h2>
 
@@ -139,7 +139,7 @@ function handleReset(): void {
       <!-- Section: Protocols -->
       <section>
         <h2 class="text-xs text-terminal-text-dim uppercase tracking-widest mb-3 flex items-center gap-2">
-          <span class="w-2 h-2 bg-amber inline-block"></span>
+          <span class="w-2 h-2 bg-accent inline-block"></span>
           Protocols
         </h2>
 

@@ -26,7 +26,7 @@ function formatValue(value: unknown): string {
     <div class="flex items-center justify-between px-3 py-2 border-b border-terminal-border shrink-0">
       <span class="text-xs uppercase tracking-widest text-terminal-text-dim">Properties</span>
       <button
-        class="w-6 h-6 flex items-center justify-center text-terminal-text-dim hover:text-amber hover:bg-terminal-border transition-colors duration-100"
+        class="w-6 h-6 flex items-center justify-center text-terminal-text-dim hover:text-accent hover:bg-terminal-border transition-colors duration-100"
         title="Close panel"
         @click="ui.closePropertiesPanel()"
       >
@@ -51,8 +51,8 @@ function formatValue(value: unknown): string {
         <!-- Node identity -->
         <div class="px-3 py-3 border-b border-terminal-border">
           <div class="flex items-center gap-2 mb-2">
-            <span class="w-3 h-3 bg-amber flex-shrink-0"></span>
-            <span class="text-amber text-sm font-bold uppercase tracking-wider truncate">
+            <span class="w-3 h-3 bg-accent flex-shrink-0"></span>
+            <span class="text-accent text-sm font-bold uppercase tracking-wider truncate">
               {{ nodeData?.label ?? selectedNode.type }}
             </span>
           </div>

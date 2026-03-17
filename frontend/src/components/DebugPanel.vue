@@ -79,7 +79,7 @@ function formatPayload(payload: unknown): string {
         placeholder="filter..."
         class="flex-1 bg-terminal-bg border border-terminal-border text-terminal-text
                px-1.5 py-0.5 font-mono text-xs outline-none
-               focus:border-amber placeholder:text-terminal-text-dim"
+               focus:border-accent placeholder:text-terminal-text-dim"
       />
 
       <button
@@ -148,7 +148,7 @@ function formatPayload(payload: unknown): string {
             :class="{
               'text-red-400': msg.status === 'error',
               'text-yellow-400': msg.status === 'warn',
-              'text-amber': msg.status === 'debug' || !msg.status,
+              'text-accent': msg.status === 'debug' || !msg.status,
             }"
           >
             {{ msg.nodeName || msg.nodeId }}
@@ -183,7 +183,7 @@ function formatPayload(payload: unknown): string {
     >
       <button
         class="w-full py-0.5 text-[10px] text-terminal-text-dim uppercase tracking-wider
-               hover:text-amber hover:bg-terminal-border/40 transition-colors duration-100"
+               hover:text-accent hover:bg-terminal-border/40 transition-colors duration-100"
         @click="autoScroll = true; scrollToBottom()"
       >
         ▼ scroll to latest

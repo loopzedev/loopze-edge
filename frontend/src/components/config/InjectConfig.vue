@@ -90,7 +90,7 @@ function selectIntervalPreset(value: number) {
           class="px-1.5 py-0.5 text-[10px] border border-terminal-border transition-colors duration-75"
           :class="[
             interval === preset.value
-              ? 'bg-amber text-terminal-bg border-amber'
+              ? 'bg-accent text-terminal-bg border-accent'
               : 'bg-terminal-bg text-terminal-text-dim hover:text-terminal-text hover:border-terminal-text',
           ]"
           @click="selectIntervalPreset(preset.value)"

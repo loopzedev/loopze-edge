@@ -7,32 +7,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        amber: {
-          DEFAULT: '#FFBF00',
-          dim: '#CC9900',
+        accent: {
+          DEFAULT: '#58a6ff',
+          dim: '#388bfd',
+          muted: '#58a6ff33',
         },
         terminal: {
-          bg: '#1a1a0e',
-          surface: '#252518',
-          border: '#3a3a28',
-          text: '#FFBF00',
-          'text-dim': '#998a00',
-          'text-bright': '#FFD966',
+          bg:           '#0d1117',
+          surface:      '#161b22',
+          border:       '#30363d',
+          text:         '#e6edf3',
+          'text-dim':   '#7d8590',
+          'text-bright':'#f0f6fc',
         },
       },
       fontFamily: {
         mono: ['Consolas', 'Monaco', 'Courier New', 'monospace'],
       },
       borderRadius: {
-        DEFAULT: '0px',
-        none: '0px',
-        sm: '0px',
-        md: '0px',
-        lg: '0px',
-        xl: '0px',
-        '2xl': '0px',
-        '3xl': '0px',
-        full: '0px',
+        DEFAULT: '0px', none: '0px', sm: '0px', md: '0px',
+        lg: '0px', xl: '0px', '2xl': '0px', '3xl': '0px',
+        full: '9999px',
       },
     },
   },

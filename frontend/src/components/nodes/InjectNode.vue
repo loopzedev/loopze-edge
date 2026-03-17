@@ -48,7 +48,7 @@ async function handleTrigger(): Promise<void> {
   >
     <template #icon>
       <button
-        class="w-4 h-4 flex items-center justify-center hover:text-amber active:opacity-60 transition-colors"
+        class="w-4 h-4 flex items-center justify-center hover:text-accent active:opacity-60 transition-colors"
         style="color: #7fa8c9"
         title="Trigger inject"
         @click.stop="handleTrigger"

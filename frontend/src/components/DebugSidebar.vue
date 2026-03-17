@@ -11,7 +11,7 @@ const ui = useUiStore()
     <div class="flex items-center justify-between px-3 py-2 border-b border-terminal-border shrink-0">
       <span class="text-xs uppercase tracking-widest text-terminal-text-dim">Debug</span>
       <button
-        class="w-6 h-6 flex items-center justify-center text-terminal-text-dim hover:text-amber hover:bg-terminal-border transition-colors duration-100"
+        class="w-6 h-6 flex items-center justify-center text-terminal-text-dim hover:text-accent hover:bg-terminal-border transition-colors duration-100"
         title="Close panel"
         @click="ui.closeDebugPanel()"
       >

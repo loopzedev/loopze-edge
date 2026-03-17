@@ -1,0 +1,423 @@
+import { defineStore } from "pinia";
+import { computed, ref } from "vue";
+import type {
+  Node as FlintNode,
+  Flow,
+  DeployPayload,
+  DeployResponse,
+} from "@/types/flow";
+
+interface FlowNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: Record<string, any>;
+  [key: string]: any;
+}
+
+interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  [key: string]: any;
+}
+
+export interface FlowStoreState {
+  flows: Flow[];
+  activeFlowId: string | null;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  selectedNodeId: string | null;
+  dirty: boolean;
+  revision: string | null;
+  deploying: boolean;
+}
+
+export const useFlowStore = defineStore("flow", () => {
+  // --------------- State ---------------
+
+  const flows = ref<Flow[]>([]);
+  const activeFlowId = ref<string | null>(null);
+  const nodes = ref<FlowNode[]>([]);
+  const edges = ref<FlowEdge[]>([]);
+  const selectedNodeId = ref<string | null>(null);
+  const dirty = ref(false);
+  const revision = ref<string | null>(null);
+  const deploying = ref(false);
+
+  // --------------- Getters ---------------
+
+  const activeFlow = computed<Flow | undefined>(() =>
+    flows.value.find((f) => f.id === activeFlowId.value),
+  );
+
+  const activeNodes = computed<FlowNode[]>(() => nodes.value);
+
+  const activeEdges = computed<FlowEdge[]>(() => edges.value);
+
+  const selectedNode = computed<FlowNode | undefined>(() =>
+    nodes.value.find((n) => n.id === selectedNodeId.value),
+  );
+
+  const hasUnsavedChanges = computed(() => dirty.value);
+
+  // --------------- Helpers ---------------
+
+  function generateId(): string {
+    return (
+      crypto.randomUUID?.() ??
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    );
+  }
+
+  function markDirty(): void {
+    dirty.value = true;
+  }
+
+  // --------------- Actions ---------------
+
+  function setActiveFlow(flowId: string): void {
+    activeFlowId.value = flowId;
+
+    const flow = flows.value.find((f) => f.id === flowId);
+    if (flow) {
+      nodes.value = flow.nodes.map(flintNodeToVueFlowNode);
+      edges.value = buildEdgesFromFlow(flow);
+    } else {
+      nodes.value = [];
+      edges.value = [];
+    }
+
+    selectedNodeId.value = null;
+  }
+
+  function addFlow(label?: string): Flow {
+    const flow: Flow = {
+      id: generateId(),
+      type: "tab",
+      label: label ?? `Flow ${flows.value.length + 1}`,
+      nodes: [],
+      wires: [],
+    };
+    flows.value.push(flow);
+
+    if (!activeFlowId.value) {
+      setActiveFlow(flow.id);
+    }
+
+    markDirty();
+    return flow;
+  }
+
+  function removeFlow(flowId: string): void {
+    flows.value = flows.value.filter((f) => f.id !== flowId);
+    if (activeFlowId.value === flowId) {
+      activeFlowId.value = flows.value[0]?.id ?? null;
+      if (activeFlowId.value) {
+        setActiveFlow(activeFlowId.value);
+      } else {
+        nodes.value = [];
+        edges.value = [];
+      }
+    }
+    markDirty();
+  }
+
+  function addNode(
+    type: string,
+    position: { x: number; y: number },
+    data?: Record<string, unknown>,
+  ): FlowNode {
+    const nodeId = generateId();
+
+    const vfNode: FlowNode = {
+      id: nodeId,
+      type,
+      position,
+      data: {
+        label: data?.label ?? type,
+        nodeType: type,
+        config: {},
+        ...data,
+      },
+    };
+
+    nodes.value.push(vfNode);
+    markDirty();
+    return vfNode;
+  }
+
+  function removeNode(nodeId: string): void {
+    nodes.value = nodes.value.filter((n) => n.id !== nodeId);
+    edges.value = edges.value.filter(
+      (e) => e.source !== nodeId && e.target !== nodeId,
+    );
+    if (selectedNodeId.value === nodeId) {
+      selectedNodeId.value = null;
+    }
+    markDirty();
+  }
+
+  function updateNodeData(nodeId: string, data: Record<string, unknown>): void {
+    const node = nodes.value.find((n) => n.id === nodeId);
+    if (node) {
+      node.data = { ...node.data, ...data };
+      markDirty();
+    }
+  }
+
+  function updateNodePosition(
+    nodeId: string,
+    position: { x: number; y: number },
+  ): void {
+    const node = nodes.value.find((n) => n.id === nodeId);
+    if (node) {
+      node.position = { ...position };
+    }
+  }
+
+  function connectNodes(params: {
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }): FlowEdge | null {
+    const edgeId = `e-${params.source}-${params.target}-${Date.now()}`;
+
+    const exists = edges.value.some(
+      (e) =>
+        e.source === params.source &&
+        e.target === params.target &&
+        e.sourceHandle === params.sourceHandle &&
+        e.targetHandle === params.targetHandle,
+    );
+    if (exists) return null;
+
+    const edge: FlowEdge = {
+      id: edgeId,
+      source: params.source,
+      target: params.target,
+      sourceHandle: params.sourceHandle ?? undefined,
+      targetHandle: params.targetHandle ?? undefined,
+    };
+
+    edges.value.push(edge);
+    markDirty();
+    return edge;
+  }
+
+  function removeEdge(edgeId: string): void {
+    edges.value = edges.value.filter((e) => e.id !== edgeId);
+    markDirty();
+  }
+
+  function selectNode(nodeId: string | null): void {
+    selectedNodeId.value = nodeId;
+  }
+
+  function loadFlows(loadedFlows: Flow[], rev?: string): void {
+    flows.value = loadedFlows;
+    revision.value = rev ?? null;
+
+    if (loadedFlows.length > 0) {
+      setActiveFlow(loadedFlows[0].id);
+    } else {
+      activeFlowId.value = null;
+      nodes.value = [];
+      edges.value = [];
+    }
+
+    dirty.value = false;
+  }
+
+  async function deploy(): Promise<DeployResponse | null> {
+    if (deploying.value) return null;
+
+    deploying.value = true;
+
+    try {
+      // Sync current canvas state back into the active flow before deploying
+      syncCanvasToActiveFlow();
+
+      const payload: DeployPayload = {
+        flows: flows.value,
+        rev: revision.value ?? undefined,
+      };
+
+      const response = await fetch("/api/v1/flows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Deploy failed: ${response.status} — ${errorBody}`);
+      }
+
+      const result: DeployResponse = await response.json();
+      revision.value = result.rev;
+      dirty.value = false;
+
+      return result;
+    } catch (err) {
+      console.error("[FlowStore] Deploy error:", err);
+      return null;
+    } finally {
+      deploying.value = false;
+    }
+  }
+
+  // --------------- Internal Converters ---------------
+
+  function flintNodeToVueFlowNode(flintNode: FlintNode): FlowNode {
+    return {
+      id: flintNode.id,
+      type: flintNode.type,
+      position: { x: flintNode.x, y: flintNode.y },
+      data: {
+        label: flintNode.name || flintNode.label || flintNode.type,
+        nodeType: flintNode.type,
+        config: flintNode.config ?? {},
+        status: flintNode.status ?? null,
+        inputs: flintNode.inputs,
+        outputs: flintNode.outputs,
+        disabled: flintNode.disabled ?? false,
+      },
+    };
+  }
+
+  function buildEdgesFromFlow(flow: Flow): FlowEdge[] {
+    const result: FlowEdge[] = [];
+
+    for (const node of flow.nodes) {
+      if (!node.wires) continue;
+
+      for (let outputIdx = 0; outputIdx < node.wires.length; outputIdx++) {
+        const targets = node.wires[outputIdx];
+        if (!targets) continue;
+
+        for (const targetId of targets) {
+          result.push({
+            id: `e-${node.id}-${outputIdx}-${targetId}`,
+            source: node.id,
+            target: targetId,
+            sourceHandle: `output-${outputIdx}`,
+          });
+        }
+      }
+    }
+
+    // Also use wire entries if available
+    for (const wire of flow.wires ?? []) {
+      const exists = result.some(
+        (e) => e.source === wire.sourceNode && e.target === wire.targetNode,
+      );
+      if (!exists) {
+        result.push({
+          id: wire.id,
+          source: wire.sourceNode,
+          target: wire.targetNode,
+          sourceHandle: `output-${wire.sourcePort}`,
+          targetHandle: `input-${wire.targetPort}`,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  function syncCanvasToActiveFlow(): void {
+    const flow = flows.value.find((f) => f.id === activeFlowId.value);
+    if (!flow) return;
+
+    flow.nodes = nodes.value.map((vfNode) => ({
+      id: vfNode.id,
+      type: vfNode.data?.nodeType ?? vfNode.type ?? "unknown",
+      name: vfNode.data?.label ?? "",
+      x: vfNode.position.x,
+      y: vfNode.position.y,
+      z: flow.id,
+      inputs: vfNode.data?.inputs ?? 0,
+      outputs: vfNode.data?.outputs ?? 1,
+      wires: buildWiresForNode(vfNode.id),
+      config: vfNode.data?.config ?? {},
+      disabled: vfNode.data?.disabled ?? false,
+    }));
+
+    flow.wires = edges.value.map((edge) => ({
+      id: edge.id,
+      sourceNode: edge.source,
+      sourcePort: parsePortIndex(edge.sourceHandle, "output"),
+      targetNode: edge.target,
+      targetPort: parsePortIndex(edge.targetHandle, "input"),
+    }));
+  }
+
+  function buildWiresForNode(nodeId: string): string[][] {
+    const outputMap = new Map<number, string[]>();
+
+    for (const edge of edges.value) {
+      if (edge.source !== nodeId) continue;
+      const portIdx = parsePortIndex(edge.sourceHandle, "output");
+      const targets = outputMap.get(portIdx) ?? [];
+      targets.push(edge.target);
+      outputMap.set(portIdx, targets);
+    }
+
+    const maxPort = outputMap.size > 0 ? Math.max(...outputMap.keys()) : -1;
+    const wires: string[][] = [];
+    for (let i = 0; i <= maxPort; i++) {
+      wires.push(outputMap.get(i) ?? []);
+    }
+
+    return wires;
+  }
+
+  function parsePortIndex(
+    handle: string | undefined | null,
+    prefix: string,
+  ): number {
+    if (!handle) return 0;
+    const match = handle.match(new RegExp(`^${prefix}-(\\d+)$`));
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  // --------------- Return ---------------
+
+  return {
+    // State
+    flows,
+    activeFlowId,
+    nodes,
+    edges,
+    selectedNodeId,
+    dirty,
+    revision,
+    deploying,
+
+    // Getters
+    activeFlow,
+    activeNodes,
+    activeEdges,
+    selectedNode,
+    hasUnsavedChanges,
+
+    // Actions
+    setActiveFlow,
+    addFlow,
+    removeFlow,
+    addNode,
+    removeNode,
+    updateNodeData,
+    updateNodePosition,
+    connectNodes,
+    removeEdge,
+    selectNode,
+    loadFlows,
+    deploy,
+    syncCanvasToActiveFlow,
+  };
+});

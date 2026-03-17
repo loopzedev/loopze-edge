@@ -1,0 +1,158 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useFlowStore } from '@/stores/flowStore'
+import { useUiStore } from '@/stores/uiStore'
+
+const flowStore = useFlowStore()
+const uiStore = useUiStore()
+
+const connectionDotColor = computed(() => uiStore.connectionStatusColor)
+
+const connectionLabel = computed(() => {
+  switch (uiStore.connectionStatus) {
+    case 'connected':
+      return 'ONLINE'
+    case 'connecting':
+      return 'CONNECTING'
+    case 'disconnected':
+      return 'OFFLINE'
+  }
+})
+
+async function handleDeploy(): Promise<void> {
+  await flowStore.deploy()
+}
+</script>
+
+<template>
+  <header
+    class="flex items-center justify-between h-10 px-3 bg-terminal-surface border-b border-terminal-border font-mono select-none shrink-0"
+  >
+    <!-- Left: Logo / App Name -->
+    <div class="flex items-center gap-3">
+      <button
+        class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
+        title="Toggle node palette"
+        @click="uiStore.toggleLeftPanel()"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path stroke-linecap="square" stroke-linejoin="miter" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-2">
+        <!-- Flint icon: stylised lightning / spark -->
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-4 h-4 text-amber"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+        >
+          <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
+        </svg>
+
+        <span class="text-amber text-sm font-bold tracking-widest terminal-glow">FLINT</span>
+      </div>
+
+      <span class="text-terminal-text-dim text-[10px] tracking-wide hidden sm:inline">
+        FLOW AUTOMATION
+      </span>
+    </div>
+
+    <!-- Center (optional): active flow name -->
+    <div class="hidden md:flex items-center gap-2 text-xs text-terminal-text-dim">
+      <span v-if="flowStore.activeFlow">
+        {{ flowStore.activeFlow.label }}
+      </span>
+      <span
+        v-if="flowStore.dirty"
+        class="text-amber text-[10px]"
+        title="Unsaved changes"
+      >
+        ●
+      </span>
+    </div>
+
+    <!-- Right: Actions & Status -->
+    <div class="flex items-center gap-3">
+      <!-- Settings link -->
+      <router-link
+        to="/settings"
+        class="text-terminal-text-dim hover:text-terminal-text text-xs transition-colors duration-100"
+        title="Settings"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="square"
+            stroke-linejoin="miter"
+            d="M12 15a3 3 0 100-6 3 3 0 000 6z"
+          />
+          <path
+            stroke-linecap="square"
+            stroke-linejoin="miter"
+            d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+          />
+        </svg>
+      </router-link>
+
+      <!-- Connection status -->
+      <div class="flex items-center gap-1.5" :title="`Status: ${connectionLabel}`">
+        <span
+          class="block w-2 h-2"
+          :style="{ backgroundColor: connectionDotColor }"
+        />
+        <span class="text-[10px] text-terminal-text-dim tracking-wider hidden sm:inline">
+          {{ connectionLabel }}
+        </span>
+      </div>
+
+      <!-- Deploy button -->
+      <button
+        class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider"
+        :disabled="flowStore.deploying"
+        :class="{
+          'opacity-50 cursor-not-allowed': flowStore.deploying,
+        }"
+        title="Deploy flows"
+        @click="handleDeploy"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-3.5 h-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path
+            stroke-linecap="square"
+            stroke-linejoin="miter"
+            d="M5 12l5 5L20 7"
+            v-if="!flowStore.deploying"
+          />
+          <path
+            stroke-linecap="square"
+            stroke-linejoin="miter"
+            d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+            v-else
+          />
+        </svg>
+        <span>{{ flowStore.deploying ? 'DEPLOYING' : 'DEPLOY' }}</span>
+      </button>
+    </div>
+  </header>
+</template>

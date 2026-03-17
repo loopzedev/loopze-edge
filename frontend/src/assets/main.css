@@ -1,0 +1,305 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   FLINT — Amber Terminal Theme
+   ============================================ */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a0e;
+    color: #ffbf00;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  }
+
+  ::selection {
+    background-color: #ffbf0033;
+    color: #ffd966;
+  }
+}
+
+/* ============================================
+   Custom Scrollbars (thin, amber)
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a0e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a28;
+  border: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #998a00;
+}
+
+::-webkit-scrollbar-corner {
+  background: #1a1a0e;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a28 #1a1a0e;
+}
+
+/* ============================================
+   Vue Flow — Dark / Amber Overrides
+   ============================================ */
+
+.vue-flow {
+  background-color: #1a1a0e !important;
+}
+
+.vue-flow__background {
+  background-color: #1a1a0e !important;
+}
+
+.vue-flow__background pattern circle,
+.vue-flow__background pattern rect {
+  fill: #3a3a2844;
+}
+
+.vue-flow__edge-path,
+.vue-flow__connection-path {
+  stroke: #998a00 !important;
+  stroke-width: 2px;
+}
+
+.vue-flow__edge.selected .vue-flow__edge-path,
+.vue-flow__edge:hover .vue-flow__edge-path {
+  stroke: #ffbf00 !important;
+  stroke-width: 2.5px;
+}
+
+.vue-flow__edge-text {
+  fill: #998a00;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+}
+
+/* ============================================
+   Node Handle Styles (square, not round)
+   ============================================ */
+
+.vue-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 0 !important;
+  background-color: #998a00 !important;
+  border: 1px solid #ffbf00 !important;
+}
+
+.vue-flow__handle:hover {
+  background-color: #ffbf00 !important;
+  box-shadow: 0 0 6px #ffbf0066;
+}
+
+.vue-flow__handle-left {
+  left: -5px !important;
+}
+
+.vue-flow__handle-right {
+  right: -5px !important;
+}
+
+.vue-flow__handle-top {
+  top: -5px !important;
+}
+
+.vue-flow__handle-bottom {
+  bottom: -5px !important;
+}
+
+/* Connecting state */
+.vue-flow__handle.connecting {
+  background-color: #ffd966 !important;
+  box-shadow: 0 0 8px #ffbf0088;
+}
+
+.vue-flow__handle.valid {
+  background-color: #4ade80 !important;
+  border-color: #22c55e !important;
+}
+
+/* ============================================
+   Minimap — Amber Theme
+   ============================================ */
+
+.vue-flow__minimap {
+  background-color: #252518 !important;
+  border: 1px solid #3a3a28 !important;
+  border-radius: 0 !important;
+}
+
+.vue-flow__minimap-mask {
+  fill: #ffbf0011 !important;
+  stroke: #ffbf00 !important;
+  stroke-width: 1px;
+}
+
+.vue-flow__minimap-node {
+  fill: #998a00 !important;
+  stroke: #ffbf00 !important;
+  stroke-width: 0.5px;
+}
+
+/* ============================================
+   Controls — Amber Theme
+   ============================================ */
+
+.vue-flow__controls {
+  border: 1px solid #3a3a28 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.vue-flow__controls-button {
+  background-color: #252518 !important;
+  border: 1px solid #3a3a28 !important;
+  border-radius: 0 !important;
+  color: #ffbf00 !important;
+  fill: #ffbf00 !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.vue-flow__controls-button:hover {
+  background-color: #3a3a28 !important;
+}
+
+.vue-flow__controls-button svg {
+  fill: #ffbf00 !important;
+}
+
+/* ============================================
+   Selection Box
+   ============================================ */
+
+.vue-flow__selection {
+  background: rgba(255, 191, 0, 0.05) !important;
+  border: 1px dashed #ffbf00 !important;
+  border-radius: 0 !important;
+}
+
+.vue-flow__nodesselection-rect {
+  background: rgba(255, 191, 0, 0.05) !important;
+  border: 1px solid #ffbf00 !important;
+  border-radius: 0 !important;
+}
+
+/* ============================================
+   Attribution (hide default branding)
+   ============================================ */
+
+.vue-flow__attribution {
+  display: none !important;
+}
+
+/* ============================================
+   Terminal Utility Classes
+   ============================================ */
+
+@layer components {
+  .terminal-panel {
+    @apply bg-terminal-surface border border-terminal-border font-mono text-terminal-text;
+  }
+
+  .terminal-btn {
+    @apply bg-terminal-surface border border-terminal-border text-terminal-text
+           px-3 py-1.5 font-mono text-sm cursor-pointer
+           hover:bg-terminal-border hover:text-terminal-text-bright
+           active:bg-amber active:text-terminal-bg
+           transition-colors duration-100;
+  }
+
+  .terminal-btn-primary {
+    @apply bg-amber text-terminal-bg border border-amber
+           px-3 py-1.5 font-mono text-sm cursor-pointer font-bold
+           hover:bg-terminal-text-bright
+           active:bg-amber-dim
+           transition-colors duration-100;
+  }
+
+  .terminal-input {
+    @apply bg-terminal-bg border border-terminal-border text-terminal-text
+           px-2 py-1.5 font-mono text-sm
+           outline-none
+           focus:border-amber focus:ring-0
+           placeholder:text-terminal-text-dim;
+  }
+
+  .terminal-divider {
+    @apply border-t border-terminal-border;
+  }
+
+  .terminal-badge {
+    @apply inline-block bg-terminal-border text-terminal-text-dim
+           px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider;
+  }
+
+  .terminal-glow {
+    text-shadow: 0 0 8px #ffbf0044;
+  }
+
+  .flint-node {
+    @apply bg-terminal-surface border border-terminal-border
+           font-mono text-terminal-text text-xs
+           min-w-[140px] select-none;
+  }
+
+  .flint-node.selected {
+    @apply border-amber;
+    box-shadow: 0 0 10px #ffbf0033;
+  }
+
+  .flint-node-header {
+    @apply flex items-center gap-1.5 px-2 py-1.5
+           border-b border-terminal-border
+           text-xs font-bold uppercase tracking-wide;
+  }
+
+  .flint-node-body {
+    @apply px-2 py-1.5 text-terminal-text-dim text-xs;
+  }
+
+  .flint-node-status {
+    @apply flex items-center gap-1 px-2 py-1
+           border-t border-terminal-border
+           text-terminal-text-dim text-[10px];
+  }
+}
+
+/* ============================================
+   Ambient CRT Glow (subtle)
+   ============================================ */
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
+}
+
+#app {
+  animation: flicker 4s infinite;
+}

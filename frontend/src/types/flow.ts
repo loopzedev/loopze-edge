@@ -1,0 +1,154 @@
+/** Core flow types matching the Go backend models */
+
+export type NodeCategory =
+  | 'common'
+  | 'function'
+  | 'network'
+  | 'industrial'
+  | 'storage'
+  | 'parser'
+
+export type NodeType =
+  | 'inject'
+  | 'debug'
+  | 'function'
+  | 'http-in'
+  | 'http-response'
+  | 'http-request'
+  | 'mqtt-in'
+  | 'mqtt-out'
+  | 'tcp-in'
+  | 'tcp-out'
+  | 'modbus-read'
+  | 'modbus-write'
+  | 'opc-ua'
+  | 'change'
+  | 'switch'
+  | 'template'
+  | 'delay'
+  | 'filter'
+  | 'json'
+  | 'xml'
+  | 'csv'
+  | 'file-in'
+  | 'file-out'
+  | 'catch'
+  | 'status'
+  | 'link-in'
+  | 'link-out'
+  | 'comment'
+  | string
+
+export interface Port {
+  name: string
+  label?: string
+  type?: string
+}
+
+export interface Wire {
+  id: string
+  sourceNode: string
+  sourcePort: number
+  targetNode: string
+  targetPort: number
+}
+
+export interface NodeConfig {
+  [key: string]: unknown
+}
+
+export interface NodeStatus {
+  fill?: 'red' | 'green' | 'yellow' | 'blue' | 'grey'
+  shape?: 'ring' | 'dot'
+  text?: string
+}
+
+export interface Node {
+  id: string
+  type: NodeType
+  name: string
+  label?: string
+  category?: NodeCategory
+  x: number
+  y: number
+  z: string // flow id this node belongs to
+  inputs: number
+  outputs: number
+  inputLabels?: string[]
+  outputLabels?: string[]
+  wires: string[][] // wires[outputIndex] = [targetNodeId, ...]
+  config: NodeConfig
+  status?: NodeStatus
+  disabled?: boolean
+  info?: string
+}
+
+export interface Flow {
+  id: string
+  type: 'tab'
+  label: string
+  disabled?: boolean
+  info?: string
+  nodes: Node[]
+  wires: Wire[]
+  configs?: Node[]
+}
+
+export interface Message {
+  _msgid: string
+  topic?: string
+  payload: unknown
+  [key: string]: unknown
+}
+
+export interface NodeDefinition {
+  type: NodeType
+  category: NodeCategory
+  label: string
+  icon?: string
+  color?: string
+  inputs: number
+  outputs: number
+  defaults: Record<string, NodePropertyDefault>
+  paletteLabel?: string
+  info?: string
+}
+
+export interface NodePropertyDefault {
+  value: unknown
+  required?: boolean
+  type?: string
+  validate?: string
+}
+
+export interface DeployPayload {
+  flows: Flow[]
+  rev?: string
+}
+
+export interface DeployResponse {
+  rev: string
+  flows: Flow[]
+  success: boolean
+  error?: string
+}
+
+export interface FlowsResponse {
+  rev: string
+  flows: Flow[]
+}
+
+export interface NodeCatalogEntry {
+  type: NodeType
+  category: NodeCategory
+  label: string
+  description?: string
+  icon?: string
+  color?: string
+  inputs: number
+  outputs: number
+}
+
+export interface NodeCatalog {
+  [category: string]: NodeCatalogEntry[]
+}

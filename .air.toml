@@ -1,0 +1,24 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/flint ./cmd/flint"
+  bin = "./tmp/flint"
+  full_bin = "./tmp/flint --port 1880 --data-dir ./data"
+  include_ext = ["go"]
+  exclude_dir = ["bin", "build", "tmp", "frontend", "web/dist", "data"]
+  delay = 500
+  kill_delay = 500
+  rerun = false
+
+[log]
+  time = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  clean_on_exit = true

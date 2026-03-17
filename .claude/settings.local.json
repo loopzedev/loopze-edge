@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dlv version:*)",
+      "Bash(air -v)",
+      "Bash(go build:*)",
+      "Bash(find /home/dennisbleul/git/flint -maxdepth 3 -type f -name *.md)",
+      "Bash(git check-ignore:*)"
+    ]
+  }
+}

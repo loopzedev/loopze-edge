@@ -1,0 +1,20 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Flint: Run",
+        "type": "go",
+        "request": "launch",
+        "mode": "debug",
+        "program": "${workspaceFolder}/cmd/flint",
+        "args": ["--port", "1880", "--data-dir", "${workspaceFolder}/data"],
+        "env": {},
+      },
+    ],
+  },
+]

@@ -1,33 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Handle, Position } from '@vue-flow/core'
 import type { NodeProps } from '@vue-flow/core'
+import BaseNode from '@/components/nodes/BaseNode.vue'
+
+defineOptions({ inheritAttrs: false })
 
 const props = defineProps<NodeProps>()
 
 const label = computed(() => props.data?.label ?? 'Debug')
-
-const statusFill = computed(() => {
-  const fill = props.data?.status?.fill
-  switch (fill) {
-    case 'green':
-      return '#4ade80'
-    case 'red':
-      return '#ef4444'
-    case 'yellow':
-      return '#facc15'
-    case 'blue':
-      return '#60a5fa'
-    case 'grey':
-      return '#6b7280'
-    default:
-      return null
-  }
-})
-
-const statusText = computed(() => props.data?.status?.text ?? '')
-
-const isDisabled = computed(() => props.data?.disabled === true)
 
 const messageCount = computed(() => {
   const count = props.data?.messageCount
@@ -36,98 +16,35 @@ const messageCount = computed(() => {
 </script>
 
 <template>
-  <div
-    class="flint-node"
-    :class="{ 'selected': props.selected, 'opacity-50': isDisabled }"
+  <BaseNode
+    :id="props.id"
+    :label="label"
+    node-type="debug"
+    accent-color="#4ade80"
+    :selected="props.selected"
+    :inputs="1"
+    :outputs="0"
+    :status="props.data?.status"
+    :disabled="props.data?.disabled"
   >
-    <!-- Input Handle -->
-    <Handle
-      id="input-0"
-      type="target"
-      :position="Position.Left"
-    />
+    <template #icon>
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="square" d="M12 8v4m0 4h.01" />
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    </template>
 
-    <!-- Node Header -->
-    <div class="flint-node-header">
-      <!-- Debug icon: eye / bug -->
-      <span class="w-4 h-4 flex items-center justify-center text-[11px] text-green-400 shrink-0">
-        ⬤
-      </span>
-      <span class="truncate flex-1">{{ label }}</span>
-      <!-- Message count badge -->
+    <template #badge>
       <span
         v-if="messageCount !== null"
-        class="ml-auto text-[9px] text-terminal-text-dim bg-terminal-bg px-1 py-0 border border-terminal-border"
+        class="text-[9px] px-1 border border-terminal-border text-terminal-text-dim bg-terminal-bg"
       >
         {{ messageCount }}
       </span>
-    </div>
+    </template>
 
-    <!-- Node Body -->
-    <div class="flint-node-body flex items-center gap-1.5">
-      <span class="text-[10px] text-terminal-text-dim">msg.payload</span>
-      <span class="ml-auto text-[10px] text-terminal-text-dim">→ debug</span>
-    </div>
-
-    <!-- Status Bar -->
-    <div class="flint-node-status">
-      <span
-        v-if="statusFill"
-        class="w-[6px] h-[6px] shrink-0"
-        :style="{ backgroundColor: statusFill }"
-      />
-      <span
-        v-else
-        class="w-[6px] h-[6px] shrink-0 border border-terminal-border bg-transparent"
-      />
-      <span class="truncate">{{ statusText || 'idle' }}</span>
-    </div>
-  </div>
+    <template #body>
+      <span class="opacity-60">msg.payload → debug</span>
+    </template>
+  </BaseNode>
 </template>
-
-<style scoped>
-.flint-node {
-  min-width: 140px;
-  max-width: 200px;
-  background-color: #252518;
-  border: 1px solid #3a3a28;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  color: #FFBF00;
-  font-size: 12px;
-  user-select: none;
-  border-radius: 0;
-}
-
-.flint-node.selected {
-  border-color: #FFBF00;
-  box-shadow: 0 0 10px #ffbf0033;
-}
-
-.flint-node-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: 1px solid #3a3a28;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.flint-node-body {
-  padding: 4px 8px;
-  color: #998a00;
-  font-size: 10px;
-}
-
-.flint-node-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-top: 1px solid #3a3a28;
-  color: #998a00;
-  font-size: 10px;
-}
-</style>

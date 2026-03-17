@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import BaseNode from '@/components/nodes/BaseNode.vue'
 
+defineOptions({ inheritAttrs: false })
+
 interface Props {
   id: string
   data: {
     label?: string
-    nodeType?: string
     config?: Record<string, unknown>
-    status?: {
-      fill?: string
-      shape?: string
-      text?: string
-    } | null
+    status?: { fill?: string; shape?: string; text?: string } | null
     inputs?: number
     outputs?: number
     disabled?: boolean
@@ -19,40 +16,32 @@ interface Props {
   selected?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  selected: false,
-})
+const props = withDefaults(defineProps<Props>(), { selected: false })
+
+function firstLine(code: unknown): string {
+  if (!code) return ''
+  return String(code).split('\n').find(l => l.trim()) ?? ''
+}
 </script>
 
 <template>
   <BaseNode
     :id="props.id"
-    :data="props.data"
+    :label="props.data.label"
+    node-type="function"
+    accent-color="#FFBF00"
     :selected="props.selected"
     :inputs="props.data.inputs ?? 1"
     :outputs="props.data.outputs ?? 1"
-    node-color="#665500"
+    :status="(props.data.status as any)"
+    :disabled="props.data.disabled"
   >
-    <template #icon>
-      <div class="w-6 h-6 flex items-center justify-center border border-terminal-border bg-terminal-bg text-amber text-sm font-bold">
-        ƒ
-      </div>
-    </template>
+    <template #icon>ƒ</template>
 
     <template #body>
-      <div class="px-2 py-1.5 text-[10px] text-terminal-text-dim">
-        <div
-          v-if="props.data.config?.func"
-          class="truncate max-w-[120px]"
-          :title="String(props.data.config.func)"
-        >
-          <span class="text-terminal-text-dim opacity-60">»</span>
-          {{ String(props.data.config.func).split('\n')[0].slice(0, 30) }}
-        </div>
-        <div v-else class="italic opacity-50">
-          // empty function
-        </div>
-      </div>
+      <span class="truncate block" :title="String(props.data.config?.func ?? '')">
+        {{ firstLine(props.data.config?.func) || '// empty' }}
+      </span>
     </template>
   </BaseNode>
 </template>

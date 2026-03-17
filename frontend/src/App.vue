@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import HeaderBar from '@/components/HeaderBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
+import DebugSidebar from '@/components/DebugSidebar.vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useDebugStore } from '@/stores/debugStore'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -10,15 +11,12 @@ import { useWebSocket } from '@/composables/useWebSocket'
 const ui = useUiStore()
 const debugStore = useDebugStore()
 
-// Connect WebSocket and sync status to uiStore.
 const ws = useWebSocket()
 
-// Wire debug messages from WebSocket to debug store.
 ws.onDebug((msg) => {
   debugStore.addMessage(msg)
 })
 
-// Wire deploy events from WebSocket to uiStore.
 ws.onDeploy((event) => {
   switch (event.action) {
     case 'deploying': ui.setDeployStatus('deploying'); break
@@ -26,6 +24,7 @@ ws.onDeploy((event) => {
     case 'failed':    ui.setDeployStatus('failed');    break
   }
 })
+
 watch(ws.status, (status) => {
   switch (status) {
     case 'connected':
@@ -43,10 +42,10 @@ watch(ws.status, (status) => {
 
 const mainAreaStyle = computed(() => {
   const left = ui.leftPanelOpen ? '240px' : '0px'
-  const right = ui.rightPanelOpen ? '320px' : '0px'
+  const rightWidth = (ui.propertiesPanelOpen ? 280 : 0) + (ui.debugPanelOpen ? 320 : 0)
   return {
     marginLeft: left,
-    marginRight: right,
+    marginRight: rightWidth + 'px',
   }
 })
 </script>
@@ -57,20 +56,16 @@ const mainAreaStyle = computed(() => {
     <HeaderBar />
 
     <!-- Main Content Area -->
-    <div class="flex flex-1 overflow-hidden relative" style="margin-top: 0">
+    <div class="flex flex-1 overflow-hidden relative">
       <!-- Left Sidebar: Node Palette -->
       <aside
         v-show="ui.leftPanelOpen"
-        class="
-          w-[240px] flex-shrink-0 overflow-y-auto
-          bg-terminal-surface border-r border-terminal-border
-          absolute top-0 left-0 bottom-0 z-10
-        "
+        class="w-[240px] flex-shrink-0 absolute top-0 left-0 bottom-0 z-10 bg-terminal-surface border-r border-terminal-border"
       >
         <NodePalette />
       </aside>
 
-      <!-- Center: Flow Editor (router-view) -->
+      <!-- Center: Flow Editor -->
       <main
         class="flex-1 overflow-hidden transition-all duration-150"
         :style="mainAreaStyle"
@@ -78,25 +73,19 @@ const mainAreaStyle = computed(() => {
         <router-view />
       </main>
 
-      <!-- Right Sidebar: Properties / Debug Panel -->
-      <aside
-        v-show="ui.rightPanelOpen"
-        class="
-          w-[320px] flex-shrink-0 overflow-y-auto
-          bg-terminal-surface border-l border-terminal-border
-          absolute top-0 right-0 bottom-0 z-10
-        "
-      >
-        <PropertyPanel />
-      </aside>
+      <!-- Right Sidebars: Properties | Debug (side by side) -->
+      <div class="absolute top-0 right-0 bottom-0 z-10 flex">
+        <aside v-show="ui.propertiesPanelOpen">
+          <PropertyPanel />
+        </aside>
+        <aside v-show="ui.debugPanelOpen">
+          <DebugSidebar />
+        </aside>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Ensure no rounding leaks in from any library defaults */
-aside,
-main {
-  border-radius: 0;
-}
+aside, main { border-radius: 0; }
 </style>

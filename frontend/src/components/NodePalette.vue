@@ -93,7 +93,6 @@ const NODE_ICONS: Record<string, string> = {
 }
 
 function getNodeIcon(node: NodeCatalogEntry): string {
-  if (node.icon) return node.icon
   return NODE_ICONS[node.type] ?? '●'
 }
 </script>

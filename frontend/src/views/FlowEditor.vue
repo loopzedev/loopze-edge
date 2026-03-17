@@ -46,13 +46,13 @@ onNodeDragStop((event) => {
 
 function handleNodeClick(event: { node: any }): void {
   flowStore.selectNode(event.node.id)
-  uiStore.openRightPanel('properties')
+  uiStore.openPropertiesPanel()
 }
 
 function handleSelectionChange(params: { nodes: any[]; edges: any[] }): void {
   if (params.nodes.length === 1) {
     flowStore.selectNode(params.nodes[0].id)
-    uiStore.openRightPanel('properties')
+    uiStore.openPropertiesPanel()
   } else if (params.nodes.length === 0) {
     flowStore.selectNode(null)
   }

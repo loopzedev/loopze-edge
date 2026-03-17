@@ -1,15 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type RightPanelTab = 'properties' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
 
 export const useUiStore = defineStore('ui', () => {
   // ── State ──────────────────────────────────────────────────────────
   const leftPanelOpen = ref<boolean>(true)
-  const rightPanelOpen = ref<boolean>(false)
-  const rightPanelTab = ref<RightPanelTab>('properties')
+  const propertiesPanelOpen = ref<boolean>(false)
+  const debugPanelOpen = ref<boolean>(false)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   let deployResetTimer: ReturnType<typeof setTimeout> | null = null
@@ -20,12 +19,9 @@ export const useUiStore = defineStore('ui', () => {
 
   const connectionStatusColor = computed(() => {
     switch (connectionStatus.value) {
-      case 'connected':
-        return '#4ade80' // green
-      case 'connecting':
-        return '#FFBF00' // amber
-      case 'disconnected':
-        return '#ef4444' // red
+      case 'connected':    return '#4ade80'
+      case 'connecting':   return '#FFBF00'
+      case 'disconnected': return '#ef4444'
     }
   })
 
@@ -34,26 +30,28 @@ export const useUiStore = defineStore('ui', () => {
     leftPanelOpen.value = !leftPanelOpen.value
   }
 
-  function toggleRightPanel() {
-    rightPanelOpen.value = !rightPanelOpen.value
+  function togglePropertiesPanel() {
+    propertiesPanelOpen.value = !propertiesPanelOpen.value
   }
 
-  function openRightPanel(tab?: RightPanelTab) {
-    rightPanelOpen.value = true
-    if (tab) {
-      rightPanelTab.value = tab
-    }
+  function openPropertiesPanel() {
+    propertiesPanelOpen.value = true
   }
 
-  function closeRightPanel() {
-    rightPanelOpen.value = false
+  function closePropertiesPanel() {
+    propertiesPanelOpen.value = false
   }
 
-  function setRightPanelTab(tab: RightPanelTab) {
-    rightPanelTab.value = tab
-    if (!rightPanelOpen.value) {
-      rightPanelOpen.value = true
-    }
+  function toggleDebugPanel() {
+    debugPanelOpen.value = !debugPanelOpen.value
+  }
+
+  function openDebugPanel() {
+    debugPanelOpen.value = true
+  }
+
+  function closeDebugPanel() {
+    debugPanelOpen.value = false
   }
 
   function setConnectionStatus(status: ConnectionStatus) {
@@ -77,8 +75,8 @@ export const useUiStore = defineStore('ui', () => {
   return {
     // state
     leftPanelOpen,
-    rightPanelOpen,
-    rightPanelTab,
+    propertiesPanelOpen,
+    debugPanelOpen,
     connectionStatus,
     deployStatus,
 
@@ -89,10 +87,12 @@ export const useUiStore = defineStore('ui', () => {
 
     // actions
     toggleLeftPanel,
-    toggleRightPanel,
-    openRightPanel,
-    closeRightPanel,
-    setRightPanelTab,
+    togglePropertiesPanel,
+    openPropertiesPanel,
+    closePropertiesPanel,
+    toggleDebugPanel,
+    openDebugPanel,
+    closeDebugPanel,
     setConnectionStatus,
     setDeployStatus,
   }

@@ -322,6 +322,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("inject", nodes.NewInjectNode, nodes.InjectTypeInfo())
 	registry.Register("debug", nodes.NewDebugNode, nodes.DebugTypeInfo())
 	registry.Register("function", nodes.NewFunctionNode, nodes.FunctionTypeInfo())
+	registry.Register("context-watch", nodes.NewContextWatchNode, nodes.ContextWatchTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

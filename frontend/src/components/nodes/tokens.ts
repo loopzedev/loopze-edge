@@ -36,6 +36,17 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#1a3050',
     textSub:    '#5a8ab8',
   },
+  context: {
+    accent:     '#c084fc',
+    accentDim:  '#c084fc12',
+    accentBdr:  '#c084fc2a',
+    accentGlow: '#c084fc12',
+    bg:         '#0a0612',
+    bgHdr:      '#160e28',
+    bgIcon:     '#1a1030',
+    border:     '#2e1a50',
+    textSub:    '#9a6abf',
+  },
   output: {
     accent:     '#ff6b2b',
     accentDim:  '#ff6b2b12',
@@ -73,6 +84,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   csv:             'process',
   comment:         'process',
   'opc-ua':        'process',
+
+  'context-watch': 'context',
 
   debug:           'output',
   'mqtt-out':      'output',

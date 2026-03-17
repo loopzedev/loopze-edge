@@ -61,7 +61,7 @@ const outputHandles = computed(() =>
 
 <template>
   <div
-    class="flint-node w-[196px] relative font-mono select-none flex"
+    class="flint-node min-w-[196px] w-max relative font-mono select-none flex"
     :class="{ selected: props.selected, 'opacity-40': props.disabled }"
     :style="{
       border: `1px solid ${props.selected ? t.accent : t.border}`,

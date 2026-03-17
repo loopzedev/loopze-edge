@@ -45,6 +45,9 @@ const icons: Record<string, string[]> = {
   xml:           ['M8 18l-6-6 6-6', 'M16 6l6 6-6 6', 'M14 4l-4 16'],                  // </>
   csv:           ['M4 4h16v16H4z', 'M4 10h16', 'M4 16h16', 'M10 4v16', 'M16 4v16'],  // grid/table
 
+  // ── Context ──────────────────────────────
+  'context-watch': ['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'], // eye
+
   // ── Utility ───────────────────────────────
   comment:       ['M21 4H3v12h13l5 4V4z'],                                             // speech bubble
   'link-in':     ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M3 10h7', 'M6 7l-3 3 3 3'],  // chain + arrow in

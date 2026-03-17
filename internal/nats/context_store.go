@@ -61,6 +61,12 @@ func (s *KVContextStore) Delete(key string) error {
 	return err
 }
 
+// KeyValue returns the underlying NATS JetStream KeyValue bucket
+// for advanced operations like Watch.
+func (s *KVContextStore) KeyValue() jetstream.KeyValue {
+	return s.kv
+}
+
 // Keys returns all active keys in the store.
 func (s *KVContextStore) Keys() ([]string, error) {
 	keys, err := s.kv.Keys(context.Background())

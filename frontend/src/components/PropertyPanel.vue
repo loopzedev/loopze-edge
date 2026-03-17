@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
+import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -82,6 +83,7 @@ function formatValue(value: unknown): string {
           <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2">▸ Configuration</p>
           <InjectConfig v-if="selectedNode?.type === 'inject'" />
           <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
+          <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
           <template v-else>
             <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="space-y-1.5">
               <div

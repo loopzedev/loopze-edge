@@ -158,7 +158,7 @@ export const useFlowStore = defineStore("flow", () => {
     };
 
     nodes.value.push(vfNode);
-    markDirty();
+    markNodeDirty(nodeId);
     return vfNode;
   }
 

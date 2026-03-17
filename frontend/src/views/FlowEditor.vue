@@ -11,6 +11,7 @@ import BaseNode from "@/components/nodes/BaseNode.vue";
 import InjectNode from "@/components/nodes/InjectNode.vue";
 import DebugNode from "@/components/nodes/DebugNode.vue";
 import FunctionNode from "@/components/nodes/FunctionNode.vue";
+import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -169,6 +170,10 @@ onMounted(async () => {
 
             <template #node-function="nodeProps">
                 <FunctionNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-context-watch="nodeProps">
+                <ContextWatchNode v-bind="nodeProps as any" />
             </template>
 
             <!-- Default fallback for all other node types -->

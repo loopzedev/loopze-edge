@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background, BackgroundVariant } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -21,7 +21,7 @@ const flowStore = useFlowStore()
 const uiStore = useUiStore()
 const api = useApi()
 
-const { onConnect, onNodeDragStop, screenToFlowCoordinate } = useVueFlow('flint-flow-editor')
+const { onConnect, onNodeDragStop, screenToFlowCoordinate, setViewport } = useVueFlow('flint-flow-editor')
 
 const flowContainer = ref<HTMLElement | null>(null)
 
@@ -112,6 +112,10 @@ onMounted(async () => {
       flowStore.addFlow('Flow 1')
     }
   }
+
+  // Always start at top-left corner after loading.
+  await nextTick()
+  setViewport({ x: 0, y: 0, zoom: 1 })
 })
 </script>
 
@@ -134,8 +138,11 @@ onMounted(async () => {
       :delete-key-code="['Backspace', 'Delete']"
       :multi-selection-key-code="'Shift'"
       :connection-line-type="('smoothstep' as any)"
-      :min-zoom="0.15"
+      :min-zoom="0.25"
       :max-zoom="3"
+      :default-viewport="{ x: 0, y: 0, zoom: 1 }"
+      :translate-extent="[[0, 0], [4000, 3000]]"
+      :prevent-scrolling="true"
       @pane-click="onPaneClick"
       @node-click="handleNodeClick"
       @selection-change="handleSelectionChange"
@@ -260,10 +267,10 @@ onMounted(async () => {
 
       <!-- Background grid -->
       <Background
-        :variant="BackgroundVariant.Dots"
+        :variant="BackgroundVariant.Lines"
         :gap="24"
         :size="1"
-        pattern-color="#30363d44"
+        pattern-color="#30363d33"
       />
 
       <!-- Zoom / Fit controls -->

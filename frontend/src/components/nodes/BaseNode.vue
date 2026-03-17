@@ -162,10 +162,7 @@ const outputHandles = computed(() =>
 
 <style scoped>
 .flint-node {
-  transition: box-shadow .15s, transform .1s;
+  transition: box-shadow .15s;
   border-radius: 2px;
-}
-.flint-node:hover:not(.selected) {
-  transform: translateY(-1px);
 }
 </style>

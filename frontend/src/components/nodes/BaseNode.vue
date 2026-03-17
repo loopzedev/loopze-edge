@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
   outputs: 0,
   selected: false,
   disabled: false,
-  accentColor: '#6b7280',
+  accentColor: '#4b5563',
   status: null,
 })
 
@@ -57,12 +57,9 @@ const outputHandles = computed(() => {
 
 <template>
   <div
-    class="flint-node w-[180px] relative bg-terminal-surface font-mono select-none"
+    class="flint-node w-[180px] relative font-mono select-none flex"
     :class="{ selected: props.selected, 'opacity-40': props.disabled }"
-    :style="{
-      border: '1px solid #30363d',
-      borderLeft: `3px solid ${props.accentColor}`,
-    }"
+    style="border: 1px solid #30363d"
   >
     <!-- Input Handles -->
     <Handle
@@ -88,45 +85,53 @@ const outputHandles = computed(() => {
       :class="selected ? '!border-accent' : '!border-terminal-text-dim'"
     />
 
-    <!-- Header -->
-    <div class="flex items-center gap-2 px-2.5 py-1.5">
-      <span class="shrink-0 leading-none" :style="{ color: props.accentColor }">
-        <slot name="icon"><NodeIcon :type="props.nodeType" /></slot>
-      </span>
-      <span class="text-xs text-terminal-text font-medium truncate flex-1">
-        {{ displayLabel }}
-      </span>
-      <slot name="badge" />
+    <!-- Left color stripe with icon -->
+    <div
+      class="w-10 shrink-0 flex items-center justify-center text-white"
+      :style="{ backgroundColor: props.accentColor }"
+    >
+      <slot name="icon"><NodeIcon :type="props.nodeType" /></slot>
     </div>
 
-    <!-- Body (optional) -->
-    <div
-      v-if="$slots.body"
-      class="px-2.5 py-1.5 text-[10px] text-terminal-text-dim"
-      style="border-top: 1px solid #30363d55"
-    >
-      <slot name="body" />
-    </div>
+    <!-- Right content area -->
+    <div class="flex-1 min-w-0 bg-terminal-surface">
+      <!-- Header -->
+      <div class="flex items-center gap-1.5 px-2 py-1.5">
+        <span class="text-xs text-terminal-text font-medium truncate flex-1">
+          {{ displayLabel }}
+        </span>
+        <slot name="badge" />
+      </div>
 
-    <!-- Actions (optional, e.g. buttons) -->
-    <div
-      v-if="$slots.actions"
-      style="border-top: 1px solid #30363d55"
-    >
-      <slot name="actions" />
-    </div>
+      <!-- Body (optional) -->
+      <div
+        v-if="$slots.body"
+        class="px-2 py-1 text-[10px] text-terminal-text-dim"
+        style="border-top: 1px solid #30363d55"
+      >
+        <slot name="body" />
+      </div>
 
-    <!-- Status bar -->
-    <div
-      v-if="props.status"
-      class="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-terminal-text-dim"
-      style="border-top: 1px solid #30363d55"
-    >
-      <span
-        class="w-1.5 h-1.5 shrink-0 rounded-full"
-        :style="{ background: statusColor }"
-      />
-      <span class="truncate">{{ props.status.text ?? '' }}</span>
+      <!-- Actions (optional) -->
+      <div
+        v-if="$slots.actions"
+        style="border-top: 1px solid #30363d55"
+      >
+        <slot name="actions" />
+      </div>
+
+      <!-- Status bar -->
+      <div
+        v-if="props.status"
+        class="flex items-center gap-1.5 px-2 py-1 text-[10px] text-terminal-text-dim"
+        style="border-top: 1px solid #30363d55"
+      >
+        <span
+          class="w-1.5 h-1.5 shrink-0 rounded-full"
+          :style="{ background: statusColor }"
+        />
+        <span class="truncate">{{ props.status.text ?? '' }}</span>
+      </div>
     </div>
 
     <!-- Disabled overlay -->

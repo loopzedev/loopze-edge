@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import { useApi } from '@/composables/useApi'
 import BaseNode from '@/components/nodes/BaseNode.vue'
+import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -39,7 +40,7 @@ async function handleTrigger(): Promise<void> {
     :id="props.id"
     :label="label"
     node-type="inject"
-    accent-color="#7fa8c9"
+    accent-color="#4d7a99"
     :selected="props.selected"
     :inputs="0"
     :outputs="1"
@@ -48,15 +49,12 @@ async function handleTrigger(): Promise<void> {
   >
     <template #icon>
       <button
-        class="w-4 h-4 flex items-center justify-center hover:text-accent active:opacity-60 transition-colors"
-        style="color: #7fa8c9"
+        class="w-full h-full flex items-center justify-center hover:opacity-80 active:opacity-60 transition-opacity"
         title="Trigger inject"
         @click.stop="handleTrigger"
         @mousedown.stop
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M5 3l14 9-14 9V3z" />
-        </svg>
+        <NodeIcon type="inject" />
       </button>
     </template>
 

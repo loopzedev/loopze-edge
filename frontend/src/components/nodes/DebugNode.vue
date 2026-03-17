@@ -21,7 +21,7 @@ const messageCount = computed(() => {
     :id="props.id"
     :label="label"
     node-type="debug"
-    accent-color="#4ade80"
+    accent-color="#2d7a3a"
     :selected="props.selected"
     :inputs="1"
     :outputs="0"

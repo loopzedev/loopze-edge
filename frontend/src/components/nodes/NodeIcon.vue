@@ -63,7 +63,7 @@ const icons: Record<string, string[]> = {
     stroke-width="2"
     stroke-linecap="round"
     stroke-linejoin="round"
-    class="w-3.5 h-3.5"
+    class="w-5 h-5"
   >
     <path v-for="(d, i) in (icons[type] ?? icons['debug'])" :key="i" :d="d" />
   </svg>

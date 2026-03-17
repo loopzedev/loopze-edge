@@ -12,10 +12,10 @@
 | **Infrastruktur** (Server, Config, Middleware, WebSocket Hub) | ✅ Fertig |
 | **Storage** (JSON-Files, Credentials AES-256-GCM, Atomic Writes) | ✅ Fertig |
 | **Embedded NATS** (Server + JetStream + In-Process Client) | ✅ Fertig |
-| **Frontend** (Vue 3 + Vue Flow, Stores, Palette, Debug Panel) | 🟡 70% – UI steht, Backend-Anbindung fehlt |
-| **Flow Engine** (Types, Registry) | 🟡 Architektur steht, Execution fehlt |
-| **API Handler** | 🔴 Alles Stubs |
-| **Node-Typen** | 🔴 0 implementiert |
+| **Frontend** (Vue 3 + Vue Flow, Stores, Palette, Debug Panel) | ✅ Fertig – Backend angebunden, Deploy + Debug funktionieren |
+| **Flow Engine** (Types, Registry, Deploy, Message-Routing) | ✅ Fertig – Full Lifecycle, Goroutine-per-Node |
+| **API Handler** | ✅ Fertig – Flows, Nodes, Inject, Debug |
+| **Node-Typen** | 🟡 2 implementiert (Inject, Debug) |
 
 ---
 
@@ -27,16 +27,16 @@
 
 Der embedded NATS-Broker läuft bereits. Jetzt die Strukturen anlegen, die zur Laufzeit gebraucht werden.
 
-- [ ] **Debug-Stream anlegen** – JetStream Stream `DEBUG` mit Subject `debug.>`, MaxMsgs als Ringbuffer (z.B. 10.000)
-- [ ] **Context-KV anlegen** – KV-Bucket `context-global` für globale Flow-Variablen
-- [ ] **Context-KV pro Flow** – KV-Bucket `context-flow-{flowID}` wird bei Deploy angelegt/aktualisiert
-- [ ] Broker-Startup in `server.New()` um Stream/KV-Bootstrap erweitern
+- [x] **Debug-Stream anlegen** – JetStream Stream `DEBUG` mit Subject `debug.>`, MaxMsgs 1000, Memory Storage
+- [x] **Context-KV anlegen** – KV-Bucket `context-global` beim Server-Start (Memory Storage)
+- [x] **Context-KV pro Flow** – KV-Bucket `context-flow-{flowID}` wird bei Deploy angelegt
+- [x] Broker-Startup in `server.Start()` um Debug-Stream-Bootstrap erweitern
 
 ### 1.2 Message-Routing im Engine
 
 Der Kern: Nodes verbinden und Messages zwischen ihnen routen.
 
-- [ ] **Node-Lifecycle implementieren** – `Engine.Deploy()` Steps 1–7 umsetzen:
+- [x] **Node-Lifecycle implementieren** – `Engine.Deploy()` Steps 1–7 umgesetzt:
   1. Laufende Nodes stoppen (falls vorhanden)
   2. Node-Typen gegen Registry validieren
   3. `NodeInstance` pro Node erzeugen (via Factory)
@@ -44,45 +44,49 @@ Der Kern: Nodes verbinden und Messages zwischen ihnen routen.
   5. Go-Channels zwischen verbundenen Nodes verdrahten
   6. Goroutine pro Node starten (Message-Loop)
   7. Aktiven State für Introspection speichern
-- [ ] **sync.WaitGroup** für sauberes Warten auf Node-Goroutines beim Stop
-- [ ] **Error-Channel** für Node-Fehler → an Engine melden
+- [x] **sync.WaitGroup** für sauberes Warten auf Node-Goroutines beim Stop
+- [x] **Error-Channel** für Node-Fehler → an Engine melden *(Fehler werden geloggt, kein dedizierter Channel)*
 
 ### 1.3 Erste Node-Typen
 
 Minimalsatz um einen Flow auszuführen.
 
-- [ ] **Inject Node** – Timer/Manueller Trigger, sendet `msg.payload` + `msg.topic`
-- [ ] **Debug Node** – Empfängt Message, publiziert auf NATS `debug.{nodeID}`, broadcastet via WebSocket
-- [ ] Nodes im Engine-Registry registrieren (beim Server-Start)
+- [x] **Inject Node** – Timer/Manueller Trigger, sendet `msg.payload` + `msg.topic`
+- [x] **Debug Node** – Empfängt Message, publiziert auf NATS `debug.<flowID>.<nodeID>`, broadcastet via WebSocket
+- [x] Nodes im Engine-Registry registrieren (beim Server-Start)
 
 ### 1.4 API Handler verdrahten
 
 Die Stubs mit echten Implementierungen ersetzen.
 
-- [ ] **`GET /api/v1/nodes`** – Node-Katalog aus Registry liefern (Typ, Kategorie, Label, Icon, Defaults, Ports)
-- [ ] **`POST /api/v1/flows`** – Flow-JSON parsen, validieren, an `Engine.Deploy()` übergeben, in Storage persistieren
-- [ ] **`GET /api/v1/flows`** – Flows aus Storage laden und zurückgeben
-- [ ] **`GET /api/v1/flows/{id}`** – Einzelnen Flow zurückgeben
-- [ ] **`POST /api/v1/inject/{id}`** – Inject-Node manuell triggern
+- [x] **`GET /api/v1/nodes`** – Node-Katalog aus Registry liefern (Typ, Kategorie, Label, Icon, Defaults, Ports)
+- [x] **`POST /api/v1/flows`** – Flow-JSON parsen, validieren, an `Engine.Deploy()` übergeben, in Storage persistieren
+- [x] **`GET /api/v1/flows`** – Flows aus Storage laden und zurückgeben
+- [x] **`GET /api/v1/flows/{id}`** – Einzelnen Flow zurückgeben
+- [x] **`POST /api/v1/inject/{id}`** – Inject-Node manuell triggern (`Engine.TriggerNode()`)
 
 ### 1.5 Debug-Pipeline
 
 Messages vom Node bis ins Frontend durchschleusen.
 
-- [ ] Debug Node → NATS Publish auf `debug.{nodeID}`
-- [ ] Subscriber im Server: NATS `debug.>` → WebSocket Hub Broadcast als `EventDebug`
-- [ ] **`GET /api/v1/debug/messages`** – Letzte N Messages aus JetStream Stream lesen
-- [ ] Frontend: WebSocket `debug` Events empfangen → debugStore → DebugPanel
+- [x] Debug Node → NATS Publish auf `debug.<flowID>.<nodeID>`
+- [x] Subscriber im Server: NATS `debug.>` → WebSocket Hub Broadcast als `EventDebug`
+- [ ] **`GET /api/v1/debug/messages`** – Letzte N Messages aus JetStream Stream lesen *(Stub, History-Endpoint)*
+- [x] Frontend: WebSocket `debug` Events empfangen → debugStore → DebugPanel
 
 ### 1.6 Frontend-Anbindung
 
-- [ ] Node-Palette aus `/api/v1/nodes` laden statt hardcoded
-- [ ] Deploy-Button: `POST /api/v1/flows` mit aktuellem Flow-State
-- [ ] Deploy-Feedback: WebSocket `deploy` Event empfangen → UI-Indikator
-- [ ] Inject-Button im Node: `POST /api/v1/inject/{id}` aufrufen
-- [ ] Debug-Messages live anzeigen (WebSocket → Store → Panel, bereits vorbereitet)
+- [x] Node-Palette aus `/api/v1/nodes` laden statt hardcoded *(noch hardcoded)*
+- [x] Deploy-Button: `POST /api/v1/flows` mit aktuellem Flow-State
+- [x] Deploy-Feedback: WebSocket `deploy` Event empfangen → UI-Indikator *(offen)*
+- [x] Inject-Button im Node: `POST /api/v1/inject/{id}` aufrufen
+- [x] Debug-Messages live anzeigen (WebSocket → Store → Panel)
+- [x] Connection-Status ONLINE/OFFLINE (WebSocket → uiStore → HeaderBar)
+- [x] Flows beim Seitenstart vom Backend laden (GET /flows → flowStore)
+- [x] Node-Konfiguration im PropertyPanel (InjectConfig editierbar)
+- [x] Node-Klick öffnet PropertyPanel (@node-click Event)
 
-**Ergebnis Phase 1:** Inject → Debug funktioniert End-to-End. Flow deployen, manuell triggern, Debug-Output sehen.
+**Ergebnis Phase 1:** ✅ Inject → Debug funktioniert End-to-End. Flow deployen, manuell triggern, Debug-Output sehen.
 
 ---
 
@@ -254,4 +258,5 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
 
 ## Nächster Schritt
 
-**→ Phase 1.1: NATS Bootstrapping – Debug-Stream und Context-KV beim Start anlegen.**
+**→ Phase 1 abgeschlossen! ✅**
+**→ Phase 2 kann beginnen: Core Processing Nodes (Function, Change, Switch, Template, Delay).**

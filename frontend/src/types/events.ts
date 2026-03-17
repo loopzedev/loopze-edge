@@ -16,6 +16,7 @@ export interface DebugMessage {
   nodeName: string
   flowId: string
   timestamp: string
+  status: 'debug' | 'warn' | 'error'
   payload: unknown
   format: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'buffer' | 'undefined' | 'null'
   property: string

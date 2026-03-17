@@ -113,7 +113,8 @@ export function useApi() {
    * Fetch available node types from the catalog.
    */
   async function getNodes(): Promise<NodeCatalogEntry[]> {
-    return request<NodeCatalogEntry[]>('/nodes')
+    const res = await request<{ nodes: NodeCatalogEntry[] }>('/nodes')
+    return res.nodes ?? []
   }
 
   /**

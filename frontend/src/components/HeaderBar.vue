@@ -10,14 +10,22 @@ const connectionDotColor = computed(() => uiStore.connectionStatusColor)
 
 const connectionLabel = computed(() => {
   switch (uiStore.connectionStatus) {
-    case 'connected':
-      return 'ONLINE'
-    case 'connecting':
-      return 'CONNECTING'
-    case 'disconnected':
-      return 'OFFLINE'
+    case 'connected':   return 'ONLINE'
+    case 'connecting':  return 'CONNECTING'
+    case 'disconnected': return 'OFFLINE'
   }
 })
+
+const deployLabel = computed(() => {
+  switch (uiStore.deployStatus) {
+    case 'deploying': return 'DEPLOYING'
+    case 'deployed':  return 'DEPLOYED'
+    case 'failed':    return 'FAILED'
+    default:          return 'DEPLOY'
+  }
+})
+
+const deployDisabled = computed(() => uiStore.deployStatus === 'deploying')
 
 async function handleDeploy(): Promise<void> {
   await flowStore.deploy()
@@ -122,15 +130,31 @@ async function handleDeploy(): Promise<void> {
 
       <!-- Deploy button -->
       <button
-        class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider"
-        :disabled="flowStore.deploying"
+        class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider transition-colors duration-150"
+        :disabled="deployDisabled"
         :class="{
-          'opacity-50 cursor-not-allowed': flowStore.deploying,
+          'opacity-50 cursor-not-allowed': deployDisabled,
+          '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
+          '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
         }"
         title="Deploy flows"
         @click="handleDeploy"
       >
+        <!-- Spinning icon while deploying -->
         <svg
+          v-if="uiStore.deployStatus === 'deploying'"
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-3.5 h-3.5 animate-spin"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path stroke-linecap="square" d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+        </svg>
+        <!-- Checkmark when deployed -->
+        <svg
+          v-else-if="uiStore.deployStatus === 'deployed'"
           xmlns="http://www.w3.org/2000/svg"
           class="w-3.5 h-3.5"
           fill="none"
@@ -138,20 +162,33 @@ async function handleDeploy(): Promise<void> {
           stroke="currentColor"
           stroke-width="2.5"
         >
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            d="M5 12l5 5L20 7"
-            v-if="!flowStore.deploying"
-          />
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
-            v-else
-          />
+          <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
         </svg>
-        <span>{{ flowStore.deploying ? 'DEPLOYING' : 'DEPLOY' }}</span>
+        <!-- X when failed -->
+        <svg
+          v-else-if="uiStore.deployStatus === 'failed'"
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-3.5 h-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path stroke-linecap="square" stroke-linejoin="miter" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        <!-- Default deploy icon -->
+        <svg
+          v-else
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-3.5 h-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
+        </svg>
+        <span>{{ deployLabel }}</span>
       </button>
     </div>
   </header>

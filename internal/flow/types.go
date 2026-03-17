@@ -119,6 +119,24 @@ func NewMessage() *Message {
 	}
 }
 
+// NewMessageFromData creates a Message from a flat map (e.g. from a JS object).
+// If the map contains an "_id" key, that value is used as the message ID so that
+// the original message identity is preserved across function node execution.
+// The "_id" key is removed from the data map.
+func NewMessageFromData(data map[string]any) *Message {
+	id, _ := data["_id"].(string)
+	if id == "" {
+		id = generateID()
+	}
+	clean := make(map[string]any, len(data))
+	for k, v := range data {
+		if k != "_id" {
+			clean[k] = v
+		}
+	}
+	return &Message{id: id, data: clean}
+}
+
 // ID returns the immutable message identifier.
 func (m *Message) ID() string {
 	return m.id

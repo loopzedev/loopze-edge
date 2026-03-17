@@ -17,6 +17,8 @@ import (
 type InjectNode struct {
 	config flow.NodeConfig
 	send   flow.SendFunc
+	status flow.StatusFunc
+	debug  flow.DebugFunc
 
 	// Parsed from Properties.
 	once     bool          // send one message immediately on Start
@@ -71,6 +73,16 @@ func (n *InjectNode) SetSend(fn flow.SendFunc) {
 	n.send = fn
 }
 
+// SetStatus stores the engine-provided callback for reporting node status.
+func (n *InjectNode) SetStatus(fn flow.StatusFunc) {
+	n.status = fn
+}
+
+// SetDebug stores the engine-provided callback for emitting debug messages.
+func (n *InjectNode) SetDebug(fn flow.DebugFunc) {
+	n.debug = fn
+}
+
 // Start begins message generation. If once is true, a message is sent immediately.
 // If interval is set, a background goroutine sends messages at the configured rate.
 func (n *InjectNode) Start() error {
@@ -97,7 +109,7 @@ func (n *InjectNode) Start() error {
 
 // HandleMessage allows manual triggering of the inject node (e.g. via API).
 // The incoming message is ignored; a new message is generated and sent.
-func (n *InjectNode) HandleMessage(_ *flow.Message) ([]*flow.Message, error) {
+func (n *InjectNode) HandleMessage(_ *flow.Message) ([][]*flow.Message, error) {
 	n.emit()
 	return nil, nil
 }

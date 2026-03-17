@@ -21,21 +21,7 @@ const flowStore = useFlowStore()
 const uiStore = useUiStore()
 const api = useApi()
 
-const { onConnect, onNodeDragStop, screenToFlowCoordinate } = useVueFlow({
-  id: 'flint-flow-editor',
-  defaultEdgeOptions: {
-    type: 'smoothstep',
-    animated: false,
-  },
-  fitViewOnInit: false,
-  snapToGrid: true,
-  snapGrid: [16, 16] as [number, number],
-  deleteKeyCode: ['Backspace', 'Delete'],
-  multiSelectionKeyCode: 'Shift',
-  connectionLineType: 'smoothstep' as any,
-  minZoom: 0.15,
-  maxZoom: 3,
-})
+const { onConnect, onNodeDragStop, screenToFlowCoordinate } = useVueFlow('flint-flow-editor')
 
 const flowContainer = ref<HTMLElement | null>(null)
 
@@ -137,9 +123,19 @@ onMounted(async () => {
     @drop="onDrop"
   >
     <VueFlow
+      id="flint-flow-editor"
       v-model:nodes="flowStore.nodes"
       v-model:edges="flowStore.edges"
       class="w-full h-full"
+      :default-edge-options="{ type: 'smoothstep', animated: false }"
+      :fit-view-on-init="false"
+      :snap-to-grid="true"
+      :snap-grid="[16, 16]"
+      :delete-key-code="['Backspace', 'Delete']"
+      :multi-selection-key-code="'Shift'"
+      :connection-line-type="('smoothstep' as any)"
+      :min-zoom="0.15"
+      :max-zoom="3"
       @pane-click="onPaneClick"
       @node-click="handleNodeClick"
       @selection-change="handleSelectionChange"

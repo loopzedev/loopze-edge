@@ -123,14 +123,34 @@ function formatPayload(payload: unknown): string {
       <div
         v-for="msg in messages"
         :key="msg.id"
-        class="border-b border-terminal-border/50 px-2 py-1.5 hover:bg-terminal-surface/60 transition-colors duration-75"
+        class="border-b px-2 py-1.5 transition-colors duration-75"
+        :class="{
+          'border-terminal-border/50 hover:bg-terminal-surface/60': msg.status === 'debug' || !msg.status,
+          'border-red-900/50 bg-red-950/30 hover:bg-red-950/50': msg.status === 'error',
+          'border-yellow-900/50 bg-yellow-950/20 hover:bg-yellow-950/40': msg.status === 'warn',
+        }"
       >
-        <!-- Header line: timestamp + node name -->
+        <!-- Header line: timestamp + status + node name -->
         <div class="flex items-center gap-2 mb-0.5">
           <span class="text-terminal-text-dim text-[10px] shrink-0">
             {{ formatTimestamp(msg.timestamp) }}
           </span>
-          <span class="text-amber text-[10px] font-bold uppercase tracking-wide truncate">
+          <span
+            v-if="msg.status === 'error'"
+            class="text-red-400 text-[10px] font-bold uppercase tracking-wide shrink-0"
+          >ERR</span>
+          <span
+            v-else-if="msg.status === 'warn'"
+            class="text-yellow-400 text-[10px] font-bold uppercase tracking-wide shrink-0"
+          >WRN</span>
+          <span
+            class="text-[10px] font-bold uppercase tracking-wide truncate"
+            :class="{
+              'text-red-400': msg.status === 'error',
+              'text-yellow-400': msg.status === 'warn',
+              'text-amber': msg.status === 'debug' || !msg.status,
+            }"
+          >
             {{ msg.nodeName || msg.nodeId }}
           </span>
           <span
@@ -145,7 +165,14 @@ function formatPayload(payload: unknown): string {
         </div>
 
         <!-- Payload -->
-        <pre class="text-terminal-text-bright text-xs whitespace-pre-wrap break-all leading-snug m-0 p-0">{{ formatPayload(msg.payload) }}</pre>
+        <pre
+          class="text-xs whitespace-pre-wrap break-all leading-snug m-0 p-0"
+          :class="{
+            'text-red-300': msg.status === 'error',
+            'text-yellow-300': msg.status === 'warn',
+            'text-terminal-text-bright': msg.status === 'debug' || !msg.status,
+          }"
+        >{{ formatPayload(msg.payload) }}</pre>
       </div>
     </div>
 

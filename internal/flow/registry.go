@@ -11,6 +11,30 @@ import "sync"
 // push messages downstream from background goroutines.
 type SendFunc func(port int, msg *Message)
 
+// StatusFunc is a callback that nodes use to report their current status
+// to the editor UI. The fill color and text are displayed on the node.
+// Valid fill values: "green", "red", "yellow", "blue", "grey".
+type StatusFunc func(fill string, text string)
+
+// DebugMessage represents a debug output from a node, sent to the debug panel.
+type DebugMessage struct {
+	ID        string `json:"id"`
+	NodeID    string `json:"nodeId"`
+	NodeName  string `json:"nodeName"`
+	FlowID    string `json:"flowId"`
+	Timestamp string `json:"timestamp"`
+	Status    string `json:"status"` // "debug", "warn", "error"
+	Payload   any    `json:"payload"`
+	Format    string `json:"format"`   // "string", "number", "boolean", "object", "array", "null"
+	Property  string `json:"property"` // which msg field, e.g. "payload"
+}
+
+// DebugFunc is a callback that nodes use to emit debug messages.
+// The engine provides this function via SetDebug before calling Start().
+// The debug node uses this to publish captured messages; any node can
+// use it for diagnostic output.
+type DebugFunc func(msg DebugMessage)
+
 // NodeFactory is a constructor function that creates a new NodeInstance
 // from a given NodeConfig. Each registered node type provides its own factory.
 type NodeFactory func(config NodeConfig) (NodeInstance, error)
@@ -18,7 +42,7 @@ type NodeFactory func(config NodeConfig) (NodeInstance, error)
 // NodeInstance is the interface that all executable node implementations must satisfy.
 // The runtime engine calls these methods during the flow lifecycle.
 //
-// Lifecycle order: Factory → Init → SetSend → Start → HandleMessage… → Stop
+// Lifecycle order: Factory → Init → SetSend → SetStatus → SetDebug → Start → HandleMessage… → Stop
 type NodeInstance interface {
 	// Init is called once after the node is created, before the flow starts.
 	// Use it to validate configuration and allocate resources.
@@ -29,17 +53,32 @@ type NodeInstance interface {
 	// to push messages from background goroutines (timers, subscriptions, etc.).
 	SetSend(fn SendFunc)
 
+	// SetStatus provides the node with a callback to report its current status
+	// to the editor UI (e.g. "connected", "error", "waiting").
+	// Called by the engine after Init() and before Start().
+	SetStatus(fn StatusFunc)
+
+	// SetDebug provides the node with a callback to emit debug messages.
+	// Called by the engine after Init() and before Start().
+	SetDebug(fn DebugFunc)
+
 	// Start is called when the flow is deployed and begins execution.
 	// Long-running nodes (e.g. MQTT subscriber, Inject timer) should
 	// start their background goroutines here.
 	Start() error
 
-	// HandleMessage processes an incoming message and returns zero or more
-	// output messages. The outer slice index corresponds to the output port,
-	// so a node with two outputs might return []*Message for port 0 and
-	// []*Message for port 1. Returning nil or an empty slice means no
-	// messages are sent downstream from this invocation.
-	HandleMessage(msg *Message) ([]*Message, error)
+	// HandleMessage processes an incoming message and returns output messages
+	// grouped by output port. The outer slice index corresponds to the output
+	// port, and the inner slice contains messages for that port.
+	//
+	// Example for a switch node with 3 outputs:
+	//   results := make([][]*Message, 3)
+	//   results[0] = []*Message{msg}  // port 0: match
+	//   results[1] = nil              // port 1: no match
+	//   results[2] = nil              // port 2: no match
+	//
+	// Returning nil means no messages are sent downstream.
+	HandleMessage(msg *Message) ([][]*Message, error)
 
 	// Stop is called when the flow is stopped or re-deployed.
 	// Nodes must release resources and stop background goroutines.
@@ -129,6 +168,15 @@ func (r *NodeRegistry) Get(nodeType string) (NodeFactory, bool) {
 
 	factory, ok := r.factories[nodeType]
 	return factory, ok
+}
+
+// GetTypeInfo retrieves the NodeTypeInfo for a given node type.
+func (r *NodeRegistry) GetTypeInfo(nodeType string) (NodeTypeInfo, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	info, ok := r.typeInfos[nodeType]
+	return info, ok
 }
 
 // List returns metadata for all registered node types, suitable for

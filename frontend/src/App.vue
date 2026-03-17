@@ -4,12 +4,28 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import { useUiStore } from '@/stores/uiStore'
+import { useDebugStore } from '@/stores/debugStore'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 const ui = useUiStore()
+const debugStore = useDebugStore()
 
 // Connect WebSocket and sync status to uiStore.
 const ws = useWebSocket()
+
+// Wire debug messages from WebSocket to debug store.
+ws.onDebug((msg) => {
+  debugStore.addMessage(msg)
+})
+
+// Wire deploy events from WebSocket to uiStore.
+ws.onDeploy((event) => {
+  switch (event.action) {
+    case 'deploying': ui.setDeployStatus('deploying'); break
+    case 'deployed':  ui.setDeployStatus('deployed');  break
+    case 'failed':    ui.setDeployStatus('failed');    break
+  }
+})
 watch(ws.status, (status) => {
   switch (status) {
     case 'connected':

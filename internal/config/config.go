@@ -56,7 +56,7 @@ const (
 	defaultHost            = "0.0.0.0"
 	defaultPort            = 1880
 	defaultDataDir         = "./data"
-	defaultFlowFile        = "flows.json"
+	defaultFlowFile        = "workspace.json"
 	defaultCredentialsFile = "credentials.json"
 	defaultKeyFile         = "flint.key"
 	defaultNATSPort        = 4222

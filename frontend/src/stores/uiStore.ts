@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 
 export type RightPanelTab = 'properties' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
+export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
 
 export const useUiStore = defineStore('ui', () => {
   // ── State ──────────────────────────────────────────────────────────
@@ -10,6 +11,8 @@ export const useUiStore = defineStore('ui', () => {
   const rightPanelOpen = ref<boolean>(false)
   const rightPanelTab = ref<RightPanelTab>('properties')
   const connectionStatus = ref<ConnectionStatus>('disconnected')
+  const deployStatus = ref<DeployStatus>('idle')
+  let deployResetTimer: ReturnType<typeof setTimeout> | null = null
 
   // ── Getters ────────────────────────────────────────────────────────
   const isConnected = computed(() => connectionStatus.value === 'connected')
@@ -57,12 +60,27 @@ export const useUiStore = defineStore('ui', () => {
     connectionStatus.value = status
   }
 
+  function setDeployStatus(status: DeployStatus) {
+    if (deployResetTimer !== null) {
+      clearTimeout(deployResetTimer)
+      deployResetTimer = null
+    }
+    deployStatus.value = status
+    if (status === 'deployed') {
+      deployResetTimer = setTimeout(() => {
+        deployStatus.value = 'idle'
+        deployResetTimer = null
+      }, 3000)
+    }
+  }
+
   return {
     // state
     leftPanelOpen,
     rightPanelOpen,
     rightPanelTab,
     connectionStatus,
+    deployStatus,
 
     // getters
     isConnected,
@@ -76,5 +94,6 @@ export const useUiStore = defineStore('ui', () => {
     closeRightPanel,
     setRightPanelTab,
     setConnectionStatus,
+    setDeployStatus,
   }
 })

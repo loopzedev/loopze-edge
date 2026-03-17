@@ -9,6 +9,7 @@
 package nats
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -137,6 +138,151 @@ func (b *Broker) ClientURL() string {
 // InProcessServer returns the underlying NATS server for in-process client connections.
 func (b *Broker) InProcessServer() *server.Server {
 	return b.server
+}
+
+// SetupDebugStream creates (or updates) the JetStream stream for debug messages.
+// The stream uses memory storage with a ring-buffer of 1000 messages.
+// Subject pattern: debug.<flowID>.<nodeID>
+func (b *Broker) SetupDebugStream(ctx context.Context) (jetstream.Stream, error) {
+	stream, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:      "DEBUG",
+		Subjects:  []string{"debug.>"},
+		Retention: jetstream.LimitsPolicy,
+		MaxMsgs:   1000,
+		Storage:   jetstream.MemoryStorage,
+		Discard:   jetstream.DiscardOld,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("nats: failed to create debug stream: %w", err)
+	}
+
+	slog.Info("NATS debug stream ready", "name", "DEBUG", "max_msgs", 1000)
+	return stream, nil
+}
+
+// GetDebugMessages reads the last `limit` messages from the DEBUG JetStream
+// stream. An optional subject filter (e.g. "debug.flow1.>" or
+// "debug.flow1.node42") restricts which messages are returned.
+// Messages are returned in chronological order (oldest → newest).
+func (b *Broker) GetDebugMessages(ctx context.Context, limit int, subject string) ([][]byte, error) {
+	stream, err := b.js.Stream(ctx, "DEBUG")
+	if err != nil {
+		return nil, fmt.Errorf("nats: stream lookup: %w", err)
+	}
+
+	info, err := stream.Info(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nats: stream info: %w", err)
+	}
+
+	if info.State.Msgs == 0 {
+		return nil, nil
+	}
+
+	// Calculate the sequence to start from so we deliver at most `limit` msgs.
+	lastSeq := info.State.LastSeq
+	firstSeq := info.State.FirstSeq
+	startSeq := uint64(1)
+	if lastSeq >= uint64(limit) && lastSeq-uint64(limit)+1 >= firstSeq {
+		startSeq = lastSeq - uint64(limit) + 1
+	} else {
+		startSeq = firstSeq
+	}
+
+	filterSubjects := []string{"debug.>"}
+	if subject != "" {
+		filterSubjects = []string{subject}
+	}
+
+	consumer, err := stream.OrderedConsumer(ctx, jetstream.OrderedConsumerConfig{
+		DeliverPolicy:  jetstream.DeliverByStartSequencePolicy,
+		OptStartSeq:    startSeq,
+		FilterSubjects: filterSubjects,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("nats: create consumer: %w", err)
+	}
+
+	batch, err := consumer.FetchNoWait(limit)
+	if err != nil {
+		return nil, fmt.Errorf("nats: fetch: %w", err)
+	}
+
+	var results [][]byte
+	for msg := range batch.Messages() {
+		data := make([]byte, len(msg.Data()))
+		copy(data, msg.Data())
+		results = append(results, data)
+	}
+
+	return results, nil
+}
+
+// ContextStore defines the two storage modes for context KV buckets.
+// Users can choose between persistent (file-backed, survives restarts)
+// and memory (fast, volatile, lost on restart).
+type ContextStore string
+
+const (
+	// ContextStoreMemory uses in-memory storage — fast but volatile.
+	ContextStoreMemory ContextStore = "memory"
+	// ContextStorePersistent uses file-backed storage — slower but survives restarts.
+	ContextStorePersistent ContextStore = "persistent"
+)
+
+func (cs ContextStore) jetStreamStorage() jetstream.StorageType {
+	if cs == ContextStorePersistent {
+		return jetstream.FileStorage
+	}
+	return jetstream.MemoryStorage
+}
+
+// SetupContextKV creates the global context KV buckets used by all flows
+// for shared state (global.get/global.set in Function Nodes).
+// Two buckets are created: one memory-backed (fast) and one file-backed (persistent).
+func (b *Broker) SetupContextKV(ctx context.Context) (memory jetstream.KeyValue, persistent jetstream.KeyValue, err error) {
+	memory, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "context-global-memory",
+		Storage: jetstream.MemoryStorage,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("nats: failed to create global memory context KV: %w", err)
+	}
+
+	persistent, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "context-global-persistent",
+		Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("nats: failed to create global persistent context KV: %w", err)
+	}
+
+	slog.Info("NATS global context KV ready", "buckets", "memory + persistent")
+	return memory, persistent, nil
+}
+
+// SetupFlowContextKV creates (or updates) KV buckets for a specific flow's
+// context state (flow.get/flow.set in Function Nodes).
+// Two buckets are created per flow: memory and persistent.
+func (b *Broker) SetupFlowContextKV(ctx context.Context, flowID string) (memory jetstream.KeyValue, persistent jetstream.KeyValue, err error) {
+	memory, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "context-flow-" + flowID + "-memory",
+		Storage: jetstream.MemoryStorage,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("nats: failed to create flow memory context KV for %q: %w", flowID, err)
+	}
+
+	persistent, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "context-flow-" + flowID + "-persistent",
+		Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("nats: failed to create flow persistent context KV for %q: %w", flowID, err)
+	}
+
+	slog.Debug("NATS flow context KV ready", "flow_id", flowID, "buckets", "memory + persistent")
+	return memory, persistent, nil
 }
 
 // slogAdapter bridges NATS server logging to Go's slog.

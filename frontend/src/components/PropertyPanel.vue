@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import DebugPanel from '@/components/DebugPanel.vue'
 import InjectConfig from '@/components/config/InjectConfig.vue'
+import FunctionConfig from '@/components/config/FunctionConfig.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -173,6 +174,7 @@ function formatValue(value: unknown): string {
 
           <!-- Type-specific config panels -->
           <InjectConfig v-if="selectedNode?.type === 'inject'" />
+          <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
 
           <!-- Generic fallback for unknown node types -->
           <template v-else>

@@ -56,8 +56,8 @@ type Event struct {
 	// Type identifies the event category (e.g. "debug", "status", "deploy", "notification").
 	Type string `json:"type"`
 
-	// Data carries the event-specific payload.
-	Data any `json:"data"`
+	// Payload carries the event-specific payload.
+	Payload any `json:"payload"`
 
 	// Timestamp records when the event was created.
 	Timestamp time.Time `json:"timestamp"`
@@ -175,7 +175,7 @@ func (h *Hub) Stop() {
 func (h *Hub) Broadcast(eventType string, data any) {
 	event := Event{
 		Type:      eventType,
-		Data:      data,
+		Payload:   data,
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -283,27 +283,8 @@ func (c *Client) writePump() {
 				return
 			}
 
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-			if _, err := w.Write(message); err != nil {
+			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				slog.Error("websocket write error", "client", c.id, "error", err)
-				return
-			}
-
-			// Drain any queued messages into the same write frame for efficiency.
-			n := len(c.send)
-			for i := 0; i < n; i++ {
-				if _, err := w.Write([]byte("\n")); err != nil {
-					break
-				}
-				if _, err := w.Write(<-c.send); err != nil {
-					break
-				}
-			}
-
-			if err := w.Close(); err != nil {
 				return
 			}
 

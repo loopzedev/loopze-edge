@@ -5,21 +5,27 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/niceclouds/flint/internal/flow"
+	flintnats "github.com/niceclouds/flint/internal/nats"
 	"github.com/niceclouds/flint/internal/storage"
+	"github.com/niceclouds/flint/internal/ws"
 )
 
 // Deps holds the dependencies that API handlers need.
 type Deps struct {
 	Engine  *flow.Engine
 	Storage storage.Storage
+	Broker  *flintnats.Broker
+	Hub     *ws.Hub
 }
 
 // deployRequest is the JSON body sent by the frontend on deploy.
@@ -89,16 +95,28 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 		"client_rev", req.Rev,
 	)
 
+	d.broadcast(ws.EventDeploy, map[string]any{"action": "deploying", "revision": ""})
+
 	// Save to persistent storage.
 	if err := d.Storage.SaveFlows(req.Flows); err != nil {
 		slog.Error("failed to save flows", "error", err)
+		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": "failed to save flows"})
 		jsonError(w, http.StatusInternalServerError, "failed to save flows")
 		return
+	}
+
+	// Create flow-scoped context KV buckets.
+	ctx := context.Background()
+	for _, f := range req.Flows {
+		if _, _, err := d.Broker.SetupFlowContextKV(ctx, f.ID); err != nil {
+			slog.Error("failed to setup flow context KV", "flow_id", f.ID, "error", err)
+		}
 	}
 
 	// Deploy to the runtime engine.
 	if err := d.Engine.Deploy(req.Flows); err != nil {
 		slog.Error("failed to deploy flows to engine", "error", err)
+		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": err.Error()})
 		jsonError(w, http.StatusInternalServerError, "failed to deploy flows")
 		return
 	}
@@ -107,11 +125,20 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("flows deployed successfully", "rev", rev)
 
+	d.broadcast(ws.EventDeploy, map[string]any{"action": "deployed", "revision": rev})
+
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"success": true,
 		"rev":     rev,
 		"flows":   req.Flows,
 	})
+}
+
+// broadcast sends a WebSocket event if the Hub is configured.
+func (d *Deps) broadcast(eventType string, payload any) {
+	if d.Hub != nil {
+		d.Hub.Broadcast(eventType, payload)
+	}
 }
 
 // handleGetFlow returns a single flow by its ID.
@@ -160,7 +187,11 @@ func (d *Deps) handleInjectNode(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug("POST /inject", "node_id", id)
 
-	// TODO: Find the inject node by ID in the running engine and trigger it.
+	if err := d.Engine.TriggerNode(id); err != nil {
+		slog.Warn("failed to trigger node", "node_id", id, "error", err)
+		jsonError(w, http.StatusNotFound, err.Error())
+		return
+	}
 
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"status": "ok",
@@ -182,12 +213,59 @@ func (d *Deps) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGetDebugMessages returns recent debug messages from the runtime.
+// handleGetDebugMessages returns recent debug messages from the JetStream ring buffer.
 //
-// GET /api/v1/debug/messages
+// GET /api/v1/debug/messages?limit=100&flowId=<id>&nodeId=<id>
+//
+// Query parameters:
+//
+//	limit  – max number of messages to return (1–1000, default 100)
+//	flowId – optional: restrict to messages from a specific flow
+//	nodeId – optional: restrict to a specific node (requires flowId)
 func (d *Deps) handleGetDebugMessages(w http.ResponseWriter, r *http.Request) {
-	// TODO: Retrieve from NATS JetStream ring buffer.
+	q := r.URL.Query()
+
+	limit := 100
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n > 1000 {
+				n = 1000
+			}
+			limit = n
+		}
+	}
+
+	// Build NATS subject filter from optional query parameters.
+	var subject string
+	flowID := q.Get("flowId")
+	nodeID := q.Get("nodeId")
+	switch {
+	case flowID != "" && nodeID != "":
+		subject = fmt.Sprintf("debug.%s.%s", flowID, nodeID)
+	case flowID != "":
+		subject = fmt.Sprintf("debug.%s.>", flowID)
+	default:
+		subject = "" // no filter → all debug messages
+	}
+
+	raw, err := d.Broker.GetDebugMessages(r.Context(), limit, subject)
+	if err != nil {
+		slog.Error("failed to read debug messages from JetStream", "error", err)
+		jsonError(w, http.StatusInternalServerError, "failed to read debug messages")
+		return
+	}
+
+	// Decode raw JSON bytes into generic maps so we can re-encode as a JSON array.
+	messages := make([]json.RawMessage, 0, len(raw))
+	for _, b := range raw {
+		messages = append(messages, json.RawMessage(b))
+	}
+
+	slog.Debug("GET /debug/messages", "limit", limit, "subject", subject, "count", len(messages))
+
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"messages": []any{},
+		"messages": messages,
+		"count":    len(messages),
+		"limit":    limit,
 	})
 }

@@ -38,6 +38,9 @@ func (c *collector) last() *flow.Message {
 	return c.msgs[len(c.msgs)-1]
 }
 
+func noopStatus(_ string, _ string) {}
+func noopDebug(_ flow.DebugMessage)  {}
+
 func TestInjectOnce(t *testing.T) {
 	c := &collector{}
 	node, err := NewInjectNode(flow.NodeConfig{
@@ -57,6 +60,8 @@ func TestInjectOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +101,8 @@ func TestInjectInterval(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +141,8 @@ func TestInjectOnceAndInterval(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +174,8 @@ func TestInjectDefaultPayloadIsTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -197,6 +208,8 @@ func TestInjectManualTrigger(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -235,6 +248,8 @@ func TestInjectStopIsClean(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -268,6 +283,8 @@ func TestInjectMessageIDsAreUnique(t *testing.T) {
 		t.Fatal(err)
 	}
 	node.SetSend(c.send)
+	node.SetStatus(noopStatus)
+	node.SetDebug(noopDebug)
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/nats-io/nats.go"
 
 	"github.com/niceclouds/flint/internal/api"
 	"github.com/niceclouds/flint/internal/config"
@@ -130,6 +132,8 @@ func (s *Server) setupRoutes() {
 	deps := &api.Deps{
 		Engine:  s.engine,
 		Storage: s.store,
+		Broker:  s.broker,
+		Hub:     s.hub,
 	}
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
@@ -186,6 +190,40 @@ func (s *Server) serveFrontend() {
 func (s *Server) Start() error {
 	// Start the WebSocket hub in a background goroutine.
 	go s.hub.Run()
+
+	// Setup NATS streams and KV buckets.
+	ctx := context.Background()
+	if _, err := s.broker.SetupDebugStream(ctx); err != nil {
+		slog.Error("failed to setup debug stream", "error", err)
+	}
+	if _, _, err := s.broker.SetupContextKV(ctx); err != nil {
+		slog.Error("failed to setup global context KV", "error", err)
+	}
+
+	// Wire engine's debug publish to NATS.
+	conn := s.broker.Conn()
+	s.engine.SetPublishDebug(func(subject string, msg flow.DebugMessage) {
+		data, err := json.Marshal(msg)
+		if err != nil {
+			slog.Error("failed to marshal debug message", "error", err)
+			return
+		}
+		if err := conn.Publish(subject, data); err != nil {
+			slog.Error("failed to publish debug message", "subject", subject, "error", err)
+		}
+	})
+
+	// Subscribe to all debug messages and broadcast to WebSocket clients.
+	if _, err := conn.Subscribe("debug.>", func(m *nats.Msg) {
+		var dbg flow.DebugMessage
+		if err := json.Unmarshal(m.Data, &dbg); err != nil {
+			slog.Error("failed to unmarshal debug message from NATS", "error", err)
+			return
+		}
+		s.hub.Broadcast(ws.EventDebug, dbg)
+	}); err != nil {
+		slog.Error("failed to subscribe to debug messages", "error", err)
+	}
 
 	// Start the flow runtime engine.
 	if err := s.engine.Start(); err != nil {
@@ -266,6 +304,8 @@ func (s *Server) Broker() *flintnats.Broker {
 // registerNodes registers all built-in node types on the engine registry.
 func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("inject", nodes.NewInjectNode, nodes.InjectTypeInfo())
+	registry.Register("debug", nodes.NewDebugNode, nodes.DebugTypeInfo())
+	registry.Register("function", nodes.NewFunctionNode, nodes.FunctionTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

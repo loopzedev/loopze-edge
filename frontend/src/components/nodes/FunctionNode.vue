@@ -30,7 +30,6 @@ function firstLine(code: unknown): string {
     :id="props.id"
     :label="props.data.label"
     node-type="function"
-    accent-color="#8957b2"
     :selected="props.selected"
     :inputs="props.data.inputs ?? 1"
     :outputs="props.data.outputs ?? 1"

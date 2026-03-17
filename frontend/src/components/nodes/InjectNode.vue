@@ -40,7 +40,6 @@ async function handleTrigger(): Promise<void> {
     :id="props.id"
     :label="label"
     node-type="inject"
-    accent-color="#4d7a99"
     :selected="props.selected"
     :inputs="0"
     :outputs="1"

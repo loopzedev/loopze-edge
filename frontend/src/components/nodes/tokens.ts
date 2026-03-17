@@ -1,0 +1,91 @@
+// Node design tokens — one palette per category.
+// Every color is intentionally dark/muted to avoid eye strain.
+
+export interface NodeTokens {
+  accent:     string
+  accentDim:  string
+  accentBdr:  string
+  accentGlow: string
+  bg:         string
+  bgHdr:      string
+  bgIcon:     string
+  border:     string
+  textSub:    string
+}
+
+export const TOKENS: Record<string, NodeTokens> = {
+  input: {
+    accent:     '#4dff8f',
+    accentDim:  '#4dff8f15',
+    accentBdr:  '#4dff8f33',
+    accentGlow: '#4dff8f14',
+    bg:         '#080f09',
+    bgHdr:      '#0b1f13',
+    bgIcon:     '#0f2e1c',
+    border:     '#1e4a26',
+    textSub:    '#2e5e30',
+  },
+  process: {
+    accent:     '#38b6ff',
+    accentDim:  '#38b6ff12',
+    accentBdr:  '#38b6ff2a',
+    accentGlow: '#38b6ff12',
+    bg:         '#060c14',
+    bgHdr:      '#080e18',
+    bgIcon:     '#101828',
+    border:     '#1a3050',
+    textSub:    '#1a3a5e',
+  },
+  output: {
+    accent:     '#ff6b2b',
+    accentDim:  '#ff6b2b12',
+    accentBdr:  '#ff6b2b2a',
+    accentGlow: '#ff6b2b12',
+    bg:         '#090503',
+    bgHdr:      '#0c0705',
+    bgIcon:     '#150b06',
+    border:     '#4a2010',
+    textSub:    '#5a2810',
+  },
+}
+
+// Map node type → category
+const TYPE_CATEGORY: Record<string, string> = {
+  inject:          'input',
+  'mqtt-in':       'input',
+  'http-in':       'input',
+  'tcp-in':        'input',
+  'udp-in':        'input',
+  'modbus-read':   'input',
+  'file-in':       'input',
+  'link-in':       'input',
+  catch:           'input',
+  status:          'input',
+
+  function:        'process',
+  change:          'process',
+  switch:          'process',
+  template:        'process',
+  delay:           'process',
+  filter:          'process',
+  json:            'process',
+  xml:             'process',
+  csv:             'process',
+  comment:         'process',
+  'opc-ua':        'process',
+
+  debug:           'output',
+  'mqtt-out':      'output',
+  'http-response': 'output',
+  'http-request':  'output',
+  'tcp-out':       'output',
+  'udp-out':       'output',
+  'modbus-write':  'output',
+  'file-out':      'output',
+  'link-out':      'output',
+}
+
+export function getTokens(nodeType: string): NodeTokens {
+  const cat = TYPE_CATEGORY[nodeType] ?? 'process'
+  return TOKENS[cat]
+}

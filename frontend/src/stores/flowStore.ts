@@ -44,6 +44,8 @@ export const useFlowStore = defineStore("flow", () => {
   const nodes = ref<FlowNode[]>([]);
   const edges = ref<FlowEdge[]>([]);
   const selectedNodeId = ref<string | null>(null);
+  const selectedNodeIds = ref<string[]>([]);
+  const clipboard = ref<{ nodes: FlowNode[]; edges: FlowEdge[] } | null>(null);
   const dirty = ref(false);
   const dirtyNodeIds = ref(new Set<string>());
   const revision = ref<string | null>(null);
@@ -229,6 +231,105 @@ export const useFlowStore = defineStore("flow", () => {
 
   function selectNode(nodeId: string | null): void {
     selectedNodeId.value = nodeId;
+    selectedNodeIds.value = nodeId ? [nodeId] : [];
+  }
+
+  function setSelectedNodeIds(ids: string[]): void {
+    selectedNodeIds.value = ids;
+    if (ids.length === 1) {
+      selectedNodeId.value = ids[0];
+    } else if (ids.length === 0) {
+      selectedNodeId.value = null;
+    }
+  }
+
+  function copySelectedNodes(): void {
+    const ids = selectedNodeIds.value;
+    if (ids.length === 0) return;
+
+    const idSet = new Set(ids);
+    const copiedNodes = nodes.value
+      .filter((n) => idSet.has(n.id))
+      .map((n) => JSON.parse(JSON.stringify(n)));
+
+    const copiedEdges = edges.value
+      .filter((e) => idSet.has(e.source) && idSet.has(e.target))
+      .map((e) => JSON.parse(JSON.stringify(e)));
+
+    clipboard.value = { nodes: copiedNodes, edges: copiedEdges };
+  }
+
+  function pasteNodes(targetPosition?: { x: number; y: number }): FlowNode[] {
+    if (!clipboard.value || clipboard.value.nodes.length === 0) return [];
+
+    // Calculate offset: either relative to mouse position or a fixed offset
+    let offsetX = 32;
+    let offsetY = 32;
+
+    if (targetPosition) {
+      // Find the bounding box origin of copied nodes
+      const minX = Math.min(...clipboard.value.nodes.map((n) => n.position.x));
+      const minY = Math.min(...clipboard.value.nodes.map((n) => n.position.y));
+      offsetX = targetPosition.x - minX;
+      offsetY = targetPosition.y - minY;
+    }
+
+    const idMap = new Map<string, string>();
+    const newNodes: FlowNode[] = [];
+
+    for (const original of clipboard.value.nodes) {
+      const newId = generateId();
+      idMap.set(original.id, newId);
+
+      const newNode: FlowNode = {
+        ...JSON.parse(JSON.stringify(original)),
+        id: newId,
+        position: {
+          x: original.position.x + offsetX,
+          y: original.position.y + offsetY,
+        },
+      };
+
+      nodes.value.push(newNode);
+      newNodes.push(newNode);
+      markNodeDirty(newId);
+    }
+
+    for (const original of clipboard.value.edges) {
+      const newSource = idMap.get(original.source);
+      const newTarget = idMap.get(original.target);
+      if (!newSource || !newTarget) continue;
+
+      edges.value.push({
+        ...JSON.parse(JSON.stringify(original)),
+        id: `e-${newSource}-${newTarget}-${Date.now()}`,
+        source: newSource,
+        target: newTarget,
+      });
+    }
+
+    // Deselect all nodes, then select only pasted ones
+    const newIdSet = new Set(idMap.values());
+    for (const node of nodes.value) {
+      node.selected = newIdSet.has(node.id);
+    }
+    setSelectedNodeIds([...idMap.values()]);
+
+    markDirty();
+    return newNodes;
+  }
+
+  function cutSelectedNodes(): void {
+    copySelectedNodes();
+    const ids = [...selectedNodeIds.value];
+    for (const id of ids) {
+      removeNode(id);
+    }
+  }
+
+  function duplicateSelectedNodes(): FlowNode[] {
+    copySelectedNodes();
+    return pasteNodes();
   }
 
   function loadFlows(loadedFlows: Flow[], rev?: string): void {
@@ -414,6 +515,8 @@ export const useFlowStore = defineStore("flow", () => {
     nodes,
     edges,
     selectedNodeId,
+    selectedNodeIds,
+    clipboard,
     dirty,
     dirtyNodeIds,
     revision,
@@ -438,6 +541,11 @@ export const useFlowStore = defineStore("flow", () => {
     connectNodes,
     removeEdge,
     selectNode,
+    setSelectedNodeIds,
+    copySelectedNodes,
+    pasteNodes,
+    cutSelectedNodes,
+    duplicateSelectedNodes,
     loadFlows,
     deploy,
     syncCanvasToActiveFlow,

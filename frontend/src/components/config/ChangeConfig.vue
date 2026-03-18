@@ -189,82 +189,82 @@ const timestampFormats = [
       @dragend="onDragEnd"
     >
       <!-- Row 1: Operation + Scope + Property + Delete -->
-      <div class="flex items-center gap-1">
-        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] mr-0.5 select-none">&#x2261;</span>
+      <div class="flex items-center gap-1.5">
+        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] select-none shrink-0">&#x2261;</span>
 
-        <FormSelect :model-value="rule.t" :options="operations" width="72px"
+        <FormSelect :model-value="rule.t" :options="operations" width="80px"
           @update:model-value="updateRule(idx, 't', $event)" />
 
-        <FormSelect :model-value="rule.pt" :options="scopes" width="64px"
+        <FormSelect :model-value="rule.pt" :options="scopes" width="72px"
           @update:model-value="updateRule(idx, 'pt', $event)" />
 
-        <FormInput :model-value="rule.p" placeholder="property" mono
+        <FormInput :model-value="rule.p" placeholder="property" mono class="flex-1 min-w-0"
           @update:model-value="updateRule(idx, 'p', $event)" />
 
-        <FormSelect v-if="isContextScope(rule.pt)" :model-value="rule.ps" :options="storageTypes" width="76px"
+        <FormSelect v-if="isContextScope(rule.pt)" :model-value="rule.ps" :options="storageTypes" width="80px"
           @update:model-value="updateRule(idx, 'ps', $event)" />
 
         <IconButton variant="danger" title="Remove rule" @click="removeRule(idx)">&#x2715;</IconButton>
       </div>
 
       <!-- Row 2: Value (for "set") -->
-      <div v-if="rule.t === 'set'" class="flex items-center gap-1 pl-5">
-        <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">to value</span>
+      <div v-if="rule.t === 'set'" class="flex items-center gap-1.5 pl-4">
+        <span class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">to value</span>
 
-        <FormSelect :model-value="rule.tot" :options="valueTypes" width="64px"
+        <FormSelect :model-value="rule.tot" :options="valueTypes" width="80px"
           @update:model-value="updateRule(idx, 'tot', $event)" />
 
-        <FormInput v-if="rule.tot !== 'date'" :model-value="rule.to" mono
+        <FormInput v-if="rule.tot !== 'date'" :model-value="rule.to" mono class="flex-1 min-w-0"
           :placeholder="rule.tot === 'json' ? '{...}' : rule.tot === 'bool' ? 'true / false' : 'value'"
           @update:model-value="updateRule(idx, 'to', $event)" />
 
-        <FormSelect v-else :model-value="rule.to || 'epoch'" :options="timestampFormats"
+        <FormSelect v-else :model-value="rule.to || 'epoch'" :options="timestampFormats" class="flex-1 min-w-0"
           @update:model-value="updateRule(idx, 'to', $event)" />
 
-        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="80px"
           @update:model-value="updateRule(idx, 'tos', $event)" />
       </div>
 
       <!-- Row 2-3: Search + Replace (for "change") -->
       <template v-if="rule.t === 'change'">
-        <div class="flex items-center gap-1 pl-5">
-          <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">search</span>
+        <div class="flex items-center gap-1.5 pl-4">
+          <span class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">search</span>
 
-          <FormSelect :model-value="rule.fromt" :options="searchTypes" width="64px"
+          <FormSelect :model-value="rule.fromt" :options="searchTypes" width="80px"
             @update:model-value="updateRule(idx, 'fromt', $event)" />
 
-          <FormInput :model-value="rule.from" mono
+          <FormInput :model-value="rule.from" mono class="flex-1 min-w-0"
             :placeholder="rule.fromt === 're' ? 'regex pattern' : 'search text'"
             @update:model-value="updateRule(idx, 'from', $event)" />
 
-          <FormSelect v-if="isContextScope(rule.fromt)" :model-value="rule.froms" :options="storageTypes" width="76px"
+          <FormSelect v-if="isContextScope(rule.fromt)" :model-value="rule.froms" :options="storageTypes" width="80px"
             @update:model-value="updateRule(idx, 'froms', $event)" />
         </div>
-        <div class="flex items-center gap-1 pl-5">
-          <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">replace</span>
+        <div class="flex items-center gap-1.5 pl-4">
+          <span class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">replace</span>
 
-          <FormSelect :model-value="rule.tot" :options="replaceTypes" width="64px"
+          <FormSelect :model-value="rule.tot" :options="replaceTypes" width="80px"
             @update:model-value="updateRule(idx, 'tot', $event)" />
 
-          <FormInput :model-value="rule.to" mono placeholder="replacement"
+          <FormInput :model-value="rule.to" mono class="flex-1 min-w-0" placeholder="replacement"
             @update:model-value="updateRule(idx, 'to', $event)" />
 
-          <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+          <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="80px"
             @update:model-value="updateRule(idx, 'tos', $event)" />
         </div>
       </template>
 
       <!-- Row 2: Target (for "move") -->
-      <div v-if="rule.t === 'move'" class="flex items-center gap-1 pl-5">
-        <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">to</span>
+      <div v-if="rule.t === 'move'" class="flex items-center gap-1.5 pl-4">
+        <span class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">to</span>
 
-        <FormSelect :model-value="rule.tot" :options="scopes" width="64px"
+        <FormSelect :model-value="rule.tot" :options="scopes" width="80px"
           @update:model-value="updateRule(idx, 'tot', $event)" />
 
-        <FormInput :model-value="rule.to" mono placeholder="target property"
+        <FormInput :model-value="rule.to" mono class="flex-1 min-w-0" placeholder="target property"
           @update:model-value="updateRule(idx, 'to', $event)" />
 
-        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="80px"
           @update:model-value="updateRule(idx, 'tos', $event)" />
       </div>
     </div>

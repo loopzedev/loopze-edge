@@ -16,7 +16,7 @@ defineEmits<{
     type="single"
     :model-value="String(modelValue)"
     class="flex flex-wrap gap-1"
-    @update:model-value="(v: any) => { if (typeof v === 'string') $emit('update:modelValue', v) }"
+    @update:model-value="(v: any) => { if (v != null) $emit('update:modelValue', typeof modelValue === 'number' ? Number(v) : v) }"
   >
     <ToggleGroupItem
       v-for="opt in options"

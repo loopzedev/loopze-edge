@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background, BackgroundVariant } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
@@ -23,10 +23,16 @@ const flowStore = useFlowStore();
 const uiStore = useUiStore();
 const api = useApi();
 
-const { onConnect, onNodeDragStop, screenToFlowCoordinate, setViewport } =
-    useVueFlow("flint-flow-editor");
+const {
+    onConnect,
+    onNodeDragStop,
+    screenToFlowCoordinate,
+    setViewport,
+    getSelectedNodes,
+} = useVueFlow("flint-flow-editor");
 
 const flowContainer = ref<HTMLElement | null>(null);
+const lastMousePosition = ref<{ x: number; y: number } | null>(null);
 
 onConnect((params) => {
     flowStore.connectNodes({
@@ -45,7 +51,9 @@ onNodeDragStop((event) => {
     }
 });
 
-function handleNodeClick(event: { node: any }): void {
+function handleNodeClick(event: { node: any; event: MouseEvent | TouchEvent }): void {
+    const shiftKey = event.event instanceof MouseEvent ? event.event.shiftKey : false;
+    if (shiftKey) return;
     flowStore.selectNode(event.node.id);
 }
 
@@ -55,11 +63,8 @@ function handleNodeDoubleClick(event: { node: any }): void {
 }
 
 function handleSelectionChange(params: { nodes: any[]; edges: any[] }): void {
-    if (params.nodes.length === 1) {
-        flowStore.selectNode(params.nodes[0].id);
-    } else if (params.nodes.length === 0) {
-        flowStore.selectNode(null);
-    }
+    const ids = params.nodes.map((n: any) => n.id);
+    flowStore.setSelectedNodeIds(ids);
 }
 
 function onDragOver(event: DragEvent): void {
@@ -109,7 +114,56 @@ function onPaneClick(): void {
     flowStore.selectNode(null);
 }
 
+function onMouseMove(event: MouseEvent): void {
+    lastMousePosition.value = { x: event.clientX, y: event.clientY };
+}
+
+function handleKeyDown(event: KeyboardEvent): void {
+    // Skip if user is typing in an input/textarea
+    const tag = (event.target as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod) return;
+
+    // Sync Vue Flow's selection into the store before any clipboard operation
+    const vfSelected = getSelectedNodes.value.map((n: any) => n.id);
+    if (vfSelected.length > 0) {
+        flowStore.setSelectedNodeIds(vfSelected);
+    }
+
+    switch (event.key.toLowerCase()) {
+        case "c":
+            event.preventDefault();
+            flowStore.copySelectedNodes();
+            break;
+        case "v": {
+            event.preventDefault();
+            if (lastMousePosition.value) {
+                const flowPos = screenToFlowCoordinate(lastMousePosition.value);
+                flowStore.pasteNodes(flowPos);
+            } else {
+                flowStore.pasteNodes();
+            }
+            break;
+        }
+        case "x":
+            event.preventDefault();
+            flowStore.cutSelectedNodes();
+            break;
+        case "d":
+            event.preventDefault();
+            flowStore.duplicateSelectedNodes();
+            break;
+    }
+}
+
+onUnmounted(() => {
+    document.removeEventListener("keydown", handleKeyDown);
+});
+
 onMounted(async () => {
+    document.addEventListener("keydown", handleKeyDown);
     try {
         const response = await api.getFlows();
         if (response.flows && response.flows.length > 0) {
@@ -136,6 +190,7 @@ onMounted(async () => {
         class="w-full h-full bg-terminal-bg"
         @dragover="onDragOver"
         @drop="onDrop"
+        @mousemove="onMouseMove"
     >
         <VueFlow
             id="flint-flow-editor"
@@ -151,7 +206,10 @@ onMounted(async () => {
             :snap-to-grid="true"
             :snap-grid="[16, 16]"
             :delete-key-code="['Backspace', 'Delete']"
-            :multi-selection-key-code="'Shift'"
+            :selection-on-drag="true"
+            :pan-on-drag="[1, 2]"
+            :selection-key-code="true"
+            :multi-selection-key-code="null"
             :connection-line-type="'default' as any"
             :min-zoom="0.25"
             :max-zoom="1"

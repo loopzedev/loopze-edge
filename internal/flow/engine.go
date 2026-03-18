@@ -260,13 +260,11 @@ func (e *Engine) Deploy(flows []Flow) error {
 			continue
 		}
 
-		// Start a message listener goroutine for nodes that accept inputs.
-		// Source nodes (inputs=0) only produce messages via SendFunc.
-		typeInfo, hasInfo := e.registry.GetTypeInfo(rn.config.Type)
-		if !hasInfo || typeInfo.Inputs > 0 {
-			e.wg.Add(1)
-			go e.nodeLoop(nodeID, rn)
-		}
+		// Start a message listener goroutine for every node.
+		// Even source nodes (inputs=0) need this to handle manual triggers
+		// via TriggerNode (e.g. inject button in the editor).
+		e.wg.Add(1)
+		go e.nodeLoop(nodeID, rn)
 	}
 
 	e.flows = flows

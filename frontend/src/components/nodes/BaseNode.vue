@@ -123,7 +123,7 @@ const outputHandles = computed(() =>
     <!-- Action button (optional, displayed left of the node) -->
     <button
       v-if="props.actionButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-l-[8px] transition-all duration-100 font-mono"
+      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-l-[8px] transition-all duration-100 font-mono nopan nodrag"
       :style="{
         background: actionActive ? t.accent + '22' : t.bgIcon,
         border: `1px solid ${actionActive ? t.accent : t.border}`,
@@ -132,6 +132,7 @@ const outputHandles = computed(() =>
       :title="props.actionButton.title ?? props.actionButton.label"
       @click.stop="handleAction"
       @mousedown.stop
+      @pointerdown.stop
     >
       <span
         class="text-[9px] font-bold tracking-widest transition-colors"

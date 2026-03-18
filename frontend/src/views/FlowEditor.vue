@@ -78,6 +78,7 @@ function onDrop(event: DragEvent): void {
         label: string;
         inputs: number;
         outputs: number;
+        defaults?: Record<string, any>;
     };
     try {
         nodeData = JSON.parse(rawData);
@@ -96,6 +97,7 @@ function onDrop(event: DragEvent): void {
         label: nodeData.label,
         inputs: nodeData.inputs,
         outputs: nodeData.outputs,
+        config: nodeData.defaults ?? {},
     });
 }
 

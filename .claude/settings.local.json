@@ -10,7 +10,9 @@
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
       "Bash(go test:*)",
-      "Bash(1:*)"
+      "Bash(1:*)",
+      "Bash(curl -s http://localhost:1880/api/v1/nodes)",
+      "Bash(python3 -m json.tool)"
     ]
   }
 }

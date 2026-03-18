@@ -57,6 +57,7 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
       type: node.type,
       inputs: node.inputs,
       outputs: node.outputs,
+      defaults: node.defaults,
     })
   )
   event.dataTransfer.effectAllowed = 'move'

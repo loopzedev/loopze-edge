@@ -147,6 +147,7 @@ export interface NodeCatalogEntry {
   color?: string
   inputs: number
   outputs: number
+  defaults?: Record<string, any>
 }
 
 export interface NodeCatalog {

@@ -298,7 +298,7 @@ export const useFlowStore = defineStore("flow", () => {
       type: flintNode.type,
       position: { x: flintNode.x, y: flintNode.y },
       data: {
-        label: flintNode.name || flintNode.label || flintNode.type,
+        label: flintNode.name ?? flintNode.label ?? '',
         nodeType: flintNode.type,
         config: flintNode.config ?? {},
         status: flintNode.status ?? null,

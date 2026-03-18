@@ -51,6 +51,10 @@ type FunctionNode struct {
 	vm       *goja.Runtime
 	compiled *goja.Program
 
+	// Node-scoped in-memory context (private to this node instance).
+	// Survives across HandleMessage calls but lost on redeploy.
+	nodeCtx map[string]any
+
 	// Collects messages sent via node.send() during a HandleMessage call.
 	// Reset at the start of each HandleMessage invocation.
 	pendingSends [][]*flow.Message
@@ -61,6 +65,7 @@ func NewFunctionNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 	return &FunctionNode{
 		config:  config,
 		outputs: 1,
+		nodeCtx: make(map[string]any),
 	}, nil
 }
 
@@ -208,6 +213,31 @@ func (n *FunctionNode) registerGlobals() {
 		if n.status != nil {
 			n.status(fill, text)
 		}
+		return goja.Undefined()
+	})
+
+	// node.get(key) — read from node-scoped in-memory context
+	_ = nodeObj.Set("get", func(call goja.FunctionCall) goja.Value {
+		key := call.Argument(0).String()
+		val, ok := n.nodeCtx[key]
+		if !ok {
+			return goja.Undefined()
+		}
+		return n.vm.ToValue(val)
+	})
+
+	// node.set(key, value) — write to node-scoped in-memory context
+	_ = nodeObj.Set("set", func(call goja.FunctionCall) goja.Value {
+		key := call.Argument(0).String()
+		val := call.Argument(1).Export()
+		n.nodeCtx[key] = val
+		return goja.Undefined()
+	})
+
+	// node.delete(key) — remove from node-scoped in-memory context
+	_ = nodeObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+		key := call.Argument(0).String()
+		delete(n.nodeCtx, key)
 		return goja.Undefined()
 	})
 

@@ -40,6 +40,25 @@ interface FlintNodeAPI {
    * @param text The status text displayed below the node.
    */
   status(fill: 'green' | 'red' | 'yellow' | 'blue' | 'grey', text: string): void;
+  /**
+   * Read a value from the node-scoped in-memory context.
+   * This context is private to this node instance and survives across messages,
+   * but is lost on redeploy. Use global/flow context for persistence.
+   * @param key The key to look up.
+   * @returns The stored value, or undefined if the key does not exist.
+   */
+  get(key: string): any;
+  /**
+   * Write a value to the node-scoped in-memory context.
+   * @param key The key to store under.
+   * @param value The value to store.
+   */
+  set(key: string, value: any): void;
+  /**
+   * Delete a key from the node-scoped in-memory context.
+   * @param key The key to delete.
+   */
+  delete(key: string): void;
 }
 
 /** Key-value context store. */

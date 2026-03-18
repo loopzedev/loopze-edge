@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
+import '@/lib/monaco/setup-workers'
 import * as monaco from 'monaco-editor'
 import { flintTypeDefinitions } from '@/lib/monaco/flint-types'
 

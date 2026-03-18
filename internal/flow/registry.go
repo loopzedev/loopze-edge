@@ -29,6 +29,25 @@ type DebugMessage struct {
 	Property  string `json:"property"` // which msg field, e.g. "payload"
 }
 
+// NodeStatusPayload is the nested status object within a StatusMessage.
+type NodeStatusPayload struct {
+	Fill string `json:"fill"`
+	Text string `json:"text"`
+}
+
+// StatusMessage represents a status update from a node, sent to the editor UI.
+// Matches the frontend StatusEvent type: { nodeId, flowId, status: { fill, text } }
+type StatusMessage struct {
+	NodeID string            `json:"nodeId"`
+	FlowID string            `json:"flowId"`
+	Status NodeStatusPayload `json:"status"`
+}
+
+// PublishStatusFunc is a callback the server provides to the engine so that
+// status messages can be published externally (e.g. to NATS) without the
+// engine needing a direct dependency on the messaging infrastructure.
+type PublishStatusFunc func(subject string, msg StatusMessage)
+
 // DebugFunc is a callback that nodes use to emit debug messages.
 // The engine provides this function via SetDebug before calling Start().
 // The debug node uses this to publish captured messages; any node can

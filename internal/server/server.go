@@ -229,6 +229,30 @@ func (s *Server) Start() error {
 		}
 	})
 
+	// Wire engine's status publish to NATS.
+	s.engine.SetPublishStatus(func(subject string, msg flow.StatusMessage) {
+		data, err := json.Marshal(msg)
+		if err != nil {
+			slog.Error("failed to marshal status message", "error", err)
+			return
+		}
+		if err := conn.Publish(subject, data); err != nil {
+			slog.Error("failed to publish status message", "subject", subject, "error", err)
+		}
+	})
+
+	// Subscribe to all status messages and broadcast to WebSocket clients.
+	if _, err := conn.Subscribe("status.>", func(m *nats.Msg) {
+		var status flow.StatusMessage
+		if err := json.Unmarshal(m.Data, &status); err != nil {
+			slog.Error("failed to unmarshal status message from NATS", "error", err)
+			return
+		}
+		s.hub.Broadcast(ws.EventStatus, status)
+	}); err != nil {
+		slog.Error("failed to subscribe to status messages", "error", err)
+	}
+
 	// Subscribe to all debug messages and broadcast to WebSocket clients.
 	if _, err := conn.Subscribe("debug.>", func(m *nats.Msg) {
 		var dbg flow.DebugMessage

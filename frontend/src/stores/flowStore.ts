@@ -201,6 +201,16 @@ export const useFlowStore = defineStore("flow", () => {
     }
   }
 
+  function updateNodeStatus(nodeId: string, status: { fill: string; text: string }): void {
+    const node = nodes.value.find((n) => n.id === nodeId);
+    if (node) {
+      node.data = {
+        ...node.data,
+        status: { fill: status.fill, shape: 'dot' as const, text: status.text },
+      };
+    }
+  }
+
   function updateNodePosition(
     nodeId: string,
     position: { x: number; y: number },
@@ -554,6 +564,7 @@ export const useFlowStore = defineStore("flow", () => {
     addNode,
     removeNode,
     updateNodeData,
+    updateNodeStatus,
     updateNodePosition,
     isNodeDirty,
     connectNodes,

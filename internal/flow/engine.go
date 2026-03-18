@@ -47,6 +47,7 @@ type Engine struct {
 	nodes        map[string]*runningNode // nodeID → running node
 	wires        map[string][][]string   // nodeID → wires[outputPort] = [targetNodeIDs]
 	publishDebug     PublishDebugFunc   // injected by server for NATS publishing
+	publishStatus    PublishStatusFunc  // injected by server for NATS publishing
 	globalCtxMemory  ContextStore       // volatile in-memory global context store
 	globalCtxPersist ContextStore       // file-backed persistent global context store
 	flowCtxFactory   FlowContextFactory // creates dedicated KV stores per flow ID
@@ -72,6 +73,12 @@ func NewEngine(cfg *config.Config) *Engine {
 // Must be called before Deploy.
 func (e *Engine) SetPublishDebug(fn PublishDebugFunc) {
 	e.publishDebug = fn
+}
+
+// SetPublishStatus sets the callback used to publish status messages externally.
+// Must be called before Deploy.
+func (e *Engine) SetPublishStatus(fn PublishStatusFunc) {
+	e.publishStatus = fn
 }
 
 // SetContextStores provides the engine with the global memory and persistent
@@ -231,7 +238,7 @@ func (e *Engine) Deploy(flows []Flow) error {
 	for nodeID, rn := range e.nodes {
 		nodeWires := e.wires[nodeID]
 		rn.instance.SetSend(e.makeSendFunc(nodeID, nodeWires))
-		rn.instance.SetStatus(e.makeStatusFunc(nodeID))
+		rn.instance.SetStatus(e.makeStatusFunc(nodeID, rn))
 		rn.instance.SetDebug(e.makeDebugFunc(nodeID, rn))
 
 		// Inject context stores for nodes that opt in via ContextProvider.
@@ -341,12 +348,18 @@ func (e *Engine) publishNodeError(nodeID string, rn *runningNode, err error) {
 	})
 }
 
-// makeStatusFunc creates a StatusFunc closure for a specific node.
-func (e *Engine) makeStatusFunc(nodeID string) StatusFunc {
+// makeStatusFunc creates a StatusFunc closure for a specific node that publishes
+// status messages via the engine's publishStatus callback (typically to NATS).
+func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 	return func(fill string, text string) {
-		slog.Debug("node status",
-			"node_id", nodeID, "fill", fill, "text", text)
-		// TODO: broadcast status via WebSocket to frontend
+		if e.publishStatus != nil {
+			subject := fmt.Sprintf("status.%s.%s", rn.flowID, nodeID)
+			e.publishStatus(subject, StatusMessage{
+				NodeID: nodeID,
+				FlowID: rn.flowID,
+				Status: NodeStatusPayload{Fill: fill, Text: text},
+			})
+		}
 	}
 }
 

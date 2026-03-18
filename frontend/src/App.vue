@@ -5,16 +5,22 @@ import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import DebugSidebar from '@/components/DebugSidebar.vue'
 import { useUiStore } from '@/stores/uiStore'
+import { useFlowStore } from '@/stores/flowStore'
 import { useDebugStore } from '@/stores/debugStore'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 const ui = useUiStore()
+const flowStore = useFlowStore()
 const debugStore = useDebugStore()
 
 const ws = useWebSocket()
 
 ws.onDebug((msg) => {
   debugStore.addMessage(msg)
+})
+
+ws.onStatus((event) => {
+  flowStore.updateNodeStatus(event.nodeId, event.status)
 })
 
 ws.onDeploy((event) => {

@@ -187,14 +187,6 @@ const outputHandles = computed(() =>
             "
         />
 
-        <!-- Dirty indicator (undeployed changes) -->
-        <span
-            v-if="isDirty"
-            class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full z-10"
-            style="background: #58a6ff; box-shadow: 0 0 4px #58a6ff80"
-            title="Undeployed changes"
-        />
-
         <!-- Left icon column -->
         <div
             class="w-10 shrink-0 flex items-center justify-center"
@@ -220,6 +212,12 @@ const outputHandles = computed(() =>
                     {{ typeLabel }}
                 </span>
                 <slot name="badge" />
+                <span
+                    v-if="isDirty"
+                    class="w-2 h-2 shrink-0 rounded-full -mt-2"
+                    style="background: #58a6ff; box-shadow: 0 0 4px #58a6ff80"
+                    title="Undeployed changes"
+                />
             </div>
 
             <!-- Body: custom label takes priority, otherwise slot content -->

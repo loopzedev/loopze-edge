@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
+import FormLabel from '@/components/ui/FormLabel.vue'
+import FormInput from '@/components/ui/FormInput.vue'
+import FormSelect from '@/components/ui/FormSelect.vue'
+import IconButton from '@/components/ui/IconButton.vue'
 
 const flowStore = useFlowStore()
 
@@ -154,11 +158,21 @@ const replaceTypes = [
   { value: 'bool', label: 'boolean' },
   { value: 'env', label: 'env' },
 ]
+
+const storageTypes = [
+  { value: 'memory', label: 'memory' },
+  { value: 'persistent', label: 'persist' },
+]
+
+const timestampFormats = [
+  { value: 'epoch', label: 'milliseconds since epoch' },
+  { value: 'rfc3339', label: 'YYYY-MM-DDTHH:mm:ss.sssZ' },
+]
 </script>
 
 <template>
   <div class="flex flex-col gap-2">
-    <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">Rules</label>
+    <FormLabel>Rules</FormLabel>
 
     <div
       v-for="(rule, idx) in rules"
@@ -176,181 +190,85 @@ const replaceTypes = [
     >
       <!-- Row 1: Operation + Scope + Property + Delete -->
       <div class="flex items-center gap-1">
-        <!-- Drag handle -->
-        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] mr-0.5 select-none">≡</span>
+        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] mr-0.5 select-none">&#x2261;</span>
 
-        <!-- Operation -->
-        <select
-          :value="rule.t"
-          class="terminal-input text-[10px] w-[72px] shrink-0"
-          @change="updateRule(idx, 't', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="op in operations" :key="op.value" :value="op.value">{{ op.label }}</option>
-        </select>
+        <FormSelect :model-value="rule.t" :options="operations" width="72px"
+          @update:model-value="updateRule(idx, 't', $event)" />
 
-        <!-- Scope -->
-        <select
-          :value="rule.pt"
-          class="terminal-input text-[10px] w-[64px] shrink-0"
-          @change="updateRule(idx, 'pt', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="s in scopes" :key="s.value" :value="s.value">{{ s.label }}</option>
-        </select>
+        <FormSelect :model-value="rule.pt" :options="scopes" width="64px"
+          @update:model-value="updateRule(idx, 'pt', $event)" />
 
-        <!-- Property -->
-        <input
-          :value="rule.p"
-          type="text"
-          class="terminal-input text-[10px] flex-1 min-w-0"
-          placeholder="property"
-          @change="updateRule(idx, 'p', ($event.target as HTMLInputElement).value)"
-        />
+        <FormInput :model-value="rule.p" placeholder="property" mono
+          @update:model-value="updateRule(idx, 'p', $event)" />
 
-        <!-- Storage selector (only for flow/global scope) -->
-        <select
-          v-if="isContextScope(rule.pt)"
-          :value="rule.ps"
-          class="terminal-input text-[10px] w-[76px] shrink-0"
-          @change="updateRule(idx, 'ps', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="memory">memory</option>
-          <option value="persistent">persist</option>
-        </select>
+        <FormSelect v-if="isContextScope(rule.pt)" :model-value="rule.ps" :options="storageTypes" width="76px"
+          @update:model-value="updateRule(idx, 'ps', $event)" />
 
-        <!-- Delete rule -->
-        <button
-          class="text-terminal-text-dim hover:text-red-400 text-xs shrink-0 w-5 h-5 flex items-center justify-center"
-          title="Remove rule"
-          @click="removeRule(idx)"
-        >✕</button>
+        <IconButton variant="danger" title="Remove rule" @click="removeRule(idx)">&#x2715;</IconButton>
       </div>
 
       <!-- Row 2: Value (for "set") -->
       <div v-if="rule.t === 'set'" class="flex items-center gap-1 pl-5">
-        <span class="text-[9px] text-terminal-text-dim shrink-0 w-14">to value</span>
-        <select
-          :value="rule.tot"
-          class="terminal-input text-[10px] w-[64px] shrink-0"
-          @change="updateRule(idx, 'tot', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="vt in valueTypes" :key="vt.value" :value="vt.value">{{ vt.label }}</option>
-        </select>
-        <input
-          v-if="rule.tot !== 'date'"
-          :value="rule.to"
-          type="text"
-          class="terminal-input text-[10px] flex-1 min-w-0 font-mono"
+        <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">to value</span>
+
+        <FormSelect :model-value="rule.tot" :options="valueTypes" width="64px"
+          @update:model-value="updateRule(idx, 'tot', $event)" />
+
+        <FormInput v-if="rule.tot !== 'date'" :model-value="rule.to" mono
           :placeholder="rule.tot === 'json' ? '{...}' : rule.tot === 'bool' ? 'true / false' : 'value'"
-          @change="updateRule(idx, 'to', ($event.target as HTMLInputElement).value)"
-        />
-        <select
-          v-else
-          :value="rule.to || 'epoch'"
-          class="terminal-input text-[10px] flex-1 min-w-0"
-          @change="updateRule(idx, 'to', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="epoch">milliseconds since epoch</option>
-          <option value="rfc3339">YYYY-MM-DDTHH:mm:ss.sssZ</option>
-        </select>
-        <select
-          v-if="isContextScope(rule.tot)"
-          :value="rule.tos"
-          class="terminal-input text-[10px] w-[76px] shrink-0"
-          @change="updateRule(idx, 'tos', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="memory">memory</option>
-          <option value="persistent">persist</option>
-        </select>
+          @update:model-value="updateRule(idx, 'to', $event)" />
+
+        <FormSelect v-else :model-value="rule.to || 'epoch'" :options="timestampFormats"
+          @update:model-value="updateRule(idx, 'to', $event)" />
+
+        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+          @update:model-value="updateRule(idx, 'tos', $event)" />
       </div>
 
       <!-- Row 2-3: Search + Replace (for "change") -->
       <template v-if="rule.t === 'change'">
         <div class="flex items-center gap-1 pl-5">
-          <span class="text-[9px] text-terminal-text-dim shrink-0 w-14">search</span>
-          <select
-            :value="rule.fromt"
-            class="terminal-input text-[10px] w-[64px] shrink-0"
-            @change="updateRule(idx, 'fromt', ($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="st in searchTypes" :key="st.value" :value="st.value">{{ st.label }}</option>
-          </select>
-          <input
-            :value="rule.from"
-            type="text"
-            class="terminal-input text-[10px] flex-1 min-w-0 font-mono"
+          <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">search</span>
+
+          <FormSelect :model-value="rule.fromt" :options="searchTypes" width="64px"
+            @update:model-value="updateRule(idx, 'fromt', $event)" />
+
+          <FormInput :model-value="rule.from" mono
             :placeholder="rule.fromt === 're' ? 'regex pattern' : 'search text'"
-            @change="updateRule(idx, 'from', ($event.target as HTMLInputElement).value)"
-          />
-          <select
-            v-if="isContextScope(rule.fromt)"
-            :value="rule.froms"
-            class="terminal-input text-[10px] w-[76px] shrink-0"
-            @change="updateRule(idx, 'froms', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="memory">memory</option>
-            <option value="persistent">persist</option>
-          </select>
+            @update:model-value="updateRule(idx, 'from', $event)" />
+
+          <FormSelect v-if="isContextScope(rule.fromt)" :model-value="rule.froms" :options="storageTypes" width="76px"
+            @update:model-value="updateRule(idx, 'froms', $event)" />
         </div>
         <div class="flex items-center gap-1 pl-5">
-          <span class="text-[9px] text-terminal-text-dim shrink-0 w-14">replace</span>
-          <select
-            :value="rule.tot"
-            class="terminal-input text-[10px] w-[64px] shrink-0"
-            @change="updateRule(idx, 'tot', ($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="rt in replaceTypes" :key="rt.value" :value="rt.value">{{ rt.label }}</option>
-          </select>
-          <input
-            :value="rule.to"
-            type="text"
-            class="terminal-input text-[10px] flex-1 min-w-0 font-mono"
-            placeholder="replacement"
-            @change="updateRule(idx, 'to', ($event.target as HTMLInputElement).value)"
-          />
-          <select
-            v-if="isContextScope(rule.tot)"
-            :value="rule.tos"
-            class="terminal-input text-[10px] w-[76px] shrink-0"
-            @change="updateRule(idx, 'tos', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="memory">memory</option>
-            <option value="persistent">persist</option>
-          </select>
+          <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">replace</span>
+
+          <FormSelect :model-value="rule.tot" :options="replaceTypes" width="64px"
+            @update:model-value="updateRule(idx, 'tot', $event)" />
+
+          <FormInput :model-value="rule.to" mono placeholder="replacement"
+            @update:model-value="updateRule(idx, 'to', $event)" />
+
+          <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+            @update:model-value="updateRule(idx, 'tos', $event)" />
         </div>
       </template>
 
       <!-- Row 2: Target (for "move") -->
       <div v-if="rule.t === 'move'" class="flex items-center gap-1 pl-5">
-        <span class="text-[9px] text-terminal-text-dim shrink-0 w-14">to</span>
-        <select
-          :value="rule.tot"
-          class="terminal-input text-[10px] w-[64px] shrink-0"
-          @change="updateRule(idx, 'tot', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="s in scopes" :key="s.value" :value="s.value">{{ s.label }}</option>
-        </select>
-        <input
-          :value="rule.to"
-          type="text"
-          class="terminal-input text-[10px] flex-1 min-w-0 font-mono"
-          placeholder="target property"
-          @change="updateRule(idx, 'to', ($event.target as HTMLInputElement).value)"
-        />
-        <select
-          v-if="isContextScope(rule.tot)"
-          :value="rule.tos"
-          class="terminal-input text-[10px] w-[76px] shrink-0"
-          @change="updateRule(idx, 'tos', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="memory">memory</option>
-          <option value="persistent">persist</option>
-        </select>
-      </div>
+        <span class="text-[10px] text-terminal-text-dim shrink-0 w-14">to</span>
 
-      <!-- "delete" has no extra rows -->
+        <FormSelect :model-value="rule.tot" :options="scopes" width="64px"
+          @update:model-value="updateRule(idx, 'tot', $event)" />
+
+        <FormInput :model-value="rule.to" mono placeholder="target property"
+          @update:model-value="updateRule(idx, 'to', $event)" />
+
+        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="76px"
+          @update:model-value="updateRule(idx, 'tos', $event)" />
+      </div>
     </div>
 
-    <!-- Add rule button -->
     <button
       class="text-[10px] text-terminal-text-dim hover:text-terminal-text border border-terminal-border hover:border-terminal-text px-2 py-1 transition-colors self-start"
       @click="addRule"

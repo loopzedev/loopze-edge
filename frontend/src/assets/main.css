@@ -77,6 +77,18 @@
   transition: border-color 0.1s, background-color 0.1s;
 }
 
+/* Invisible hit area — 24px clickable zone around the 10px handle */
+.vue-flow__handle::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
 .vue-flow__handle:hover {
   border-color: #58a6ff !important;
   background-color: #58a6ff22 !important;
@@ -196,6 +208,11 @@
            outline-none
            focus:border-accent focus:ring-0
            placeholder:text-terminal-text-dim;
+  }
+
+  .terminal-checkbox {
+    @apply w-3.5 h-3.5 bg-terminal-bg border border-terminal-border rounded-sm
+           accent-[#58a6ff] cursor-pointer;
   }
 
   .terminal-divider { @apply border-t border-terminal-border; }

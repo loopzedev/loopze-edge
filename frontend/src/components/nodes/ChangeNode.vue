@@ -38,7 +38,7 @@ const ruleCount = computed(() => {
     :status="props.data.status"
   >
     <template #body>
-      <span class="opacity-60">{{ ruleCount }} rule{{ ruleCount !== 1 ? 's' : '' }}</span>
+      <span class="text-terminal-text-dim">{{ ruleCount }} rule{{ ruleCount !== 1 ? 's' : '' }}</span>
     </template>
   </BaseNode>
 </template>

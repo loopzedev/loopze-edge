@@ -7,13 +7,13 @@ export const flintTypeDefinitions = `
 /** The incoming message object. */
 interface FlintMessage {
   /** The message payload (any type). */
-  payload: any;
+  payload?: any;
   /** Message topic string. */
-  topic: string;
+  topic?: string;
   /** Unique message ID (read-only). */
-  readonly _id: string;
+  readonly _id?: string;
   /** Creation timestamp (ISO 8601, read-only). */
-  readonly _timestamp: string;
+  readonly _timestamp?: string;
   /** Access any custom property. */
   [key: string]: any;
 }

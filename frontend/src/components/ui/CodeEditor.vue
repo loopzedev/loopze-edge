@@ -180,6 +180,7 @@ onMounted(() => {
       useShadows: false,
     },
     padding: { top: 8, bottom: 8 },
+    fixedOverflowWidgets: true,
   })
 
   // Hide the wrapper lines (first and last) from the user.
@@ -257,5 +258,8 @@ watch(() => props.modelValue, (val) => {
     ref="container"
     class="w-full overflow-hidden border border-terminal-border rounded-sm flex-1"
     :style="{ minHeight: minHeight }"
+    @keydown.stop
+    @keyup.stop
+    @keypress.stop
   />
 </template>

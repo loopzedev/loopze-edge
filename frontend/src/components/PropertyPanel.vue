@@ -2,6 +2,10 @@
 import { ref, computed } from 'vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
+import PanelHeader from '@/components/ui/PanelHeader.vue'
+import SectionHeader from '@/components/ui/SectionHeader.vue'
+import FormLabel from '@/components/ui/FormLabel.vue'
+import FormInput from '@/components/ui/FormInput.vue'
 import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
@@ -12,6 +16,11 @@ const flowStore = useFlowStore()
 
 const selectedNode = computed(() => flowStore.selectedNode)
 const nodeData = computed(() => selectedNode.value?.data ?? null)
+
+const STATUS_COLORS: Record<string, string> = {
+  green: '#4ade80', red: '#e24b4a', yellow: '#ef9f27',
+  blue: '#60a5fa', grey: '#6b7280',
+}
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
@@ -39,7 +48,6 @@ function onResizeStart(e: MouseEvent) {
 
 function onResizeMove(e: MouseEvent) {
   if (!resizing) return
-  // Dragging left = wider panel (panel is on the right side)
   const delta = startX - e.clientX
   panelWidth.value = Math.max(220, startWidth + delta)
 }
@@ -58,7 +66,7 @@ function onResizeEnd() {
     class="h-full flex-shrink-0 flex bg-terminal-surface border-l border-terminal-border font-mono select-none relative"
     :style="{ width: panelWidth + 'px' }"
   >
-    <!-- Resize handle (left edge) -->
+    <!-- Resize handle -->
     <div
       class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-20 hover:bg-accent/30 transition-colors"
       @mousedown.prevent="onResizeStart"
@@ -66,105 +74,90 @@ function onResizeEnd() {
 
     <!-- Panel content -->
     <div class="flex-1 flex flex-col min-w-0">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-3 py-2 border-b border-terminal-border shrink-0">
-      <span class="text-xs uppercase tracking-widest text-terminal-text-dim">Properties</span>
-      <button
-        class="w-6 h-6 flex items-center justify-center text-terminal-text-dim hover:text-accent hover:bg-terminal-border transition-colors duration-100"
-        title="Close panel"
-        @click="ui.closePropertiesPanel()"
-      >
-        ✕
-      </button>
-    </div>
+      <PanelHeader title="Properties" closable @close="ui.closePropertiesPanel()" />
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
-      <!-- No node selected -->
-      <div
-        v-if="!selectedNode"
-        class="flex flex-col items-center justify-center h-full px-4 text-center"
-      >
-        <div class="text-terminal-text-dim text-2xl mb-3">⬡</div>
-        <p class="text-terminal-text-dim text-xs uppercase tracking-wider mb-1">No Node Selected</p>
-        <p class="text-terminal-text-dim text-[10px]">Click a node on the canvas to view its properties</p>
-      </div>
-
-      <!-- Node selected -->
-      <div v-else class="flex flex-col flex-1 min-h-0">
-        <!-- Node identity -->
-        <div class="px-3 py-3 border-b border-terminal-border">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="w-3 h-3 bg-accent flex-shrink-0"></span>
-            <span class="text-accent text-sm font-bold uppercase tracking-wider truncate">
-              {{ nodeData?.label ?? selectedNode.type }}
-            </span>
-          </div>
-          <div class="flex items-center gap-2 text-[10px] text-terminal-text-dim">
-            <span class="terminal-badge">{{ selectedNode.type }}</span>
-            <span class="opacity-60">{{ selectedNode.id.slice(0, 12) }}…</span>
-          </div>
+      <!-- Content -->
+      <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
+        <!-- No node selected -->
+        <div
+          v-if="!selectedNode"
+          class="flex flex-col items-center justify-center h-full px-4 text-center"
+        >
+          <div class="text-terminal-text-dim text-2xl mb-3">&#x2B21;</div>
+          <p class="text-terminal-text-dim text-xs uppercase tracking-wider mb-1">No Node Selected</p>
+          <p class="text-[10px] text-terminal-text-dim">Double-click a node to view its properties</p>
         </div>
 
-        <!-- Properties table -->
-        <div class="px-3 py-2 border-b border-terminal-border">
-          <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2">▸ Properties</p>
-          <div class="flex flex-col gap-0.5">
-            <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">Name</label>
-            <input
-              type="text"
-              :value="nodeData?.label ?? ''"
-              class="terminal-input w-full text-xs"
-              placeholder="Node name"
-              @change="flowStore.updateNodeData(selectedNode.id, { label: ($event.target as HTMLInputElement).value })"
-            />
-          </div>
-        </div>
-
-        <!-- Type-specific config -->
-        <div class="px-3 py-2 border-b border-terminal-border flex-1 flex flex-col min-h-0">
-          <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2">▸ Configuration</p>
-          <InjectConfig v-if="selectedNode?.type === 'inject'" />
-          <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
-          <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
-          <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
-          <template v-else>
-            <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="space-y-1.5">
-              <div
-                v-for="(value, key) in (nodeData.config as Record<string, unknown>)"
-                :key="String(key)"
-                class="flex flex-col gap-0.5"
-              >
-                <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">{{ String(key) }}</label>
-                <div class="terminal-input w-full text-xs break-all whitespace-pre-wrap max-h-20 overflow-y-auto">
-                  {{ formatValue(value) }}
-                </div>
-              </div>
+        <!-- Node selected -->
+        <div v-else class="flex flex-col flex-1 min-h-0">
+          <!-- Node identity -->
+          <div class="px-3 py-3 border-b border-terminal-border">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-3 h-3 bg-accent flex-shrink-0"></span>
+              <span class="text-accent text-sm font-bold uppercase tracking-wider truncate">
+                {{ nodeData?.label || selectedNode.type }}
+              </span>
             </div>
-            <div v-else class="text-[10px] text-terminal-text-dim italic">No configuration available</div>
-          </template>
-        </div>
-
-        <!-- Status -->
-        <div class="px-3 py-2">
-          <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2">▸ Status</p>
-          <div v-if="nodeData?.status" class="flex items-center gap-2">
-            <span
-              class="w-2 h-2 flex-shrink-0"
-              :class="{
-                'bg-green-500': nodeData.status.fill === 'green',
-                'bg-red-500': nodeData.status.fill === 'red',
-                'bg-yellow-500': nodeData.status.fill === 'yellow',
-                'bg-blue-500': nodeData.status.fill === 'blue',
-                'bg-gray-500': nodeData.status.fill === 'grey' || !nodeData.status.fill,
-              }"
-            ></span>
-            <span class="text-xs text-terminal-text-dim">{{ nodeData.status.text ?? 'OK' }}</span>
+            <div class="flex items-center gap-2 text-[10px] text-terminal-text-dim">
+              <span class="terminal-badge">{{ selectedNode.type }}</span>
+              <span class="text-terminal-text-dim">{{ selectedNode.id.slice(0, 12) }}&hellip;</span>
+            </div>
           </div>
-          <div v-else class="text-[10px] text-terminal-text-dim italic">No status</div>
+
+          <!-- Properties -->
+          <div class="px-3 py-2 border-b border-terminal-border">
+            <SectionHeader title="Properties">
+              <div class="flex flex-col gap-1">
+                <FormLabel>Name</FormLabel>
+                <FormInput
+                  :model-value="(nodeData?.label as string) ?? ''"
+                  placeholder="Node name"
+                  @update:model-value="flowStore.updateNodeData(selectedNode!.id, { label: $event })"
+                />
+              </div>
+            </SectionHeader>
+          </div>
+
+          <!-- Type-specific config -->
+          <div class="px-3 py-2 border-b border-terminal-border flex-1 flex flex-col min-h-0">
+            <SectionHeader title="Configuration">
+              <InjectConfig v-if="selectedNode?.type === 'inject'" />
+              <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
+              <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
+              <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
+              <template v-else>
+                <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-2">
+                  <div
+                    v-for="(value, key) in (nodeData.config as Record<string, unknown>)"
+                    :key="String(key)"
+                    class="flex flex-col gap-1"
+                  >
+                    <FormLabel>{{ String(key) }}</FormLabel>
+                    <div class="bg-terminal-bg border border-terminal-border px-2 py-1 text-[10px] break-all whitespace-pre-wrap max-h-20 overflow-y-auto">
+                      {{ formatValue(value) }}
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-[10px] text-terminal-text-dim italic">No configuration available</div>
+              </template>
+            </SectionHeader>
+          </div>
+
+          <!-- Status -->
+          <div class="px-3 py-2">
+            <SectionHeader title="Status">
+              <div v-if="nodeData?.status" class="flex items-center gap-2">
+                <span
+                  class="w-2 h-2 flex-shrink-0 rounded-full"
+                  :style="{ background: STATUS_COLORS[nodeData.status.fill] ?? STATUS_COLORS.grey }"
+                />
+                <span class="text-[10px] text-terminal-text-dim">{{ nodeData.status.text ?? 'OK' }}</span>
+              </div>
+              <div v-else class="text-[10px] text-terminal-text-dim italic">No status</div>
+            </SectionHeader>
+          </div>
         </div>
       </div>
     </div>
-    </div><!-- end panel content -->
   </div>
 </template>

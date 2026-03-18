@@ -47,7 +47,7 @@ function handleToggle(value: boolean) {
     </template>
 
     <template #body>
-      <span class="opacity-60">msg.payload → debug</span>
+      <span class="text-terminal-text-dim">msg.payload → debug</span>
     </template>
   </BaseNode>
 </template>

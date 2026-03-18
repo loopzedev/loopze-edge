@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { Handle, Position } from "@vue-flow/core";
 import NodeIcon from "@/components/nodes/NodeIcon.vue";
-import { getTokens } from "@/components/nodes/tokens";
+import { getTokens, STATUS_COLORS } from "@/components/nodes/tokens";
 import { useFlowStore } from "@/stores/flowStore";
 
 export interface ActionButton {
@@ -89,16 +89,9 @@ const hasCustomLabel = computed(() => {
 });
 const isDirty = computed(() => flowStore.isNodeDirty(props.id));
 
-const statusColor = computed(() => {
-    const colors: Record<string, string> = {
-        red: "#e24b4a",
-        green: "#4ade80",
-        yellow: "#ef9f27",
-        blue: "#60a5fa",
-        grey: "#6b7280",
-    };
-    return colors[props.status?.fill ?? ""] ?? "#3a3a3a";
-});
+const statusColor = computed(() =>
+    STATUS_COLORS[props.status?.fill ?? ''] ?? STATUS_COLORS.grey
+);
 
 const inputHandles = computed(() =>
     Array.from({ length: props.inputs }, (_, i) => ({

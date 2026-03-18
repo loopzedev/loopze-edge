@@ -37,7 +37,7 @@ defineOptions({ inheritAttrs: false })
       <span class="uppercase tracking-wider text-[9px]">
         {{ props.data.config?.scope ?? 'global' }}:{{ props.data.config?.storage ?? 'memory' }}
       </span>
-      <span class="ml-1 opacity-70">
+      <span class="ml-1 text-terminal-text-dim">
         {{ props.data.config?.keyPattern ?? '>' }}
       </span>
     </template>

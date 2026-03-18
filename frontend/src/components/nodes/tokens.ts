@@ -98,6 +98,14 @@ const TYPE_CATEGORY: Record<string, string> = {
   'link-out':      'output',
 }
 
+export const STATUS_COLORS: Record<string, string> = {
+  red: '#e24b4a',
+  green: '#4ade80',
+  yellow: '#ef9f27',
+  blue: '#60a5fa',
+  grey: '#6b7280',
+}
+
 export function getTokens(nodeType: string): NodeTokens {
   const cat = TYPE_CATEGORY[nodeType] ?? 'process'
   return TOKENS[cat]

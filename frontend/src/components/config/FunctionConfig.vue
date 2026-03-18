@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
+import FormLabel from '@/components/ui/FormLabel.vue'
+import FormInput from '@/components/ui/FormInput.vue'
+import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 
 const CodeEditor = defineAsyncComponent(() =>
   import('@/components/ui/CodeEditor.vue')
@@ -34,17 +37,21 @@ const outputs = computed({
     })
   },
 })
+
+const outputPresets = [
+  { label: '1', value: 1 },
+  { label: '2', value: 2 },
+  { label: '3', value: 3 },
+]
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 flex-1 min-h-0">
+  <div class="flex flex-col gap-2 flex-1 min-h-0">
     <!-- Code editor -->
     <div class="flex flex-col gap-1 flex-1 min-h-0">
       <div class="flex items-center justify-between">
-        <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-          Function Body
-        </label>
-        <span class="text-[10px] text-terminal-text-dim opacity-60">JavaScript</span>
+        <FormLabel>Function Body</FormLabel>
+        <span class="text-[10px] text-terminal-text-dim">JavaScript</span>
       </div>
       <CodeEditor
         v-model="funcCode"
@@ -55,35 +62,17 @@ const outputs = computed({
 
     <!-- Outputs -->
     <div class="flex flex-col gap-1">
-      <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-        Outputs
-      </label>
+      <FormLabel>Outputs</FormLabel>
       <div class="flex items-center gap-2">
-        <input
-          :value="outputs"
+        <FormInput
+          :model-value="String(outputs)"
           type="number"
-          min="1"
-          max="10"
-          class="terminal-input w-20 text-xs text-center"
-          @input="outputs = Number(($event.target as HTMLInputElement).value)"
+          placeholder="1"
+          @update:model-value="outputs = Number($event)"
         />
         <span class="text-[10px] text-terminal-text-dim">port{{ outputs !== 1 ? 's' : '' }}</span>
       </div>
-      <div class="flex gap-1">
-        <button
-          v-for="n in [1, 2, 3]"
-          :key="n"
-          class="px-1.5 py-0.5 text-[10px] border border-terminal-border transition-colors duration-75"
-          :class="[
-            outputs === n
-              ? 'bg-accent text-terminal-bg border-accent'
-              : 'bg-terminal-bg text-terminal-text-dim hover:text-terminal-text hover:border-terminal-text',
-          ]"
-          @click="outputs = n"
-        >
-          {{ n }}
-        </button>
-      </div>
+      <ToggleGroup v-model="outputs" :options="outputPresets" />
     </div>
   </div>
 </template>

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
+import FormLabel from '@/components/ui/FormLabel.vue'
+import FormInput from '@/components/ui/FormInput.vue'
+import FormSelect from '@/components/ui/FormSelect.vue'
+import FormCheckbox from '@/components/ui/FormCheckbox.vue'
+import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 
 const flowStore = useFlowStore()
 
@@ -62,107 +67,56 @@ const payloadTypes = [
   { label: 'Boolean', value: 'boolean' },
   { label: 'JSON', value: 'json' },
 ]
-
-function selectIntervalPreset(value: number) {
-  interval.value = value
-}
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="flex flex-col gap-2">
     <!-- Once at startup -->
-    <div class="flex items-center gap-2">
-      <input
-        :checked="once"
-        type="checkbox"
-        class="terminal-checkbox"
-        @change="once = ($event.target as HTMLInputElement).checked"
-      />
-      <label class="text-xs text-terminal-text cursor-pointer" @click="once = !once">
-        Inject once at startup
-      </label>
-    </div>
+    <FormCheckbox v-model="once" label="Inject once at startup" />
 
     <!-- Interval -->
     <div class="flex flex-col gap-1">
-      <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-        Repeat Interval
-      </label>
-      <div class="flex flex-wrap gap-1 mb-1">
-        <button
-          v-for="preset in intervalPresets"
-          :key="preset.value"
-          class="px-1.5 py-0.5 text-[10px] border border-terminal-border transition-colors duration-75"
-          :class="[
-            interval === preset.value
-              ? 'bg-accent text-terminal-bg border-accent'
-              : 'bg-terminal-bg text-terminal-text-dim hover:text-terminal-text hover:border-terminal-text',
-          ]"
-          @click="selectIntervalPreset(preset.value)"
-        >
-          {{ preset.label }}
-        </button>
-      </div>
+      <FormLabel>Repeat Interval</FormLabel>
+      <ToggleGroup v-model="interval" :options="intervalPresets" />
       <div class="flex items-center gap-1">
-        <input
-          :value="interval"
+        <FormInput
+          :model-value="String(interval)"
           type="number"
-          min="0"
-          step="100"
-          class="terminal-input w-full text-xs"
           placeholder="Custom (ms)"
-          @input="interval = Number(($event.target as HTMLInputElement).value)"
+          @update:model-value="interval = Number($event)"
         />
         <span class="text-[10px] text-terminal-text-dim shrink-0">ms</span>
       </div>
     </div>
 
     <!-- Topic -->
-    <div class="flex flex-col gap-0.5">
-      <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-        Topic
-      </label>
-      <input
-        v-model="topic"
-        type="text"
-        class="terminal-input w-full text-xs"
-        placeholder="msg.topic"
-      />
+    <div class="flex flex-col gap-1">
+      <FormLabel>Topic</FormLabel>
+      <FormInput v-model="topic" placeholder="msg.topic" />
     </div>
 
     <!-- Payload Type -->
-    <div class="flex flex-col gap-0.5">
-      <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-        Payload Type
-      </label>
-      <select
-        :value="payloadType"
-        class="terminal-input w-full text-xs"
-        @change="payloadType = ($event.target as HTMLSelectElement).value"
-      >
-        <option v-for="pt in payloadTypes" :key="pt.value" :value="pt.value">
-          {{ pt.label }}
-        </option>
-      </select>
+    <div class="flex flex-col gap-1">
+      <FormLabel>Payload Type</FormLabel>
+      <FormSelect v-model="payloadType" :options="payloadTypes" />
     </div>
 
     <!-- Payload Value (hidden for timestamp) -->
-    <div v-if="payloadType !== 'timestamp'" class="flex flex-col gap-0.5">
-      <label class="text-[10px] text-terminal-text-dim uppercase tracking-wider">
-        Payload Value
-      </label>
+    <div v-if="payloadType !== 'timestamp'" class="flex flex-col gap-1">
+      <FormLabel>Payload Value</FormLabel>
       <textarea
         v-if="payloadType === 'json'"
         v-model="payload"
-        class="terminal-input w-full text-xs font-mono resize-y min-h-[60px]"
+        class="bg-terminal-bg border border-terminal-border text-terminal-text
+               px-2 py-1 text-[10px] font-mono outline-none resize-y min-h-[60px]
+               focus:border-accent focus:ring-0 placeholder:text-terminal-text-dim"
         placeholder='{"key": "value"}'
         rows="3"
       />
-      <input
+      <FormInput
         v-else
         v-model="payload"
         :type="payloadType === 'number' ? 'number' : 'text'"
-        class="terminal-input w-full text-xs"
         :placeholder="payloadType === 'boolean' ? 'true / false' : 'Value'"
       />
     </div>

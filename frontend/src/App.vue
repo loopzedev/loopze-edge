@@ -42,7 +42,7 @@ watch(ws.status, (status) => {
 
 const mainAreaStyle = computed(() => {
   const left = ui.leftPanelOpen ? '240px' : '0px'
-  const rightWidth = (ui.propertiesPanelOpen ? 280 : 0) + (ui.debugPanelOpen ? 320 : 0)
+  const rightWidth = (ui.propertiesPanelOpen ? ui.propertiesPanelWidth : 0) + (ui.debugPanelOpen ? 320 : 0)
   return {
     marginLeft: left,
     marginRight: rightWidth + 'px',

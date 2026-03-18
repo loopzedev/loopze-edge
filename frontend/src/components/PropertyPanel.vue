@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import PanelHeader from '@/components/ui/PanelHeader.vue'
@@ -31,7 +31,10 @@ function formatValue(value: unknown): string {
 }
 
 // ── Resize handle ────────────────────────────────────────────────
-const panelWidth = ref(280)
+const panelWidth = computed({
+  get: () => ui.propertiesPanelWidth,
+  set: (v: number) => { ui.propertiesPanelWidth = v },
+})
 let resizing = false
 let startX = 0
 let startWidth = 0

@@ -12,6 +12,7 @@ import InjectNode from "@/components/nodes/InjectNode.vue";
 import DebugNode from "@/components/nodes/DebugNode.vue";
 import FunctionNode from "@/components/nodes/FunctionNode.vue";
 import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
+import ChangeNode from "@/components/nodes/ChangeNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -184,7 +185,7 @@ onMounted(async () => {
             </template>
 
             <template #node-change="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <ChangeNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-switch="nodeProps">

@@ -107,7 +107,7 @@ Messages vom Node bis ins Frontend durchschleusen.
 - [x] **Global Context** – `global.get(key)` / `global.set(key, value)` via NATS KV `context-global`
 - [x] **Flow Context** – `flow.get(key)` / `flow.set(key, value)` via NATS KV `context-flow-{id}`
 - [x] Context-API für Function Nodes bereitstellen (Goja-Bindings)
-- [ ] Context Watch Node - Watch for a KV Key in the global or flow context
+- [x] Context Watch Node - Watch for a KV Key in the global or flow context
 
 ### 2.3 Universelles Node-Debugging
 

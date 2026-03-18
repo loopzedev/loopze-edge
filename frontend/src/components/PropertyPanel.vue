@@ -5,6 +5,7 @@ import { useFlowStore } from '@/stores/flowStore'
 import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
+import ChangeConfig from '@/components/config/ChangeConfig.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -126,6 +127,7 @@ function onResizeEnd() {
           <InjectConfig v-if="selectedNode?.type === 'inject'" />
           <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
           <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
+          <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
           <template v-else>
             <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="space-y-1.5">
               <div

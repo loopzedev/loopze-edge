@@ -42,6 +42,39 @@ Beim **Setze**-Operator kann der Wert aus verschiedenen Quellen kommen:
 | **timestamp** | `⏱` | Aktueller Unix-Timestamp in Millisekunden |
 | **Umgebungsvariable** | `$` | Wert aus einer Umgebungsvariable lesen |
 
+## Storage-Auswahl bei flow/global Context
+
+Sobald als Scope oder Wert-Typ **flow.** oder **global.** gewählt wird, erscheint **hinter dem Textfeld** ein zusätzliches Dropdown zur Auswahl des Storage-Typs:
+
+| Option | Beschreibung |
+|---|---|
+| **memory** | Volatile In-Memory Store (schnell, Daten gehen bei Neustart verloren) — **Default** |
+| **persistent** | File-backed persistent Store (überlebt Neustarts) |
+
+Dies gilt für **alle Stellen** an denen flow/global als Scope oder Wert-Typ auftaucht:
+- **Ziel-Scope** (Property-Feld): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
+- **Wert-Typ** (Value-Feld bei "Setze"): Wenn `flow.` oder `global.` als Quelle → Storage-Dropdown erscheint
+- **Suche-Typ** (bei "Ändere"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
+- **Ersetze-Typ** (bei "Ändere"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
+- **Ziel** (bei "Verschiebe"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
+
+### UI-Layout
+
+```
+Setze ▼ | ▼ flow. [key         ] [memory ▼]
+         to value | ▼ global. [source_key  ] [persistent ▼]
+```
+
+### Backend Config-Felder
+
+Neue Felder pro Regel für Storage-Auswahl:
+
+| Feld | Beschreibung |
+|---|---|
+| `ps` | Property-Storage: `memory` oder `persistent` (nur wenn `pt` = flow/global) |
+| `tos` | Value-Storage: `memory` oder `persistent` (nur wenn `tot` = flow/global) |
+| `froms` | Search-Storage: `memory` oder `persistent` (nur wenn `fromt` = flow/global) |
+
 ## Regeln-UI
 
 - Regeln werden als **sortierbare Liste** dargestellt (Drag-Handle `≡` links)
@@ -157,10 +190,13 @@ Setze | flow.lastValue | to the value | msg.payload
 | `t` | Operation: `set`, `change`, `delete`, `move` |
 | `p` | Property-Name (ohne Scope-Prefix) |
 | `pt` | Property-Scope: `msg`, `flow`, `global` |
+| `ps` | Property-Storage: `memory` oder `persistent` (nur wenn `pt` = flow/global) |
 | `to` | Zielwert oder Ziel-Property |
 | `tot` | Wert-Typ: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `buf`, `date`, `env` |
+| `tos` | Value-Storage: `memory` oder `persistent` (nur wenn `tot` = flow/global) |
 | `from` | Suchstring (nur bei `change`) |
 | `fromt` | Such-Typ: `str`, `re` (Regex) |
+| `froms` | Search-Storage: `memory` oder `persistent` (nur wenn `fromt` = flow/global) |
 | `fromRE` | Regex-Flag (nur bei `change`) |
 
 ## Implementierung

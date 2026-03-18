@@ -131,6 +131,7 @@ const outputHandles = computed(() =>
       }"
       :title="props.actionButton.title ?? props.actionButton.label"
       @click.stop="handleAction"
+      @dblclick.stop
       @mousedown.stop
       @pointerdown.stop
     >
@@ -273,7 +274,7 @@ const outputHandles = computed(() =>
     <!-- Toggle button (optional, displayed right of the node) -->
     <button
       v-if="props.toggleButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-r-[8px] transition-all duration-100 font-mono"
+      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-r-[8px] transition-all duration-100 font-mono nopan nodrag"
       :style="{
         background: props.toggleState ? t.accent + '22' : t.bg,
         border: `1px solid ${props.toggleState ? t.accent : t.border}`,
@@ -281,7 +282,9 @@ const outputHandles = computed(() =>
       }"
       :title="props.toggleState ? 'Enabled — click to disable' : 'Disabled — click to enable'"
       @click.stop="handleToggle"
+      @dblclick.stop
       @mousedown.stop
+      @pointerdown.stop
     >
       <span
         class="text-[9px] font-bold tracking-widest transition-colors"

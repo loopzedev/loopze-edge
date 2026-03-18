@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import BaseNode from '@/components/nodes/BaseNode.vue'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
@@ -9,11 +9,16 @@ defineOptions({ inheritAttrs: false })
 const props = defineProps<NodeProps>()
 
 const label = computed(() => props.data?.label)
+const enabled = ref(true)
 
 const messageCount = computed(() => {
   const count = props.data?.messageCount
   return typeof count === 'number' ? count : null
 })
+
+function handleToggle(value: boolean) {
+  enabled.value = value
+}
 </script>
 
 <template>
@@ -26,6 +31,9 @@ const messageCount = computed(() => {
     :outputs="0"
     :status="props.data?.status"
     :disabled="props.data?.disabled"
+    :toggle-button="true"
+    :toggle-state="enabled"
+    @toggle="handleToggle"
   >
     <template #icon><NodeIcon type="debug" /></template>
 

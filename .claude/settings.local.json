@@ -8,7 +8,9 @@
       "Bash(git check-ignore:*)",
       "Bash(npm run:*)",
       "Bash(npm install:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(go test:*)",
+      "Bash(1:*)"
     ]
   }
 }

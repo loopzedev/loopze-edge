@@ -71,9 +71,6 @@ func (n *FunctionNode) Init() error {
 	if v, ok := props["func"].(string); ok {
 		n.code = v
 	}
-	if n.code == "" {
-		n.code = "return msg;"
-	}
 
 	if v, ok := props["outputs"].(float64); ok && v >= 1 {
 		n.outputs = int(v)

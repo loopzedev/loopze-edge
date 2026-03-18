@@ -85,8 +85,19 @@ function moveRule(from: number, to: number) {
 // ── Drag & Drop ──────────────────────────────────────────────────
 const dragIdx = ref<number | null>(null)
 const dropIdx = ref<number | null>(null)
+const handleActive = ref(false)
+
+function onHandleMouseDown() {
+  handleActive.value = true
+  const onUp = () => { handleActive.value = false; document.removeEventListener('mouseup', onUp) }
+  document.addEventListener('mouseup', onUp)
+}
 
 function onDragStart(idx: number, e: DragEvent) {
+  if (!handleActive.value) {
+    e.preventDefault()
+    return
+  }
   dragIdx.value = idx
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
@@ -190,7 +201,7 @@ const timestampFormats = [
     >
       <!-- Row 1: Operation + Scope + Property + Delete -->
       <div class="flex items-center gap-1.5">
-        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] select-none shrink-0">&#x2261;</span>
+        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] select-none shrink-0" @mousedown="onHandleMouseDown">&#x2261;</span>
 
         <FormSelect :model-value="rule.t" :options="operations" width="80px"
           @update:model-value="updateRule(idx, 't', $event)" />

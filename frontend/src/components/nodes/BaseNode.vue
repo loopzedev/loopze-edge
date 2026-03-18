@@ -93,14 +93,18 @@ const statusColor = computed(() =>
     STATUS_COLORS[props.status?.fill ?? ''] ?? STATUS_COLORS.grey
 );
 
+const PORT_SPACING = 24;
+
+const maxPorts = computed(() => Math.max(props.inputs, props.outputs, 1));
+const nodeMinHeight = computed(() =>
+    `${(maxPorts.value + 1) * PORT_SPACING}px`,
+);
+
 const inputHandles = computed(() =>
     Array.from({ length: props.inputs }, (_, i) => ({
         id: `input-${i}`,
         style: {
-            top:
-                props.inputs === 1
-                    ? "50%"
-                    : `${20 + (60 / Math.max(props.inputs - 1, 1)) * i}%`,
+            top: `${(i + 1) * PORT_SPACING}px`,
         },
     })),
 );
@@ -109,10 +113,7 @@ const outputHandles = computed(() =>
     Array.from({ length: props.outputs }, (_, i) => ({
         id: `output-${i}`,
         style: {
-            top:
-                props.outputs === 1
-                    ? "50%"
-                    : `${20 + (60 / Math.max(props.outputs - 1, 1)) * i}%`,
+            top: `${(i + 1) * PORT_SPACING}px`,
         },
     })),
 );
@@ -151,6 +152,7 @@ const outputHandles = computed(() =>
             boxShadow: props.selected
                 ? `0 0 0 1px ${t.accentBdr}, 0 4px 20px ${t.accentGlow}`
                 : 'none',
+            minHeight: nodeMinHeight,
         }"
     >
         <!-- Input Handles -->
@@ -205,7 +207,7 @@ const outputHandles = computed(() =>
         <div class="flex-1 min-w-0 flex flex-col">
             <!-- Header -->
             <div
-                class="flex items-center gap-1.5 px-2 py-1.5"
+                class="flex items-center gap-1.5 px-2 py-1"
                 :style="{
                     background: t.bgHdr,
                     borderBottom: `1px solid ${t.border}`,
@@ -223,7 +225,7 @@ const outputHandles = computed(() =>
             <!-- Body: custom label takes priority, otherwise slot content -->
             <div
                 v-if="hasCustomLabel || $slots.body"
-                class="px-2 py-1 text-[10px]"
+                class="px-2 py-0.5 text-[10px] flex-1 flex items-center"
                 :style="{ background: t.bg, color: t.textSub }"
             >
                 <span v-if="hasCustomLabel">{{ props.label }}</span>

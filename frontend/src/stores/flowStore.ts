@@ -180,6 +180,24 @@ export const useFlowStore = defineStore("flow", () => {
     if (node) {
       node.data = { ...node.data, ...data };
       markNodeDirty(nodeId);
+
+      // Remove edges connected to ports that no longer exist
+      if (typeof data.outputs === "number") {
+        edges.value = edges.value.filter(
+          (e) =>
+            e.source !== nodeId ||
+            !e.sourceHandle ||
+            parseInt(e.sourceHandle.replace("output-", ""), 10) < data.outputs!,
+        );
+      }
+      if (typeof data.inputs === "number") {
+        edges.value = edges.value.filter(
+          (e) =>
+            e.target !== nodeId ||
+            !e.targetHandle ||
+            parseInt(e.targetHandle.replace("input-", ""), 10) < data.inputs!,
+        );
+      }
     }
   }
 

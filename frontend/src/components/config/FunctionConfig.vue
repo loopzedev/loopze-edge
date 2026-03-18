@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, nextTick } from 'vue'
+import { useVueFlow } from '@vue-flow/core'
 import { useFlowStore } from '@/stores/flowStore'
 import FormLabel from '@/components/ui/FormLabel.vue'
 import FormInput from '@/components/ui/FormInput.vue'
@@ -10,6 +11,7 @@ const CodeEditor = defineAsyncComponent(() =>
 )
 
 const flowStore = useFlowStore()
+const { updateNodeInternals } = useVueFlow('flint-flow-editor')
 
 const node = computed(() => flowStore.selectedNode)
 const config = computed(() => (node.value?.data?.config ?? {}) as Record<string, unknown>)
@@ -31,10 +33,12 @@ const outputs = computed({
   set: (v: number) => {
     if (!node.value) return
     const clamped = Math.max(1, Math.min(10, v))
-    flowStore.updateNodeData(node.value.id, {
+    const nodeId = node.value.id
+    flowStore.updateNodeData(nodeId, {
       config: { ...config.value, outputs: clamped },
       outputs: clamped,
     })
+    nextTick(() => updateNodeInternals(nodeId))
   },
 })
 

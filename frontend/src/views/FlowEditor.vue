@@ -204,7 +204,7 @@ onMounted(async () => {
             }"
             :fit-view-on-init="false"
             :snap-to-grid="true"
-            :snap-grid="[16, 16]"
+            :snap-grid="[8, 8]"
             :delete-key-code="['Backspace', 'Delete']"
             :selection-on-drag="true"
             :pan-on-drag="[1, 2]"
@@ -349,7 +349,7 @@ onMounted(async () => {
             <!-- Background grid -->
             <Background
                 :variant="BackgroundVariant.Lines"
-                :gap="16"
+                :gap="24"
                 :size="1"
                 pattern-color="#30363d33"
             />

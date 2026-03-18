@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 
 const flowStore = useFlowStore()
@@ -78,6 +78,37 @@ function moveRule(from: number, to: number) {
   rules.value = updated
 }
 
+// ── Drag & Drop ──────────────────────────────────────────────────
+const dragIdx = ref<number | null>(null)
+const dropIdx = ref<number | null>(null)
+
+function onDragStart(idx: number, e: DragEvent) {
+  dragIdx.value = idx
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(idx))
+  }
+}
+
+function onDragOver(idx: number, e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropIdx.value = idx
+}
+
+function onDrop(idx: number) {
+  if (dragIdx.value !== null && dragIdx.value !== idx) {
+    moveRule(dragIdx.value, idx)
+  }
+  dragIdx.value = null
+  dropIdx.value = null
+}
+
+function onDragEnd() {
+  dragIdx.value = null
+  dropIdx.value = null
+}
+
 const operations = [
   { value: 'set', label: 'Setze' },
   { value: 'change', label: 'Ändere' },
@@ -132,23 +163,21 @@ const replaceTypes = [
     <div
       v-for="(rule, idx) in rules"
       :key="idx"
-      class="border border-terminal-border bg-terminal-bg p-2 flex flex-col gap-1.5 relative"
+      draggable="true"
+      class="border bg-terminal-bg p-2 flex flex-col gap-1.5 relative transition-all duration-100"
+      :class="[
+        dragIdx === idx ? 'opacity-40 border-terminal-border' : '',
+        dropIdx === idx && dragIdx !== idx ? 'border-accent' : 'border-terminal-border',
+      ]"
+      @dragstart="onDragStart(idx, $event)"
+      @dragover="onDragOver(idx, $event)"
+      @drop="onDrop(idx)"
+      @dragend="onDragEnd"
     >
       <!-- Row 1: Operation + Scope + Property + Delete -->
       <div class="flex items-center gap-1">
-        <!-- Move buttons -->
-        <div class="flex flex-col gap-0.5 mr-0.5">
-          <button
-            class="text-[8px] text-terminal-text-dim hover:text-terminal-text leading-none"
-            :disabled="idx === 0"
-            @click="moveRule(idx, idx - 1)"
-          >▲</button>
-          <button
-            class="text-[8px] text-terminal-text-dim hover:text-terminal-text leading-none"
-            :disabled="idx === rules.length - 1"
-            @click="moveRule(idx, idx + 1)"
-          >▼</button>
-        </div>
+        <!-- Drag handle -->
+        <span class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] mr-0.5 select-none">≡</span>
 
         <!-- Operation -->
         <select
@@ -214,7 +243,15 @@ const replaceTypes = [
           :placeholder="rule.tot === 'json' ? '{...}' : rule.tot === 'bool' ? 'true / false' : 'value'"
           @change="updateRule(idx, 'to', ($event.target as HTMLInputElement).value)"
         />
-        <span v-else class="text-[9px] text-terminal-text-dim italic flex-1">current timestamp</span>
+        <select
+          v-else
+          :value="rule.to || 'epoch'"
+          class="terminal-input text-[10px] flex-1 min-w-0"
+          @change="updateRule(idx, 'to', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="epoch">milliseconds since epoch</option>
+          <option value="rfc3339">YYYY-MM-DDTHH:mm:ss.sssZ</option>
+        </select>
         <select
           v-if="isContextScope(rule.tot)"
           :value="rule.tos"

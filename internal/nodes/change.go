@@ -250,6 +250,9 @@ func (n *ChangeNode) resolveValue(msg *flow.Message, value, valueType, storage s
 		}
 		return parsed, nil
 	case "date":
+		if value == "rfc3339" {
+			return time.Now().UTC().Format(time.RFC3339Nano), nil
+		}
 		return float64(time.Now().UnixMilli()), nil
 	case "env":
 		return os.Getenv(value), nil

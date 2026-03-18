@@ -286,17 +286,17 @@ func (e *Engine) makeSendFunc(sourceID string, wires [][]string) SendFunc {
 		if port < 0 || port >= len(wires) {
 			return
 		}
-		targets := wires[port]
-		for _, targetID := range targets {
+		for _, targetID := range wires[port] {
 			targetNode, ok := e.nodes[targetID]
 			if !ok {
 				slog.Warn("wire target not found",
 					"source", sourceID, "target", targetID, "port", port)
 				continue
 			}
-			// Non-blocking send; drop if buffer full.
+			// Always clone: the target's goroutine may start processing
+			// the message immediately while the sender still holds a reference.
 			select {
-			case targetNode.inputCh <- msg:
+			case targetNode.inputCh <- msg.Clone():
 			default:
 				slog.Warn("message dropped, target buffer full",
 					"source", sourceID, "target", targetID)
@@ -386,8 +386,10 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 						continue
 					}
 					for _, outMsg := range msgs {
+						// Always clone: the target's goroutine starts processing
+						// immediately and must not share state with the sender.
 						select {
-						case targetNode.inputCh <- outMsg:
+						case targetNode.inputCh <- outMsg.Clone():
 						default:
 							slog.Warn("message dropped, target buffer full",
 								"source", nodeID, "target", targetID)
@@ -425,8 +427,9 @@ func (e *Engine) stopNodes() {
 	e.wires = make(map[string][][]string)
 }
 
-// TriggerNode sends a nil message to a running node's HandleMessage,
+// TriggerNode sends a trigger message to a running node's input channel,
 // used for manual triggering (e.g. inject button in the editor).
+// The message is processed by the node's goroutine to avoid race conditions.
 func (e *Engine) TriggerNode(nodeID string) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -436,9 +439,16 @@ func (e *Engine) TriggerNode(nodeID string) error {
 		return fmt.Errorf("node %q not found in running deployment", nodeID)
 	}
 
-	// Call HandleMessage directly with nil (inject ignores the input).
-	_, err := rn.instance.HandleMessage(nil)
-	return err
+	// Send a trigger message via the channel so it's processed
+	// by the node's own goroutine — no concurrent access.
+	trigger := NewMessage()
+	trigger.Set("_trigger", true)
+	select {
+	case rn.inputCh <- trigger:
+		return nil
+	default:
+		return fmt.Errorf("node %q trigger dropped, buffer full", nodeID)
+	}
 }
 
 // Flows returns a copy of the currently deployed flow definitions.

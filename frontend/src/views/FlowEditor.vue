@@ -47,13 +47,16 @@ onNodeDragStop((event) => {
 
 function handleNodeClick(event: { node: any }): void {
     flowStore.selectNode(event.node.id);
+}
+
+function handleNodeDoubleClick(event: { node: any }): void {
+    flowStore.selectNode(event.node.id);
     uiStore.openPropertiesPanel();
 }
 
 function handleSelectionChange(params: { nodes: any[]; edges: any[] }): void {
     if (params.nodes.length === 1) {
         flowStore.selectNode(params.nodes[0].id);
-        uiStore.openPropertiesPanel();
     } else if (params.nodes.length === 0) {
         flowStore.selectNode(null);
     }
@@ -160,6 +163,7 @@ onMounted(async () => {
             :prevent-scrolling="true"
             @pane-click="onPaneClick"
             @node-click="handleNodeClick"
+            @node-double-click="handleNodeDoubleClick"
             @selection-change="handleSelectionChange"
         >
             <!-- Custom Node Types -->

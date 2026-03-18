@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { DebugMessage } from '@/types/events'
+import { useFlowStore } from './flowStore'
 
 const MAX_MESSAGES = 1000
 
@@ -11,6 +12,19 @@ export const useDebugStore = defineStore('debug', () => {
   const filter = ref('')
 
   // ── Getters ────────────────────────────────────────────────────────
+
+  /** Set of debug node IDs that are currently inactive (respects dirty state). */
+  const inactiveDebugNodeIds = computed(() => {
+    const flowStore = useFlowStore()
+    const ids = new Set<string>()
+    for (const node of flowStore.nodes) {
+      if (node.type === 'debug' && node.data?.config?.active === false) {
+        ids.add(node.id)
+      }
+    }
+    return ids
+  })
+
   const filteredMessages = computed(() => {
     if (!filter.value) return messages.value
 
@@ -36,6 +50,7 @@ export const useDebugStore = defineStore('debug', () => {
    */
   function addMessage(message: DebugMessage): void {
     if (!isEnabled.value) return
+    if (inactiveDebugNodeIds.value.has(message.nodeId)) return
 
     messages.value.push(message)
 

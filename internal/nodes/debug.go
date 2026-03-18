@@ -4,11 +4,13 @@
 package nodes
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/niceclouds/flint/internal/flow"
+	"github.com/tidwall/gjson"
 )
 
 // DebugNode is a sink node that captures incoming messages and publishes
@@ -20,16 +22,23 @@ type DebugNode struct {
 	debug  flow.DebugFunc
 
 	// Parsed from Properties.
-	property string // which msg field to display (default: "payload")
-	active   bool   // whether debug output is enabled
+	output        string // "property", "message", "gjson"
+	property      string // which msg field to display (default: "payload")
+	active        bool   // whether debug output is enabled
+	statusEnabled bool
+	statusOutput  string // "same", "property", "gjson", "count"
+	statusProp    string
+	msgCount      int64
 }
 
 // NewDebugNode is the NodeFactory for the debug node type.
 func NewDebugNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 	return &DebugNode{
-		config:   config,
-		property: "payload",
-		active:   true,
+		config:       config,
+		output:       "property",
+		property:     "payload",
+		active:       true,
+		statusOutput: "same",
 	}, nil
 }
 
@@ -43,6 +52,22 @@ func (n *DebugNode) Init() error {
 
 	if v, ok := props["active"].(bool); ok {
 		n.active = v
+	}
+
+	if v, ok := props["output"].(string); ok && v != "" {
+		n.output = v
+	}
+
+	if v, ok := props["statusEnabled"].(bool); ok {
+		n.statusEnabled = v
+	}
+
+	if v, ok := props["statusOutput"].(string); ok && v != "" {
+		n.statusOutput = v
+	}
+
+	if v, ok := props["statusProperty"].(string); ok && v != "" {
+		n.statusProp = v
 	}
 
 	return nil
@@ -75,16 +100,30 @@ func (n *DebugNode) Start() error {
 
 // HandleMessage captures the incoming message and publishes it as a debug event.
 func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
-	if !n.active || n.debug == nil {
+	if n.debug == nil {
 		return nil, nil
 	}
 
-	// Extract the value for the configured property.
+	// Extract payload based on the configured output mode.
 	var payload any
-	if n.property == "complete" {
+	var propertyLabel string
+
+	switch n.output {
+	case "message":
 		payload = msg.Data()
-	} else {
+		propertyLabel = "msg"
+	case "gjson":
+		raw, err := json.Marshal(msg.Data())
+		if err != nil {
+			payload = fmt.Sprintf("gjson marshal error: %v", err)
+		} else {
+			result := gjson.GetBytes(raw, n.property)
+			payload = result.Value()
+		}
+		propertyLabel = n.property
+	default: // "property"
 		payload = msg.Get(n.property)
+		propertyLabel = n.property
 	}
 
 	n.debug(flow.DebugMessage{
@@ -93,9 +132,35 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 		Status:    "debug",
 		Payload:   payload,
 		Format:    detectFormat(payload),
-		Property:  n.property,
+		Property:  propertyLabel,
 		NodeName:  n.config.Name,
 	})
+
+	// Status output
+	n.msgCount++
+	if n.statusEnabled && n.status != nil {
+		var statusText string
+		switch n.statusOutput {
+		case "same":
+			statusText = fmt.Sprintf("%v", payload)
+		case "property":
+			statusText = fmt.Sprintf("%v", msg.Get(n.statusProp))
+		case "gjson":
+			raw, err := json.Marshal(msg.Data())
+			if err != nil {
+				statusText = "error"
+			} else {
+				r := gjson.GetBytes(raw, n.statusProp)
+				statusText = fmt.Sprintf("%v", r.Value())
+			}
+		case "count":
+			statusText = fmt.Sprintf("%d", n.msgCount)
+		}
+		if runes := []rune(statusText); len(runes) > 32 {
+			statusText = string(runes[:32])
+		}
+		n.status("grey", statusText)
+	}
 
 	return nil, nil
 }
@@ -136,8 +201,12 @@ func DebugTypeInfo() flow.NodeTypeInfo {
 		Description: "Displays incoming messages in the debug panel",
 		Icon:        "mdi-bug",
 		Defaults: map[string]any{
-			"property": "payload",
-			"active":   true,
+			"property":       "payload",
+			"active":         true,
+			"output":         "property",
+			"statusEnabled":  false,
+			"statusOutput":   "same",
+			"statusProperty": "",
 		},
 		Inputs:  1,
 		Outputs: 0,

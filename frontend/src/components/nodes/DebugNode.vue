@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import BaseNode from '@/components/nodes/BaseNode.vue'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
+import { useFlowStore } from '@/stores/flowStore'
 
 defineOptions({ inheritAttrs: false })
 
 const props = defineProps<NodeProps>()
+const flowStore = useFlowStore()
 
 const label = computed(() => props.data?.label)
-const enabled = ref(true)
+
+const enabled = computed(() => {
+  const active = props.data?.config?.active
+  return active !== false
+})
+
+const bodyText = computed(() => {
+  const cfg = props.data?.config
+  const output = (cfg?.output as string) ?? 'property'
+  if (output === 'message') return 'complete msg \u2192 debug'
+  if (output === 'gjson') return `gjson: ${(cfg?.property as string) ?? ''}`
+  return `msg.${(cfg?.property as string) ?? 'payload'} \u2192 debug`
+})
 
 const messageCount = computed(() => {
   const count = props.data?.messageCount
@@ -17,7 +31,9 @@ const messageCount = computed(() => {
 })
 
 function handleToggle(value: boolean) {
-  enabled.value = value
+  flowStore.updateNodeData(props.id, {
+    config: { ...props.data?.config, active: value },
+  })
 }
 </script>
 
@@ -47,7 +63,7 @@ function handleToggle(value: boolean) {
     </template>
 
     <template #body>
-      <span class="text-terminal-text-dim">msg.payload → debug</span>
+      <span class="text-terminal-text-dim">{{ bodyText }}</span>
     </template>
   </BaseNode>
 </template>

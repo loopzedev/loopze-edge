@@ -10,6 +10,7 @@ import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
+import DebugConfig from '@/components/config/DebugConfig.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -128,6 +129,7 @@ function onResizeEnd() {
               <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
+              <DebugConfig v-else-if="selectedNode?.type === 'debug'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-2">
                   <div

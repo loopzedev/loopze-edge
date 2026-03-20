@@ -11,6 +11,7 @@ import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
 import DebugConfig from '@/components/config/DebugConfig.vue'
+import LinkConfig from '@/components/config/LinkConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 
 const ui = useUiStore()
@@ -137,6 +138,7 @@ function onResizeEnd() {
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
               <DebugConfig v-else-if="selectedNode?.type === 'debug'" />
+              <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-2">
                   <div

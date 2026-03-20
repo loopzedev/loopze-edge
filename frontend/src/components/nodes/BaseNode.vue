@@ -76,6 +76,9 @@ const typeLabel = computed(() => {
         delay: "Delay",
         filter: "Filter",
         comment: "Comment",
+        "link-in": "Link In",
+        "link-out": "Link Out",
+        "link-call": "Link Call",
     };
     return labels[props.nodeType] ?? props.nodeType;
 });

@@ -13,6 +13,8 @@ import DebugNode from "@/components/nodes/DebugNode.vue";
 import FunctionNode from "@/components/nodes/FunctionNode.vue";
 import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
 import ChangeNode from "@/components/nodes/ChangeNode.vue";
+import LinkNode from "@/components/nodes/LinkNode.vue";
+import LinkCallNode from "@/components/nodes/LinkCallNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -338,11 +340,15 @@ onMounted(async () => {
             </template>
 
             <template #node-link-in="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <LinkNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-link-out="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <LinkNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-link-call="nodeProps">
+                <LinkCallNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-catch="nodeProps">

@@ -14,6 +14,17 @@ export interface NodeTokens {
 }
 
 export const TOKENS: Record<string, NodeTokens> = {
+  link: {
+    accent:     '#9ca3af',
+    accentDim:  '#9ca3af12',
+    accentBdr:  '#9ca3af2a',
+    accentGlow: '#9ca3af12',
+    bg:         '#0a0a0b',
+    bgHdr:      '#161618',
+    bgIcon:     '#1c1c1f',
+    border:     '#2e2e33',
+    textSub:    '#71717a',
+  },
   input: {
     accent:     '#4dff8f',
     accentDim:  '#4dff8f15',
@@ -69,7 +80,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   'udp-in':        'input',
   'modbus-read':   'input',
   'file-in':       'input',
-  'link-in':       'input',
+  'link-in':       'link',
   catch:           'input',
   status:          'input',
 
@@ -82,6 +93,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   json:            'process',
   xml:             'process',
   csv:             'process',
+  'link-call':     'link',
   comment:         'process',
   'opc-ua':        'process',
 
@@ -95,7 +107,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   'udp-out':       'output',
   'modbus-write':  'output',
   'file-out':      'output',
-  'link-out':      'output',
+  'link-out':      'link',
 }
 
 export const STATUS_COLORS: Record<string, string> = {

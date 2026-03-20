@@ -46,6 +46,7 @@ type Engine struct {
 	// Active deployment state.
 	nodes        map[string]*runningNode // nodeID → running node
 	wires        map[string][][]string   // nodeID → wires[outputPort] = [targetNodeIDs]
+	linkRegistry map[string]*runningNode // nodeID → running link node (link-in, link-out, link-call)
 	publishDebug     PublishDebugFunc   // injected by server for NATS publishing
 	publishStatus    PublishStatusFunc  // injected by server for NATS publishing
 	globalCtxMemory  ContextStore       // volatile in-memory global context store
@@ -63,9 +64,10 @@ func NewEngine(cfg *config.Config) *Engine {
 	return &Engine{
 		cfg:      cfg,
 		registry: NewNodeRegistry(),
-		nodes:    make(map[string]*runningNode),
-		wires:    make(map[string][][]string),
-		stopCh:   make(chan struct{}),
+		nodes:        make(map[string]*runningNode),
+		wires:        make(map[string][][]string),
+		linkRegistry: make(map[string]*runningNode),
+		stopCh:       make(chan struct{}),
 	}
 }
 
@@ -256,6 +258,23 @@ func (e *Engine) Deploy(flows []Flow) error {
 		}
 	}
 
+	// Step 5b — Build link registry for cross-flow messaging.
+	e.linkRegistry = make(map[string]*runningNode)
+	for nodeID, rn := range e.nodes {
+		switch rn.config.Type {
+		case "link-in", "link-out", "link-call":
+			e.linkRegistry[nodeID] = rn
+		}
+	}
+
+	// Step 5c — Inject LinkSendFunc for nodes that implement LinkProvider.
+	linkSend := e.makeLinkSendFunc()
+	for _, rn := range e.nodes {
+		if lp, ok := rn.instance.(LinkProvider); ok {
+			lp.SetLinkSend(linkSend)
+		}
+	}
+
 	// Step 6 — Start each node in its own goroutine.
 	e.stopCh = make(chan struct{})
 
@@ -363,6 +382,25 @@ func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 	}
 }
 
+// makeLinkSendFunc creates a LinkSendFunc closure that sends messages directly
+// to a node by its ID via the link registry — independent of wire-based routing.
+func (e *Engine) makeLinkSendFunc() LinkSendFunc {
+	return func(targetNodeID string, msg *Message) {
+		targetNode, ok := e.linkRegistry[targetNodeID]
+		if !ok {
+			slog.Warn("link target not found in registry",
+				"target", targetNodeID)
+			return
+		}
+		select {
+		case targetNode.inputCh <- msg.Clone():
+		default:
+			slog.Warn("link message dropped, target buffer full",
+				"target", targetNodeID)
+		}
+	}
+}
+
 // nodeLoop runs in a goroutine for each node that accepts input messages.
 // It reads from the node's input channel, calls HandleMessage, and routes
 // output messages to downstream nodes.
@@ -436,6 +474,7 @@ func (e *Engine) stopNodes() {
 
 	e.nodes = make(map[string]*runningNode)
 	e.wires = make(map[string][][]string)
+	e.linkRegistry = make(map[string]*runningNode)
 }
 
 // TriggerNode sends a trigger message to a running node's input channel,

@@ -36,6 +36,7 @@ export type NodeType =
   | 'status'
   | 'link-in'
   | 'link-out'
+  | 'link-call'
   | 'comment'
   | string
 

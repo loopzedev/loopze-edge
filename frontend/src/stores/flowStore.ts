@@ -595,6 +595,7 @@ export const useFlowStore = defineStore("flow", () => {
     updateNodeStatus,
     updateNodePosition,
     isNodeDirty,
+    markNodeDirty,
     connectNodes,
     removeEdge,
     selectNode,

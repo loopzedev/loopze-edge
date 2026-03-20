@@ -52,6 +52,7 @@ const icons: Record<string, string[]> = {
   comment:       ['M21 4H3v12h13l5 4V4z'],                                             // speech bubble
   'link-in':     ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M3 10h7', 'M6 7l-3 3 3 3'],  // chain + arrow in
   'link-out':    ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M14 10h7', 'M18 7l3 3-3 3'],  // chain + arrow out
+  'link-call':   ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M3 10h7', 'M14 10h7', 'M6 7l-3 3 3 3', 'M18 7l3 3-3 3'],  // chain + arrows both
   catch:         ['M13 2L3 14h8l-1 8 10-12h-8l1-8z'],                                  // lightning bolt
   status:        ['M3 12h3l3-8 4 16 3-8h5'],                                           // heartbeat/pulse
 }

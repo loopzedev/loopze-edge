@@ -48,6 +48,7 @@ export const useFlowStore = defineStore("flow", () => {
   const clipboard = ref<{ nodes: FlowNode[]; edges: FlowEdge[] } | null>(null);
   const dirty = ref(false);
   const dirtyNodeIds = ref(new Set<string>());
+  const dirtyFlowIds = ref(new Set<string>());
   const revision = ref<string | null>(null);
   const deploying = ref(false);
 
@@ -76,8 +77,12 @@ export const useFlowStore = defineStore("flow", () => {
     );
   }
 
-  function markDirty(): void {
+  function markDirty(flowId?: string): void {
     dirty.value = true;
+    const id = flowId ?? activeFlowId.value;
+    if (id) {
+      dirtyFlowIds.value = new Set([...dirtyFlowIds.value, id]);
+    }
   }
 
   function markNodeDirty(nodeId: string): void {
@@ -89,6 +94,10 @@ export const useFlowStore = defineStore("flow", () => {
 
   function isNodeDirty(nodeId: string): boolean {
     return dirtyNodeIds.value.has(nodeId);
+  }
+
+  function isFlowDirty(flowId: string): boolean {
+    return dirtyFlowIds.value.has(flowId);
   }
 
   // --------------- Actions ---------------
@@ -153,7 +162,7 @@ export const useFlowStore = defineStore("flow", () => {
     const flow = flows.value.find((f) => f.id === flowId);
     if (flow) {
       flow.label = label;
-      markDirty();
+      markDirty(flowId);
     }
   }
 
@@ -161,7 +170,7 @@ export const useFlowStore = defineStore("flow", () => {
     const flow = flows.value.find((f) => f.id === flowId);
     if (flow) {
       flow.disabled = !flow.disabled;
-      markDirty();
+      markDirty(flowId);
     }
   }
 
@@ -399,6 +408,7 @@ export const useFlowStore = defineStore("flow", () => {
 
     dirty.value = false;
     dirtyNodeIds.value.clear();
+    dirtyFlowIds.value = new Set();
   }
 
   async function deploy(): Promise<DeployResponse | null> {
@@ -432,6 +442,7 @@ export const useFlowStore = defineStore("flow", () => {
       revision.value = result.rev;
       dirty.value = false;
       dirtyNodeIds.value = new Set();
+      dirtyFlowIds.value = new Set();
       ui.setDeployStatus('deployed');
 
       return result;
@@ -572,6 +583,7 @@ export const useFlowStore = defineStore("flow", () => {
     clipboard,
     dirty,
     dirtyNodeIds,
+    dirtyFlowIds,
     revision,
     deploying,
 
@@ -595,6 +607,7 @@ export const useFlowStore = defineStore("flow", () => {
     updateNodeStatus,
     updateNodePosition,
     isNodeDirty,
+    isFlowDirty,
     markNodeDirty,
     connectNodes,
     removeEdge,

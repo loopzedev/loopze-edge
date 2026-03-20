@@ -78,7 +78,7 @@ function onDragEnd() {
     >
       <span class="truncate max-w-[120px]">{{ flow.label }}</span>
       <span
-        v-if="flowStore.dirty && flow.id === flowStore.activeFlowId"
+        v-if="flowStore.isFlowDirty(flow.id)"
         class="text-accent text-[10px] leading-none"
       >●</span>
     </button>

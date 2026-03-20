@@ -34,13 +34,28 @@ const tableLabel = computed(() => {
 const availableNodes = computed(() => {
   const results: Array<{ nodeId: string; nodeName: string; flowLabel: string }> = []
   for (const flow of flowStore.flows) {
-    for (const flintNode of flow.nodes) {
-      if (flintNode.type === targetType.value) {
-        results.push({
-          nodeId: flintNode.id,
-          nodeName: flintNode.name || flintNode.id.slice(0, 12),
-          flowLabel: flow.label,
-        })
+    if (flow.id === flowStore.activeFlowId) {
+      // Active flow: read from canvas nodes (includes undeployed nodes)
+      for (const vfNode of flowStore.nodes) {
+        const type = vfNode.data?.nodeType ?? vfNode.type
+        if (type === targetType.value) {
+          results.push({
+            nodeId: vfNode.id,
+            nodeName: (vfNode.data?.label as string) || vfNode.id.slice(0, 12),
+            flowLabel: flow.label,
+          })
+        }
+      }
+    } else {
+      // Other flows: read from persisted flow data
+      for (const flintNode of flow.nodes) {
+        if (flintNode.type === targetType.value) {
+          results.push({
+            nodeId: flintNode.id,
+            nodeName: flintNode.name || flintNode.id.slice(0, 12),
+            flowLabel: flow.label,
+          })
+        }
       }
     }
   }

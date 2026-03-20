@@ -50,10 +50,9 @@ const emit = defineEmits<{
 
 const actionActive = ref(false);
 function handleAction() {
-    if (actionActive.value) return;
     actionActive.value = true;
     emit('action');
-    setTimeout(() => { actionActive.value = false }, 200);
+    setTimeout(() => { actionActive.value = false }, 80);
 }
 
 function handleToggle() {

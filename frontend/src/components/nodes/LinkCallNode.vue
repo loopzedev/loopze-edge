@@ -17,9 +17,6 @@ const targetInfo = computed(() => {
   const targetId = config.value.linkTarget as string;
   if (!targetId) return null;
 
-  // Sync so we have current data
-  flowStore.syncCanvasToActiveFlow();
-
   for (const flow of flowStore.flows) {
     const node = flow.nodes.find((n) => n.id === targetId);
     if (node) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { VueFlow, useVueFlow } from "@vue-flow/core";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { VueFlow, useVueFlow, Panel } from "@vue-flow/core";
 import { Background, BackgroundVariant } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
@@ -31,7 +31,10 @@ const {
     screenToFlowCoordinate,
     setViewport,
     getSelectedNodes,
+    viewport,
 } = useVueFlow("flint-flow-editor");
+
+const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100));
 
 const flowContainer = ref<HTMLElement | null>(null);
 const lastMousePosition = ref<{ x: number; y: number } | null>(null);
@@ -370,14 +373,21 @@ onMounted(async () => {
             <!-- Zoom / Fit controls -->
             <Controls position="bottom-left" />
 
-            <!-- Mini map -->
-            <MiniMap
-                position="bottom-right"
-                :pannable="true"
-                :zoomable="true"
-                :width="160"
-                :height="100"
-            />
+            <!-- Mini map with zoom overlay -->
+            <Panel position="bottom-right" class="!p-0">
+                <div class="relative">
+                    <MiniMap
+                        :pannable="true"
+                        :zoomable="true"
+                        :width="160"
+                        :height="100"
+                        class="!relative !m-0"
+                    />
+                    <div class="absolute inset-0 flex items-center justify-center font-mono text-[10px] text-terminal-text-dim select-none pointer-events-none z-10">
+                        {{ zoomPercent }}%
+                    </div>
+                </div>
+            </Panel>
         </VueFlow>
     </div>
 </template>

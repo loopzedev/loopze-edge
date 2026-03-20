@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { NodeProps } from "@vue-flow/core";
 import { useApi } from "@/composables/useApi";
 import BaseNode from "@/components/nodes/BaseNode.vue";
@@ -8,6 +8,7 @@ defineOptions({ inheritAttrs: false });
 
 const props = defineProps<NodeProps>();
 const api = useApi();
+const triggering = ref(false);
 
 const label = computed(() => props.data?.label);
 
@@ -25,12 +26,10 @@ const intervalLabel = computed(() => {
     return parts.length > 0 ? parts.join(" + ") : "manual";
 });
 
-async function handleTrigger(): Promise<void> {
-    try {
-        await api.triggerInject(props.id);
-    } catch (err) {
+function handleTrigger(): void {
+    api.triggerInject(props.id).catch((err) => {
         console.error("[InjectNode] Trigger failed:", err);
-    }
+    });
 }
 </script>
 

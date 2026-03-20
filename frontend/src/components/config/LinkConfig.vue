@@ -32,9 +32,6 @@ const tableLabel = computed(() => {
 
 // Collect all matching nodes from all flows
 const availableNodes = computed(() => {
-  // Sync current canvas so active flow has up-to-date data
-  flowStore.syncCanvasToActiveFlow()
-
   const results: Array<{ nodeId: string; nodeName: string; flowLabel: string }> = []
   for (const flow of flowStore.flows) {
     for (const flintNode of flow.nodes) {

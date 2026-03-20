@@ -74,20 +74,6 @@ async function handleDeploy(): Promise<void> {
       </span>
     </div>
 
-    <!-- Center (optional): active flow name -->
-    <div class="hidden md:flex items-center gap-2 text-xs text-terminal-text-dim">
-      <span v-if="flowStore.activeFlow">
-        {{ flowStore.activeFlow.label }}
-      </span>
-      <span
-        v-if="flowStore.dirty"
-        class="text-accent text-[10px]"
-        title="Unsaved changes"
-      >
-        ●
-      </span>
-    </div>
-
     <!-- Right: Actions & Status -->
     <div class="flex items-center gap-3">
       <!-- Settings link -->

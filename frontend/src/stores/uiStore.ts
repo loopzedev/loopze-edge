@@ -3,6 +3,11 @@ import { ref, computed } from 'vue'
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
+export type PropertiesContext =
+  | { type: 'node' }
+  | { type: 'flow-create' }
+  | { type: 'flow-edit'; flowId: string }
+  | null
 
 export const useUiStore = defineStore('ui', () => {
   // ── State ──────────────────────────────────────────────────────────
@@ -12,6 +17,7 @@ export const useUiStore = defineStore('ui', () => {
   const debugPanelOpen = ref<boolean>(false)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
+  const propertiesContext = ref<PropertiesContext>(null)
   let deployResetTimer: ReturnType<typeof setTimeout> | null = null
 
   // ── Getters ────────────────────────────────────────────────────────
@@ -41,6 +47,21 @@ export const useUiStore = defineStore('ui', () => {
 
   function closePropertiesPanel() {
     propertiesPanelOpen.value = false
+    propertiesContext.value = null
+  }
+
+  function openFlowCreateProperties() {
+    propertiesContext.value = { type: 'flow-create' }
+    propertiesPanelOpen.value = true
+  }
+
+  function openFlowEditProperties(flowId: string) {
+    propertiesContext.value = { type: 'flow-edit', flowId }
+    propertiesPanelOpen.value = true
+  }
+
+  function clearFlowProperties() {
+    propertiesContext.value = null
   }
 
   function toggleDebugPanel() {
@@ -78,6 +99,7 @@ export const useUiStore = defineStore('ui', () => {
     leftPanelOpen,
     propertiesPanelOpen,
     propertiesPanelWidth,
+    propertiesContext,
     debugPanelOpen,
     connectionStatus,
     deployStatus,
@@ -92,6 +114,9 @@ export const useUiStore = defineStore('ui', () => {
     togglePropertiesPanel,
     openPropertiesPanel,
     closePropertiesPanel,
+    openFlowCreateProperties,
+    openFlowEditProperties,
+    clearFlowProperties,
     toggleDebugPanel,
     openDebugPanel,
     closeDebugPanel,

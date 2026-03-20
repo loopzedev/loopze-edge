@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background, BackgroundVariant } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
@@ -59,6 +59,7 @@ function handleNodeClick(event: { node: any; event: MouseEvent | TouchEvent }): 
 
 function handleNodeDoubleClick(event: { node: any }): void {
     flowStore.selectNode(event.node.id);
+    uiStore.clearFlowProperties();
     uiStore.openPropertiesPanel();
 }
 
@@ -157,6 +158,12 @@ function handleKeyDown(event: KeyboardEvent): void {
             break;
     }
 }
+
+// Reset viewport when switching flows
+watch(() => flowStore.activeFlowId, async () => {
+    await nextTick();
+    setViewport({ x: 0, y: 0, zoom: 1 });
+});
 
 onUnmounted(() => {
     document.removeEventListener("keydown", handleKeyDown);

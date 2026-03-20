@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import HeaderBar from '@/components/HeaderBar.vue'
+import FlowTabBar from '@/components/FlowTabBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import DebugSidebar from '@/components/DebugSidebar.vue'
@@ -60,6 +61,9 @@ const mainAreaStyle = computed(() => {
   <div class="h-screen w-screen flex flex-col overflow-hidden bg-terminal-bg font-mono text-terminal-text">
     <!-- Top Header Bar -->
     <HeaderBar />
+
+    <!-- Flow Tab Bar -->
+    <FlowTabBar />
 
     <!-- Main Content Area -->
     <div class="flex flex-1 overflow-hidden relative">

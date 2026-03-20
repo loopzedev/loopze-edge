@@ -118,26 +118,51 @@ export const useFlowStore = defineStore("flow", () => {
     };
     flows.value.push(flow);
 
-    if (!activeFlowId.value) {
-      setActiveFlow(flow.id);
+    // Always sync current canvas before switching, then activate new flow
+    if (activeFlowId.value) {
+      syncCanvasToActiveFlow();
     }
+    setActiveFlow(flow.id);
 
     markDirty();
     return flow;
   }
 
   function removeFlow(flowId: string): void {
+    if (flows.value.length <= 1) return;
+
+    const idx = flows.value.findIndex((f) => f.id === flowId);
     flows.value = flows.value.filter((f) => f.id !== flowId);
+
     if (activeFlowId.value === flowId) {
-      activeFlowId.value = flows.value[0]?.id ?? null;
-      if (activeFlowId.value) {
-        setActiveFlow(activeFlowId.value);
-      } else {
-        nodes.value = [];
-        edges.value = [];
-      }
+      // Switch to the next flow, or the previous one if we removed the last tab
+      const nextIdx = Math.min(idx, flows.value.length - 1);
+      setActiveFlow(flows.value[nextIdx].id);
     }
     markDirty();
+  }
+
+  function reorderFlows(fromIndex: number, toIndex: number): void {
+    if (fromIndex === toIndex) return;
+    const moved = flows.value.splice(fromIndex, 1)[0];
+    flows.value.splice(toIndex, 0, moved);
+    markDirty();
+  }
+
+  function updateFlowLabel(flowId: string, label: string): void {
+    const flow = flows.value.find((f) => f.id === flowId);
+    if (flow) {
+      flow.label = label;
+      markDirty();
+    }
+  }
+
+  function toggleFlowDisabled(flowId: string): void {
+    const flow = flows.value.find((f) => f.id === flowId);
+    if (flow) {
+      flow.disabled = !flow.disabled;
+      markDirty();
+    }
   }
 
   function addNode(
@@ -561,6 +586,9 @@ export const useFlowStore = defineStore("flow", () => {
     setActiveFlow,
     addFlow,
     removeFlow,
+    reorderFlows,
+    updateFlowLabel,
+    toggleFlowDisabled,
     addNode,
     removeNode,
     updateNodeData,

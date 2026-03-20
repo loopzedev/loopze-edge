@@ -11,12 +11,16 @@ import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
 import DebugConfig from '@/components/config/DebugConfig.vue'
+import FlowProperties from '@/components/FlowProperties.vue'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
 
 const selectedNode = computed(() => flowStore.selectedNode)
 const nodeData = computed(() => selectedNode.value?.data ?? null)
+const showFlowProperties = computed(() =>
+  ui.propertiesContext?.type === 'flow-create' || ui.propertiesContext?.type === 'flow-edit',
+)
 
 const STATUS_COLORS: Record<string, string> = {
   green: '#4ade80', red: '#e24b4a', yellow: '#ef9f27',
@@ -82,9 +86,12 @@ function onResizeEnd() {
 
       <!-- Content -->
       <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
+        <!-- Flow properties (create / edit) -->
+        <FlowProperties v-if="showFlowProperties" />
+
         <!-- No node selected -->
         <div
-          v-if="!selectedNode"
+          v-else-if="!selectedNode"
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
           <div class="text-terminal-text-dim text-2xl mb-3">&#x2B21;</div>

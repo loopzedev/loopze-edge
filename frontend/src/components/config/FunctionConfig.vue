@@ -38,7 +38,7 @@ const outputs = computed({
       config: { ...config.value, outputs: clamped },
       outputs: clamped,
     })
-    nextTick(() => updateNodeInternals(nodeId))
+    nextTick(() => updateNodeInternals([nodeId]))
   },
 })
 

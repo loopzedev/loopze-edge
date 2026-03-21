@@ -19,6 +19,35 @@ import (
 // subject is the NATS subject (e.g. "debug.flow1.node42").
 type PublishDebugFunc func(subject string, msg DebugMessage)
 
+// statusCache stores the last known status for each node, protected by a RWMutex
+// for safe concurrent access from node goroutines (writers) and API handlers (readers).
+type statusCache struct {
+	mu      sync.RWMutex
+	entries map[string]StatusMessage
+}
+
+func (c *statusCache) Set(nodeID string, msg StatusMessage) {
+	c.mu.Lock()
+	c.entries[nodeID] = msg
+	c.mu.Unlock()
+}
+
+func (c *statusCache) GetAll() map[string]StatusMessage {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make(map[string]StatusMessage, len(c.entries))
+	for k, v := range c.entries {
+		result[k] = v
+	}
+	return result
+}
+
+func (c *statusCache) Clear() {
+	c.mu.Lock()
+	c.entries = make(map[string]StatusMessage)
+	c.mu.Unlock()
+}
+
 // runningNode holds the state for a single instantiated node in a deployed flow.
 type runningNode struct {
 	instance NodeInstance
@@ -47,6 +76,7 @@ type Engine struct {
 	nodes        map[string]*runningNode // nodeID → running node
 	wires        map[string][][]string   // nodeID → wires[outputPort] = [targetNodeIDs]
 	linkRegistry map[string]*runningNode // nodeID → running link node (link-in, link-out, link-call)
+	statusCache  statusCache            // last known status per node
 	publishDebug     PublishDebugFunc   // injected by server for NATS publishing
 	publishStatus    PublishStatusFunc  // injected by server for NATS publishing
 	globalCtxMemory  ContextStore       // volatile in-memory global context store
@@ -67,6 +97,7 @@ func NewEngine(cfg *config.Config) *Engine {
 		nodes:        make(map[string]*runningNode),
 		wires:        make(map[string][][]string),
 		linkRegistry: make(map[string]*runningNode),
+		statusCache:  statusCache{entries: make(map[string]StatusMessage)},
 		stopCh:       make(chan struct{}),
 	}
 }
@@ -371,13 +402,15 @@ func (e *Engine) publishNodeError(nodeID string, rn *runningNode, err error) {
 // status messages via the engine's publishStatus callback (typically to NATS).
 func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 	return func(fill string, text string) {
+		msg := StatusMessage{
+			NodeID: nodeID,
+			FlowID: rn.flowID,
+			Status: NodeStatusPayload{Fill: fill, Text: text},
+		}
+		e.statusCache.Set(nodeID, msg)
 		if e.publishStatus != nil {
 			subject := fmt.Sprintf("status.%s.%s", rn.flowID, nodeID)
-			e.publishStatus(subject, StatusMessage{
-				NodeID: nodeID,
-				FlowID: rn.flowID,
-				Status: NodeStatusPayload{Fill: fill, Text: text},
-			})
+			e.publishStatus(subject, msg)
 		}
 	}
 }
@@ -475,6 +508,12 @@ func (e *Engine) stopNodes() {
 	e.nodes = make(map[string]*runningNode)
 	e.wires = make(map[string][][]string)
 	e.linkRegistry = make(map[string]*runningNode)
+	e.statusCache.Clear()
+}
+
+// NodeStatuses returns a snapshot of the last known status for all nodes.
+func (e *Engine) NodeStatuses() map[string]StatusMessage {
+	return e.statusCache.GetAll()
 }
 
 // TriggerNode sends a trigger message to a running node's input channel,

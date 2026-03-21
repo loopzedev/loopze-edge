@@ -137,6 +137,14 @@ export function useApi() {
   }
 
   /**
+   * Fetch last known status for all running nodes.
+   */
+  async function getNodeStatuses(): Promise<Record<string, { nodeId: string; flowId: string; status: { fill: string; text: string } }>> {
+    const res = await request<{ statuses: Record<string, any> }>('/status/nodes')
+    return res.statuses ?? {}
+  }
+
+  /**
    * Trigger an inject node to fire its payload.
    */
   async function triggerInject(nodeId: string): Promise<void> {
@@ -166,6 +174,7 @@ export function useApi() {
     getNodes,
     getSettings,
     updateSettings,
+    getNodeStatuses,
     triggerInject,
     isApiError,
   }

@@ -28,6 +28,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 	// Runtime settings endpoint.
 	r.Get("/settings", deps.handleGetSettings)
 
+	// Node status snapshot endpoint.
+	r.Get("/status/nodes", deps.handleGetNodeStatuses)
+
 	// Debug message stream endpoint.
 	r.Get("/debug/messages", deps.handleGetDebugMessages)
 }

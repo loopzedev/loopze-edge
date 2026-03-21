@@ -213,6 +213,16 @@ func (d *Deps) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetNodeStatuses returns the last known status for all running nodes.
+//
+// GET /api/v1/status/nodes
+func (d *Deps) handleGetNodeStatuses(w http.ResponseWriter, r *http.Request) {
+	statuses := d.Engine.NodeStatuses()
+	jsonResponse(w, http.StatusOK, map[string]any{
+		"statuses": statuses,
+	})
+}
+
 // handleGetDebugMessages returns recent debug messages from the JetStream ring buffer.
 //
 // GET /api/v1/debug/messages?limit=100&flowId=<id>&nodeId=<id>

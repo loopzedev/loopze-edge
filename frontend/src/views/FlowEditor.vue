@@ -190,6 +190,16 @@ onMounted(async () => {
         }
     }
 
+    // Restore last known node statuses.
+    try {
+        const data = await api.getNodeStatuses();
+        for (const [nodeId, entry] of Object.entries(data)) {
+            flowStore.updateNodeStatus(nodeId, (entry as any).status);
+        }
+    } catch {
+        // Non-critical — statuses will arrive via WebSocket
+    }
+
     // Always start at top-left corner after loading.
     await nextTick();
     setViewport({ x: 0, y: 0, zoom: 1 });

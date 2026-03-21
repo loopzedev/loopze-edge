@@ -219,19 +219,21 @@ export const useFlowStore = defineStore("flow", () => {
 
       // Remove edges connected to ports that no longer exist
       if (typeof data.outputs === "number") {
+        const outputCount = data.outputs as number;
         edges.value = edges.value.filter(
           (e) =>
             e.source !== nodeId ||
             !e.sourceHandle ||
-            parseInt(e.sourceHandle.replace("output-", ""), 10) < data.outputs!,
+            parseInt(e.sourceHandle.replace("output-", ""), 10) < outputCount,
         );
       }
       if (typeof data.inputs === "number") {
+        const inputCount = data.inputs as number;
         edges.value = edges.value.filter(
           (e) =>
             e.target !== nodeId ||
             !e.targetHandle ||
-            parseInt(e.targetHandle.replace("input-", ""), 10) < data.inputs!,
+            parseInt(e.targetHandle.replace("input-", ""), 10) < inputCount,
         );
       }
     }

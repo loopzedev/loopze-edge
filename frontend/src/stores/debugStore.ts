@@ -13,23 +13,13 @@ export const useDebugStore = defineStore('debug', () => {
 
   // ── Getters ────────────────────────────────────────────────────────
 
-  /** Set of debug node IDs that should be suppressed (inactive or deleted). */
+  /** Set of debug node IDs whose output should be suppressed (deactivated). */
   const suppressedDebugNodeIds = computed(() => {
     const flowStore = useFlowStore()
-    const activeDebugIds = new Set<string>()
     const ids = new Set<string>()
     for (const node of flowStore.nodes) {
-      if (node.type === 'debug') {
-        activeDebugIds.add(node.id)
-        if (node.data?.config?.active === false) {
-          ids.add(node.id)
-        }
-      }
-    }
-    // Also suppress messages from debug nodes that no longer exist on canvas.
-    for (const msg of messages.value) {
-      if (!activeDebugIds.has(msg.nodeId)) {
-        ids.add(msg.nodeId)
+      if (node.type === 'debug' && node.data?.config?.active === false) {
+        ids.add(node.id)
       }
     }
     return ids

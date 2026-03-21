@@ -353,6 +353,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
 	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
 	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
+	registry.Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())

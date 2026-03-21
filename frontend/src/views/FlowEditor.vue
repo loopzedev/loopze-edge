@@ -15,6 +15,7 @@ import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
 import ChangeNode from "@/components/nodes/ChangeNode.vue";
 import LinkNode from "@/components/nodes/LinkNode.vue";
 import LinkCallNode from "@/components/nodes/LinkCallNode.vue";
+import StateMachineNode from "@/components/nodes/StateMachineNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -368,6 +369,10 @@ onMounted(async () => {
 
             <template #node-comment="nodeProps">
                 <BaseNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-statemachine="nodeProps">
+                <StateMachineNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-link-in="nodeProps">

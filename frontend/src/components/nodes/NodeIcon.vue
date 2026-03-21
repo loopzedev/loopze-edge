@@ -48,6 +48,9 @@ const icons: Record<string, string[]> = {
   // ── Context ──────────────────────────────
   'context-watch': ['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'], // eye
 
+  // ── State Machine ──────────────────────
+  statemachine:    ['M6 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M18 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M10 10h4', 'M13 8l2 2-2 2'], // two circles connected by arrow
+
   // ── Utility ───────────────────────────────
   comment:       ['M21 4H3v12h13l5 4V4z'],                                             // speech bubble
   'link-in':     ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M3 10h7', 'M6 7l-3 3 3 3'],  // chain + arrow in

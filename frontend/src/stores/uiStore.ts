@@ -14,7 +14,7 @@ export const useUiStore = defineStore('ui', () => {
   // ── State ──────────────────────────────────────────────────────────
   const leftPanelOpen = ref<boolean>(true)
   const propertiesPanelOpen = ref<boolean>(false)
-  const propertiesPanelWidth = ref<number>(280)
+  const propertiesPanelWidth = ref<number>(560)
   const debugPanelOpen = ref<boolean>(false)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')

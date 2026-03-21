@@ -99,6 +99,8 @@ const TYPE_CATEGORY: Record<string, string> = {
 
   'context-watch': 'context',
 
+  statemachine:    'process',
+
   debug:           'output',
   'mqtt-out':      'output',
   'http-response': 'output',

@@ -80,6 +80,7 @@ const typeLabel = computed(() => {
         "link-call": "Link Call",
         "mqtt-in": "MQTT Subscribe",
         "mqtt-out": "MQTT Publish",
+        statemachine: "State Machine",
     };
     return labels[props.nodeType] ?? props.nodeType;
 });

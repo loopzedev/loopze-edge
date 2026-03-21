@@ -13,6 +13,7 @@ import ChangeConfig from '@/components/config/ChangeConfig.vue'
 import DebugConfig from '@/components/config/DebugConfig.vue'
 import LinkConfig from '@/components/config/LinkConfig.vue'
 import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
+import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 
@@ -154,7 +155,14 @@ function onResizeEnd() {
 
           <!-- Type-specific config -->
           <div class="px-3 py-2 border-b border-terminal-border flex-1 flex flex-col min-h-0">
-            <SectionHeader title="Configuration">
+            <!-- State Machine: skip collapsible SectionHeader to preserve flex chain -->
+            <template v-if="selectedNode?.type === 'statemachine'">
+              <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2 flex-shrink-0">
+                &#x25B8; Configuration
+              </p>
+              <StateMachineConfig />
+            </template>
+            <SectionHeader v-else title="Configuration">
               <InjectConfig v-if="selectedNode?.type === 'inject'" />
               <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />

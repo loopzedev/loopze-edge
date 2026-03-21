@@ -38,6 +38,7 @@ export type NodeType =
   | 'link-out'
   | 'link-call'
   | 'comment'
+  | 'statemachine'
   | string
 
 export interface Port {

@@ -8,6 +8,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,15 @@ type Storage interface {
 	// SaveFlows writes the given flow definitions to persistent storage,
 	// replacing any previously saved flows entirely.
 	SaveFlows(flows []flow.Flow) error
+
+	// LoadWorkspace reads the full workspace (flows + config nodes) from storage.
+	// Handles backward compatibility: if the file contains the old []Flow format,
+	// it is automatically wrapped into a Workspace.
+	LoadWorkspace() (flow.Workspace, error)
+
+	// SaveWorkspace writes the full workspace (flows + config nodes) to storage.
+	// Always writes the new { "flows": [...], "configs": [...] } format.
+	SaveWorkspace(ws flow.Workspace) error
 
 	// LoadCredentials reads the raw (encrypted) credentials bytes from storage.
 	// The caller is responsible for decryption via the credentials package.
@@ -117,6 +127,72 @@ func (fs *FileStorage) SaveFlows(flows []flow.Flow) error {
 	}
 
 	slog.Info("flows saved to storage", "path", fs.flowFile, "count", len(flows))
+	return nil
+}
+
+// LoadWorkspace reads and parses the workspace file, supporting both the new
+// { "flows": [...], "configs": [...] } format and the legacy []Flow format.
+// If the file starts with '[', it is parsed as []Flow and wrapped in a Workspace.
+// If it starts with '{', it is parsed directly as a Workspace.
+func (fs *FileStorage) LoadWorkspace() (flow.Workspace, error) {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	data, err := os.ReadFile(fs.flowFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Debug("no existing workspace file found, starting empty", "path", fs.flowFile)
+			return flow.Workspace{Flows: []flow.Flow{}}, nil
+		}
+		return flow.Workspace{}, fmt.Errorf("storage: failed to read workspace file %q: %w", fs.flowFile, err)
+	}
+
+	if len(data) == 0 {
+		slog.Debug("workspace file is empty, starting empty", "path", fs.flowFile)
+		return flow.Workspace{Flows: []flow.Flow{}}, nil
+	}
+
+	// Detect format by first non-whitespace byte.
+	trimmed := bytes.TrimLeft(data, " \t\r\n")
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		// Legacy format: flat []Flow array.
+		var flows []flow.Flow
+		if err := json.Unmarshal(data, &flows); err != nil {
+			return flow.Workspace{}, fmt.Errorf("storage: failed to parse legacy flow file %q: %w", fs.flowFile, err)
+		}
+		slog.Info("workspace loaded (legacy format)", "path", fs.flowFile, "flows", len(flows))
+		return flow.Workspace{Flows: flows}, nil
+	}
+
+	// New format: Workspace object.
+	var ws flow.Workspace
+	if err := json.Unmarshal(data, &ws); err != nil {
+		return flow.Workspace{}, fmt.Errorf("storage: failed to parse workspace file %q: %w", fs.flowFile, err)
+	}
+	if ws.Flows == nil {
+		ws.Flows = []flow.Flow{}
+	}
+
+	slog.Info("workspace loaded", "path", fs.flowFile, "flows", len(ws.Flows), "configs", len(ws.Configs))
+	return ws, nil
+}
+
+// SaveWorkspace serializes the workspace to the new { "flows", "configs" } format.
+// Written atomically to prevent corruption.
+func (fs *FileStorage) SaveWorkspace(ws flow.Workspace) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	data, err := json.MarshalIndent(ws, "", "  ")
+	if err != nil {
+		return fmt.Errorf("storage: failed to marshal workspace: %w", err)
+	}
+
+	if err := atomicWriteFile(fs.flowFile, data, 0644); err != nil {
+		return fmt.Errorf("storage: failed to write workspace file %q: %w", fs.flowFile, err)
+	}
+
+	slog.Info("workspace saved", "path", fs.flowFile, "flows", len(ws.Flows), "configs", len(ws.Configs))
 	return nil
 }
 

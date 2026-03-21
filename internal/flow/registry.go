@@ -149,20 +149,40 @@ type NodeConfig struct {
 	Properties map[string]any `json:"properties"`
 }
 
-// NodeRegistry maintains the catalog of available node types.
+// ConfigTypeInfo describes a registered config node type for the frontend.
+// Sent to the frontend so it knows which config types exist and their defaults.
+type ConfigTypeInfo struct {
+	// Type is the unique identifier for this config type (e.g. "mqtt-broker").
+	Type string `json:"type"`
+
+	// Label is the human-readable name (e.g. "MQTT Broker").
+	Label string `json:"label"`
+
+	// Description is a short help text.
+	Description string `json:"description"`
+
+	// Defaults holds default property values for new config node instances.
+	Defaults map[string]any `json:"defaults"`
+}
+
+// NodeRegistry maintains the catalog of available node types and config node types.
 // Node types are registered at startup and queried by the engine during
 // flow deployment and by the API when the frontend requests the palette.
 type NodeRegistry struct {
-	mu        sync.RWMutex
-	factories map[string]NodeFactory
-	typeInfos map[string]NodeTypeInfo
+	mu              sync.RWMutex
+	factories       map[string]NodeFactory
+	typeInfos       map[string]NodeTypeInfo
+	configFactories map[string]ConfigNodeFactory
+	configTypeInfos map[string]ConfigTypeInfo
 }
 
 // NewNodeRegistry creates an empty NodeRegistry ready for node type registration.
 func NewNodeRegistry() *NodeRegistry {
 	return &NodeRegistry{
-		factories: make(map[string]NodeFactory),
-		typeInfos: make(map[string]NodeTypeInfo),
+		factories:       make(map[string]NodeFactory),
+		typeInfos:       make(map[string]NodeTypeInfo),
+		configFactories: make(map[string]ConfigNodeFactory),
+		configTypeInfos: make(map[string]ConfigTypeInfo),
 	}
 }
 
@@ -226,4 +246,36 @@ func (r *NodeRegistry) Count() int {
 	defer r.mu.RUnlock()
 
 	return len(r.factories)
+}
+
+// RegisterConfig adds a new config node type to the registry.
+// The configType string must be unique (e.g. "mqtt-broker", "http-auth").
+func (r *NodeRegistry) RegisterConfig(configType string, factory ConfigNodeFactory, info ConfigTypeInfo) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	info.Type = configType
+	r.configFactories[configType] = factory
+	r.configTypeInfos[configType] = info
+}
+
+// GetConfigFactory retrieves the ConfigNodeFactory for a given config type.
+func (r *NodeRegistry) GetConfigFactory(configType string) (ConfigNodeFactory, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	factory, ok := r.configFactories[configType]
+	return factory, ok
+}
+
+// ListConfigTypes returns metadata for all registered config node types.
+func (r *NodeRegistry) ListConfigTypes() []ConfigTypeInfo {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	types := make([]ConfigTypeInfo, 0, len(r.configTypeInfos))
+	for _, info := range r.configTypeInfos {
+		types = append(types, info)
+	}
+	return types
 }

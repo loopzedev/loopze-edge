@@ -7,6 +7,7 @@ export type PropertiesContext =
   | { type: 'node' }
   | { type: 'flow-create' }
   | { type: 'flow-edit'; flowId: string }
+  | { type: 'config-edit'; configType: string; configId?: string }
   | null
 
 export const useUiStore = defineStore('ui', () => {
@@ -64,6 +65,15 @@ export const useUiStore = defineStore('ui', () => {
     propertiesContext.value = null
   }
 
+  function openConfigEditor(configType: string, configId?: string) {
+    propertiesContext.value = { type: 'config-edit', configType, configId }
+    propertiesPanelOpen.value = true
+  }
+
+  function clearConfigEditor() {
+    propertiesContext.value = null
+  }
+
   function toggleDebugPanel() {
     debugPanelOpen.value = !debugPanelOpen.value
   }
@@ -117,6 +127,8 @@ export const useUiStore = defineStore('ui', () => {
     openFlowCreateProperties,
     openFlowEditProperties,
     clearFlowProperties,
+    openConfigEditor,
+    clearConfigEditor,
     toggleDebugPanel,
     openDebugPanel,
     closeDebugPanel,

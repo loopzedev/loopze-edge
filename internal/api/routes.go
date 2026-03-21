@@ -22,6 +22,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 	// Node catalog endpoint.
 	r.Get("/nodes", deps.handleGetNodes)
 
+	// Config node type catalog endpoint.
+	r.Get("/configs/types", deps.handleGetConfigTypes)
+
 	// Inject trigger endpoint.
 	r.Post("/inject/{id}", deps.handleInjectNode)
 

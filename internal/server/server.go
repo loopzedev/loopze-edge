@@ -270,14 +270,14 @@ func (s *Server) Start() error {
 		return fmt.Errorf("server: failed to start flow engine: %w", err)
 	}
 
-	// Load saved flows from storage and deploy them.
-	if flows, err := s.store.LoadFlows(); err != nil {
-		slog.Error("failed to load flows from storage", "error", err)
-	} else if len(flows) > 0 {
-		if err := s.engine.Deploy(flows); err != nil {
-			slog.Error("failed to deploy saved flows", "error", err)
+	// Load saved workspace from storage and deploy.
+	if ws, err := s.store.LoadWorkspace(); err != nil {
+		slog.Error("failed to load workspace from storage", "error", err)
+	} else if len(ws.Flows) > 0 {
+		if err := s.engine.Deploy(ws.Flows, ws.Configs); err != nil {
+			slog.Error("failed to deploy saved workspace", "error", err)
 		} else {
-			slog.Info("saved flows deployed on startup", "count", len(flows))
+			slog.Info("saved workspace deployed on startup", "flows", len(ws.Flows), "configs", len(ws.Configs))
 		}
 	}
 
@@ -351,6 +351,11 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("link-in", nodes.NewLinkInNode, nodes.LinkInTypeInfo())
 	registry.Register("link-out", nodes.NewLinkOutNode, nodes.LinkOutTypeInfo())
 	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
+	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
+	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
+
+	// Config node types.
+	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

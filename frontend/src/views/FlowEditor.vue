@@ -179,7 +179,7 @@ onMounted(async () => {
     try {
         const response = await api.getFlows();
         if (response.flows && response.flows.length > 0) {
-            flowStore.loadFlows(response.flows, response.rev);
+            flowStore.loadFlows(response.flows, response.rev, response.configs);
         } else {
             flowStore.addFlow("Flow 1");
         }
@@ -301,11 +301,29 @@ onMounted(async () => {
             </template>
 
             <template #node-mqtt-in="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="mqtt-in"
+                    :selected="nodeProps.selected"
+                    :inputs="0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                />
             </template>
 
             <template #node-mqtt-out="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="mqtt-out"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                />
             </template>
 
             <template #node-tcp-in="nodeProps">

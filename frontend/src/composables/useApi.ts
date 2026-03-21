@@ -118,6 +118,14 @@ export function useApi() {
   }
 
   /**
+   * Fetch registered config node types.
+   */
+  async function getConfigTypes(): Promise<{ type: string; label: string; description: string; defaults: Record<string, unknown> }[]> {
+    const res = await request<{ types: any[] }>('/configs/types')
+    return res.types ?? []
+  }
+
+  /**
    * Fetch application settings.
    */
   async function getSettings(): Promise<Record<string, unknown>> {
@@ -172,6 +180,7 @@ export function useApi() {
     updateFlow,
     deleteFlow,
     getNodes,
+    getConfigTypes,
     getSettings,
     updateSettings,
     getNodeStatuses,

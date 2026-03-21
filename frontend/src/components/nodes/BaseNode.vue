@@ -78,6 +78,8 @@ const typeLabel = computed(() => {
         "link-in": "Link In",
         "link-out": "Link Out",
         "link-call": "Link Call",
+        "mqtt-in": "MQTT Subscribe",
+        "mqtt-out": "MQTT Publish",
     };
     return labels[props.nodeType] ?? props.nodeType;
 });

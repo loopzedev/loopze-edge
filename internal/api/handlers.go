@@ -30,8 +30,9 @@ type Deps struct {
 
 // deployRequest is the JSON body sent by the frontend on deploy.
 type deployRequest struct {
-	Flows []flow.Flow `json:"flows"`
-	Rev   string      `json:"rev,omitempty"`
+	Flows   []flow.Flow       `json:"flows"`
+	Configs []flow.ConfigNode `json:"configs,omitempty"`
+	Rev     string            `json:"rev,omitempty"`
 }
 
 // jsonResponse is a helper that writes a JSON response with the given status code.
@@ -51,31 +52,32 @@ func jsonError(w http.ResponseWriter, status int, message string) {
 	})
 }
 
-// flowsRevision computes a short hash over the flows for revision tracking.
-func flowsRevision(flows []flow.Flow) string {
-	data, _ := json.Marshal(flows)
+// workspaceRevision computes a short hash over the workspace for revision tracking.
+func workspaceRevision(ws flow.Workspace) string {
+	data, _ := json.Marshal(ws)
 	h := sha256.Sum256(data)
 	return fmt.Sprintf("%x", h[:8])
 }
 
-// handleGetFlows returns all deployed flows.
+// handleGetFlows returns all deployed flows and config nodes.
 //
 // GET /api/v1/flows
 func (d *Deps) handleGetFlows(w http.ResponseWriter, r *http.Request) {
-	flows, err := d.Storage.LoadFlows()
+	ws, err := d.Storage.LoadWorkspace()
 	if err != nil {
-		slog.Error("failed to load flows", "error", err)
-		jsonError(w, http.StatusInternalServerError, "failed to load flows")
+		slog.Error("failed to load workspace", "error", err)
+		jsonError(w, http.StatusInternalServerError, "failed to load workspace")
 		return
 	}
 
-	rev := flowsRevision(flows)
+	rev := workspaceRevision(ws)
 
-	slog.Debug("GET /flows", "count", len(flows), "rev", rev)
+	slog.Debug("GET /flows", "flows", len(ws.Flows), "configs", len(ws.Configs), "rev", rev)
 
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"rev":   rev,
-		"flows": flows,
+		"rev":     rev,
+		"flows":   ws.Flows,
+		"configs": ws.Configs,
 	})
 }
 
@@ -90,18 +92,20 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("deploying flows",
+	slog.Info("deploying workspace",
 		"flow_count", len(req.Flows),
+		"config_count", len(req.Configs),
 		"client_rev", req.Rev,
 	)
 
 	d.broadcast(ws.EventDeploy, map[string]any{"action": "deploying", "revision": ""})
 
 	// Save to persistent storage.
-	if err := d.Storage.SaveFlows(req.Flows); err != nil {
-		slog.Error("failed to save flows", "error", err)
-		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": "failed to save flows"})
-		jsonError(w, http.StatusInternalServerError, "failed to save flows")
+	workspace := flow.Workspace{Flows: req.Flows, Configs: req.Configs}
+	if err := d.Storage.SaveWorkspace(workspace); err != nil {
+		slog.Error("failed to save workspace", "error", err)
+		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": "failed to save workspace"})
+		jsonError(w, http.StatusInternalServerError, "failed to save workspace")
 		return
 	}
 
@@ -114,16 +118,16 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deploy to the runtime engine.
-	if err := d.Engine.Deploy(req.Flows); err != nil {
+	if err := d.Engine.Deploy(req.Flows, req.Configs); err != nil {
 		slog.Error("failed to deploy flows to engine", "error", err)
 		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": err.Error()})
 		jsonError(w, http.StatusInternalServerError, "failed to deploy flows")
 		return
 	}
 
-	rev := flowsRevision(req.Flows)
+	rev := workspaceRevision(workspace)
 
-	slog.Info("flows deployed successfully", "rev", rev)
+	slog.Info("workspace deployed successfully", "rev", rev)
 
 	d.broadcast(ws.EventDeploy, map[string]any{"action": "deployed", "revision": rev})
 
@@ -131,6 +135,7 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"rev":     rev,
 		"flows":   req.Flows,
+		"configs": req.Configs,
 	})
 }
 
@@ -220,6 +225,19 @@ func (d *Deps) handleGetNodeStatuses(w http.ResponseWriter, r *http.Request) {
 	statuses := d.Engine.NodeStatuses()
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"statuses": statuses,
+	})
+}
+
+// handleGetConfigTypes returns all registered config node types.
+//
+// GET /api/v1/configs/types
+func (d *Deps) handleGetConfigTypes(w http.ResponseWriter, r *http.Request) {
+	types := d.Engine.Registry().ListConfigTypes()
+
+	slog.Debug("GET /configs/types", "count", len(types))
+
+	jsonResponse(w, http.StatusOK, map[string]any{
+		"types": types,
 	})
 }
 

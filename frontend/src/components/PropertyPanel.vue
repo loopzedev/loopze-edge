@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import PanelHeader from '@/components/ui/PanelHeader.vue'
@@ -12,7 +12,9 @@ import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
 import DebugConfig from '@/components/config/DebugConfig.vue'
 import LinkConfig from '@/components/config/LinkConfig.vue'
+import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
+import { getConfigEditor } from '@/components/config/configEditors'
 
 const ui = useUiStore()
 const flowStore = useFlowStore()
@@ -22,6 +24,19 @@ const nodeData = computed(() => selectedNode.value?.data ?? null)
 const showFlowProperties = computed(() =>
   ui.propertiesContext?.type === 'flow-create' || ui.propertiesContext?.type === 'flow-edit',
 )
+
+const showConfigEditor = computed(() => ui.propertiesContext?.type === 'config-edit')
+const configEditorComponent = computed(() => {
+  const ctx = ui.propertiesContext
+  if (ctx?.type !== 'config-edit') return null
+  const loader = getConfigEditor(ctx.configType)
+  if (!loader) return null
+  return defineAsyncComponent(loader)
+})
+const configEditorId = computed(() => {
+  const ctx = ui.propertiesContext
+  return ctx?.type === 'config-edit' ? ctx.configId : undefined
+})
 
 const STATUS_COLORS: Record<string, string> = {
   green: '#4ade80', red: '#e24b4a', yellow: '#ef9f27',
@@ -87,8 +102,15 @@ function onResizeEnd() {
 
       <!-- Content -->
       <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
+        <!-- Config node editor (e.g. MQTT Broker) -->
+        <component
+          v-if="showConfigEditor && configEditorComponent"
+          :is="configEditorComponent"
+          :config-id="configEditorId"
+        />
+
         <!-- Flow properties (create / edit) -->
-        <FlowProperties v-if="showFlowProperties" />
+        <FlowProperties v-else-if="showFlowProperties" />
 
         <!-- No node selected -->
         <div
@@ -139,6 +161,7 @@ function onResizeEnd() {
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
               <DebugConfig v-else-if="selectedNode?.type === 'debug'" />
               <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
+              <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-2">
                   <div

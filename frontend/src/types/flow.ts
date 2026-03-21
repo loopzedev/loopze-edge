@@ -92,7 +92,14 @@ export interface Flow {
   info?: string
   nodes: Node[]
   wires: Wire[]
-  configs?: Node[]
+}
+
+/** A config node is a workspace-global configuration entity (e.g. MQTT broker, DB connection). */
+export interface ConfigNode {
+  id: string
+  type: string
+  name?: string
+  config: Record<string, unknown>
 }
 
 export interface Message {
@@ -124,12 +131,14 @@ export interface NodePropertyDefault {
 
 export interface DeployPayload {
   flows: Flow[]
+  configs?: ConfigNode[]
   rev?: string
 }
 
 export interface DeployResponse {
   rev: string
   flows: Flow[]
+  configs?: ConfigNode[]
   success: boolean
   error?: string
 }
@@ -137,6 +146,7 @@ export interface DeployResponse {
 export interface FlowsResponse {
   rev: string
   flows: Flow[]
+  configs?: ConfigNode[]
 }
 
 export interface NodeCatalogEntry {

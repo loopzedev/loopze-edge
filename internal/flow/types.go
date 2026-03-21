@@ -305,6 +305,34 @@ func deepCopyMap(src map[string]any) map[string]any {
 	return dst
 }
 
+// Workspace is the top-level container for all flow and config node data.
+// It replaces the flat []Flow format for persistence and API transport.
+type Workspace struct {
+	// Flows contains all flow definitions in the workspace.
+	Flows []Flow `json:"flows"`
+
+	// Configs contains all config node definitions (e.g. MQTT broker, DB connection).
+	// Config nodes are workspace-global and can be referenced by nodes in any flow.
+	Configs []ConfigNode `json:"configs,omitempty"`
+}
+
+// ConfigNode is a configuration entity that does not appear on the canvas.
+// It stores shared connection/resource settings (e.g. MQTT broker, HTTP auth)
+// that are referenced by regular nodes via the config node's ID.
+type ConfigNode struct {
+	// ID is the unique identifier for this config node.
+	ID string `json:"id"`
+
+	// Type identifies the config node type (e.g. "mqtt-broker", "http-auth").
+	Type string `json:"type"`
+
+	// Name is an optional user-defined label (e.g. "Production Broker").
+	Name string `json:"name,omitempty"`
+
+	// Config holds the type-specific configuration properties.
+	Config map[string]any `json:"config,omitempty"`
+}
+
 // Port describes a single input or output connector on a node type definition.
 type Port struct {
 	// Name is the display name of the port (e.g., "output", "true", "false").

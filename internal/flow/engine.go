@@ -75,8 +75,10 @@ type Engine struct {
 	// Active deployment state.
 	nodes        map[string]*runningNode // nodeID → running node
 	wires        map[string][][]string   // nodeID → wires[outputPort] = [targetNodeIDs]
-	linkRegistry map[string]*runningNode // nodeID → running link node (link-in, link-out, link-call)
-	statusCache  statusCache            // last known status per node
+	linkRegistry    map[string]*runningNode // nodeID → running link node (link-in, link-out, link-call)
+	configs         []ConfigNode           // config node definitions from last deploy
+	configInstances map[string]ConfigInstance // configID → running config instance
+	statusCache     statusCache            // last known status per node
 	publishDebug     PublishDebugFunc   // injected by server for NATS publishing
 	publishStatus    PublishStatusFunc  // injected by server for NATS publishing
 	globalCtxMemory  ContextStore       // volatile in-memory global context store
@@ -185,7 +187,7 @@ func (e *Engine) Stop() error {
 // This implements a full-restart deploy strategy: all flows are stopped and
 // restarted. A future optimisation could diff the old and new flows to only
 // restart changed flows (modified-nodes deploy).
-func (e *Engine) Deploy(flows []Flow) error {
+func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -209,6 +211,32 @@ func (e *Engine) Deploy(flows []Flow) error {
 				slog.Warn("unknown node type, skipping", "type", n.Type, "node_id", n.ID)
 			}
 		}
+	}
+
+	// Step 2b — Instantiate and start config nodes (before regular nodes).
+	e.configInstances = make(map[string]ConfigInstance)
+	for _, cfg := range configs {
+		factory, ok := e.registry.GetConfigFactory(cfg.Type)
+		if !ok {
+			slog.Warn("unknown config node type, skipping", "type", cfg.Type, "config_id", cfg.ID)
+			continue
+		}
+
+		instance, err := factory(cfg)
+		if err != nil {
+			slog.Error("failed to create config node instance",
+				"config_id", cfg.ID, "type", cfg.Type, "error", err)
+			continue
+		}
+
+		if err := instance.Start(); err != nil {
+			slog.Error("failed to start config node",
+				"config_id", cfg.ID, "type", cfg.Type, "error", err)
+			continue
+		}
+
+		e.configInstances[cfg.ID] = instance
+		slog.Info("config node started", "config_id", cfg.ID, "type", cfg.Type, "name", cfg.Name)
 	}
 
 	// Step 3+4 — Create and init NodeInstances.
@@ -306,6 +334,17 @@ func (e *Engine) Deploy(flows []Flow) error {
 		}
 	}
 
+	// Step 5d — Inject ConfigLookupFunc for nodes that implement ConfigProvider.
+	configLookup := func(id string) (ConfigInstance, bool) {
+		inst, ok := e.configInstances[id]
+		return inst, ok
+	}
+	for _, rn := range e.nodes {
+		if cp, ok := rn.instance.(ConfigProvider); ok {
+			cp.SetConfigLookup(configLookup)
+		}
+	}
+
 	// Step 6 — Start each node in its own goroutine.
 	e.stopCh = make(chan struct{})
 
@@ -325,9 +364,11 @@ func (e *Engine) Deploy(flows []Flow) error {
 	}
 
 	e.flows = flows
+	e.configs = configs
 
 	slog.Info("flows deployed successfully",
 		"flow_count", len(flows),
+		"config_count", len(configs),
 		"active_nodes", len(e.nodes),
 	)
 
@@ -509,6 +550,14 @@ func (e *Engine) stopNodes() {
 	e.wires = make(map[string][][]string)
 	e.linkRegistry = make(map[string]*runningNode)
 	e.statusCache.Clear()
+
+	// Stop config node instances AFTER regular nodes.
+	for id, inst := range e.configInstances {
+		if err := inst.Stop(); err != nil {
+			slog.Error("error stopping config node", "config_id", id, "error", err)
+		}
+	}
+	e.configInstances = nil
 }
 
 // NodeStatuses returns a snapshot of the last known status for all nodes.

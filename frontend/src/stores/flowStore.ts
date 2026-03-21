@@ -4,6 +4,7 @@ import { useUiStore } from "./uiStore";
 import type {
   Node as FlintNode,
   Flow,
+  ConfigNode,
   DeployPayload,
   DeployResponse,
 } from "@/types/flow";
@@ -46,6 +47,7 @@ export const useFlowStore = defineStore("flow", () => {
   const selectedNodeId = ref<string | null>(null);
   const selectedNodeIds = ref<string[]>([]);
   const clipboard = ref<{ nodes: FlowNode[]; edges: FlowEdge[] } | null>(null);
+  const configs = ref<ConfigNode[]>([]);
   const dirty = ref(false);
   const dirtyNodeIds = ref(new Set<string>());
   const dirtyFlowIds = ref(new Set<string>());
@@ -394,8 +396,9 @@ export const useFlowStore = defineStore("flow", () => {
     return pasteNodes();
   }
 
-  function loadFlows(loadedFlows: Flow[], rev?: string): void {
+  function loadFlows(loadedFlows: Flow[], rev?: string, loadedConfigs?: ConfigNode[]): void {
     flows.value = loadedFlows;
+    configs.value = loadedConfigs ?? [];
     revision.value = rev ?? null;
 
     if (loadedFlows.length > 0) {
@@ -424,6 +427,7 @@ export const useFlowStore = defineStore("flow", () => {
 
       const payload: DeployPayload = {
         flows: flows.value,
+        configs: configs.value.length > 0 ? configs.value : undefined,
         rev: revision.value ?? undefined,
       };
 
@@ -570,11 +574,36 @@ export const useFlowStore = defineStore("flow", () => {
     return match ? parseInt(match[1], 10) : 0;
   }
 
+  // --------------- Config Node CRUD ---------------
+
+  function addConfig(config: ConfigNode): void {
+    configs.value.push(config);
+    dirty.value = true;
+  }
+
+  function updateConfig(id: string, updates: Partial<ConfigNode>): void {
+    const idx = configs.value.findIndex((c) => c.id === id);
+    if (idx !== -1) {
+      configs.value[idx] = { ...configs.value[idx], ...updates };
+      dirty.value = true;
+    }
+  }
+
+  function removeConfig(id: string): void {
+    configs.value = configs.value.filter((c) => c.id !== id);
+    dirty.value = true;
+  }
+
+  function getConfigsByType(type: string): ConfigNode[] {
+    return configs.value.filter((c) => c.type === type);
+  }
+
   // --------------- Return ---------------
 
   return {
     // State
     flows,
+    configs,
     activeFlowId,
     nodes,
     edges,
@@ -620,5 +649,9 @@ export const useFlowStore = defineStore("flow", () => {
     loadFlows,
     deploy,
     syncCanvasToActiveFlow,
+    addConfig,
+    updateConfig,
+    removeConfig,
+    getConfigsByType,
   };
 });

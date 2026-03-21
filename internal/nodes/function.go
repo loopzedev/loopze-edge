@@ -101,6 +101,7 @@ func (n *FunctionNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.
 func (n *FunctionNode) Start() error {
 	n.vm = goja.New()
 	n.registerGlobals()
+	n.registerBuffer()
 
 	// Wrap the user's function body so they can write return statements.
 	wrapped := fmt.Sprintf("(function(msg){ %s })", n.code)

@@ -89,6 +89,104 @@ interface FlintContextStore {
   keys(persistent?: boolean): string[];
 }
 
+/** A byte buffer for binary data manipulation (Node.js Buffer compatible). */
+interface FlintBuffer {
+  /** Number of bytes in the buffer. */
+  readonly length: number;
+
+  // ── Read — Integer ──
+  readUInt8(offset?: number): number;
+  readInt8(offset?: number): number;
+  readUInt16BE(offset?: number): number;
+  readUInt16LE(offset?: number): number;
+  readInt16BE(offset?: number): number;
+  readInt16LE(offset?: number): number;
+  readUInt32BE(offset?: number): number;
+  readUInt32LE(offset?: number): number;
+  readInt32BE(offset?: number): number;
+  readInt32LE(offset?: number): number;
+  readBigUInt64BE(offset?: number): number;
+  readBigUInt64LE(offset?: number): number;
+  readBigInt64BE(offset?: number): number;
+  readBigInt64LE(offset?: number): number;
+  readUIntBE(offset: number, byteLength: number): number;
+  readUIntLE(offset: number, byteLength: number): number;
+  readIntBE(offset: number, byteLength: number): number;
+  readIntLE(offset: number, byteLength: number): number;
+
+  // ── Read — Float ──
+  readFloatBE(offset?: number): number;
+  readFloatLE(offset?: number): number;
+  readDoubleBE(offset?: number): number;
+  readDoubleLE(offset?: number): number;
+
+  // ── Write — Integer ──
+  writeUInt8(value: number, offset?: number): void;
+  writeInt8(value: number, offset?: number): void;
+  writeUInt16BE(value: number, offset?: number): void;
+  writeUInt16LE(value: number, offset?: number): void;
+  writeInt16BE(value: number, offset?: number): void;
+  writeInt16LE(value: number, offset?: number): void;
+  writeUInt32BE(value: number, offset?: number): void;
+  writeUInt32LE(value: number, offset?: number): void;
+  writeInt32BE(value: number, offset?: number): void;
+  writeInt32LE(value: number, offset?: number): void;
+  writeBigUInt64BE(value: number, offset?: number): void;
+  writeBigUInt64LE(value: number, offset?: number): void;
+  writeBigInt64BE(value: number, offset?: number): void;
+  writeBigInt64LE(value: number, offset?: number): void;
+  writeUIntBE(value: number, offset: number, byteLength: number): void;
+  writeUIntLE(value: number, offset: number, byteLength: number): void;
+  writeIntBE(value: number, offset: number, byteLength: number): void;
+  writeIntLE(value: number, offset: number, byteLength: number): void;
+
+  // ── Write — Float ──
+  writeFloatBE(value: number, offset?: number): void;
+  writeFloatLE(value: number, offset?: number): void;
+  writeDoubleBE(value: number, offset?: number): void;
+  writeDoubleLE(value: number, offset?: number): void;
+
+  // ── Swap ──
+  /** Swap byte order in 16-bit pairs. */
+  swap16(): FlintBuffer;
+  /** Swap byte order in 32-bit groups. */
+  swap32(): FlintBuffer;
+  /** Swap byte order in 64-bit groups. */
+  swap64(): FlintBuffer;
+
+  // ── Conversion ──
+  /**
+   * Convert buffer to string.
+   * @param encoding 'hex' | 'base64' | undefined (UTF-8)
+   */
+  toString(encoding?: 'hex' | 'base64'): string;
+  /** Return buffer as byte-value array, e.g. [72, 101, 108]. */
+  toJSON(): number[];
+  /** Return a copy of bytes from start to end. */
+  slice(start: number, end?: number): FlintBuffer;
+  /** Copy bytes into target buffer. Returns number of bytes copied. */
+  copy(target: FlintBuffer, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
+}
+
+/** Static methods for creating Buffer instances. */
+interface FlintBufferConstructor {
+  /**
+   * Create a zero-filled buffer of the given size.
+   * @example Buffer.alloc(8)
+   */
+  alloc(size: number): FlintBuffer;
+  /**
+   * Create a buffer from data.
+   * @example Buffer.from([0x48, 0x65, 0x6C])
+   * @example Buffer.from("Hello")
+   * @example Buffer.from("48656c6c6f", "hex")
+   * @example Buffer.from("SGVsbG8=", "base64")
+   */
+  from(data: number[] | string, encoding?: 'hex' | 'base64'): FlintBuffer;
+  /** Concatenate multiple buffers into one. */
+  concat(list: FlintBuffer[]): FlintBuffer;
+}
+
 /** The incoming message. */
 declare var msg: FlintMessage;
 /** Node API: send messages, log, set status. */
@@ -97,4 +195,6 @@ declare var node: FlintNodeAPI;
 declare var global: FlintContextStore;
 /** Flow-scoped context store — shared within the current flow. */
 declare var flow: FlintContextStore;
+/** Buffer API for byte manipulation (Node.js compatible). */
+declare var Buffer: FlintBufferConstructor;
 `

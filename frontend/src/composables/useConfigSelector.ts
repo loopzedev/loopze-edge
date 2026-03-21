@@ -21,9 +21,17 @@ export function useConfigSelector(configType: string) {
   const options = computed(() =>
     availableConfigs.value.map((c) => ({
       value: c.id,
-      label: c.name || c.id.slice(0, 12),
+      label: c.name || configFallbackLabel(c.config) || c.id.slice(0, 12),
     })),
   )
+
+  /** Build a fallback label from host:port if no name is set. */
+  function configFallbackLabel(config: Record<string, unknown>): string {
+    const host = config.host as string
+    if (!host) return ''
+    const port = config.port as number
+    return port ? `${host}:${port}` : host
+  }
 
   function openNewConfig() {
     uiStore.openConfigEditor(configType)

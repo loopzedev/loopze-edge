@@ -48,7 +48,7 @@ const selectedLabel = computed(() =>
 
     <SelectPortal>
       <SelectContent
-        class="bg-terminal-surface border border-terminal-border shadow-lg z-50 overflow-hidden"
+        class="bg-terminal-surface border border-terminal-border shadow-lg z-50 overflow-hidden min-w-[var(--radix-select-trigger-width)]"
         position="popper"
         :side-offset="4"
       >

@@ -31,6 +31,9 @@ const filteredNodes = computed(() => {
   )
 })
 
+// Fixed category order — controls the palette layout.
+const CATEGORY_ORDER = ['common', 'network', 'industrial', 'function', 'parser', 'storage', 'other']
+
 const categories = computed(() => {
   const map = new Map<string, NodeCatalogEntry[]>()
   for (const node of filteredNodes.value) {
@@ -38,7 +41,23 @@ const categories = computed(() => {
     if (!map.has(cat)) map.set(cat, [])
     map.get(cat)!.push(node)
   }
-  return Array.from(map.entries()).map(([name, catNodes]) => ({ name, nodes: catNodes }))
+  // Sort nodes within each category alphabetically by label.
+  for (const [, catNodes] of map) {
+    catNodes.sort((a, b) => a.label.localeCompare(b.label))
+  }
+  // Return categories in fixed order, unknown categories appended at the end.
+  const ordered: { name: string; nodes: NodeCatalogEntry[] }[] = []
+  for (const cat of CATEGORY_ORDER) {
+    if (map.has(cat)) {
+      ordered.push({ name: cat, nodes: map.get(cat)! })
+      map.delete(cat)
+    }
+  }
+  // Remaining categories not in CATEGORY_ORDER.
+  for (const [name, catNodes] of map) {
+    ordered.push({ name, nodes: catNodes })
+  }
+  return ordered
 })
 
 function toggleCategory(name: string): void {

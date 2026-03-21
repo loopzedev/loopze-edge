@@ -13,28 +13,43 @@ export const useDebugStore = defineStore('debug', () => {
 
   // ── Getters ────────────────────────────────────────────────────────
 
-  /** Set of debug node IDs that are currently inactive (respects dirty state). */
-  const inactiveDebugNodeIds = computed(() => {
+  /** Set of debug node IDs that should be suppressed (inactive or deleted). */
+  const suppressedDebugNodeIds = computed(() => {
     const flowStore = useFlowStore()
+    const activeDebugIds = new Set<string>()
     const ids = new Set<string>()
     for (const node of flowStore.nodes) {
-      if (node.type === 'debug' && node.data?.config?.active === false) {
-        ids.add(node.id)
+      if (node.type === 'debug') {
+        activeDebugIds.add(node.id)
+        if (node.data?.config?.active === false) {
+          ids.add(node.id)
+        }
+      }
+    }
+    // Also suppress messages from debug nodes that no longer exist on canvas.
+    for (const msg of messages.value) {
+      if (!activeDebugIds.has(msg.nodeId)) {
+        ids.add(msg.nodeId)
       }
     }
     return ids
   })
 
   const filteredMessages = computed(() => {
-    if (!filter.value) return messages.value
+    const suppressed = suppressedDebugNodeIds.value
+    let result = messages.value.filter((msg) => !suppressed.has(msg.nodeId))
 
-    const term = filter.value.toLowerCase()
-    return messages.value.filter(
-      (msg) =>
-        msg.nodeName.toLowerCase().includes(term) ||
-        msg.nodeId.toLowerCase().includes(term) ||
-        String(msg.payload).toLowerCase().includes(term)
-    )
+    if (filter.value) {
+      const term = filter.value.toLowerCase()
+      result = result.filter(
+        (msg) =>
+          msg.nodeName.toLowerCase().includes(term) ||
+          msg.nodeId.toLowerCase().includes(term) ||
+          String(msg.payload).toLowerCase().includes(term),
+      )
+    }
+
+    return result
   })
 
   const messageCount = computed(() => messages.value.length)
@@ -50,7 +65,7 @@ export const useDebugStore = defineStore('debug', () => {
    */
   function addMessage(message: DebugMessage): void {
     if (!isEnabled.value) return
-    if (inactiveDebugNodeIds.value.has(message.nodeId)) return
+    if (suppressedDebugNodeIds.value.has(message.nodeId)) return
 
     messages.value.push(message)
 

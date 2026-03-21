@@ -103,6 +103,56 @@ Alle Connectoren werden mit der Produktentwicklung mitgepflegt — gleiche Testa
 
 ---
 
+## Data Pipelines — Telegraf-Ansatz als visueller Flow
+
+Node-RED ist fuer Event-basierte Flows mit einzelnen Messages gebaut. Sobald grosse Datenmengen verarbeitet werden muessen — Batch-Imports, CSV-Dateien mit 100k Zeilen, Datenbank-Dumps, Log-Aggregation — stoesst es an seine Grenzen. Der Single-Threaded Event-Loop blockiert, die Editor-UI friert ein, MQTT-Subscriptions verpassen Messages weil die Runtime ausgelastet ist.
+
+Tools wie **Telegraf** loesen das elegant mit einer Input → Processing → Output Pipeline. Aber Telegraf ist konfigurationsgetrieben (TOML-Dateien) — keine visuelle Darstellung, kein schnelles Experimentieren, keine bedingte Logik.
+
+Flint verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flows**. Der Schluessel dazu ist ein nativer **Processing Node der in Go ausfuehrt** — nicht in einer interpretierten Sandbox wie der JavaScript Function Node, sondern direkt in der Sprache der Runtime. Das eroeffnet volle Nutzung aller CPU-Kerne, zero-copy Datenverarbeitung und Zugriff auf das Go-Oekosystem.
+
+```
+                    Data Pipeline Flow
+┌─────────────────────────────────────────────────────────┐
+│                                                          │
+│  [CSV Input]  →  [Go Transform]  →  [InfluxDB Output]   │
+│   100k rows       map/filter/         batch write        │
+│   streaming       aggregate           5k rows/s          │
+│                                                          │
+│  [SQL Query]  →  [Go Transform]  →  [MQTT Publish]      │
+│   SELECT *        reshape/enrich      fan-out            │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Kernkonzept — Go Transform Node:**
+- Verarbeitung in nativem Go statt interpretiertem JavaScript
+- Streaming-faehig: verarbeitet Daten zeilenweise statt alles in den Speicher zu laden
+- Batch-Operationen: Aggregation, Windowing, Group-By als eingebaute Primitives
+- Parallel Processing: eine Go Transform kann intern ueber mehrere Goroutines skalieren
+
+**Input Nodes** (Datenquellen):
+- File Input (CSV, JSON Lines, Parquet)
+- SQL Query (PostgreSQL, SQLite)
+- HTTP Bulk Fetch
+- MQTT Retained Bulk Read
+
+**Processing Nodes** (Go-nativ):
+- Go Transform — Map, Filter, Reduce mit Go-Syntax
+- Aggregate — Windowed Aggregation (sum, avg, min, max, count)
+- Join — Zwei Streams zusammenfuehren (inner, left, outer)
+- Batch — Messages in konfigurierbare Batches gruppieren
+
+**Output Nodes** (Senken):
+- InfluxDB / TimescaleDB Batch Write
+- File Output (CSV, JSON)
+- SQL Insert/Upsert
+- MQTT Bulk Publish
+
+Das Ergebnis: Datenverarbeitungs-Pipelines die in Node-RED Minuten brauchen (oder die Runtime zum Absturz bringen) laufen in Flint in Sekunden — visuell konfiguriert, nicht in TOML-Dateien versteckt.
+
+---
+
 ## Live-Debugging mit Message Tracing
 
 Node-REDs Debug-Node zeigt Messages in einer separaten Sidebar — aber man sieht nicht welchen Weg eine Message durch den Flow genommen hat.

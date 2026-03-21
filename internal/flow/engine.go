@@ -48,12 +48,20 @@ func (c *statusCache) Clear() {
 	c.mu.Unlock()
 }
 
+func (c *statusCache) Delete(nodeID string) {
+	c.mu.Lock()
+	delete(c.entries, nodeID)
+	c.mu.Unlock()
+}
+
 // runningNode holds the state for a single instantiated node in a deployed flow.
 type runningNode struct {
 	instance NodeInstance
 	config   NodeConfig
 	flowID   string
-	inputCh  chan *Message // receives messages from upstream nodes
+	inputCh  chan *Message   // receives messages from upstream nodes
+	stopCh   chan struct{}   // per-node stop signal
+	done     chan struct{}   // closed when goroutine exits
 }
 
 // Engine is the core flow runtime that manages the lifecycle of deployed flows.
@@ -85,8 +93,6 @@ type Engine struct {
 	globalCtxPersist ContextStore       // file-backed persistent global context store
 	flowCtxFactory   FlowContextFactory // creates dedicated KV stores per flow ID
 	running      bool
-	wg           sync.WaitGroup
-	stopCh       chan struct{}
 }
 
 // NewEngine creates a new flow runtime engine with the given configuration
@@ -100,7 +106,6 @@ func NewEngine(cfg *config.Config) *Engine {
 		wires:        make(map[string][][]string),
 		linkRegistry: make(map[string]*runningNode),
 		statusCache:  statusCache{entries: make(map[string]StatusMessage)},
-		stopCh:       make(chan struct{}),
 	}
 }
 
@@ -152,7 +157,6 @@ func (e *Engine) Start() error {
 	)
 
 	e.running = true
-	e.stopCh = make(chan struct{})
 
 	slog.Info("flow engine started")
 	return nil
@@ -171,7 +175,7 @@ func (e *Engine) Stop() error {
 
 	slog.Info("flow engine stopping", "active_nodes", len(e.nodes))
 
-	e.stopNodes()
+	e.stopAllNodes()
 
 	e.running = false
 	e.flows = nil
@@ -180,14 +184,9 @@ func (e *Engine) Stop() error {
 	return nil
 }
 
-// Deploy accepts a workspace (all flows), stops any currently running
-// flows, instantiates nodes from the registry, wires them together, and
-// starts execution. All flows in the workspace run concurrently.
-//
-// This implements a full-restart deploy strategy: all flows are stopped and
-// restarted. A future optimisation could diff the old and new flows to only
-// restart changed flows (modified-nodes deploy).
-func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
+// Deploy accepts a workspace (all flows), applies the given deploy mode,
+// and starts execution. The mode controls which nodes are restarted.
+func (e *Engine) Deploy(flows []Flow, configs []ConfigNode, mode DeployMode) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -199,12 +198,27 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 	slog.Info("deploying flows",
 		"flow_count", len(flows),
 		"total_nodes", totalNodes,
+		"mode", string(mode),
 	)
 
-	// Step 1 — Stop currently running nodes.
-	e.stopNodes()
+	switch mode {
+	case DeployModifiedNodes:
+		return e.deployModifiedNodes(flows, configs)
+	case DeployModifiedFlows:
+		return e.deployModifiedFlows(flows, configs)
+	default:
+		return e.deployFull(flows, configs)
+	}
+}
 
-	// Step 2 — Validate all node types are registered.
+// ─── Deploy modes ───────────────────────────────────────────────────────────
+
+// deployFull stops all running nodes and redeploys the entire workspace.
+// This is the original deploy strategy.
+func (e *Engine) deployFull(flows []Flow, configs []ConfigNode) error {
+	e.stopAllNodes()
+
+	// Validate all node types are registered.
 	for _, f := range flows {
 		for _, n := range f.Nodes {
 			if !e.registry.Has(n.Type) {
@@ -213,86 +227,265 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 		}
 	}
 
-	// Step 2b — Instantiate and start config nodes (before regular nodes).
-	e.configInstances = make(map[string]ConfigInstance)
-	for _, cfg := range configs {
-		factory, ok := e.registry.GetConfigFactory(cfg.Type)
-		if !ok {
-			slog.Warn("unknown config node type, skipping", "type", cfg.Type, "config_id", cfg.ID)
-			continue
-		}
+	// Instantiate and start config nodes (before regular nodes).
+	e.deployConfigs(configs)
 
-		instance, err := factory(cfg)
-		if err != nil {
-			slog.Error("failed to create config node instance",
-				"config_id", cfg.ID, "type", cfg.Type, "error", err)
-			continue
-		}
-
-		if err := instance.Start(); err != nil {
-			slog.Error("failed to start config node",
-				"config_id", cfg.ID, "type", cfg.Type, "error", err)
-			continue
-		}
-
-		e.configInstances[cfg.ID] = instance
-		slog.Info("config node started", "config_id", cfg.ID, "type", cfg.Type, "name", cfg.Name)
-	}
-
-	// Step 3+4 — Create and init NodeInstances.
-	e.nodes = make(map[string]*runningNode, totalNodes)
-	e.wires = make(map[string][][]string, totalNodes)
+	// Create and init NodeInstances.
+	e.nodes = make(map[string]*runningNode, countNodes(flows))
+	e.wires = make(map[string][][]string, countNodes(flows))
 
 	for _, f := range flows {
 		if f.Disabled {
 			slog.Debug("skipping disabled flow", "flow_id", f.ID, "label", f.Label)
 			continue
 		}
-
 		for _, n := range f.Nodes {
-			if n.Disabled {
-				slog.Debug("skipping disabled node", "node_id", n.ID, "type", n.Type)
-				continue
-			}
+			e.instantiateNode(n, f.ID)
+		}
+	}
 
-			factory, ok := e.registry.Get(n.Type)
-			if !ok {
-				continue
-			}
+	// Wire and start all nodes.
+	e.wireAllNodes()
+	e.startAllNodeLoops()
 
-			nc := NodeConfig{
-				ID:         n.ID,
-				Type:       n.Type,
-				Name:       n.Name,
-				Properties: n.Config,
-			}
+	e.flows = flows
+	e.configs = configs
 
-			instance, err := factory(nc)
-			if err != nil {
-				slog.Error("failed to create node instance",
-					"node_id", n.ID, "type", n.Type, "error", err)
-				continue
-			}
+	slog.Info("flows deployed successfully",
+		"flow_count", len(flows),
+		"config_count", len(configs),
+		"active_nodes", len(e.nodes),
+	)
+	return nil
+}
 
-			if err := instance.Init(); err != nil {
-				slog.Error("failed to init node",
-					"node_id", n.ID, "type", n.Type, "error", err)
-				continue
-			}
+// deployModifiedFlows restarts only flows that contain changes.
+// Unmodified flows keep running without interruption.
+func (e *Engine) deployModifiedFlows(flows []Flow, configs []ConfigNode) error {
+	// First deploy ever: fall back to full deploy.
+	if e.flows == nil {
+		return e.deployFull(flows, configs)
+	}
 
-			rn := &runningNode{
-				instance: instance,
-				config:   nc,
-				flowID:   f.ID,
-				inputCh:  make(chan *Message, 64),
+	oldWs := Workspace{Flows: e.flows, Configs: e.configs}
+	newWs := Workspace{Flows: flows, Configs: configs}
+	diff := DiffWorkspaces(oldWs, newWs)
+
+	if diff.IsEmpty() {
+		slog.Info("no changes detected, skipping deploy")
+		e.flows = flows
+		e.configs = configs
+		return nil
+	}
+
+	// Handle config node changes.
+	e.applyConfigDiff(diff, configs)
+
+	// Determine which flows are affected.
+	affectedFlows := make(map[string]bool)
+	for _, id := range diff.RemovedFlows {
+		affectedFlows[id] = true
+	}
+	for _, id := range diff.ModifiedFlows {
+		affectedFlows[id] = true
+	}
+	for _, id := range diff.AddedFlows {
+		affectedFlows[id] = true
+	}
+
+	// Expand: if a config changed, all flows containing dependent nodes are affected.
+	if len(diff.ModifiedConfigs) > 0 {
+		ExpandConfigDependents(&diff, newWs)
+		for _, nodeID := range diff.ModifiedNodes {
+			if rn, ok := e.nodes[nodeID]; ok {
+				affectedFlows[rn.flowID] = true
 			}
-			e.nodes[n.ID] = rn
+			// Also check new flows for the node's flow.
+			for _, f := range flows {
+				for _, n := range f.Nodes {
+					if n.ID == nodeID {
+						affectedFlows[f.ID] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Stop nodes in affected flows.
+	for flowID := range affectedFlows {
+		e.stopNodesInFlow(flowID)
+	}
+
+	// Re-instantiate nodes for affected flows.
+	for _, f := range flows {
+		if f.Disabled || !affectedFlows[f.ID] {
+			continue
+		}
+		for _, n := range f.Nodes {
+			e.instantiateNode(n, f.ID)
+		}
+	}
+
+	// Rewire all nodes (including unchanged ones whose targets may have been replaced).
+	e.wireAllNodes()
+	e.startAllNodeLoops()
+
+	e.flows = flows
+	e.configs = configs
+
+	slog.Info("modified-flows deploy completed",
+		"affected_flows", len(affectedFlows),
+		"active_nodes", len(e.nodes),
+	)
+	return nil
+}
+
+// deployModifiedNodes restarts only individual nodes that have changed.
+// Unchanged nodes keep running without interruption.
+func (e *Engine) deployModifiedNodes(flows []Flow, configs []ConfigNode) error {
+	// First deploy ever: fall back to full deploy.
+	if e.flows == nil {
+		return e.deployFull(flows, configs)
+	}
+
+	oldWs := Workspace{Flows: e.flows, Configs: e.configs}
+	newWs := Workspace{Flows: flows, Configs: configs}
+	diff := DiffWorkspaces(oldWs, newWs)
+
+	if diff.IsEmpty() {
+		slog.Info("no changes detected, skipping deploy")
+		e.flows = flows
+		e.configs = configs
+		return nil
+	}
+
+	// Handle config node changes and expand dependent nodes.
+	e.applyConfigDiff(diff, configs)
+	ExpandConfigDependents(&diff, newWs)
+
+	// Build a set of all node IDs that need restart.
+	restartSet := make(map[string]bool)
+	for _, id := range diff.ModifiedNodes {
+		restartSet[id] = true
+	}
+	for _, id := range diff.AddedNodes {
+		restartSet[id] = true
+	}
+
+	// Stop and remove deleted nodes.
+	for _, nodeID := range diff.RemovedNodes {
+		e.stopAndRemoveNode(nodeID)
+	}
+
+	// Stop modified nodes (will be re-instantiated).
+	for _, nodeID := range diff.ModifiedNodes {
+		e.stopAndRemoveNode(nodeID)
+	}
+
+	// Instantiate added and modified nodes.
+	newNodeIndex := make(map[string]struct{ node Node; flowID string })
+	for _, f := range flows {
+		for _, n := range f.Nodes {
+			newNodeIndex[n.ID] = struct{ node Node; flowID string }{n, f.ID}
+		}
+	}
+
+	for nodeID := range restartSet {
+		entry, ok := newNodeIndex[nodeID]
+		if !ok {
+			continue
+		}
+		e.instantiateNode(entry.node, entry.flowID)
+	}
+
+	// Update wires for all nodes — unchanged nodes may reference new/changed targets.
+	// Update the wires map from the new flow definitions.
+	for _, f := range flows {
+		for _, n := range f.Nodes {
 			e.wires[n.ID] = n.Wires
 		}
 	}
 
-	// Step 5 — Wire: build callbacks for each node.
-	// Cache per-flow context stores so the factory is called at most once per flow ID.
+	// Rewire all nodes (SendFunc needs updating when wires change).
+	e.wireAllNodes()
+
+	// Start only the new/restarted node loops. Unchanged nodes keep their goroutines.
+	for nodeID := range restartSet {
+		rn, ok := e.nodes[nodeID]
+		if !ok {
+			continue
+		}
+		if err := rn.instance.Start(); err != nil {
+			slog.Error("failed to start node",
+				"node_id", nodeID, "type", rn.config.Type, "error", err)
+			e.publishNodeError(nodeID, rn, err)
+			close(rn.done) // so stopAllNodes won't hang
+			continue
+		}
+		go e.nodeLoop(nodeID, rn)
+	}
+
+	e.flows = flows
+	e.configs = configs
+
+	slog.Info("modified-nodes deploy completed",
+		"restarted_nodes", len(restartSet),
+		"removed_nodes", len(diff.RemovedNodes),
+		"active_nodes", len(e.nodes),
+	)
+	return nil
+}
+
+// ─── Granular node lifecycle ─────────────────────────────────────────────────
+
+// instantiateNode creates, initialises, and registers a single node.
+// It does NOT start the node's goroutine — call startAllNodeLoops or start manually.
+func (e *Engine) instantiateNode(n Node, flowID string) {
+	if n.Disabled {
+		slog.Debug("skipping disabled node", "node_id", n.ID, "type", n.Type)
+		return
+	}
+
+	factory, ok := e.registry.Get(n.Type)
+	if !ok {
+		return
+	}
+
+	nc := NodeConfig{
+		ID:         n.ID,
+		Type:       n.Type,
+		Name:       n.Name,
+		Properties: n.Config,
+	}
+
+	instance, err := factory(nc)
+	if err != nil {
+		slog.Error("failed to create node instance",
+			"node_id", n.ID, "type", n.Type, "error", err)
+		return
+	}
+
+	if err := instance.Init(); err != nil {
+		slog.Error("failed to init node",
+			"node_id", n.ID, "type", n.Type, "error", err)
+		return
+	}
+
+	rn := &runningNode{
+		instance: instance,
+		config:   nc,
+		flowID:   flowID,
+		inputCh:  make(chan *Message, 64),
+		stopCh:   make(chan struct{}),
+		done:     make(chan struct{}),
+	}
+	e.nodes[n.ID] = rn
+	e.wires[n.ID] = n.Wires
+}
+
+// wireAllNodes sets up callbacks (Send, Status, Debug, Context, Link, Config)
+// for all registered nodes. Safe to call multiple times — overwrites previous callbacks.
+func (e *Engine) wireAllNodes() {
 	type flowCtxPair struct{ mem, pers ContextStore }
 	flowCtxCache := make(map[string]flowCtxPair)
 
@@ -317,7 +510,7 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 		}
 	}
 
-	// Step 5b — Build link registry for cross-flow messaging.
+	// Build link registry for cross-flow messaging.
 	e.linkRegistry = make(map[string]*runningNode)
 	for nodeID, rn := range e.nodes {
 		switch rn.config.Type {
@@ -326,7 +519,7 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 		}
 	}
 
-	// Step 5c — Inject LinkSendFunc for nodes that implement LinkProvider.
+	// Inject LinkSendFunc for nodes that implement LinkProvider.
 	linkSend := e.makeLinkSendFunc()
 	for _, rn := range e.nodes {
 		if lp, ok := rn.instance.(LinkProvider); ok {
@@ -334,7 +527,7 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 		}
 	}
 
-	// Step 5d — Inject ConfigLookupFunc for nodes that implement ConfigProvider.
+	// Inject ConfigLookupFunc for nodes that implement ConfigProvider.
 	configLookup := func(id string) (ConfigInstance, bool) {
 		inst, ok := e.configInstances[id]
 		return inst, ok
@@ -344,36 +537,196 @@ func (e *Engine) Deploy(flows []Flow, configs []ConfigNode) error {
 			cp.SetConfigLookup(configLookup)
 		}
 	}
+}
 
-	// Step 6 — Start each node in its own goroutine.
-	e.stopCh = make(chan struct{})
-
+// startAllNodeLoops starts a goroutine for every node whose goroutine
+// is not already running (done channel still open, stopCh still open).
+func (e *Engine) startAllNodeLoops() {
 	for nodeID, rn := range e.nodes {
+		// Skip nodes that already have a running goroutine.
+		// A running goroutine has stopCh open and done open.
+		// A freshly created node also has both open — we distinguish
+		// by checking if done was already closed (goroutine finished).
+		select {
+		case <-rn.stopCh:
+			// stopCh closed → was stopped, skip (shouldn't be in e.nodes)
+			continue
+		default:
+		}
+
 		if err := rn.instance.Start(); err != nil {
 			slog.Error("failed to start node",
 				"node_id", nodeID, "type", rn.config.Type, "error", err)
 			e.publishNodeError(nodeID, rn, err)
+			// Close done so stopAllNodes won't hang waiting for this node.
+			close(rn.done)
 			continue
 		}
 
-		// Start a message listener goroutine for every node.
-		// Even source nodes (inputs=0) need this to handle manual triggers
-		// via TriggerNode (e.g. inject button in the editor).
-		e.wg.Add(1)
 		go e.nodeLoop(nodeID, rn)
 	}
-
-	e.flows = flows
-	e.configs = configs
-
-	slog.Info("flows deployed successfully",
-		"flow_count", len(flows),
-		"config_count", len(configs),
-		"active_nodes", len(e.nodes),
-	)
-
-	return nil
 }
+
+// stopAndRemoveNode stops a single node's goroutine and instance, then removes
+// it from all engine maps.
+func (e *Engine) stopAndRemoveNode(nodeID string) {
+	rn, ok := e.nodes[nodeID]
+	if !ok {
+		return
+	}
+
+	// Signal goroutine to exit and wait.
+	close(rn.stopCh)
+	<-rn.done
+
+	if err := rn.instance.Stop(); err != nil {
+		slog.Error("error stopping node",
+			"node_id", nodeID, "type", rn.config.Type, "error", err)
+	}
+	close(rn.inputCh)
+
+	delete(e.nodes, nodeID)
+	delete(e.wires, nodeID)
+	delete(e.linkRegistry, nodeID)
+	e.statusCache.Delete(nodeID)
+}
+
+// stopNodesInFlow stops and removes all nodes belonging to a specific flow.
+func (e *Engine) stopNodesInFlow(flowID string) {
+	var nodeIDs []string
+	for id, rn := range e.nodes {
+		if rn.flowID == flowID {
+			nodeIDs = append(nodeIDs, id)
+		}
+	}
+	for _, id := range nodeIDs {
+		e.stopAndRemoveNode(id)
+	}
+}
+
+// stopAllNodes stops all currently running node instances, waits for goroutines
+// to finish, and clears the active node state.
+func (e *Engine) stopAllNodes() {
+	if len(e.nodes) == 0 {
+		return
+	}
+
+	slog.Debug("stopping active nodes", "count", len(e.nodes))
+
+	// Signal all nodeLoop goroutines to exit.
+	for _, rn := range e.nodes {
+		close(rn.stopCh)
+	}
+	// Wait for all goroutines to finish.
+	for _, rn := range e.nodes {
+		<-rn.done
+	}
+
+	// Call Stop() on each node instance.
+	for nodeID, rn := range e.nodes {
+		if err := rn.instance.Stop(); err != nil {
+			slog.Error("error stopping node",
+				"node_id", nodeID, "type", rn.config.Type, "error", err)
+		}
+		close(rn.inputCh)
+	}
+
+	e.nodes = make(map[string]*runningNode)
+	e.wires = make(map[string][][]string)
+	e.linkRegistry = make(map[string]*runningNode)
+	e.statusCache.Clear()
+
+	// Stop config node instances AFTER regular nodes.
+	for id, inst := range e.configInstances {
+		if err := inst.Stop(); err != nil {
+			slog.Error("error stopping config node", "config_id", id, "error", err)
+		}
+	}
+	e.configInstances = nil
+}
+
+// ─── Config node lifecycle ──────────────────────────────────────────────────
+
+// deployConfigs stops all existing config instances and starts new ones.
+func (e *Engine) deployConfigs(configs []ConfigNode) {
+	// Stop existing config instances.
+	for id, inst := range e.configInstances {
+		if err := inst.Stop(); err != nil {
+			slog.Error("error stopping config node", "config_id", id, "error", err)
+		}
+	}
+
+	e.configInstances = make(map[string]ConfigInstance)
+	for _, cfg := range configs {
+		e.startConfigNode(cfg)
+	}
+}
+
+// applyConfigDiff handles config node changes: stops removed/modified, starts added/modified.
+func (e *Engine) applyConfigDiff(diff WorkspaceDiff, configs []ConfigNode) {
+	// Index new configs for lookup.
+	newCfgMap := make(map[string]ConfigNode, len(configs))
+	for _, c := range configs {
+		newCfgMap[c.ID] = c
+	}
+
+	// Stop removed config nodes.
+	for _, id := range diff.RemovedConfigs {
+		if inst, ok := e.configInstances[id]; ok {
+			if err := inst.Stop(); err != nil {
+				slog.Error("error stopping config node", "config_id", id, "error", err)
+			}
+			delete(e.configInstances, id)
+		}
+	}
+
+	// Restart modified config nodes.
+	for _, id := range diff.ModifiedConfigs {
+		if inst, ok := e.configInstances[id]; ok {
+			if err := inst.Stop(); err != nil {
+				slog.Error("error stopping config node", "config_id", id, "error", err)
+			}
+			delete(e.configInstances, id)
+		}
+		if cfg, ok := newCfgMap[id]; ok {
+			e.startConfigNode(cfg)
+		}
+	}
+
+	// Start added config nodes.
+	for _, id := range diff.AddedConfigs {
+		if cfg, ok := newCfgMap[id]; ok {
+			e.startConfigNode(cfg)
+		}
+	}
+}
+
+// startConfigNode creates and starts a single config node instance.
+func (e *Engine) startConfigNode(cfg ConfigNode) {
+	factory, ok := e.registry.GetConfigFactory(cfg.Type)
+	if !ok {
+		slog.Warn("unknown config node type, skipping", "type", cfg.Type, "config_id", cfg.ID)
+		return
+	}
+
+	instance, err := factory(cfg)
+	if err != nil {
+		slog.Error("failed to create config node instance",
+			"config_id", cfg.ID, "type", cfg.Type, "error", err)
+		return
+	}
+
+	if err := instance.Start(); err != nil {
+		slog.Error("failed to start config node",
+			"config_id", cfg.ID, "type", cfg.Type, "error", err)
+		return
+	}
+
+	e.configInstances[cfg.ID] = instance
+	slog.Info("config node started", "config_id", cfg.ID, "type", cfg.Type, "name", cfg.Name)
+}
+
+// ─── Message routing ────────────────────────────────────────────────────────
 
 // makeSendFunc creates a SendFunc closure for a specific node that routes
 // messages to downstream nodes based on the wire configuration.
@@ -479,13 +832,11 @@ func (e *Engine) makeLinkSendFunc() LinkSendFunc {
 // It reads from the node's input channel, calls HandleMessage, and routes
 // output messages to downstream nodes.
 func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
-	defer e.wg.Done()
-
-	nodeWires := e.wires[nodeID]
+	defer close(rn.done)
 
 	for {
 		select {
-		case <-e.stopCh:
+		case <-rn.stopCh:
 			return
 		case msg, ok := <-rn.inputCh:
 			if !ok {
@@ -498,6 +849,11 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 				e.publishNodeError(nodeID, rn, err)
 				continue
 			}
+			// Read wires dynamically so partial deploys can update them.
+			e.mu.RLock()
+			nodeWires := e.wires[nodeID]
+			e.mu.RUnlock()
+
 			// Route output messages to downstream nodes.
 			for port, msgs := range outputs {
 				if port >= len(nodeWires) {
@@ -524,41 +880,7 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 	}
 }
 
-// stopNodes stops all currently running node instances, waits for goroutines
-// to finish, and clears the active node state.
-func (e *Engine) stopNodes() {
-	if len(e.nodes) == 0 {
-		return
-	}
-
-	slog.Debug("stopping active nodes", "count", len(e.nodes))
-
-	// Signal all nodeLoop goroutines to exit.
-	close(e.stopCh)
-	e.wg.Wait()
-
-	// Call Stop() on each node instance.
-	for nodeID, rn := range e.nodes {
-		if err := rn.instance.Stop(); err != nil {
-			slog.Error("error stopping node",
-				"node_id", nodeID, "type", rn.config.Type, "error", err)
-		}
-		close(rn.inputCh)
-	}
-
-	e.nodes = make(map[string]*runningNode)
-	e.wires = make(map[string][][]string)
-	e.linkRegistry = make(map[string]*runningNode)
-	e.statusCache.Clear()
-
-	// Stop config node instances AFTER regular nodes.
-	for id, inst := range e.configInstances {
-		if err := inst.Stop(); err != nil {
-			slog.Error("error stopping config node", "config_id", id, "error", err)
-		}
-	}
-	e.configInstances = nil
-}
+// ─── Public accessors ───────────────────────────────────────────────────────
 
 // NodeStatuses returns a snapshot of the last known status for all nodes.
 func (e *Engine) NodeStatuses() map[string]StatusMessage {

@@ -33,6 +33,7 @@ type deployRequest struct {
 	Flows   []flow.Flow       `json:"flows"`
 	Configs []flow.ConfigNode `json:"configs,omitempty"`
 	Rev     string            `json:"rev,omitempty"`
+	Mode    string            `json:"deployMode,omitempty"`
 }
 
 // jsonResponse is a helper that writes a JSON response with the given status code.
@@ -118,7 +119,26 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deploy to the runtime engine.
-	if err := d.Engine.Deploy(req.Flows, req.Configs); err != nil {
+	// Determine deploy mode.
+	mode := flow.DeployModifiedNodes // default
+	if req.Mode != "" {
+		mode = flow.DeployMode(req.Mode)
+	}
+
+	// Restart mode: full engine restart before deploy.
+	if mode == flow.DeployRestart {
+		slog.Info("restart requested, stopping engine")
+		_ = d.Engine.Stop()
+		if err := d.Engine.Start(); err != nil {
+			slog.Error("failed to restart engine", "error", err)
+			d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": "failed to restart engine"})
+			jsonError(w, http.StatusInternalServerError, "failed to restart engine")
+			return
+		}
+		mode = flow.DeployFull
+	}
+
+	if err := d.Engine.Deploy(req.Flows, req.Configs, mode); err != nil {
 		slog.Error("failed to deploy flows to engine", "error", err)
 		d.broadcast(ws.EventDeploy, map[string]any{"action": "failed", "revision": "", "message": err.Error()})
 		jsonError(w, http.StatusInternalServerError, "failed to deploy flows")
@@ -129,7 +149,7 @@ func (d *Deps) handleDeployFlows(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("workspace deployed successfully", "rev", rev)
 
-	d.broadcast(ws.EventDeploy, map[string]any{"action": "deployed", "revision": rev})
+	d.broadcast(ws.EventDeploy, map[string]any{"action": "deployed", "revision": rev, "mode": string(mode)})
 
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"success": true,

@@ -7,6 +7,7 @@ import type {
   ConfigNode,
   DeployPayload,
   DeployResponse,
+  DeployModeType,
 } from "@/types/flow";
 
 interface FlowNode {
@@ -53,6 +54,14 @@ export const useFlowStore = defineStore("flow", () => {
   const dirtyFlowIds = ref(new Set<string>());
   const revision = ref<string | null>(null);
   const deploying = ref(false);
+
+  // Deploy mode: persisted in localStorage
+  const savedMode = localStorage.getItem('flint-deploy-mode');
+  const deployMode = ref<DeployModeType>(
+    savedMode && ['nodes', 'flows', 'full', 'restart'].includes(savedMode)
+      ? (savedMode as DeployModeType)
+      : 'nodes',
+  );
 
   // --------------- Getters ---------------
 
@@ -431,6 +440,7 @@ export const useFlowStore = defineStore("flow", () => {
         flows: flows.value,
         configs: configs.value.length > 0 ? configs.value : undefined,
         rev: revision.value ?? undefined,
+        deployMode: deployMode.value,
       };
 
       const response = await fetch("/api/v1/flows", {
@@ -600,6 +610,11 @@ export const useFlowStore = defineStore("flow", () => {
     return configs.value.filter((c) => c.type === type);
   }
 
+  function setDeployMode(mode: DeployModeType): void {
+    deployMode.value = mode;
+    localStorage.setItem('flint-deploy-mode', mode);
+  }
+
   // --------------- Return ---------------
 
   return {
@@ -617,6 +632,7 @@ export const useFlowStore = defineStore("flow", () => {
     dirtyFlowIds,
     revision,
     deploying,
+    deployMode,
 
     // Getters
     activeFlow,
@@ -650,6 +666,7 @@ export const useFlowStore = defineStore("flow", () => {
     duplicateSelectedNodes,
     loadFlows,
     deploy,
+    setDeployMode,
     syncCanvasToActiveFlow,
     addConfig,
     updateConfig,

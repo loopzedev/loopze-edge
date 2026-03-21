@@ -127,7 +127,7 @@ func TestEngineErrorChannel_HandleMessage(t *testing.T) {
 		},
 	}}
 
-	if err := engine.Deploy(flows, nil); err != nil {
+	if err := engine.Deploy(flows, nil, flow.DeployFull); err != nil {
 		t.Fatalf("engine.Deploy: %v", err)
 	}
 
@@ -218,7 +218,7 @@ func TestEngineErrorChannel_StartError(t *testing.T) {
 	}}
 
 	// Deploy triggers Start() on each node. start-fail returns an error.
-	if err := engine.Deploy(flows, nil); err != nil {
+	if err := engine.Deploy(flows, nil, flow.DeployFull); err != nil {
 		t.Fatalf("engine.Deploy: %v", err)
 	}
 

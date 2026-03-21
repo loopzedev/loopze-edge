@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
+import type { DeployModeType } from '@/types/flow'
 
 const flowStore = useFlowStore()
 const uiStore = useUiStore()
@@ -16,19 +17,52 @@ const connectionLabel = computed(() => {
   }
 })
 
+const deployModeLabel: Record<DeployModeType, string> = {
+  nodes: 'MODIFIED NODES',
+  flows: 'MODIFIED FLOWS',
+  full: 'FULL DEPLOY',
+  restart: 'RESTART',
+}
+
 const deployLabel = computed(() => {
   switch (uiStore.deployStatus) {
     case 'deploying': return 'DEPLOYING'
     case 'deployed':  return 'DEPLOYED'
     case 'failed':    return 'FAILED'
-    default:          return 'DEPLOY'
+    default:          return deployModeLabel[flowStore.deployMode]
   }
 })
 
 const deployDisabled = computed(() => uiStore.deployStatus === 'deploying')
 
+// Deploy mode dropdown
+const showDeployMenu = ref(false)
+
+const deployModes: { value: DeployModeType; label: string; description: string }[] = [
+  { value: 'nodes', label: 'Modified Nodes', description: 'Only changed nodes' },
+  { value: 'flows', label: 'Modified Flows', description: 'Entire changed flows' },
+  { value: 'full',  label: 'Full Deploy',    description: 'Restart all nodes' },
+  { value: 'restart', label: 'Restart',      description: 'Full engine restart' },
+]
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (!target.closest('.deploy-menu-container')) {
+    showDeployMenu.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleClickOutside))
+
 async function handleDeploy(): Promise<void> {
+  showDeployMenu.value = false
   await flowStore.deploy()
+}
+
+function selectMode(mode: DeployModeType): void {
+  flowStore.setDeployMode(mode)
+  showDeployMenu.value = false
 }
 </script>
 
@@ -138,68 +172,112 @@ async function handleDeploy(): Promise<void> {
         </svg>
       </button>
 
-      <!-- Deploy button -->
-      <button
-        class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider transition-colors duration-150"
-        :disabled="deployDisabled"
-        :class="{
-          'opacity-50 cursor-not-allowed': deployDisabled,
-          '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
-          '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
-        }"
-        title="Deploy flows"
-        @click="handleDeploy"
-      >
-        <!-- Spinning icon while deploying -->
-        <svg
-          v-if="uiStore.deployStatus === 'deploying'"
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-3.5 h-3.5 animate-spin"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
+      <!-- Deploy split-button -->
+      <div class="deploy-menu-container relative">
+        <div class="flex items-center">
+          <!-- Main deploy button -->
+          <button
+            class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider transition-colors duration-150 rounded-r-none border-r-0"
+            :disabled="deployDisabled"
+            :class="{
+              'opacity-50 cursor-not-allowed': deployDisabled,
+              '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
+              '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
+            }"
+            title="Deploy flows"
+            @click="handleDeploy"
+          >
+            <!-- Spinning icon while deploying -->
+            <svg
+              v-if="uiStore.deployStatus === 'deploying'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="square" d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+            <!-- Checkmark when deployed -->
+            <svg
+              v-else-if="uiStore.deployStatus === 'deployed'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
+            </svg>
+            <!-- X when failed -->
+            <svg
+              v-else-if="uiStore.deployStatus === 'failed'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="square" stroke-linejoin="miter" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <!-- Default deploy icon -->
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
+            </svg>
+            <span>{{ deployLabel }}</span>
+          </button>
+
+          <!-- Dropdown toggle -->
+          <button
+            class="terminal-btn-primary flex items-center px-1.5 text-xs transition-colors duration-150 rounded-l-none"
+            :disabled="deployDisabled"
+            :class="{
+              'opacity-50 cursor-not-allowed': deployDisabled,
+              '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
+              '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
+            }"
+            title="Select deploy mode"
+            @click.stop="showDeployMenu = !showDeployMenu"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="square" stroke-linejoin="miter" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Dropdown menu -->
+        <div
+          v-if="showDeployMenu"
+          class="absolute right-0 top-full mt-1 w-52 bg-terminal-surface border border-terminal-border shadow-lg z-50"
         >
-          <path stroke-linecap="square" d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-        <!-- Checkmark when deployed -->
-        <svg
-          v-else-if="uiStore.deployStatus === 'deployed'"
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-3.5 h-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
-        </svg>
-        <!-- X when failed -->
-        <svg
-          v-else-if="uiStore.deployStatus === 'failed'"
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-3.5 h-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        <!-- Default deploy icon -->
-        <svg
-          v-else
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-3.5 h-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
-        </svg>
-        <span>{{ deployLabel }}</span>
-      </button>
+          <button
+            v-for="mode in deployModes"
+            :key="mode.value"
+            class="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-terminal-bg transition-colors duration-100"
+            @click="selectMode(mode.value)"
+          >
+            <span
+              class="w-2 h-2 rounded-full border border-terminal-text-dim shrink-0"
+              :class="{ 'bg-accent border-accent': flowStore.deployMode === mode.value }"
+            />
+            <div>
+              <div class="text-terminal-text">{{ mode.label }}</div>
+              <div class="text-terminal-text-dim text-[10px]">{{ mode.description }}</div>
+            </div>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 </template>

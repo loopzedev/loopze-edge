@@ -130,10 +130,13 @@ export interface NodePropertyDefault {
   validate?: string
 }
 
+export type DeployModeType = 'nodes' | 'flows' | 'full' | 'restart'
+
 export interface DeployPayload {
   flows: Flow[]
   configs?: ConfigNode[]
   rev?: string
+  deployMode?: DeployModeType
 }
 
 export interface DeployResponse {

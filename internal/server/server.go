@@ -274,7 +274,7 @@ func (s *Server) Start() error {
 	if ws, err := s.store.LoadWorkspace(); err != nil {
 		slog.Error("failed to load workspace from storage", "error", err)
 	} else if len(ws.Flows) > 0 {
-		if err := s.engine.Deploy(ws.Flows, ws.Configs); err != nil {
+		if err := s.engine.Deploy(ws.Flows, ws.Configs, flow.DeployFull); err != nil {
 			slog.Error("failed to deploy saved workspace", "error", err)
 		} else {
 			slog.Info("saved workspace deployed on startup", "flows", len(ws.Flows), "configs", len(ws.Configs))

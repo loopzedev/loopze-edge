@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import type { NodeProps } from "@vue-flow/core";
 import { useApi } from "@/composables/useApi";
 import BaseNode from "@/components/nodes/BaseNode.vue";
@@ -8,7 +8,6 @@ defineOptions({ inheritAttrs: false });
 
 const props = defineProps<NodeProps>();
 const api = useApi();
-const triggering = ref(false);
 
 const label = computed(() => props.data?.label);
 

@@ -88,12 +88,12 @@ function onResizeEnd() {
 
 <template>
   <div
-    class="h-full flex-shrink-0 flex bg-terminal-surface border-l border-terminal-border font-mono select-none relative"
+    class="h-full flex-shrink-0 flex bg-terminal-surface border-l border-terminal-border select-none relative"
     :style="{ width: panelWidth + 'px' }"
   >
     <!-- Resize handle -->
     <div
-      class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-20 hover:bg-accent/30 transition-colors"
+      class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-20 hover:bg-accent/30 active:bg-accent/50 transition-colors"
       @mousedown.prevent="onResizeStart"
     />
 
@@ -116,33 +116,40 @@ function onResizeEnd() {
         <!-- No node selected -->
         <div
           v-else-if="!selectedNode"
-          class="flex flex-col items-center justify-center h-full px-4 text-center"
+          class="flex flex-col items-center justify-center h-full px-6 text-center"
         >
-          <div class="text-terminal-text-dim text-2xl mb-3">&#x2B21;</div>
-          <p class="text-terminal-text-dim text-xs uppercase tracking-wider mb-1">No Node Selected</p>
-          <p class="text-[10px] text-terminal-text-dim">Double-click a node to view its properties</p>
+          <div class="text-terminal-text-dim/20 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <p class="text-terminal-text-dim text-xs font-medium mb-1">No Node Selected</p>
+          <p class="text-[11px] text-terminal-text-dim/60">Click a node to view its properties</p>
         </div>
 
         <!-- Node selected -->
         <div v-else class="flex flex-col flex-1 min-h-0">
           <!-- Node identity -->
-          <div class="px-3 py-3 border-b border-terminal-border">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="w-3 h-3 bg-accent flex-shrink-0"></span>
-              <span class="text-accent text-sm font-bold uppercase tracking-wider truncate">
+          <div class="px-4 py-4 border-b border-terminal-border">
+            <div class="flex items-center gap-2.5 mb-2">
+              <span
+                class="w-3 h-3 rounded-sm flex-shrink-0"
+                :style="{ backgroundColor: '#58a6ff' }"
+              />
+              <span class="text-sm font-semibold text-terminal-text truncate">
                 {{ nodeData?.label || selectedNode.type }}
               </span>
             </div>
             <div class="flex items-center gap-2 text-[10px] text-terminal-text-dim">
               <span class="terminal-badge">{{ selectedNode.type }}</span>
-              <span class="text-terminal-text-dim">{{ selectedNode.id.slice(0, 12) }}&hellip;</span>
+              <span class="font-mono text-terminal-text-dim/50">{{ selectedNode.id.slice(0, 8) }}</span>
             </div>
           </div>
 
           <!-- Properties -->
-          <div class="px-3 py-2 border-b border-terminal-border">
+          <div class="px-4 py-3 border-b border-terminal-border">
             <SectionHeader title="Properties">
-              <div class="flex flex-col gap-1">
+              <div class="flex flex-col gap-1.5">
                 <FormLabel>Name</FormLabel>
                 <FormInput
                   :model-value="(nodeData?.label as string) ?? ''"
@@ -154,11 +161,14 @@ function onResizeEnd() {
           </div>
 
           <!-- Type-specific config -->
-          <div class="px-3 py-2 border-b border-terminal-border flex-1 flex flex-col min-h-0">
+          <div class="px-4 py-3 border-b border-terminal-border flex-1 flex flex-col min-h-0">
             <!-- State Machine: skip collapsible SectionHeader to preserve flex chain -->
             <template v-if="selectedNode?.type === 'statemachine'">
-              <p class="text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2 flex-shrink-0">
-                &#x25B8; Configuration
+              <p class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2.5 font-semibold">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 rotate-90 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                Configuration
               </p>
               <StateMachineConfig />
             </template>
@@ -171,34 +181,34 @@ function onResizeEnd() {
               <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
               <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
               <template v-else>
-                <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-2">
+                <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div
                     v-for="(value, key) in (nodeData.config as Record<string, unknown>)"
                     :key="String(key)"
-                    class="flex flex-col gap-1"
+                    class="flex flex-col gap-1.5"
                   >
                     <FormLabel>{{ String(key) }}</FormLabel>
-                    <div class="bg-terminal-bg border border-terminal-border px-2 py-1 text-[10px] break-all whitespace-pre-wrap max-h-20 overflow-y-auto">
+                    <div class="bg-terminal-bg border border-terminal-border rounded px-2.5 py-1.5 text-[11px] font-mono break-all whitespace-pre-wrap max-h-24 overflow-y-auto text-terminal-text-dim">
                       {{ formatValue(value) }}
                     </div>
                   </div>
                 </div>
-                <div v-else class="text-[10px] text-terminal-text-dim italic">No configuration available</div>
+                <div v-else class="text-[11px] text-terminal-text-dim/60">No configuration available</div>
               </template>
             </SectionHeader>
           </div>
 
           <!-- Status -->
-          <div class="px-3 py-2">
+          <div class="px-4 py-3">
             <SectionHeader title="Status">
-              <div v-if="nodeData?.status" class="flex items-center gap-2">
+              <div v-if="nodeData?.status" class="flex items-center gap-2.5">
                 <span
                   class="w-2 h-2 flex-shrink-0 rounded-full"
                   :style="{ background: STATUS_COLORS[nodeData.status.fill] ?? STATUS_COLORS.grey }"
                 />
-                <span class="text-[10px] text-terminal-text-dim">{{ nodeData.status.text ?? 'OK' }}</span>
+                <span class="text-[11px] text-terminal-text-dim">{{ nodeData.status.text ?? 'OK' }}</span>
               </div>
-              <div v-else class="text-[10px] text-terminal-text-dim italic">No status</div>
+              <div v-else class="text-[11px] text-terminal-text-dim/60">No status</div>
             </SectionHeader>
           </div>
         </div>

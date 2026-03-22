@@ -18,8 +18,8 @@ const connectionLabel = computed(() => {
 })
 
 const deployModeLabel: Record<DeployModeType, string> = {
-  nodes: 'MODIFIED NODES',
-  flows: 'MODIFIED FLOWS',
+  nodes: 'DEPLOY',
+  flows: 'DEPLOY FLOWS',
   full: 'FULL DEPLOY',
   restart: 'RESTART',
 }
@@ -35,7 +35,6 @@ const deployLabel = computed(() => {
 
 const deployDisabled = computed(() => uiStore.deployStatus === 'deploying')
 
-// Deploy mode dropdown
 const showDeployMenu = ref(false)
 
 const deployModes: { value: DeployModeType; label: string; description: string }[] = [
@@ -68,121 +67,106 @@ function selectMode(mode: DeployModeType): void {
 
 <template>
   <header
-    class="flex items-center justify-between h-10 px-3 bg-terminal-surface border-b border-terminal-border font-mono select-none shrink-0"
+    class="flex items-center justify-between h-11 px-4 bg-terminal-surface border-b border-terminal-border select-none shrink-0"
   >
     <!-- Left: Logo / App Name -->
     <div class="flex items-center gap-3">
       <button
-        class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
+        class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 p-1 -ml-1 rounded hover:bg-terminal-surface-alt"
         title="Toggle node palette"
         @click="uiStore.toggleLeftPanel()"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-4 h-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M4 6h16M4 12h16M4 18h16" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
 
       <div class="flex items-center gap-2">
-        <!-- Flint icon: stylised lightning / spark -->
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-4 h-4 text-accent"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-        >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
         </svg>
-
-        <span class="text-accent text-sm font-bold tracking-widest ">FLINT</span>
+        <span class="text-accent text-sm font-bold tracking-widest font-mono">FLINT</span>
       </div>
 
-      <span class="text-terminal-text-dim text-[10px] tracking-wide hidden sm:inline">
-        FLOW AUTOMATION
+      <span class="text-terminal-text-dim text-[10px] tracking-wider hidden sm:inline font-medium uppercase">
+        Flow Automation
       </span>
     </div>
 
     <!-- Right: Actions & Status -->
-    <div class="flex items-center gap-3">
-      <!-- Settings link -->
-      <router-link
-        to="/settings"
-        class="text-terminal-text-dim hover:text-terminal-text text-xs transition-colors duration-100"
-        title="Settings"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="w-4 h-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            d="M12 15a3 3 0 100-6 3 3 0 000 6z"
-          />
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
-          />
-        </svg>
-      </router-link>
-
+    <div class="flex items-center gap-2">
       <!-- Connection status -->
-      <div class="flex items-center gap-1.5" :title="`Status: ${connectionLabel}`">
+      <div
+        class="flex items-center gap-1.5 px-2 py-1 rounded"
+        :title="`Status: ${connectionLabel}`"
+      >
         <span
-          class="block w-2 h-2"
+          class="block w-2 h-2 rounded-full"
           :style="{ backgroundColor: connectionDotColor }"
         />
-        <span class="text-[10px] text-terminal-text-dim tracking-wider hidden sm:inline">
+        <span class="text-[10px] text-terminal-text-dim tracking-wider hidden sm:inline font-medium">
           {{ connectionLabel }}
         </span>
       </div>
 
+      <!-- Separator -->
+      <div class="w-px h-5 bg-terminal-border mx-1" />
+
+      <!-- Settings link -->
+      <router-link
+        to="/settings"
+        class="p-1.5 rounded text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt transition-all duration-100"
+        title="Settings"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+        </svg>
+      </router-link>
+
       <!-- Toggle Properties panel -->
       <button
-        class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
-        :class="{ 'text-accent': uiStore.propertiesPanelOpen }"
+        class="p-1.5 rounded transition-all duration-100"
+        :class="uiStore.propertiesPanelOpen
+          ? 'text-accent bg-accent/10'
+          : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt'"
         title="Toggle properties"
         @click="uiStore.togglePropertiesPanel()"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
         </svg>
       </button>
 
       <!-- Toggle Debug panel -->
       <button
-        class="text-terminal-text-dim hover:text-terminal-text transition-colors duration-100 px-1"
-        :class="{ 'text-accent': uiStore.debugPanelOpen }"
+        class="p-1.5 rounded transition-all duration-100"
+        :class="uiStore.debugPanelOpen
+          ? 'text-accent bg-accent/10'
+          : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt'"
         title="Toggle debug"
         @click="uiStore.toggleDebugPanel()"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </button>
+
+      <!-- Separator -->
+      <div class="w-px h-5 bg-terminal-border mx-1" />
 
       <!-- Deploy split-button -->
       <div class="deploy-menu-container relative">
         <div class="flex items-center">
           <!-- Main deploy button -->
           <button
-            class="terminal-btn-primary flex items-center gap-1.5 text-xs uppercase tracking-wider transition-colors duration-150 rounded-r-none border-r-0"
+            class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all duration-150 rounded-l"
             :disabled="deployDisabled"
             :class="{
               'opacity-50 cursor-not-allowed': deployDisabled,
-              '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
-              '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
+              'bg-status-success/15 border border-status-success/40 text-status-success': uiStore.deployStatus === 'deployed',
+              'bg-status-error/15 border border-status-error/40 text-status-error': uiStore.deployStatus === 'failed',
+              'bg-accent text-white border border-accent hover:bg-accent-dim': uiStore.deployStatus !== 'deployed' && uiStore.deployStatus !== 'failed',
             }"
             title="Deploy flows"
             @click="handleDeploy"
@@ -192,66 +176,55 @@ function selectMode(mode: DeployModeType): void {
               v-if="uiStore.deployStatus === 'deploying'"
               xmlns="http://www.w3.org/2000/svg"
               class="w-3.5 h-3.5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
             >
-              <path stroke-linecap="square" d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              <path stroke-linecap="round" d="M12 2v4m0 12v4m-7-7H3m18 0h-2M6.34 6.34L4.93 4.93m12.73 12.73l1.41 1.41M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
             </svg>
             <!-- Checkmark when deployed -->
             <svg
               v-else-if="uiStore.deployStatus === 'deployed'"
               xmlns="http://www.w3.org/2000/svg"
               class="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
             >
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L20 7" />
             </svg>
             <!-- X when failed -->
             <svg
               v-else-if="uiStore.deployStatus === 'failed'"
               xmlns="http://www.w3.org/2000/svg"
               class="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
             >
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M6 18L18 6M6 6l12 12" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <!-- Default deploy icon -->
+            <!-- Upload/deploy icon (idle) -->
             <svg
               v-else
               xmlns="http://www.w3.org/2000/svg"
               class="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
             >
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 12l5 5L20 7" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4" />
             </svg>
             <span>{{ deployLabel }}</span>
           </button>
 
           <!-- Dropdown toggle -->
           <button
-            class="terminal-btn-primary flex items-center px-1.5 text-xs transition-colors duration-150 rounded-l-none"
+            class="flex items-center px-1.5 py-1.5 transition-all duration-150 rounded-r border-l-0"
             :disabled="deployDisabled"
             :class="{
               'opacity-50 cursor-not-allowed': deployDisabled,
-              '!border-green-500 !text-green-400': uiStore.deployStatus === 'deployed',
-              '!border-red-500 !text-red-400': uiStore.deployStatus === 'failed',
+              'bg-status-success/15 border border-status-success/40 text-status-success': uiStore.deployStatus === 'deployed',
+              'bg-status-error/15 border border-status-error/40 text-status-error': uiStore.deployStatus === 'failed',
+              'bg-accent text-white border border-accent hover:bg-accent-dim': uiStore.deployStatus !== 'deployed' && uiStore.deployStatus !== 'failed',
             }"
             title="Select deploy mode"
             @click.stop="showDeployMenu = !showDeployMenu"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M19 9l-7 7-7-7" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
         </div>
@@ -259,21 +232,21 @@ function selectMode(mode: DeployModeType): void {
         <!-- Dropdown menu -->
         <div
           v-if="showDeployMenu"
-          class="absolute right-0 top-full mt-1 w-52 bg-terminal-surface border border-terminal-border shadow-lg z-50"
+          class="absolute right-0 top-full mt-1.5 w-56 bg-terminal-surface border border-terminal-border rounded-md shadow-xl shadow-black/40 z-50 overflow-hidden"
         >
           <button
             v-for="mode in deployModes"
             :key="mode.value"
-            class="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-terminal-bg transition-colors duration-100"
+            class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs hover:bg-terminal-surface-alt transition-colors duration-100"
             @click="selectMode(mode.value)"
           >
             <span
-              class="w-2 h-2 rounded-full border border-terminal-text-dim shrink-0"
+              class="w-2 h-2 rounded-full border border-terminal-text-dim shrink-0 transition-colors"
               :class="{ 'bg-accent border-accent': flowStore.deployMode === mode.value }"
             />
             <div>
-              <div class="text-terminal-text">{{ mode.label }}</div>
-              <div class="text-terminal-text-dim text-[10px]">{{ mode.description }}</div>
+              <div class="text-terminal-text font-medium">{{ mode.label }}</div>
+              <div class="text-terminal-text-dim text-[10px] mt-0.5">{{ mode.description }}</div>
             </div>
           </button>
         </div>

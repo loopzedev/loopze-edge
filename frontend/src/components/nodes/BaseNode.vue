@@ -129,7 +129,7 @@ const outputHandles = computed(() =>
     <!-- Action button (optional, displayed left of the node) -->
     <button
       v-if="props.actionButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-l-[8px] transition-all duration-100 font-mono nopan nodrag"
+      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-l-[8px] transition-all duration-100 nopan nodrag"
       :style="{
         background: actionActive ? t.accent + '22' : t.bgIcon,
         border: `1px solid ${actionActive ? t.accent : t.border}`,
@@ -149,7 +149,7 @@ const outputHandles = computed(() =>
     </button>
 
     <div
-        class="flint-node min-w-[196px] w-max relative font-mono select-none flex"
+        class="flint-node min-w-[196px] w-max relative select-none flex"
         :class="{ selected: props.selected, 'opacity-40': props.disabled }"
         :style="{
             border: `1px solid ${props.selected ? t.accent : t.border}`,
@@ -228,7 +228,7 @@ const outputHandles = computed(() =>
             <!-- Body: custom label takes priority, otherwise slot content -->
             <div
                 v-if="hasCustomLabel || $slots.body"
-                class="px-2 py-0.5 text-[10px] flex-1 flex items-center"
+                class="px-2 py-0.5 text-[10px] font-mono flex-1 flex items-center"
                 :style="{ background: t.bg, color: t.textSub }"
             >
                 <span v-if="hasCustomLabel">{{ props.label }}</span>
@@ -279,7 +279,7 @@ const outputHandles = computed(() =>
     <!-- Toggle button (optional, displayed right of the node) -->
     <button
       v-if="props.toggleButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-r-[8px] transition-all duration-100 font-mono nopan nodrag"
+      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-r-[8px] transition-all duration-100 nopan nodrag"
       :style="{
         background: props.toggleState ? t.accent + '22' : t.bg,
         border: `1px solid ${props.toggleState ? t.accent : t.border}`,

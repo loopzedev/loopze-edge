@@ -141,11 +141,11 @@ function selectMode(mode: DeployModeType): void {
       <!-- Toggle Debug panel -->
       <button
         class="p-1.5 rounded transition-all duration-100"
-        :class="uiStore.debugPanelOpen
+        :class="uiStore.infoPanelOpen
           ? 'text-accent bg-accent/10'
           : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt'"
-        title="Toggle debug"
-        @click="uiStore.toggleDebugPanel()"
+        title="Toggle information"
+        @click="uiStore.toggleInfoPanel()"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

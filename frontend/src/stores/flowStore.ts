@@ -249,13 +249,24 @@ export const useFlowStore = defineStore("flow", () => {
   }
 
   function updateNodeStatus(nodeId: string, status: { fill: string; text: string }): void {
-    const node = nodes.value.find((n) => n.id === nodeId);
-    if (node) {
-      node.data = {
-        ...node.data,
-        status: { fill: status.fill, shape: 'dot' as const, text: status.text },
-      };
+    // Search active flow nodes first
+    let node = nodes.value.find((n) => n.id === nodeId);
+
+    // If not in active flow, search across all flows and update the raw Flint node
+    if (!node) {
+      for (const flow of flows.value) {
+        const flintNode = flow.nodes.find((n) => n.id === nodeId);
+        if (flintNode) {
+          flintNode.status = { fill: status.fill as any, shape: 'dot', text: status.text };
+          return;
+        }
+      }
+      return;
     }
+
+    // Mutate existing data object to preserve Vue reactivity
+    if (!node.data) node.data = {};
+    node.data.status = { fill: status.fill, shape: 'dot' as const, text: status.text };
   }
 
   function updateNodePosition(

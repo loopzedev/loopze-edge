@@ -311,7 +311,11 @@ onMounted(async () => {
                     :outputs="1"
                     :status="nodeProps.data?.status"
                     :disabled="nodeProps.data?.disabled"
-                />
+                >
+                    <template #body>
+                        <span class="truncate">{{ nodeProps.data?.config?.topic || '' }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-mqtt-out="nodeProps">
@@ -324,7 +328,11 @@ onMounted(async () => {
                     :outputs="0"
                     :status="nodeProps.data?.status"
                     :disabled="nodeProps.data?.disabled"
-                />
+                >
+                    <template #body>
+                        <span class="truncate">{{ nodeProps.data?.config?.topic || '' }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-tcp-in="nodeProps">

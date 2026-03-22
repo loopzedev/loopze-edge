@@ -8,7 +8,7 @@ const ui = useUiStore()
 
 <template>
   <div class="h-full w-[320px] flex-shrink-0 flex flex-col bg-terminal-surface border-l border-terminal-border select-none">
-    <PanelHeader title="Debug" closable @close="ui.closeDebugPanel()" />
+    <PanelHeader title="Information" closable @close="ui.closeInfoPanel()" />
     <div class="flex-1 overflow-hidden">
       <DebugPanel />
     </div>

@@ -15,7 +15,7 @@ export const useUiStore = defineStore('ui', () => {
   const leftPanelOpen = ref<boolean>(true)
   const propertiesPanelOpen = ref<boolean>(false)
   const propertiesPanelWidth = ref<number>(560)
-  const debugPanelOpen = ref<boolean>(true)
+  const infoPanelOpen = ref<boolean>(true)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   const propertiesContext = ref<PropertiesContext>(null)
@@ -74,16 +74,16 @@ export const useUiStore = defineStore('ui', () => {
     propertiesContext.value = null
   }
 
-  function toggleDebugPanel() {
-    debugPanelOpen.value = !debugPanelOpen.value
+  function toggleInfoPanel() {
+    infoPanelOpen.value = !infoPanelOpen.value
   }
 
-  function openDebugPanel() {
-    debugPanelOpen.value = true
+  function openInfoPanel() {
+    infoPanelOpen.value = true
   }
 
-  function closeDebugPanel() {
-    debugPanelOpen.value = false
+  function closeInfoPanel() {
+    infoPanelOpen.value = false
   }
 
   function setConnectionStatus(status: ConnectionStatus) {
@@ -110,7 +110,7 @@ export const useUiStore = defineStore('ui', () => {
     propertiesPanelOpen,
     propertiesPanelWidth,
     propertiesContext,
-    debugPanelOpen,
+    infoPanelOpen,
     connectionStatus,
     deployStatus,
 
@@ -129,9 +129,9 @@ export const useUiStore = defineStore('ui', () => {
     clearFlowProperties,
     openConfigEditor,
     clearConfigEditor,
-    toggleDebugPanel,
-    openDebugPanel,
-    closeDebugPanel,
+    toggleInfoPanel,
+    openInfoPanel,
+    closeInfoPanel,
     setConnectionStatus,
     setDeployStatus,
   }

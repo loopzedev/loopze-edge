@@ -4,7 +4,7 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import FlowTabBar from '@/components/FlowTabBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
-import DebugSidebar from '@/components/DebugSidebar.vue'
+import InformationSidebar from '@/components/InformationSidebar.vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import { useDebugStore } from '@/stores/debugStore'
@@ -49,7 +49,7 @@ watch(ws.status, (status) => {
 
 const mainAreaStyle = computed(() => {
   const left = ui.leftPanelOpen ? '240px' : '0px'
-  const rightWidth = (ui.propertiesPanelOpen ? ui.propertiesPanelWidth : 0) + (ui.debugPanelOpen ? 320 : 0)
+  const rightWidth = (ui.propertiesPanelOpen ? ui.propertiesPanelWidth : 0) + (ui.infoPanelOpen ? 320 : 0)
   return {
     marginLeft: left,
     marginRight: rightWidth + 'px',
@@ -88,8 +88,8 @@ const mainAreaStyle = computed(() => {
         <aside v-show="ui.propertiesPanelOpen">
           <PropertyPanel />
         </aside>
-        <aside v-show="ui.debugPanelOpen">
-          <DebugSidebar />
+        <aside v-show="ui.infoPanelOpen">
+          <InformationSidebar />
         </aside>
       </div>
     </div>

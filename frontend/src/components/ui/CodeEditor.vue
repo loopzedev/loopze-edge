@@ -143,7 +143,7 @@ onMounted(() => {
     theme: 'flint-dark',
     readOnly: props.readonly,
     fontSize: 12,
-    fontFamily: "'JetBrains Mono', 'Fira Mono', 'Consolas', monospace",
+    fontFamily: "'IBM Plex Mono', monospace",
     fontLigatures: false,
     lineNumbers: (lineNumber) => String(lineNumber - PREFIX_LINES),
     lineNumbersMinChars: 3,

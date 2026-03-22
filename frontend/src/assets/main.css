@@ -16,7 +16,7 @@
     padding: 0;
     background-color: #0d1117;
     color: #e6edf3;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'Space Mono', monospace;
   }
 
   ::selection {
@@ -60,7 +60,7 @@
 
 .vue-flow__edge-text {
   fill: #7d8590;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: 'Space Mono', monospace;
   font-size: 11px;
 }
 

@@ -179,37 +179,36 @@ const intervalPresets = [
       @drop="onDrop(idx)"
       @dragend="onDragEnd"
     >
+      <!-- Row 1: Drag handle + msg.property + delete -->
       <div class="flex items-center gap-1.5">
-        <!-- Drag handle -->
         <span
           class="cursor-grab active:cursor-grabbing text-terminal-text-dim hover:text-terminal-text text-[10px] select-none shrink-0"
           @mousedown="onHandleMouseDown"
         >&#x2261;</span>
 
-        <!-- Property name -->
         <span class="text-[10px] text-terminal-text-dim shrink-0">msg.</span>
         <FormInput
           :model-value="prop.p"
           placeholder="property"
           mono
-          class="w-[80px] shrink-0"
+          class="flex-1 min-w-0"
           @update:model-value="updateProp(idx, 'p', $event)"
         />
 
-        <!-- Value type + value + storage -->
+        <IconButton variant="danger" title="Remove property" @click="removeProp(idx)">&#x2715;</IconButton>
+      </div>
+
+      <!-- Row 2: Value type + value + storage -->
+      <div class="pl-4">
         <ValueTypeInput
           :value="prop.v"
           :type="prop.vt"
           :storage="prop.vs"
           :exclude-types="excludeTypes"
-          class="flex-1 min-w-0"
           @update:value="updateProp(idx, 'v', $event)"
           @update:type="updateProp(idx, 'vt', $event)"
           @update:storage="updateProp(idx, 'vs', $event)"
         />
-
-        <!-- Delete button -->
-        <IconButton variant="danger" title="Remove property" @click="removeProp(idx)">&#x2715;</IconButton>
       </div>
     </div>
 

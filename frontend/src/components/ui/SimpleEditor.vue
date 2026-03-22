@@ -83,7 +83,7 @@ onMounted(() => {
     theme: 'flint-dark',
     readOnly: props.readonly,
     fontSize: 12,
-    fontFamily: "'JetBrains Mono', 'Fira Mono', 'Consolas', monospace",
+    fontFamily: "'IBM Plex Mono', monospace",
     fontLigatures: false,
     lineNumbersMinChars: 3,
     minimap: { enabled: false },

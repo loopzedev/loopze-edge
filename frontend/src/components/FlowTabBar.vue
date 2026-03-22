@@ -54,17 +54,17 @@ function onDragEnd() {
 </script>
 
 <template>
-  <div class="flex items-center h-8 bg-terminal-surface border-b border-terminal-border font-mono select-none shrink-0 overflow-x-auto">
+  <div class="flex items-end h-9 bg-terminal-surface border-b border-terminal-border select-none shrink-0 overflow-x-auto">
     <!-- Flow Tabs -->
     <button
       v-for="(flow, idx) in flowStore.flows"
       :key="flow.id"
       draggable="true"
-      class="relative flex items-center gap-1.5 h-full px-3 text-xs whitespace-nowrap border-r border-terminal-border transition-colors duration-100 cursor-pointer"
+      class="relative flex items-center gap-1.5 h-full px-3.5 text-xs whitespace-nowrap transition-colors duration-100 cursor-pointer border-b-2"
       :class="[
         flow.id === flowStore.activeFlowId
-          ? 'bg-terminal-bg text-terminal-text'
-          : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-bg/50',
+          ? 'bg-terminal-bg text-terminal-text border-b-accent font-medium'
+          : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-bg/40 border-b-transparent',
         flow.disabled ? 'opacity-40' : '',
         dragIdx === idx ? 'opacity-30' : '',
         dropIdx === idx && dragIdx !== idx ? 'border-l-2 border-l-accent' : '',
@@ -79,25 +79,19 @@ function onDragEnd() {
       <span class="truncate max-w-[120px]">{{ flow.label }}</span>
       <span
         v-if="flowStore.isFlowDirty(flow.id)"
-        class="text-accent text-[10px] leading-none"
-      >●</span>
+        class="w-1.5 h-1.5 rounded-full bg-accent"
+        style="box-shadow: 0 0 4px #58a6ff80"
+      />
     </button>
 
     <!-- Add Flow Button -->
     <button
-      class="flex items-center justify-center h-full px-3 text-terminal-text-dim hover:text-accent hover:bg-terminal-bg/50 transition-colors duration-100"
+      class="flex items-center justify-center h-full px-3 text-terminal-text-dim hover:text-accent hover:bg-terminal-bg/30 transition-colors duration-100"
       title="New flow"
       @click="handleAddClick"
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        class="w-3.5 h-3.5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2.5"
-      >
-        <path stroke-linecap="square" stroke-linejoin="miter" d="M12 5v14m-7-7h14" />
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14" />
       </svg>
     </button>
   </div>

@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 /* ============================================
-   FLINT — GitHub Dark Theme
+   FLINT — Refined Dark Theme
+   Dual-font system: Inter (UI) + IBM Plex Mono (code/data)
    ============================================ */
 
 @layer base {
@@ -16,7 +17,11 @@
     padding: 0;
     background-color: #0d1117;
     color: #e6edf3;
-    font-family: 'Space Mono', monospace;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
@@ -29,22 +34,22 @@
    Custom Scrollbars
    ============================================ */
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0d1117; }
-::-webkit-scrollbar-thumb { background: #30363d; }
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #484f58; }
-::-webkit-scrollbar-corner { background: #0d1117; }
-* { scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
+::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: #30363d transparent; }
 
 /* ============================================
-   Vue Flow — GitHub Dark Overrides
+   Vue Flow — Canvas Overrides
    ============================================ */
 
 .vue-flow,
 .vue-flow__background { background-color: #0d1117 !important; }
 
 .vue-flow__background pattern circle,
-.vue-flow__background pattern rect { fill: #30363d44; }
+.vue-flow__background pattern rect { fill: #30363d33; }
 
 .vue-flow__edge-path,
 .vue-flow__connection-path {
@@ -55,17 +60,17 @@
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:hover .vue-flow__edge-path {
   stroke: #58a6ff !important;
-  stroke-width: 2px;
+  stroke-width: 2.5px;
 }
 
 .vue-flow__edge-text {
   fill: #7d8590;
-  font-family: 'Space Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
 }
 
 /* ============================================
-   Node Handles — circular
+   Node Handles — circular with glow on hover
    ============================================ */
 
 .vue-flow__handle {
@@ -74,10 +79,9 @@
   border-radius: 50% !important;
   background-color: #161b22 !important;
   border: 2px solid #484f58 !important;
-  transition: border-color 0.1s, background-color 0.1s;
+  transition: all 0.15s ease;
 }
 
-/* Invisible hit area — 24px clickable zone around the 10px handle */
 .vue-flow__handle::after {
   content: '';
   position: absolute;
@@ -92,6 +96,7 @@
 .vue-flow__handle:hover {
   border-color: #58a6ff !important;
   background-color: #58a6ff22 !important;
+  box-shadow: 0 0 8px #58a6ff33;
 }
 
 .vue-flow__handle-left  { left:   -5px !important; }
@@ -107,6 +112,7 @@
 .vue-flow__handle.valid {
   border-color: #3fb950 !important;
   background-color: #3fb95022 !important;
+  box-shadow: 0 0 8px #3fb95033;
 }
 
 /* ============================================
@@ -116,7 +122,7 @@
 .vue-flow__minimap {
   background-color: #161b22 !important;
   border: 1px solid #30363d !important;
-  border-radius: 0 !important;
+  border-radius: 4px !important;
 }
 
 .vue-flow__minimap-mask {
@@ -137,23 +143,30 @@
 
 .vue-flow__controls {
   border: 1px solid #30363d !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
   background: transparent !important;
+  overflow: hidden;
 }
 
 .vue-flow__controls-button {
   background-color: #161b22 !important;
-  border: 1px solid #30363d !important;
+  border: none !important;
+  border-bottom: 1px solid #30363d !important;
   border-radius: 0 !important;
   color: #7d8590 !important;
   fill: #7d8590 !important;
-  width: 28px !important;
-  height: 28px !important;
+  width: 30px !important;
+  height: 30px !important;
+  transition: all 0.1s ease;
+}
+
+.vue-flow__controls-button:last-child {
+  border-bottom: none !important;
 }
 
 .vue-flow__controls-button:hover {
-  background-color: #21262d !important;
+  background-color: #1c2128 !important;
   color: #e6edf3 !important;
   fill: #e6edf3 !important;
 }
@@ -165,49 +178,59 @@
    ============================================ */
 
 .vue-flow__selection {
-  background: rgba(88, 166, 255, 0.05) !important;
+  background: rgba(88, 166, 255, 0.06) !important;
   border: 1px dashed #58a6ff !important;
-  border-radius: 0 !important;
+  border-radius: 3px !important;
 }
 
 .vue-flow__nodesselection-rect {
-  background: rgba(88, 166, 255, 0.05) !important;
+  background: rgba(88, 166, 255, 0.06) !important;
   border: 1px solid #58a6ff !important;
-  border-radius: 0 !important;
+  border-radius: 3px !important;
 }
 
 .vue-flow__attribution { display: none !important; }
 
 /* ============================================
-   Utility Classes
+   Utility Classes — Refined
    ============================================ */
 
 @layer components {
+  /* ── Panels ── */
   .terminal-panel {
-    @apply bg-terminal-surface border border-terminal-border font-mono text-terminal-text;
+    @apply bg-terminal-surface border border-terminal-border text-terminal-text;
   }
 
+  /* ── Buttons ── */
   .terminal-btn {
     @apply bg-terminal-surface border border-terminal-border text-terminal-text-dim
-           px-3 py-1.5 font-mono text-sm cursor-pointer
-           hover:bg-terminal-border hover:text-terminal-text-bright
-           active:bg-accent active:text-white
-           transition-colors duration-100;
+           px-3 py-1.5 text-xs font-medium cursor-pointer rounded
+           hover:text-terminal-text
+           active:text-accent
+           transition-all duration-100;
+  }
+  .terminal-btn:hover {
+    background-color: #1c2128;
+    border-color: #3d444d;
+  }
+  .terminal-btn:active {
+    background-color: rgba(88, 166, 255, 0.1);
   }
 
   .terminal-btn-primary {
     @apply bg-accent text-white border border-accent
-           px-3 py-1.5 font-mono text-sm cursor-pointer font-bold
+           px-3 py-1.5 text-xs font-semibold cursor-pointer rounded
            hover:bg-accent-dim
-           transition-colors duration-100;
+           transition-all duration-100;
   }
 
+  /* ── Inputs ── */
   .terminal-input {
     @apply bg-terminal-bg border border-terminal-border text-terminal-text
-           px-2 py-1.5 font-mono text-sm
+           px-2.5 py-1.5 text-xs font-mono rounded
            outline-none
-           focus:border-accent focus:ring-0
-           placeholder:text-terminal-text-dim;
+           focus:border-accent focus:ring-1 focus:ring-accent/20
+           placeholder:text-terminal-text-dim/60;
   }
 
   .terminal-checkbox {
@@ -217,32 +240,38 @@
 
   .terminal-divider { @apply border-t border-terminal-border; }
 
+  /* ── Badges ── */
   .terminal-badge {
-    @apply inline-block bg-terminal-border text-terminal-text-dim
-           px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider;
+    @apply inline-flex items-center bg-terminal-bg text-terminal-text-dim
+           px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider
+           border border-terminal-border rounded;
   }
 
+  /* ── Node Base ── */
   .flint-node {
     @apply bg-terminal-surface border border-terminal-border
-           font-mono text-terminal-text text-xs
+           text-terminal-text text-xs
            min-w-[140px] select-none;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   .flint-node.selected {
     border-color: #58a6ff;
-    box-shadow: 0 0 0 1px #58a6ff, 0 0 12px #58a6ff22;
+    box-shadow: 0 0 0 1px #58a6ff44, 0 0 20px #58a6ff18;
   }
 
   .flint-node-header {
     @apply flex items-center gap-1.5 px-2 py-1.5
            border-b border-terminal-border
-           text-xs font-bold uppercase tracking-wide;
+           text-xs font-semibold uppercase tracking-wide;
   }
 
-  .flint-node-body  { @apply px-2 py-1.5 text-terminal-text-dim text-xs; }
+  .flint-node-body {
+    @apply px-2 py-1.5 text-terminal-text-dim text-xs font-mono;
+  }
 
   .flint-node-status {
-    @apply flex items-center gap-1 px-2 py-1
+    @apply flex items-center gap-1.5 px-2 py-1
            border-t border-terminal-border
            text-terminal-text-dim text-[10px];
   }

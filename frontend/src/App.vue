@@ -58,7 +58,7 @@ const mainAreaStyle = computed(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex flex-col overflow-hidden bg-terminal-bg font-mono text-terminal-text">
+  <div class="h-screen w-screen flex flex-col overflow-hidden bg-terminal-bg text-terminal-text">
     <!-- Top Header Bar -->
     <HeaderBar />
 

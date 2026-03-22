@@ -70,23 +70,21 @@ function formatPayload(payload: unknown): string {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-terminal-bg font-mono text-xs">
+  <div class="flex flex-col h-full bg-terminal-bg text-xs">
     <!-- Toolbar -->
-    <div class="flex items-center gap-1.5 px-2 py-1.5 border-b border-terminal-border bg-terminal-surface shrink-0">
+    <div class="flex items-center gap-1.5 px-3 py-2 border-b border-terminal-border bg-terminal-surface shrink-0">
       <input
         v-model="filterText"
         type="text"
-        placeholder="filter..."
-        class="flex-1 bg-terminal-bg border border-terminal-border text-terminal-text
-               px-1.5 py-0.5 font-mono text-xs outline-none
-               focus:border-accent placeholder:text-terminal-text-dim"
+        placeholder="Filter messages..."
+        class="terminal-input flex-1 py-1 text-[11px]"
       />
 
       <button
-        class="px-1.5 py-0.5 border text-[10px] uppercase tracking-wider font-bold transition-colors duration-100"
+        class="px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-all duration-100"
         :class="debugStore.isEnabled
-          ? 'border-green-600 text-green-400 hover:bg-green-900/30'
-          : 'border-terminal-border text-terminal-text-dim hover:bg-terminal-border'"
+          ? 'bg-status-success/15 text-status-success hover:bg-status-success/25'
+          : 'bg-terminal-bg text-terminal-text-dim hover:bg-terminal-surface-alt'"
         :title="debugStore.isEnabled ? 'Pause debug output' : 'Resume debug output'"
         @click="toggleEnabled"
       >
@@ -94,16 +92,16 @@ function formatPayload(payload: unknown): string {
       </button>
 
       <button
-        class="px-1.5 py-0.5 border border-terminal-border text-terminal-text-dim
-               text-[10px] uppercase tracking-wider font-bold
-               hover:bg-terminal-border hover:text-terminal-text transition-colors duration-100"
+        class="px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold
+               bg-terminal-bg text-terminal-text-dim
+               hover:bg-terminal-surface-alt hover:text-terminal-text transition-all duration-100"
         title="Clear all messages"
         @click="clearMessages"
       >
         CLR
       </button>
 
-      <span class="text-terminal-text-dim text-[10px] ml-1 whitespace-nowrap">
+      <span class="text-terminal-text-dim text-[10px] font-mono tabular-nums ml-0.5 whitespace-nowrap">
         {{ debugStore.filteredCount }}/{{ debugStore.messageCount }}
       </span>
     </div>
@@ -115,62 +113,78 @@ function formatPayload(payload: unknown): string {
       @scroll="handleScroll"
     >
       <div v-if="messages.length === 0" class="flex items-center justify-center h-full">
-        <span class="text-terminal-text-dim text-xs">
-          {{ debugStore.isEnabled ? '— no debug messages —' : '— debug paused —' }}
-        </span>
+        <div class="text-center">
+          <div class="text-terminal-text-dim/40 text-2xl mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <span class="text-terminal-text-dim text-xs">
+            {{ debugStore.isEnabled ? 'No debug messages' : 'Debug paused' }}
+          </span>
+        </div>
       </div>
 
       <div
-        v-for="msg in messages"
+        v-for="(msg, idx) in messages"
         :key="msg.id"
-        class="border-b px-2 py-1.5 transition-colors duration-75"
+        class="border-b px-3 py-2 transition-colors duration-75"
         :class="{
-          'border-terminal-border/50 hover:bg-terminal-surface/60': msg.status === 'debug' || !msg.status,
-          'border-red-900/50 bg-red-950/30 hover:bg-red-950/50': msg.status === 'error',
-          'border-yellow-900/50 bg-yellow-950/20 hover:bg-yellow-950/40': msg.status === 'warn',
+          'border-terminal-border/40': msg.status === 'debug' || !msg.status,
+          'border-red-900/50 bg-red-950/20': msg.status === 'error',
+          'border-yellow-900/50 bg-yellow-950/15': msg.status === 'warn',
+          'bg-terminal-surface/30': (msg.status === 'debug' || !msg.status) && idx % 2 === 0,
         }"
       >
-        <!-- Header line: timestamp + status + node name -->
-        <div class="flex items-center gap-2 mb-0.5">
-          <span class="text-terminal-text-dim text-[10px] shrink-0">
+        <!-- Header line: timestamp + node name + format -->
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-terminal-text-dim text-[10px] font-mono tabular-nums shrink-0">
             {{ formatTimestamp(msg.timestamp) }}
           </span>
+
+          <!-- Status badge -->
           <span
             v-if="msg.status === 'error'"
-            class="text-red-400 text-[10px] font-bold uppercase tracking-wide shrink-0"
+            class="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-status-error/15 text-status-error shrink-0"
           >ERR</span>
           <span
             v-else-if="msg.status === 'warn'"
-            class="text-yellow-400 text-[10px] font-bold uppercase tracking-wide shrink-0"
+            class="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-status-warning/15 text-status-warning shrink-0"
           >WRN</span>
+
+          <!-- Node name -->
           <span
-            class="text-[10px] font-bold uppercase tracking-wide truncate"
+            class="text-[11px] font-medium truncate"
             :class="{
-              'text-red-400': msg.status === 'error',
-              'text-yellow-400': msg.status === 'warn',
+              'text-status-error': msg.status === 'error',
+              'text-status-warning': msg.status === 'warn',
               'text-accent': msg.status === 'debug' || !msg.status,
             }"
           >
-            {{ msg.nodeName || msg.nodeId }}
+            {{ msg.nodeName || msg.nodeId?.slice(0, 8) }}
           </span>
+
+          <!-- Property -->
           <span
             v-if="msg.property && msg.property !== 'payload'"
-            class="text-terminal-text-dim text-[10px]"
+            class="text-terminal-text-dim text-[10px] font-mono"
           >
             .{{ msg.property }}
           </span>
-          <span class="ml-auto text-terminal-text-dim text-[10px] shrink-0 uppercase">
+
+          <!-- Format badge -->
+          <span class="ml-auto text-terminal-text-dim/60 text-[9px] font-mono shrink-0 uppercase">
             {{ msg.format }}
           </span>
         </div>
 
         <!-- Payload -->
         <pre
-          class="text-xs whitespace-pre-wrap break-all leading-snug m-0 p-0"
+          class="text-[11px] font-mono whitespace-pre-wrap break-all leading-relaxed m-0 p-0"
           :class="{
             'text-red-300': msg.status === 'error',
-            'text-yellow-300': msg.status === 'warn',
-            'text-terminal-text-bright': msg.status === 'debug' || !msg.status,
+            'text-yellow-200': msg.status === 'warn',
+            'text-terminal-text': msg.status === 'debug' || !msg.status,
           }"
         >{{ formatPayload(msg.payload) }}</pre>
       </div>
@@ -182,11 +196,14 @@ function formatPayload(payload: unknown): string {
       class="shrink-0 border-t border-terminal-border bg-terminal-surface"
     >
       <button
-        class="w-full py-0.5 text-[10px] text-terminal-text-dim uppercase tracking-wider
-               hover:text-accent hover:bg-terminal-border/40 transition-colors duration-100"
+        class="w-full py-1 text-[10px] text-terminal-text-dim uppercase tracking-wider font-medium
+               hover:text-accent hover:bg-accent/5 transition-all duration-100 flex items-center justify-center gap-1"
         @click="autoScroll = true; scrollToBottom()"
       >
-        ▼ scroll to latest
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+        scroll to latest
       </button>
     </div>
   </div>

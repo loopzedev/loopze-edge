@@ -110,10 +110,10 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 
 	switch n.output {
 	case "message":
-		payload = msg.Data()
+		payload = msg.DataView()
 		propertyLabel = "msg"
 	case "gjson":
-		raw, err := json.Marshal(msg.Data())
+		raw, err := json.Marshal(msg.DataView())
 		if err != nil {
 			payload = fmt.Sprintf("gjson marshal error: %v", err)
 		} else {
@@ -146,7 +146,7 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 		case "property":
 			statusText = fmt.Sprintf("%v", msg.Get(n.statusProp))
 		case "gjson":
-			raw, err := json.Marshal(msg.Data())
+			raw, err := json.Marshal(msg.DataView())
 			if err != nil {
 				statusText = "error"
 			} else {

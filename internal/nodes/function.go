@@ -50,6 +50,7 @@ type FunctionNode struct {
 	// Runtime state (set in Start, cleared in Stop).
 	vm       *goja.Runtime
 	compiled *goja.Program
+	callable goja.Callable // cached function reference from compiled program
 
 	// Node-scoped in-memory context (private to this node instance).
 	// Survives across HandleMessage calls but lost on redeploy.
@@ -111,6 +112,17 @@ func (n *FunctionNode) Start() error {
 	}
 	n.compiled = prog
 
+	// Run once to get the function value, then cache it.
+	fn, err := n.vm.RunProgram(n.compiled)
+	if err != nil {
+		return fmt.Errorf("function node %s: %w", n.config.ID, err)
+	}
+	callable, ok := goja.AssertFunction(fn)
+	if !ok {
+		return fmt.Errorf("function node %s: compiled value is not callable", n.config.ID)
+	}
+	n.callable = callable
+
 	slog.Info("function node started",
 		"node_id", n.config.ID,
 		"outputs", n.outputs,
@@ -130,18 +142,8 @@ func (n *FunctionNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, erro
 	// Convert Go message → JS object.
 	jsMsg := n.messageToJS(msg)
 
-	// Retrieve the compiled function and call it with the JS message.
-	fn, err := n.vm.RunProgram(n.compiled)
-	if err != nil {
-		return nil, fmt.Errorf("function node %s: %w", n.config.ID, err)
-	}
-
-	callable, ok := goja.AssertFunction(fn)
-	if !ok {
-		return nil, fmt.Errorf("function node %s: compiled value is not callable", n.config.ID)
-	}
-
-	result, err := callable(goja.Undefined(), jsMsg)
+	// Call the cached function directly — no RunProgram on every message.
+	result, err := n.callable(goja.Undefined(), jsMsg)
 	if err != nil {
 		return nil, fmt.Errorf("function node %s: runtime error: %w", n.config.ID, err)
 	}
@@ -396,7 +398,7 @@ func (n *FunctionNode) registerGlobals() {
 // messageToJS converts a *flow.Message to a Goja JS object.
 func (n *FunctionNode) messageToJS(msg *flow.Message) goja.Value {
 	obj := n.vm.NewObject()
-	for k, v := range msg.Data() {
+	for k, v := range msg.DataView() {
 		_ = obj.Set(k, v)
 	}
 	_ = obj.Set("_id", msg.ID())

@@ -62,6 +62,10 @@ type runningNode struct {
 	inputCh  chan *Message   // receives messages from upstream nodes
 	stopCh   chan struct{}   // per-node stop signal
 	done     chan struct{}   // closed when goroutine exits
+
+	// Local snapshots set during wireAllNodes(), read lock-free from nodeLoop.
+	localWires   [][]string               // snapshot of wires for this node
+	localTargets map[string]*runningNode   // targetNodeID → runningNode pointer
 }
 
 // Engine is the core flow runtime that manages the lifecycle of deployed flows.
@@ -489,9 +493,25 @@ func (e *Engine) wireAllNodes() {
 	type flowCtxPair struct{ mem, pers ContextStore }
 	flowCtxCache := make(map[string]flowCtxPair)
 
+	// First pass: build local wire snapshots and target maps for each node.
 	for nodeID, rn := range e.nodes {
 		nodeWires := e.wires[nodeID]
-		rn.instance.SetSend(e.makeSendFunc(nodeID, nodeWires))
+		rn.localWires = nodeWires
+
+		targets := make(map[string]*runningNode)
+		for _, portTargets := range nodeWires {
+			for _, targetID := range portTargets {
+				if tn, ok := e.nodes[targetID]; ok {
+					targets[targetID] = tn
+				}
+			}
+		}
+		rn.localTargets = targets
+	}
+
+	// Second pass: wire callbacks using the local snapshots.
+	for nodeID, rn := range e.nodes {
+		rn.instance.SetSend(e.makeSendFunc(nodeID, rn.localWires, rn.localTargets))
 		rn.instance.SetStatus(e.makeStatusFunc(nodeID, rn))
 		rn.instance.SetDebug(e.makeDebugFunc(nodeID, rn))
 
@@ -730,22 +750,21 @@ func (e *Engine) startConfigNode(cfg ConfigNode) {
 
 // makeSendFunc creates a SendFunc closure for a specific node that routes
 // messages to downstream nodes based on the wire configuration.
-func (e *Engine) makeSendFunc(sourceID string, wires [][]string) SendFunc {
+func (e *Engine) makeSendFunc(sourceID string, wires [][]string, targets map[string]*runningNode) SendFunc {
 	return func(port int, msg *Message) {
 		if port < 0 || port >= len(wires) {
 			return
 		}
 		for _, targetID := range wires[port] {
-			targetNode, ok := e.nodes[targetID]
-			if !ok {
+			targetNode := targets[targetID]
+			if targetNode == nil {
 				slog.Warn("wire target not found",
 					"source", sourceID, "target", targetID, "port", port)
 				continue
 			}
-			// Always clone: the target's goroutine may start processing
-			// the message immediately while the sender still holds a reference.
+			// COW clone: the target shares data until first mutation.
 			select {
-			case targetNode.inputCh <- msg.Clone():
+			case targetNode.inputCh <- msg.COWClone():
 			default:
 				slog.Warn("message dropped, target buffer full",
 					"source", sourceID, "target", targetID)
@@ -820,7 +839,7 @@ func (e *Engine) makeLinkSendFunc() LinkSendFunc {
 			return
 		}
 		select {
-		case targetNode.inputCh <- msg.Clone():
+		case targetNode.inputCh <- msg.COWClone():
 		default:
 			slog.Warn("link message dropped, target buffer full",
 				"target", targetNodeID)
@@ -849,10 +868,8 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 				e.publishNodeError(nodeID, rn, err)
 				continue
 			}
-			// Read wires dynamically so partial deploys can update them.
-			e.mu.RLock()
-			nodeWires := e.wires[nodeID]
-			e.mu.RUnlock()
+			// Use node-local wire snapshot (set by wireAllNodes under write lock).
+			nodeWires := rn.localWires
 
 			// Route output messages to downstream nodes.
 			for port, msgs := range outputs {
@@ -860,15 +877,14 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 					continue
 				}
 				for _, targetID := range nodeWires[port] {
-					targetNode, ok := e.nodes[targetID]
-					if !ok {
+					targetNode := rn.localTargets[targetID]
+					if targetNode == nil {
 						continue
 					}
 					for _, outMsg := range msgs {
-						// Always clone: the target's goroutine starts processing
-						// immediately and must not share state with the sender.
+						// COW clone: the target shares data until first mutation.
 						select {
-						case targetNode.inputCh <- outMsg.Clone():
+						case targetNode.inputCh <- outMsg.COWClone():
 						default:
 							slog.Warn("message dropped, target buffer full",
 								"source", nodeID, "target", targetID)

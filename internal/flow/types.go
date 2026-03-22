@@ -5,9 +5,10 @@
 package flow
 
 import (
-	"crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"math/rand/v2"
 	"strings"
 	"time"
 )
@@ -105,8 +106,9 @@ type Wire struct {
 // The "_id" field is set once at creation and cannot be changed or deleted
 // through Set/Delete. It is always included in JSON output.
 type Message struct {
-	id   string         // immutable, assigned at creation
-	data map[string]any // all user-visible fields (payload, topic, …)
+	id     string         // immutable, assigned at creation
+	data   map[string]any // all user-visible fields (payload, topic, …)
+	shared bool           // true when data is shared with another Message (COW)
 }
 
 // NewMessage creates a new Message with a unique, immutable ID and a timestamp.
@@ -169,6 +171,7 @@ func (m *Message) Set(path string, val any) {
 	if path == "_id" || strings.HasPrefix(path, "_id.") {
 		return // immutable
 	}
+	m.ensureUnique()
 	parts := strings.Split(path, ".")
 	if len(parts) == 1 {
 		m.data[parts[0]] = val
@@ -201,6 +204,7 @@ func (m *Message) Delete(path string) {
 	if path == "_id" || strings.HasPrefix(path, "_id.") {
 		return // immutable
 	}
+	m.ensureUnique()
 	parts := strings.Split(path, ".")
 	if len(parts) == 1 {
 		delete(m.data, parts[0])
@@ -226,9 +230,41 @@ func (m *Message) Clone() *Message {
 	return cloned
 }
 
-// Data returns the underlying map for direct iteration.
-// Modifications to the returned map are reflected in the message.
+// ensureUnique detaches this message's data from any shared copies.
+// Must be called before any mutation of m.data.
+func (m *Message) ensureUnique() {
+	if m.shared {
+		m.data = deepCopyMap(m.data)
+		m.shared = false
+	}
+}
+
+// COWClone creates a lightweight copy-on-write clone of the message.
+// The clone shares the underlying data map with the original. Both the
+// original and the clone are marked as shared so that the first mutating
+// operation on either will trigger a deep copy (ensureUnique).
+// The clone receives a new unique ID.
+func (m *Message) COWClone() *Message {
+	m.shared = true
+	return &Message{
+		id:     generateID(),
+		data:   m.data,
+		shared: true,
+	}
+}
+
+// Data returns the underlying data map. If the message is shared (COW),
+// it first detaches a private copy to prevent mutations from affecting
+// other messages that share the same data.
 func (m *Message) Data() map[string]any {
+	m.ensureUnique()
+	return m.data
+}
+
+// DataView returns the underlying data map for read-only access.
+// Unlike Data(), it does NOT trigger a COW detach, so the caller
+// MUST NOT modify the returned map.
+func (m *Message) DataView() map[string]any {
 	return m.data
 }
 
@@ -239,6 +275,7 @@ func (m *Message) Payload() any {
 
 // SetPayload is a convenience accessor for m.Set("payload", v).
 func (m *Message) SetPayload(v any) {
+	m.ensureUnique()
 	m.data["payload"] = v
 }
 
@@ -250,6 +287,7 @@ func (m *Message) Topic() string {
 
 // SetTopic is a convenience accessor for m.Set("topic", v).
 func (m *Message) SetTopic(v string) {
+	m.ensureUnique()
 	m.data["topic"] = v
 }
 
@@ -282,25 +320,38 @@ func (m *Message) UnmarshalJSON(b []byte) error {
 
 // generateID produces a random hex ID (16 bytes = 32 hex chars).
 func generateID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return fmt.Sprintf("%x", b)
+	var b [16]byte
+	binary.LittleEndian.PutUint64(b[:8], rand.Uint64())
+	binary.LittleEndian.PutUint64(b[8:], rand.Uint64())
+	return hex.EncodeToString(b[:])
+}
+
+// deepCopyValue recursively copies a single value (map, slice, or primitive).
+func deepCopyValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return deepCopyMap(val)
+	case []any:
+		return deepCopySlice(val)
+	default:
+		return v
+	}
 }
 
 // deepCopyMap recursively copies a map[string]any.
 func deepCopyMap(src map[string]any) map[string]any {
 	dst := make(map[string]any, len(src))
 	for k, v := range src {
-		switch val := v.(type) {
-		case map[string]any:
-			dst[k] = deepCopyMap(val)
-		case []any:
-			cp := make([]any, len(val))
-			copy(cp, val)
-			dst[k] = cp
-		default:
-			dst[k] = v
-		}
+		dst[k] = deepCopyValue(v)
+	}
+	return dst
+}
+
+// deepCopySlice recursively copies a []any, including nested maps and slices.
+func deepCopySlice(src []any) []any {
+	dst := make([]any, len(src))
+	for i, v := range src {
+		dst[i] = deepCopyValue(v)
 	}
 	return dst
 }

@@ -25,8 +25,8 @@ const hasOutput = computed(() => (props.data?.outputs ?? 0) > 0);
     class="flint-link-node relative font-mono select-none flex items-center justify-center"
     :class="{ 'opacity-40': props.data?.disabled }"
     :style="{
-      width: '40px',
-      height: '40px',
+      width: '48px',
+      height: '48px',
       background: t.bgIcon,
       border: `1px solid ${props.selected ? t.accent : t.border}`,
       borderRadius: '6px',

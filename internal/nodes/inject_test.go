@@ -4,6 +4,7 @@
 package nodes
 
 import (
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -41,21 +42,26 @@ func (c *collector) last() *flow.Message {
 func noopStatus(_ string, _ string) {}
 func noopDebug(_ flow.DebugMessage)  {}
 
-func TestInjectOnce(t *testing.T) {
+// makeProps builds a props config array from InjectProp-like maps.
+func makeProps(props ...map[string]any) []any {
+	result := make([]any, len(props))
+	for i, p := range props {
+		result[i] = p
+	}
+	return result
+}
+
+func startInject(t *testing.T, properties map[string]any) (*collector, flow.NodeInstance) {
+	t.Helper()
 	c := &collector{}
 	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-once",
-		Type: "inject",
-		Properties: map[string]any{
-			"once":    true,
-			"payload": "hello",
-			"topic":   "test/topic",
-		},
+		ID:         t.Name(),
+		Type:       "inject",
+		Properties: properties,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if err := node.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +71,17 @@ func TestInjectOnce(t *testing.T) {
 	if err := node.Start(); err != nil {
 		t.Fatal(err)
 	}
+	return c, node
+}
+
+func TestInjectOnce(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "str", "v": "hello"},
+			map[string]any{"p": "topic", "vt": "str", "v": "test/topic"},
+		),
+	})
 	defer node.Stop()
 
 	if c.count() != 1 {
@@ -84,30 +101,13 @@ func TestInjectOnce(t *testing.T) {
 }
 
 func TestInjectInterval(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-interval",
-		Type: "inject",
-		Properties: map[string]any{
-			"interval": float64(50), // 50ms
-			"payload":  42.0,
-		},
+	c, node := startInject(t, map[string]any{
+		"interval": float64(50),
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "num", "v": "42"},
+		),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
-	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Wait for at least 3 ticks.
 	time.Sleep(180 * time.Millisecond)
 	node.Stop()
 
@@ -115,70 +115,33 @@ func TestInjectInterval(t *testing.T) {
 	if count < 3 {
 		t.Fatalf("expected at least 3 messages, got %d", count)
 	}
-
-	msg := c.last()
-	if msg.Payload() != 42.0 {
-		t.Errorf("expected payload 42, got %v", msg.Payload())
+	if c.last().Payload() != float64(42) {
+		t.Errorf("expected payload 42, got %v", c.last().Payload())
 	}
 }
 
 func TestInjectOnceAndInterval(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-both",
-		Type: "inject",
-		Properties: map[string]any{
-			"once":     true,
-			"interval": float64(50),
-			"payload":  "combo",
-		},
+	c, node := startInject(t, map[string]any{
+		"once":     true,
+		"interval": float64(50),
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "str", "v": "combo"},
+		),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
-	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	// 1 immediate + at least 2 from ticker.
 	time.Sleep(120 * time.Millisecond)
 	node.Stop()
 
-	count := c.count()
-	if count < 3 {
-		t.Fatalf("expected at least 3 messages (1 once + 2 interval), got %d", count)
+	if c.count() < 3 {
+		t.Fatalf("expected at least 3 messages (1 once + 2 interval), got %d", c.count())
 	}
 }
 
 func TestInjectDefaultPayloadIsTimestamp(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-default",
-		Type: "inject",
-		Properties: map[string]any{
-			"once": true,
-		},
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		// no props → default: payload=timestamp(rfc3339)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
-	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
-	}
 	defer node.Stop()
 
 	msg := c.last()
@@ -191,36 +154,86 @@ func TestInjectDefaultPayloadIsTimestamp(t *testing.T) {
 	}
 }
 
-func TestInjectManualTrigger(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-manual",
-		Type: "inject",
-		Properties: map[string]any{
-			"payload": "manual",
-		},
+func TestInjectPayloadDateEpoch(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "date", "v": "epoch"},
+		),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
-	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
-	}
 	defer node.Stop()
 
-	// No messages yet (neither once nor interval).
+	epoch, ok := c.last().Payload().(float64)
+	if !ok {
+		t.Fatalf("expected float64 payload (epoch ms), got %T", c.last().Payload())
+	}
+	now := float64(time.Now().UnixMilli())
+	if epoch < now-60000 || epoch > now+1000 {
+		t.Errorf("epoch %v is not a recent timestamp", epoch)
+	}
+}
+
+func TestInjectPayloadJSON(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "json", "v": `{"key": "value", "num": 42}`},
+		),
+	})
+	defer node.Stop()
+
+	m, ok := c.last().Payload().(map[string]any)
+	if !ok {
+		t.Fatalf("expected map payload, got %T", c.last().Payload())
+	}
+	if m["key"] != "value" {
+		t.Errorf("expected key='value', got %v", m["key"])
+	}
+}
+
+func TestInjectPayloadBool(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "bool", "v": "true"},
+		),
+	})
+	defer node.Stop()
+
+	if c.last().Payload() != true {
+		t.Errorf("expected payload true, got %v", c.last().Payload())
+	}
+}
+
+func TestInjectPayloadEnv(t *testing.T) {
+	os.Setenv("FLINT_TEST_INJECT", "env-value")
+	defer os.Unsetenv("FLINT_TEST_INJECT")
+
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "env", "v": "FLINT_TEST_INJECT"},
+		),
+	})
+	defer node.Stop()
+
+	if c.last().Payload() != "env-value" {
+		t.Errorf("expected payload 'env-value', got %v", c.last().Payload())
+	}
+}
+
+func TestInjectManualTrigger(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "str", "v": "manual"},
+		),
+	})
+	defer node.Stop()
+
 	if c.count() != 0 {
 		t.Fatalf("expected 0 messages before manual trigger, got %d", c.count())
 	}
 
-	// Manual trigger via HandleMessage.
 	node.HandleMessage(nil)
 
 	if c.count() != 1 {
@@ -231,28 +244,52 @@ func TestInjectManualTrigger(t *testing.T) {
 	}
 }
 
-func TestInjectStopIsClean(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-stop",
-		Type: "inject",
-		Properties: map[string]any{
-			"interval": float64(10), // fast ticker
-		},
+func TestInjectMultipleProps(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once": true,
+		"props": makeProps(
+			map[string]any{"p": "payload", "vt": "str", "v": "hello"},
+			map[string]any{"p": "topic", "vt": "str", "v": "test/multi"},
+			map[string]any{"p": "qos", "vt": "num", "v": "1"},
+			map[string]any{"p": "retain", "vt": "bool", "v": "true"},
+		),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer node.Stop()
 
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
+	msg := c.last()
+	if msg.Payload() != "hello" {
+		t.Errorf("payload: want 'hello', got %v", msg.Payload())
 	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
+	if msg.Topic() != "test/multi" {
+		t.Errorf("topic: want 'test/multi', got %q", msg.Topic())
 	}
+	if msg.Get("qos") != float64(1) {
+		t.Errorf("qos: want 1, got %v", msg.Get("qos"))
+	}
+	if msg.Get("retain") != true {
+		t.Errorf("retain: want true, got %v", msg.Get("retain"))
+	}
+}
+
+func TestInjectEmptyProps(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"once":  true,
+		"props": makeProps(), // empty list
+	})
+	defer node.Stop()
+
+	// Empty props → default timestamp payload
+	msg := c.last()
+	_, ok := msg.Payload().(string)
+	if !ok {
+		t.Fatalf("expected string payload (default timestamp), got %T", msg.Payload())
+	}
+}
+
+func TestInjectStopIsClean(t *testing.T) {
+	c, node := startInject(t, map[string]any{
+		"interval": float64(10),
+	})
 
 	time.Sleep(50 * time.Millisecond)
 	node.Stop()
@@ -260,34 +297,15 @@ func TestInjectStopIsClean(t *testing.T) {
 	countAfterStop := c.count()
 	time.Sleep(50 * time.Millisecond)
 
-	// No new messages after stop.
 	if c.count() != countAfterStop {
 		t.Errorf("messages sent after Stop(): before=%d after=%d", countAfterStop, c.count())
 	}
 }
 
 func TestInjectMessageIDsAreUnique(t *testing.T) {
-	c := &collector{}
-	node, err := NewInjectNode(flow.NodeConfig{
-		ID:   "test-unique-ids",
-		Type: "inject",
-		Properties: map[string]any{
-			"interval": float64(10),
-		},
+	c, node := startInject(t, map[string]any{
+		"interval": float64(10),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := node.Init(); err != nil {
-		t.Fatal(err)
-	}
-	node.SetSend(c.send)
-	node.SetStatus(noopStatus)
-	node.SetDebug(noopDebug)
-	if err := node.Start(); err != nil {
-		t.Fatal(err)
-	}
 
 	time.Sleep(60 * time.Millisecond)
 	node.Stop()

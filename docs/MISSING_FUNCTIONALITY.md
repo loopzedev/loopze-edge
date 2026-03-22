@@ -45,8 +45,8 @@ Fokus auf Plattform-Features, nicht einzelne Node-Typen.
 ## 2. Runtime / Flow Engine
 
 ### 2.1 Deployment-Modi
-- [ ] Partial Deploy (nur geänderte Flows/Nodes neu deployen, nicht alles)
-- [ ] Modified Flows Deploy (nur Flows mit Änderungen neu starten)
+- [x] Partial Deploy (nur geänderte Flows/Nodes neu deployen, nicht alles)
+- [x] Modified Flows Deploy (nur Flows mit Änderungen neu starten)
 - [ ] Deploy-Diff anzeigen (was hat sich seit letztem Deploy geändert)
 
 ### 2.2 Error Handling

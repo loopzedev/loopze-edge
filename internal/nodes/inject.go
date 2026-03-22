@@ -12,20 +12,33 @@ import (
 	"github.com/niceclouds/flint/internal/flow"
 )
 
+// InjectProp defines a single property to set on the injected message.
+type InjectProp struct {
+	Property string // msg property name (e.g. "payload", "topic", "qos")
+	VType    string // value type: str, num, bool, json, date, env, flow, global
+	Value    string // raw value string
+	Storage  string // "memory" or "persistent" (for flow/global)
+}
+
 // InjectNode is a source node that generates messages on a timer or once at startup.
-// It has 0 inputs and 1 output.
+// It has 0 inputs and 1 output. The outgoing message properties are defined by
+// a configurable list of rules (props), similar to the Change node's "set" rules.
 type InjectNode struct {
 	config flow.NodeConfig
 	send   flow.SendFunc
 	status flow.StatusFunc
 	debug  flow.DebugFunc
 
+	// Context stores received via ContextProvider.
+	ctxMem   flow.ContextStore
+	ctxPers  flow.ContextStore
+	flowMem  flow.ContextStore
+	flowPers flow.ContextStore
+
 	// Parsed from Properties.
-	once        bool          // send one message immediately on Start
-	interval    time.Duration // recurring interval (0 = disabled)
-	payloadType string        // "timestamp", "string", "number", "boolean", "json"
-	payload     any           // payload value (nil = current timestamp)
-	topic       string        // message topic
+	once     bool          // send one message immediately on Start
+	interval time.Duration // recurring interval (0 = disabled)
+	props    []InjectProp  // properties to set on each emitted message
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -42,29 +55,38 @@ func NewInjectNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 
 // Init parses and validates the node configuration from Properties.
 func (n *InjectNode) Init() error {
-	props := n.config.Properties
+	cfgProps := n.config.Properties
 
-	if v, ok := props["once"].(bool); ok {
+	if v, ok := cfgProps["once"].(bool); ok {
 		n.once = v
 	}
 
-	if v, ok := props["interval"].(float64); ok && v > 0 {
+	if v, ok := cfgProps["interval"].(float64); ok && v > 0 {
 		n.interval = time.Duration(v) * time.Millisecond
 	}
 
-	if v, ok := props["payloadType"].(string); ok {
-		n.payloadType = v
-	}
-
-	// Only use payload if type is not timestamp.
-	if n.payloadType != "" && n.payloadType != "timestamp" {
-		if v, exists := props["payload"]; exists {
-			n.payload = v
+	// Parse props list (array of rule objects).
+	rawProps, ok := cfgProps["props"].([]any)
+	if ok && len(rawProps) > 0 {
+		for _, raw := range rawProps {
+			propMap, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			n.props = append(n.props, InjectProp{
+				Property: stringVal(propMap, "p", "payload"),
+				VType:    stringVal(propMap, "vt", "str"),
+				Value:    stringVal(propMap, "v", ""),
+				Storage:  stringVal(propMap, "vs", "memory"),
+			})
 		}
 	}
 
-	if v, ok := props["topic"].(string); ok {
-		n.topic = v
+	// Default: timestamp payload if no props configured.
+	if len(n.props) == 0 {
+		n.props = []InjectProp{
+			{Property: "payload", VType: "date", Value: "rfc3339"},
+		}
 	}
 
 	if !n.once && n.interval == 0 {
@@ -91,6 +113,14 @@ func (n *InjectNode) SetDebug(fn flow.DebugFunc) {
 	n.debug = fn
 }
 
+// SetContext implements flow.ContextProvider.
+func (n *InjectNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
+	n.ctxMem = globalMem
+	n.ctxPers = globalPers
+	n.flowMem = flowMem
+	n.flowPers = flowPers
+}
+
 // Start begins message generation. If once is true, a message is sent immediately.
 // If interval is set, a background goroutine sends messages at the configured rate.
 func (n *InjectNode) Start() error {
@@ -111,6 +141,7 @@ func (n *InjectNode) Start() error {
 		"node_id", n.config.ID,
 		"once", n.once,
 		"interval", n.interval,
+		"props", len(n.props),
 	)
 	return nil
 }
@@ -131,18 +162,31 @@ func (n *InjectNode) Stop() error {
 	return nil
 }
 
-// emit creates a new message and sends it to output port 0.
+// valueContext builds a ValueContext from the node's context stores.
+func (n *InjectNode) valueContext() ValueContext {
+	return ValueContext{
+		FlowMem:    n.flowMem,
+		FlowPers:   n.flowPers,
+		GlobalMem:  n.ctxMem,
+		GlobalPers: n.ctxPers,
+	}
+}
+
+// emit creates a new message, applies all configured props, and sends it to output port 0.
 func (n *InjectNode) emit() {
 	msg := flow.NewMessage()
+	ctx := n.valueContext()
 
-	if n.payload != nil {
-		msg.SetPayload(n.payload)
-	} else {
-		msg.SetPayload(time.Now().UTC().Format(time.RFC3339Nano))
-	}
-
-	if n.topic != "" {
-		msg.SetTopic(n.topic)
+	for _, prop := range n.props {
+		val, err := ResolveValue(prop.VType, prop.Value, prop.Storage, nil, ctx)
+		if err != nil {
+			slog.Warn("inject node: failed to resolve property",
+				"node_id", n.config.ID, "property", prop.Property, "error", err)
+			continue
+		}
+		if val != nil {
+			msg.Set(prop.Property, val)
+		}
 	}
 
 	n.send(0, msg)
@@ -176,8 +220,10 @@ func InjectTypeInfo() flow.NodeTypeInfo {
 		Defaults: map[string]any{
 			"once":     false,
 			"interval": 0,
-			"payload":  nil,
-			"topic":    "",
+			"props": []any{
+				map[string]any{"p": "payload", "vt": "date", "v": "rfc3339"},
+				map[string]any{"p": "topic", "vt": "str", "v": ""},
+			},
 		},
 		Inputs:  0,
 		Outputs: 1,

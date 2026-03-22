@@ -4,14 +4,10 @@
 package nodes
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/niceclouds/flint/internal/flow"
 )
@@ -230,46 +226,9 @@ func (n *ChangeNode) applyMove(msg *flow.Message, rule Rule) error {
 	return nil
 }
 
-// resolveValue converts a value string + type + storage into the actual Go value.
+// resolveValue delegates to the shared ResolveValue utility.
 func (n *ChangeNode) resolveValue(msg *flow.Message, value, valueType, storage string) (any, error) {
-	switch valueType {
-	case "str":
-		return value, nil
-	case "num":
-		f, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid number %q: %w", value, err)
-		}
-		return f, nil
-	case "bool":
-		return value == "true", nil
-	case "json":
-		var parsed any
-		if err := json.Unmarshal([]byte(value), &parsed); err != nil {
-			return nil, fmt.Errorf("invalid JSON %q: %w", value, err)
-		}
-		return parsed, nil
-	case "date":
-		if value == "rfc3339" {
-			return time.Now().UTC().Format(time.RFC3339Nano), nil
-		}
-		return float64(time.Now().UnixMilli()), nil
-	case "env":
-		return os.Getenv(value), nil
-	case "msg":
-		return msg.Get(value), nil
-	case "flow", "global":
-		if store := n.pickContextStore(valueType, storage); store != nil {
-			val, err := store.Get(value)
-			if err != nil {
-				return nil, err
-			}
-			return val, nil
-		}
-		return nil, nil
-	default:
-		return value, nil
-	}
+	return ResolveValue(valueType, value, storage, msg, n.valueContext())
 }
 
 // getProperty reads a value from the specified scope + storage.
@@ -313,21 +272,19 @@ func (n *ChangeNode) deleteProperty(msg *flow.Message, scope, key, storage strin
 	return nil
 }
 
+// valueContext builds a ValueContext from the node's context stores.
+func (n *ChangeNode) valueContext() ValueContext {
+	return ValueContext{
+		FlowMem:    n.flowMem,
+		FlowPers:   n.flowPers,
+		GlobalMem:  n.ctxMem,
+		GlobalPers: n.ctxPers,
+	}
+}
+
 // pickContextStore selects the correct store based on scope and storage type.
 func (n *ChangeNode) pickContextStore(scope, storage string) flow.ContextStore {
-	switch scope {
-	case "flow":
-		if storage == "persistent" {
-			return n.flowPers
-		}
-		return n.flowMem
-	case "global":
-		if storage == "persistent" {
-			return n.ctxPers
-		}
-		return n.ctxMem
-	}
-	return nil
+	return PickContextStore(n.valueContext(), scope, storage)
 }
 
 // stringVal extracts a string from a map with a default fallback.

@@ -5,6 +5,7 @@ import FormLabel from '@/components/ui/FormLabel.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import ValueTypeInput from '@/components/config/ValueTypeInput.vue'
 
 const flowStore = useFlowStore()
 
@@ -137,18 +138,6 @@ const scopes = [
   { value: 'global', label: 'global.' },
 ]
 
-const valueTypes = [
-  { value: 'msg', label: 'msg.' },
-  { value: 'flow', label: 'flow.' },
-  { value: 'global', label: 'global.' },
-  { value: 'str', label: 'string' },
-  { value: 'num', label: 'number' },
-  { value: 'bool', label: 'boolean' },
-  { value: 'json', label: 'JSON' },
-  { value: 'date', label: 'timestamp' },
-  { value: 'env', label: 'env' },
-]
-
 const searchTypes = [
   { value: 'msg', label: 'msg.' },
   { value: 'flow', label: 'flow.' },
@@ -175,10 +164,6 @@ const storageTypes = [
   { value: 'persistent', label: 'persist' },
 ]
 
-const timestampFormats = [
-  { value: 'epoch', label: 'milliseconds since epoch' },
-  { value: 'rfc3339', label: 'YYYY-MM-DDTHH:mm:ss.sssZ' },
-]
 </script>
 
 <template>
@@ -219,21 +204,16 @@ const timestampFormats = [
       </div>
 
       <!-- Row 2: Value (for "set") -->
-      <div v-if="rule.t === 'set'" class="flex items-center gap-1.5 pl-4">
-        <span class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">to value</span>
-
-        <FormSelect :model-value="rule.tot" :options="valueTypes" width="80px"
-          @update:model-value="updateRule(idx, 'tot', $event)" />
-
-        <FormInput v-if="rule.tot !== 'date'" :model-value="rule.to" mono class="flex-1 min-w-0"
-          :placeholder="rule.tot === 'json' ? '{...}' : rule.tot === 'bool' ? 'true / false' : 'value'"
-          @update:model-value="updateRule(idx, 'to', $event)" />
-
-        <FormSelect v-else :model-value="rule.to || 'epoch'" :options="timestampFormats" class="flex-1 min-w-0"
-          @update:model-value="updateRule(idx, 'to', $event)" />
-
-        <FormSelect v-if="isContextScope(rule.tot)" :model-value="rule.tos" :options="storageTypes" width="80px"
-          @update:model-value="updateRule(idx, 'tos', $event)" />
+      <div v-if="rule.t === 'set'" class="pl-4">
+        <ValueTypeInput
+          :value="rule.to"
+          :type="rule.tot"
+          :storage="rule.tos"
+          label="to value"
+          @update:value="updateRule(idx, 'to', $event)"
+          @update:type="updateRule(idx, 'tot', $event)"
+          @update:storage="updateRule(idx, 'tos', $event)"
+        />
       </div>
 
       <!-- Row 2-3: Search + Replace (for "change") -->

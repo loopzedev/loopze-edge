@@ -143,6 +143,16 @@ function onResizeEnd() {
             <div class="flex items-center gap-2 text-[10px] text-terminal-text-dim">
               <span class="terminal-badge">{{ selectedNode.type }}</span>
               <span class="font-mono text-terminal-text-dim/50">{{ selectedNode.id.slice(0, 8) }}</span>
+              <button
+                v-if="flowStore.isNodeDirty(selectedNode.id)"
+                class="ml-auto px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold
+                       bg-terminal-bg text-terminal-text-dim border border-terminal-border cursor-pointer
+                       hover:bg-status-error/15 hover:text-status-error hover:border-status-error/40 transition-all duration-100"
+                title="Revert changes to last deployed state"
+                @click="flowStore.revertNode(selectedNode.id)"
+              >
+                Cancel
+              </button>
             </div>
           </div>
 

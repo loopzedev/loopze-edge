@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, toRaw } from "vue";
 import { useUiStore } from "./uiStore";
 import type {
   Node as FlintNode,
@@ -55,6 +55,7 @@ export const useFlowStore = defineStore("flow", () => {
   const dirty = ref(false);
   const dirtyNodeIds = ref(new Set<string>());
   const dirtyFlowIds = ref(new Set<string>());
+  const deployedFlows = ref<Flow[]>([]);
   const revision = ref<string | null>(null);
   const deploying = ref(false);
 
@@ -112,6 +113,36 @@ export const useFlowStore = defineStore("flow", () => {
 
   function isFlowDirty(flowId: string): boolean {
     return dirtyFlowIds.value.has(flowId);
+  }
+
+  function snapshotDeployedState(): void {
+    deployedFlows.value = JSON.parse(JSON.stringify(toRaw(flows.value)));
+  }
+
+  function revertNode(nodeId: string): void {
+    // Find node in deployed snapshot
+    let deployedNode: FlintNode | undefined;
+    for (const flow of deployedFlows.value) {
+      deployedNode = flow.nodes.find((n) => n.id === nodeId);
+      if (deployedNode) break;
+    }
+    if (!deployedNode) return;
+
+    // Find VueFlow node in current store
+    const node = nodes.value.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    // Revert data to deployed state
+    node.data = {
+      ...node.data,
+      label: deployedNode.name ?? deployedNode.label ?? "",
+      config: JSON.parse(JSON.stringify(deployedNode.config ?? {})),
+    };
+
+    // Clear dirty flag for this node
+    dirtyNodeIds.value = new Set(
+      [...dirtyNodeIds.value].filter((id) => id !== nodeId),
+    );
   }
 
   // --------------- Actions ---------------
@@ -434,6 +465,7 @@ export const useFlowStore = defineStore("flow", () => {
       edges.value = [];
     }
 
+    snapshotDeployedState();
     dirty.value = false;
     dirtyNodeIds.value.clear();
     dirtyFlowIds.value = new Set();
@@ -470,6 +502,7 @@ export const useFlowStore = defineStore("flow", () => {
 
       const result: DeployResponse = await response.json();
       revision.value = result.rev;
+      snapshotDeployedState();
       dirty.value = false;
       dirtyNodeIds.value = new Set();
       dirtyFlowIds.value = new Set();
@@ -698,5 +731,6 @@ export const useFlowStore = defineStore("flow", () => {
     removeConfig,
     getConfigsByType,
     loadNodeCatalog,
+    revertNode,
   };
 });

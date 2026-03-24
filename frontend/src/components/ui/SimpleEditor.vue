@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import '@/lib/monaco/setup-workers'
 import * as monaco from 'monaco-editor'
 
@@ -22,6 +22,22 @@ const emit = defineEmits<{
 const container = ref<HTMLElement | null>(null)
 const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 let internalUpdate = false
+
+// Wrap JS code in a function body so `return` is valid for the TS checker.
+const WRAPPER_PREFIX = '(function(){\n'
+const WRAPPER_SUFFIX = '\n})();'
+const PREFIX_LINES = WRAPPER_PREFIX.split('\n').length - 1 // 1
+
+const isJS = computed(() => props.language === 'javascript')
+
+function wrap(code: string): string {
+  return isJS.value ? WRAPPER_PREFIX + code + WRAPPER_SUFFIX : code
+}
+function unwrap(full: string): string {
+  if (!isJS.value) return full
+  const lines = full.split('\n')
+  return lines.slice(PREFIX_LINES, lines.length - 1).join('\n')
+}
 
 // Reuse flint-dark theme if already defined, otherwise define it.
 let themeConfigured = false
@@ -75,8 +91,9 @@ onMounted(() => {
 
   ensureTheme()
 
-  const uri = monaco.Uri.parse(`file:///flint-sm-${props.language}-${Date.now()}.${props.language === 'json' ? 'json' : 'js'}`)
-  const model = monaco.editor.createModel(props.modelValue, props.language, uri)
+  const ext = props.language === 'json' ? 'json' : 'js'
+  const uri = monaco.Uri.parse(`file:///flint-sm-${props.language}-${Date.now()}.${ext}`)
+  const model = monaco.editor.createModel(wrap(props.modelValue), props.language, uri)
 
   editor.value = monaco.editor.create(container.value, {
     model,
@@ -85,6 +102,9 @@ onMounted(() => {
     fontSize: 12,
     fontFamily: "'IBM Plex Mono', monospace",
     fontLigatures: false,
+    lineNumbers: isJS.value
+      ? (ln: number) => String(ln - PREFIX_LINES)
+      : undefined as any,
     lineNumbersMinChars: 3,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -122,11 +142,43 @@ onMounted(() => {
     fixedOverflowWidgets: true,
   })
 
-  editor.value.onDidChangeModelContent(() => {
+  // Hide wrapper lines for JS
+  const ed = editor.value
+  if (isJS.value) {
+    ;(ed as any).setHiddenAreas([
+      new monaco.Range(1, 1, PREFIX_LINES, 1),
+      new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
+    ])
+    ed.setPosition({ lineNumber: PREFIX_LINES + 1, column: 1 })
+  }
+
+  ed.onDidChangeModelContent((e) => {
     if (internalUpdate) return
+
+    // Prevent editing wrapper lines (JS only)
+    if (isJS.value) {
+      for (const change of e.changes) {
+        if (change.range.startLineNumber <= PREFIX_LINES ||
+            change.range.startLineNumber >= model.getLineCount()) {
+          internalUpdate = true
+          ed.trigger('flint', 'undo', null)
+          internalUpdate = false
+          return
+        }
+      }
+    }
+
     internalUpdate = true
-    emit('update:modelValue', model.getValue())
+    emit('update:modelValue', unwrap(model.getValue()))
     internalUpdate = false
+
+    // Re-hide wrapper suffix (JS only, line count may have changed)
+    if (isJS.value) {
+      ;(ed as any).setHiddenAreas([
+        new monaco.Range(1, 1, PREFIX_LINES, 1),
+        new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
+      ])
+    }
   })
 })
 
@@ -146,9 +198,17 @@ watch(() => props.modelValue, (val) => {
   if (!ed) return
   const model = ed.getModel()
   if (!model) return
-  if (val !== model.getValue()) {
+
+  const current = unwrap(model.getValue())
+  if (val !== current) {
     internalUpdate = true
-    model.setValue(val)
+    model.setValue(wrap(val))
+    if (isJS.value) {
+      ;(ed as any).setHiddenAreas([
+        new monaco.Range(1, 1, PREFIX_LINES, 1),
+        new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
+      ])
+    }
     internalUpdate = false
   }
 })

@@ -178,7 +178,10 @@ onUnmounted(() => {
 onMounted(async () => {
     document.addEventListener("keydown", handleKeyDown);
     try {
-        const response = await api.getFlows();
+        const [response] = await Promise.all([
+            api.getFlows(),
+            flowStore.loadNodeCatalog(),
+        ]);
         if (response.flows && response.flows.length > 0) {
             flowStore.loadFlows(response.flows, response.rev, response.configs);
         } else {

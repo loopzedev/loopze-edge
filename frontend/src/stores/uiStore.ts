@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+export type InfoTab = 'help' | 'config' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
 export type PropertiesContext =
@@ -14,8 +15,10 @@ export const useUiStore = defineStore('ui', () => {
   // ── State ──────────────────────────────────────────────────────────
   const leftPanelOpen = ref<boolean>(true)
   const propertiesPanelOpen = ref<boolean>(false)
-  const propertiesPanelWidth = ref<number>(560)
+  const propertiesPanelWidth = ref<number>(450)
   const infoPanelOpen = ref<boolean>(true)
+  const infoPanelWidth = ref<number>(320)
+  const activeInfoTab = ref<InfoTab>('debug')
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   const propertiesContext = ref<PropertiesContext>(null)
@@ -86,6 +89,10 @@ export const useUiStore = defineStore('ui', () => {
     infoPanelOpen.value = false
   }
 
+  function setInfoTab(tab: InfoTab) {
+    activeInfoTab.value = tab
+  }
+
   function setConnectionStatus(status: ConnectionStatus) {
     connectionStatus.value = status
   }
@@ -111,6 +118,8 @@ export const useUiStore = defineStore('ui', () => {
     propertiesPanelWidth,
     propertiesContext,
     infoPanelOpen,
+    infoPanelWidth,
+    activeInfoTab,
     connectionStatus,
     deployStatus,
 
@@ -132,6 +141,7 @@ export const useUiStore = defineStore('ui', () => {
     toggleInfoPanel,
     openInfoPanel,
     closeInfoPanel,
+    setInfoTab,
     setConnectionStatus,
     setDeployStatus,
   }

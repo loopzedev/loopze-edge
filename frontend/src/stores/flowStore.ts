@@ -5,10 +5,12 @@ import type {
   Node as FlintNode,
   Flow,
   ConfigNode,
+  NodeCatalogEntry,
   DeployPayload,
   DeployResponse,
   DeployModeType,
 } from "@/types/flow";
+import { useApi } from "@/composables/useApi";
 
 interface FlowNode {
   id: string;
@@ -49,6 +51,7 @@ export const useFlowStore = defineStore("flow", () => {
   const selectedNodeIds = ref<string[]>([]);
   const clipboard = ref<{ nodes: FlowNode[]; edges: FlowEdge[] } | null>(null);
   const configs = ref<ConfigNode[]>([]);
+  const nodeCatalog = ref<Map<string, NodeCatalogEntry>>(new Map());
   const dirty = ref(false);
   const dirtyNodeIds = ref(new Set<string>());
   const dirtyFlowIds = ref(new Set<string>());
@@ -626,12 +629,23 @@ export const useFlowStore = defineStore("flow", () => {
     localStorage.setItem('flint-deploy-mode', mode);
   }
 
+  async function loadNodeCatalog(): Promise<void> {
+    const api = useApi();
+    const entries = await api.getNodes();
+    const map = new Map<string, NodeCatalogEntry>();
+    for (const entry of entries) {
+      map.set(entry.type, entry);
+    }
+    nodeCatalog.value = map;
+  }
+
   // --------------- Return ---------------
 
   return {
     // State
     flows,
     configs,
+    nodeCatalog,
     activeFlowId,
     nodes,
     edges,
@@ -683,5 +697,6 @@ export const useFlowStore = defineStore("flow", () => {
     updateConfig,
     removeConfig,
     getConfigsByType,
+    loadNodeCatalog,
   };
 });

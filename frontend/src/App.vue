@@ -49,7 +49,7 @@ watch(ws.status, (status) => {
 
 const mainAreaStyle = computed(() => {
   const left = ui.leftPanelOpen ? '240px' : '0px'
-  const rightWidth = (ui.propertiesPanelOpen ? ui.propertiesPanelWidth : 0) + (ui.infoPanelOpen ? 320 : 0)
+  const rightWidth = (ui.propertiesPanelOpen ? ui.propertiesPanelWidth : 0) + (ui.infoPanelOpen ? ui.infoPanelWidth : 0)
   return {
     marginLeft: left,
     marginRight: rightWidth + 'px',
@@ -85,10 +85,10 @@ const mainAreaStyle = computed(() => {
 
       <!-- Right Sidebars: Properties | Debug (side by side) -->
       <div class="absolute top-0 right-0 bottom-0 z-10 flex">
-        <aside v-show="ui.propertiesPanelOpen">
+        <aside v-show="ui.propertiesPanelOpen" class="h-full">
           <PropertyPanel />
         </aside>
-        <aside v-show="ui.infoPanelOpen">
+        <aside v-show="ui.infoPanelOpen" class="h-full">
           <InformationSidebar />
         </aside>
       </div>

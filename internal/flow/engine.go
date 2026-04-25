@@ -778,6 +778,9 @@ func (e *Engine) makeSendFunc(sourceID string, wires [][]string, targets map[str
 func (e *Engine) makeDebugFunc(nodeID string, rn *runningNode) DebugFunc {
 	return func(msg DebugMessage) {
 		// Fill in node/flow context.
+		if msg.ID == "" {
+			msg.ID = generateID()
+		}
 		msg.NodeID = nodeID
 		msg.FlowID = rn.flowID
 		if msg.NodeName == "" {

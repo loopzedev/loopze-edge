@@ -49,6 +49,10 @@ export const useFlowStore = defineStore("flow", () => {
   const edges = ref<FlowEdge[]>([]);
   const selectedNodeId = ref<string | null>(null);
   const selectedNodeIds = ref<string[]>([]);
+  const hoveredDebugNodeId = ref<string | null>(null);
+  // Bumped by focusNode() to request the FlowEditor pan/zoom to a node.
+  // ts ensures repeated clicks on the same node still trigger the watcher.
+  const focusRequest = ref<{ nodeId: string; flowId: string; ts: number } | null>(null);
   const clipboard = ref<{ nodes: FlowNode[]; edges: FlowEdge[] } | null>(null);
   const configs = ref<ConfigNode[]>([]);
   const nodeCatalog = ref<Map<string, NodeCatalogEntry>>(new Map());
@@ -352,6 +356,18 @@ export const useFlowStore = defineStore("flow", () => {
   function selectNode(nodeId: string | null): void {
     selectedNodeId.value = nodeId;
     selectedNodeIds.value = nodeId ? [nodeId] : [];
+  }
+
+  function setHoveredDebugNodeId(nodeId: string | null): void {
+    hoveredDebugNodeId.value = nodeId;
+  }
+
+  function focusNode(nodeId: string, flowId: string): void {
+    if (flowId && flowId !== activeFlowId.value) {
+      setActiveFlow(flowId);
+    }
+    selectNode(nodeId);
+    focusRequest.value = { nodeId, flowId, ts: performance.now() };
   }
 
   function setSelectedNodeIds(ids: string[]): void {
@@ -684,6 +700,8 @@ export const useFlowStore = defineStore("flow", () => {
     edges,
     selectedNodeId,
     selectedNodeIds,
+    hoveredDebugNodeId,
+    focusRequest,
     clipboard,
     dirty,
     dirtyNodeIds,
@@ -717,6 +735,8 @@ export const useFlowStore = defineStore("flow", () => {
     connectNodes,
     removeEdge,
     selectNode,
+    setHoveredDebugNodeId,
+    focusNode,
     setSelectedNodeIds,
     copySelectedNodes,
     pasteNodes,

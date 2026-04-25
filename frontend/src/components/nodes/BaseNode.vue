@@ -94,6 +94,10 @@ const hasCustomLabel = computed(() => {
 });
 const isDirty = computed(() => flowStore.isNodeDirty(props.id));
 
+const isDebugHovered = computed(
+    () => flowStore.hoveredDebugNodeId === props.id && !props.selected,
+);
+
 const statusColor = computed(() =>
     STATUS_COLORS[props.status?.fill ?? ''] ?? STATUS_COLORS.grey
 );
@@ -157,6 +161,8 @@ const outputHandles = computed(() =>
             boxShadow: props.selected
                 ? `0 0 0 1px ${t.accentBdr}, 0 4px 20px ${t.accentGlow}`
                 : 'none',
+            outline: isDebugHovered ? `1px dashed ${t.accent}` : undefined,
+            outlineOffset: isDebugHovered ? '-1px' : undefined,
             minHeight: nodeMinHeight,
         }"
     >

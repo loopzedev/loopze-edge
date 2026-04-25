@@ -31,6 +31,8 @@ const {
     onNodeDragStop,
     screenToFlowCoordinate,
     setViewport,
+    setCenter,
+    findNode,
     getSelectedNodes,
     viewport,
 } = useVueFlow("flint-flow-editor");
@@ -170,6 +172,24 @@ watch(() => flowStore.activeFlowId, async () => {
     await nextTick();
     setViewport({ x: 0, y: 0, zoom: 1 });
 });
+
+// Focus-request from outside (e.g. click on a node name in the debug panel):
+// pan to the requested node. nextTick covers the case where activeFlowId
+// changed in the same tick — Vue-Flow needs to mount the new flow first.
+watch(
+    () => flowStore.focusRequest,
+    async (req) => {
+        if (!req) return;
+        await nextTick();
+        const node = findNode(req.nodeId);
+        if (!node) return;
+        const w = node.dimensions?.width ?? 0;
+        const h = node.dimensions?.height ?? 0;
+        setCenter(node.position.x + w / 2, node.position.y + h / 2, {
+            duration: 300,
+        });
+    },
+);
 
 onUnmounted(() => {
     document.removeEventListener("keydown", handleKeyDown);

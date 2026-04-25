@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { useDebugStore } from '@/stores/debugStore'
+import { useFlowStore } from '@/stores/flowStore'
+import JsonTreeView from '@/components/JsonTreeView.vue'
 
 const debugStore = useDebugStore()
+const flowStore = useFlowStore()
 const scrollContainer = ref<HTMLElement | null>(null)
 const autoScroll = ref(true)
 const filterText = ref('')
@@ -13,23 +16,41 @@ watch(filterText, (val) => {
   debugStore.setFilter(val)
 })
 
+// Coalesce auto-scroll into a single rAF callback per frame.
+// Prevents layout thrashing under burst traffic (many msg/s).
+let scrollFrame = 0
+function requestScroll() {
+  if (scrollFrame !== 0) return
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0
+    if (autoScroll.value) scrollToBottom()
+  })
+}
+
 watch(
   () => debugStore.messages.length,
-  async () => {
-    if (autoScroll.value) {
-      await nextTick()
-      scrollToBottom()
-    }
-  }
+  () => requestScroll(),
 )
+
+onBeforeUnmount(() => {
+  if (scrollFrame !== 0) cancelAnimationFrame(scrollFrame)
+  flowStore.setHoveredDebugNodeId(null)
+})
+
+// Programmatic scrolls dispatch async scroll events. If new content lands
+// between the scrollTop set and the event firing, handleScroll would falsely
+// detect a "user scrolled away" — suppress the listener for a short window.
+let scrollSuppressUntil = 0
 
 function scrollToBottom() {
   if (scrollContainer.value) {
+    scrollSuppressUntil = performance.now() + 150
     scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
   }
 }
 
 function handleScroll() {
+  if (performance.now() < scrollSuppressUntil) return
   if (!scrollContainer.value) return
   const { scrollTop, scrollHeight, clientHeight } = scrollContainer.value
   autoScroll.value = scrollHeight - scrollTop - clientHeight < 40
@@ -53,18 +74,6 @@ function formatTimestamp(ts: string): string {
     return `${h}:${m}:${s}.${ms}`
   } catch {
     return ts
-  }
-}
-
-function formatPayload(payload: unknown): string {
-  if (payload === null) return 'null'
-  if (payload === undefined) return 'undefined'
-  if (typeof payload === 'string') return payload
-  if (typeof payload === 'number' || typeof payload === 'boolean') return String(payload)
-  try {
-    return JSON.stringify(payload, null, 2)
-  } catch {
-    return String(payload)
   }
 }
 </script>
@@ -126,15 +135,18 @@ function formatPayload(payload: unknown): string {
       </div>
 
       <div
-        v-for="(msg, idx) in messages"
+        v-for="msg in messages"
         :key="msg.id"
-        class="border-b px-3 py-2 transition-colors duration-75"
+        v-memo="[msg.id, debugStore.pinnedPathsVersion]"
+        class="debug-row border-b px-3 py-2"
+        :data-status="msg.status || 'debug'"
         :class="{
           'border-terminal-border/40': msg.status === 'debug' || !msg.status,
           'border-red-900/50 bg-red-950/20': msg.status === 'error',
           'border-yellow-900/50 bg-yellow-950/15': msg.status === 'warn',
-          'bg-terminal-surface/30': (msg.status === 'debug' || !msg.status) && idx % 2 === 0,
         }"
+        @mouseenter="flowStore.setHoveredDebugNodeId(msg.nodeId)"
+        @mouseleave="flowStore.setHoveredDebugNodeId(null)"
       >
         <!-- Header line: timestamp + node name + format -->
         <div class="flex items-center gap-2 mb-1">
@@ -152,17 +164,19 @@ function formatPayload(payload: unknown): string {
             class="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded bg-status-warning/15 text-status-warning shrink-0"
           >WRN</span>
 
-          <!-- Node name -->
-          <span
-            class="text-[11px] font-medium truncate"
+          <!-- Node name (click to jump to node in flow) -->
+          <button
+            class="text-[11px] font-medium truncate hover:underline cursor-pointer"
             :class="{
               'text-status-error': msg.status === 'error',
               'text-status-warning': msg.status === 'warn',
               'text-accent': msg.status === 'debug' || !msg.status,
             }"
+            :title="`Jump to ${msg.nodeName || msg.nodeId} (${msg.nodeId})`"
+            @click="flowStore.focusNode(msg.nodeId, msg.flowId)"
           >
             {{ msg.nodeName || msg.nodeId?.slice(0, 8) }}
-          </span>
+          </button>
 
           <!-- Property -->
           <span
@@ -179,14 +193,16 @@ function formatPayload(payload: unknown): string {
         </div>
 
         <!-- Payload -->
-        <pre
-          class="text-[11px] font-mono whitespace-pre-wrap break-all leading-relaxed m-0 p-0"
+        <JsonTreeView
+          :data="msg.payload"
+          :root-key="msg.property || 'payload'"
+          :node-id="msg.nodeId"
           :class="{
             'text-red-300': msg.status === 'error',
             'text-yellow-200': msg.status === 'warn',
             'text-terminal-text': msg.status === 'debug' || !msg.status,
           }"
-        >{{ formatPayload(msg.payload) }}</pre>
+        />
       </div>
     </div>
 
@@ -208,3 +224,9 @@ function formatPayload(payload: unknown): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.debug-row[data-status='debug']:nth-child(even) {
+  background-color: rgb(22 27 34 / 0.3);
+}
+</style>

@@ -244,6 +244,7 @@ func (b *Broker) SetupContextKV(ctx context.Context) (memory jetstream.KeyValue,
 	memory, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:  "context-global-memory",
 		Storage: jetstream.MemoryStorage,
+		History: 1,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("nats: failed to create global memory context KV: %w", err)
@@ -252,6 +253,7 @@ func (b *Broker) SetupContextKV(ctx context.Context) (memory jetstream.KeyValue,
 	persistent, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:  "context-global-persistent",
 		Storage: jetstream.FileStorage,
+		History: 1,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("nats: failed to create global persistent context KV: %w", err)
@@ -268,6 +270,7 @@ func (b *Broker) SetupFlowContextKV(ctx context.Context, flowID string) (memory 
 	memory, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:  "context-flow-" + flowID + "-memory",
 		Storage: jetstream.MemoryStorage,
+		History: 1,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("nats: failed to create flow memory context KV for %q: %w", flowID, err)
@@ -276,6 +279,7 @@ func (b *Broker) SetupFlowContextKV(ctx context.Context, flowID string) (memory 
 	persistent, err = b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:  "context-flow-" + flowID + "-persistent",
 		Storage: jetstream.FileStorage,
+		History: 1,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("nats: failed to create flow persistent context KV for %q: %w", flowID, err)

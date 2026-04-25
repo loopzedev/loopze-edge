@@ -3,22 +3,24 @@ import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { getTokens } from '@/components/nodes/tokens'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
+import { getNodeHelp } from '@/components/help'
 
 const flow = useFlowStore()
 
 const selectedNode = computed(() => flow.selectedNode)
 
+const nodeType = computed(() => selectedNode.value?.data?.nodeType ?? null)
+
 const catalogEntry = computed(() => {
-  if (!selectedNode.value) return null
-  const nodeType = selectedNode.value.data?.nodeType
-  if (!nodeType) return null
-  return flow.nodeCatalog.get(nodeType) ?? null
+  if (!nodeType.value) return null
+  return flow.nodeCatalog.get(nodeType.value) ?? null
 })
 
-const tokens = computed(() => {
-  const nodeType = selectedNode.value?.data?.nodeType
-  return nodeType ? getTokens(nodeType) : null
-})
+const tokens = computed(() =>
+  nodeType.value ? getTokens(nodeType.value) : null,
+)
+
+const nodeHelp = computed(() => getNodeHelp(nodeType.value))
 </script>
 
 <template>
@@ -57,47 +59,53 @@ const tokens = computed(() => {
         </div>
       </div>
 
-      <!-- Description -->
-      <div v-if="catalogEntry?.description" class="px-4 py-3 border-b border-terminal-border">
-        <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Description</div>
-        <p class="text-[11px] text-terminal-text leading-relaxed m-0">
-          {{ catalogEntry.description }}
-        </p>
-      </div>
+      <!-- Node-specific help (if available) -->
+      <component :is="nodeHelp" v-if="nodeHelp" />
 
-      <!-- Ports -->
-      <div class="px-4 py-3 border-b border-terminal-border">
-        <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Ports</div>
-        <div class="flex gap-4">
-          <div class="flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-terminal-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-            <span class="text-[11px] text-terminal-text">{{ catalogEntry?.inputs ?? selectedNode.data?.inputs ?? 0 }} input{{ (catalogEntry?.inputs ?? selectedNode.data?.inputs ?? 0) !== 1 ? 's' : '' }}</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-terminal-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            </svg>
-            <span class="text-[11px] text-terminal-text">{{ catalogEntry?.outputs ?? selectedNode.data?.outputs ?? 0 }} output{{ (catalogEntry?.outputs ?? selectedNode.data?.outputs ?? 0) !== 1 ? 's' : '' }}</span>
+      <!-- Generic fallback -->
+      <template v-else>
+        <!-- Description -->
+        <div v-if="catalogEntry?.description" class="px-4 py-3 border-b border-terminal-border">
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Description</div>
+          <p class="text-[11px] text-terminal-text leading-relaxed m-0">
+            {{ catalogEntry.description }}
+          </p>
+        </div>
+
+        <!-- Ports -->
+        <div class="px-4 py-3 border-b border-terminal-border">
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Ports</div>
+          <div class="flex gap-4">
+            <div class="flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-terminal-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+              <span class="text-[11px] text-terminal-text">{{ catalogEntry?.inputs ?? selectedNode.data?.inputs ?? 0 }} input{{ (catalogEntry?.inputs ?? selectedNode.data?.inputs ?? 0) !== 1 ? 's' : '' }}</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-terminal-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+              <span class="text-[11px] text-terminal-text">{{ catalogEntry?.outputs ?? selectedNode.data?.outputs ?? 0 }} output{{ (catalogEntry?.outputs ?? selectedNode.data?.outputs ?? 0) !== 1 ? 's' : '' }}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Properties (defaults) -->
-      <div v-if="catalogEntry?.defaults && Object.keys(catalogEntry.defaults).length > 0" class="px-4 py-3">
-        <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Properties</div>
-        <div class="flex flex-col gap-1">
-          <div
-            v-for="(val, key) in catalogEntry.defaults"
-            :key="key"
-            class="flex items-start gap-2 py-0.5"
-          >
-            <span class="text-[11px] font-mono text-accent shrink-0">{{ key }}</span>
-            <span class="text-[11px] text-terminal-text-dim font-mono truncate">{{ JSON.stringify(val) }}</span>
+        <!-- Properties (defaults) -->
+        <div v-if="catalogEntry?.defaults && Object.keys(catalogEntry.defaults).length > 0" class="px-4 py-3">
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-terminal-text-dim mb-1.5">Properties</div>
+          <div class="flex flex-col gap-1">
+            <div
+              v-for="(val, key) in catalogEntry.defaults"
+              :key="key"
+              class="flex items-start gap-2 py-0.5"
+            >
+              <span class="text-[11px] font-mono text-accent shrink-0">{{ key }}</span>
+              <span class="text-[11px] text-terminal-text-dim font-mono truncate">{{ JSON.stringify(val) }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>

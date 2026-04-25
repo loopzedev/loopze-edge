@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
-import FormLabel from '@/components/ui/FormLabel.vue'
-import FormInput from '@/components/ui/FormInput.vue'
-import SectionHeader from '@/components/ui/SectionHeader.vue'
+import FormField from '@/components/ui/FormField.vue'
 
 const flowStore = useFlowStore()
 
@@ -18,24 +16,21 @@ function update(key: string, value: unknown) {
   })
 }
 
-// Which type of nodes to show in the table?
 const targetType = computed(() => {
   if (nodeType.value === 'link-in') return 'link-out'
-  return 'link-in' // link-out and link-call both show link-in nodes
+  return 'link-in'
 })
 
 const singleSelect = computed(() => nodeType.value === 'link-call')
 
-const tableLabel = computed(() => {
-  return targetType.value === 'link-in' ? 'Link Inputs' : 'Link Outputs'
-})
+const tableLabel = computed(() =>
+  targetType.value === 'link-in' ? 'Link Inputs' : 'Link Outputs',
+)
 
-// Collect all matching nodes from all flows
 const availableNodes = computed(() => {
   const results: Array<{ nodeId: string; nodeName: string; flowLabel: string }> = []
   for (const flow of flowStore.flows) {
     if (flow.id === flowStore.activeFlowId) {
-      // Active flow: read from canvas nodes (includes undeployed nodes)
       for (const vfNode of flowStore.nodes) {
         const type = vfNode.data?.nodeType ?? vfNode.type
         if (type === targetType.value) {
@@ -47,7 +42,6 @@ const availableNodes = computed(() => {
         }
       }
     } else {
-      // Other flows: read from persisted flow data
       for (const flintNode of flow.nodes) {
         if (flintNode.type === targetType.value) {
           results.push({
@@ -62,14 +56,13 @@ const availableNodes = computed(() => {
   return results
 })
 
-// Current selection
 const selectedLinks = computed<string[]>(() => {
   if (singleSelect.value) {
     const target = config.value.linkTarget as string
     return target ? [target] : []
   }
   const links = config.value.links
-  return Array.isArray(links) ? links as string[] : []
+  return Array.isArray(links) ? (links as string[]) : []
 })
 
 function isSelected(nodeId: string): boolean {
@@ -82,18 +75,14 @@ function toggleLink(targetNodeId: string) {
   if (!ownNodeId) return
 
   if (singleSelect.value) {
-    // Radio: select or deselect
     update('linkTarget', currentlySelected ? '' : targetNodeId)
   } else {
-    // Checkbox: toggle in links array
     const current = [...selectedLinks.value]
     if (currentlySelected) {
       update('links', current.filter((id) => id !== targetNodeId))
     } else {
       update('links', [...current, targetNodeId])
     }
-
-    // Bidirectional mirroring (only for link-in <-> link-out)
     mirrorLinkConfig(targetNodeId, !currentlySelected, ownNodeId)
   }
 }
@@ -118,7 +107,6 @@ function mirrorLinkConfig(targetNodeId: string, selected: boolean, ownNodeId: st
     targetFlowNode.config = { ...targetConfig, links: targetLinks }
     flowStore.markNodeDirty(targetNodeId)
 
-    // If the target node is on the active canvas, also update the Vue Flow node
     const canvasNode = flowStore.nodes.find((n) => n.id === targetNodeId)
     if (canvasNode) {
       flowStore.updateNodeData(targetNodeId, {
@@ -131,54 +119,42 @@ function mirrorLinkConfig(targetNodeId: string, selected: boolean, ownNodeId: st
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <div class="flex flex-col gap-1">
-      <FormLabel>Name</FormLabel>
-      <FormInput
-        :model-value="(node?.data?.label as string) ?? ''"
-        placeholder="Node name"
-        @update:model-value="flowStore.updateNodeData(node!.id, { label: $event })"
-      />
+  <FormField :label="`${tableLabel} · ${selectedLinks.length} selected`">
+    <div v-if="availableNodes.length === 0" class="text-[10px] text-terminal-text-dim italic">
+      No {{ targetType }} nodes available
     </div>
 
-    <SectionHeader :title="tableLabel">
-      <div v-if="availableNodes.length === 0" class="text-[10px] text-terminal-text-dim italic">
-        Keine {{ targetType }} Nodes vorhanden
+    <div v-else class="border border-terminal-border bg-terminal-bg">
+      <div class="flex text-[10px] text-terminal-text-dim uppercase tracking-wider border-b border-terminal-border bg-terminal-surface-alt/30">
+        <div class="w-8 px-2 py-1 flex-shrink-0"></div>
+        <div class="flex-1 px-2 py-1">Flow</div>
+        <div class="flex-1 px-2 py-1">Node</div>
       </div>
-
-      <div v-else class="border border-terminal-border">
-        <!-- Header -->
-        <div class="flex text-[10px] text-terminal-text-dim uppercase tracking-wider border-b border-terminal-border">
-          <div class="w-8 px-2 py-1 flex-shrink-0"></div>
-          <div class="flex-1 px-2 py-1">Flow</div>
-          <div class="flex-1 px-2 py-1">Node</div>
+      <div
+        v-for="item in availableNodes"
+        :key="item.nodeId"
+        class="flex items-center text-[10px] border-b border-terminal-border last:border-b-0 hover:bg-terminal-surface-alt/40 cursor-pointer transition-colors duration-100"
+        :class="isSelected(item.nodeId) ? 'bg-accent/5' : ''"
+        @click="toggleLink(item.nodeId)"
+      >
+        <div class="w-8 px-2 py-1.5 flex-shrink-0 flex items-center justify-center">
+          <input
+            v-if="singleSelect"
+            type="radio"
+            :name="'link-target-' + node?.id"
+            :checked="isSelected(item.nodeId)"
+            class="accent-accent pointer-events-none"
+          />
+          <input
+            v-else
+            type="checkbox"
+            :checked="isSelected(item.nodeId)"
+            class="accent-accent pointer-events-none"
+          />
         </div>
-        <!-- Rows -->
-        <div
-          v-for="item in availableNodes"
-          :key="item.nodeId"
-          class="flex items-center text-[10px] border-b border-terminal-border last:border-b-0 hover:bg-terminal-bg/50 cursor-pointer transition-colors duration-100"
-          @click="toggleLink(item.nodeId)"
-        >
-          <div class="w-8 px-2 py-1.5 flex-shrink-0 flex items-center justify-center">
-            <input
-              v-if="singleSelect"
-              type="radio"
-              :name="'link-target-' + node?.id"
-              :checked="isSelected(item.nodeId)"
-              class="accent-accent pointer-events-none"
-            />
-            <input
-              v-else
-              type="checkbox"
-              :checked="isSelected(item.nodeId)"
-              class="accent-accent pointer-events-none"
-            />
-          </div>
-          <div class="flex-1 px-2 py-1.5 text-terminal-text-dim truncate">{{ item.flowLabel }}</div>
-          <div class="flex-1 px-2 py-1.5 text-terminal-text truncate">{{ item.nodeName }}</div>
-        </div>
+        <div class="flex-1 px-2 py-1.5 text-terminal-text-dim truncate">{{ item.flowLabel }}</div>
+        <div class="flex-1 px-2 py-1.5 text-terminal-text truncate">{{ item.nodeName }}</div>
       </div>
-    </SectionHeader>
-  </div>
+    </div>
+  </FormField>
 </template>

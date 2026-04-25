@@ -12,6 +12,21 @@ export interface ApiError {
   details?: unknown
 }
 
+export type ContextScope = 'global' | 'flow'
+export type ContextStorage = 'memory' | 'persistent'
+
+export interface ContextEntry {
+  key: string
+  value: unknown
+}
+
+export interface ContextStoreResponse {
+  scope: ContextScope
+  storage: ContextStorage
+  flowId: string
+  entries: ContextEntry[]
+}
+
 const BASE_URL = '/api/v1'
 
 async function request<T>(
@@ -161,6 +176,54 @@ export function useApi() {
     })
   }
 
+  // ── Context store endpoints ──────────────────────────────────────────────
+
+  function ctxBasePath(scope: ContextScope, storage: ContextStorage, flowId?: string | null): string {
+    if (scope === 'flow') {
+      if (!flowId) throw new Error('flowId required for flow-scoped context')
+      return `/context/flow/${encodeURIComponent(flowId)}/${storage}`
+    }
+    return `/context/global/${storage}`
+  }
+
+  async function getContext(
+    scope: ContextScope,
+    storage: ContextStorage,
+    flowId?: string | null,
+  ): Promise<ContextStoreResponse> {
+    return request<ContextStoreResponse>(ctxBasePath(scope, storage, flowId))
+  }
+
+  async function getContextKey(
+    scope: ContextScope,
+    storage: ContextStorage,
+    key: string,
+    flowId?: string | null,
+  ): Promise<ContextEntry> {
+    return request<ContextEntry>(`${ctxBasePath(scope, storage, flowId)}/${encodeURIComponent(key)}`)
+  }
+
+  async function deleteContextKey(
+    scope: ContextScope,
+    storage: ContextStorage,
+    key: string,
+    flowId?: string | null,
+  ): Promise<void> {
+    return request<void>(`${ctxBasePath(scope, storage, flowId)}/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async function clearContext(
+    scope: ContextScope,
+    storage: ContextStorage,
+    flowId?: string | null,
+  ): Promise<{ deleted: number }> {
+    return request<{ deleted: number }>(ctxBasePath(scope, storage, flowId), {
+      method: 'DELETE',
+    })
+  }
+
   /**
    * Check if an error is an ApiError.
    */
@@ -185,6 +248,10 @@ export function useApi() {
     updateSettings,
     getNodeStatuses,
     triggerInject,
+    getContext,
+    getContextKey,
+    deleteContextKey,
+    clearContext,
     isApiError,
   }
 }

@@ -6,12 +6,14 @@ import PanelHeader from '@/components/ui/PanelHeader.vue'
 import DebugPanel from '@/components/DebugPanel.vue'
 import HelpPanel from '@/components/HelpPanel.vue'
 import ConfigPanel from '@/components/ConfigPanel.vue'
+import ContextPanel from '@/components/ContextPanel.vue'
 
 const ui = useUiStore()
 
 const tabs: { id: InfoTab; label: string }[] = [
   { id: 'help', label: 'Help' },
   { id: 'config', label: 'Config' },
+  { id: 'context', label: 'Context' },
   { id: 'debug', label: 'Debug' },
 ]
 
@@ -81,6 +83,7 @@ function onResizeEnd() {
     <div class="flex-1 overflow-hidden">
       <HelpPanel v-if="ui.activeInfoTab === 'help'" />
       <ConfigPanel v-else-if="ui.activeInfoTab === 'config'" />
+      <ContextPanel v-else-if="ui.activeInfoTab === 'context'" />
       <DebugPanel v-else />
     </div>
   </div>

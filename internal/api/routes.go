@@ -36,4 +36,16 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 
 	// Debug message stream endpoint.
 	r.Get("/debug/messages", deps.handleGetDebugMessages)
+
+	// Context store endpoints (view + delete keys in NATS KV context buckets).
+	r.Route("/context", func(r chi.Router) {
+		r.Get("/global/{storage}", deps.handleGetContextStore)
+		r.Get("/global/{storage}/{key}", deps.handleGetContextKey)
+		r.Delete("/global/{storage}", deps.handleClearContextStore)
+		r.Delete("/global/{storage}/{key}", deps.handleDeleteContextKey)
+		r.Get("/flow/{flowID}/{storage}", deps.handleGetContextStore)
+		r.Get("/flow/{flowID}/{storage}/{key}", deps.handleGetContextKey)
+		r.Delete("/flow/{flowID}/{storage}", deps.handleClearContextStore)
+		r.Delete("/flow/{flowID}/{storage}/{key}", deps.handleDeleteContextKey)
+	})
 }

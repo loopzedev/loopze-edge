@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type InfoTab = 'help' | 'config' | 'debug'
+export type InfoTab = 'help' | 'config' | 'context' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
 export type PropertiesContext =
@@ -19,6 +19,9 @@ export const useUiStore = defineStore('ui', () => {
   const infoPanelOpen = ref<boolean>(true)
   const infoPanelWidth = ref<number>(320)
   const activeInfoTab = ref<InfoTab>('debug')
+  const contextAutoRefresh = ref<boolean>(
+    localStorage.getItem('flint-context-auto-refresh') === 'true',
+  )
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   const propertiesContext = ref<PropertiesContext>(null)
@@ -93,6 +96,11 @@ export const useUiStore = defineStore('ui', () => {
     activeInfoTab.value = tab
   }
 
+  function setContextAutoRefresh(v: boolean) {
+    contextAutoRefresh.value = v
+    localStorage.setItem('flint-context-auto-refresh', v ? 'true' : 'false')
+  }
+
   function setConnectionStatus(status: ConnectionStatus) {
     connectionStatus.value = status
   }
@@ -120,6 +128,7 @@ export const useUiStore = defineStore('ui', () => {
     infoPanelOpen,
     infoPanelWidth,
     activeInfoTab,
+    contextAutoRefresh,
     connectionStatus,
     deployStatus,
 
@@ -142,6 +151,7 @@ export const useUiStore = defineStore('ui', () => {
     openInfoPanel,
     closeInfoPanel,
     setInfoTab,
+    setContextAutoRefresh,
     setConnectionStatus,
     setDeployStatus,
   }

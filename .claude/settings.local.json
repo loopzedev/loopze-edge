@@ -23,7 +23,8 @@
       "WebFetch(domain:dashboardicons.com)",
       "Bash(curl -s https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mqtt.svg)",
       "Bash(go vet *)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -E \"\\\\.\\(go\\)$\")"
     ]
   }
 }

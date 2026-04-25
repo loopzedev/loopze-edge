@@ -63,7 +63,6 @@ const flowStore = useFlowStore();
 
 const t = computed(() => getTokens(props.nodeType));
 const typeLabel = computed(() => {
-    // Map node type to a readable display name
     const labels: Record<string, string> = {
         inject: "Inject",
         debug: "Debug",
@@ -129,186 +128,163 @@ const outputHandles = computed(() =>
 </script>
 
 <template>
-  <div class="flex items-stretch">
-    <!-- Action button (optional, displayed left of the node) -->
-    <button
-      v-if="props.actionButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-l-[8px] transition-all duration-100 nopan nodrag"
-      :style="{
-        background: actionActive ? t.accent + '22' : t.bgIcon,
-        border: `1px solid ${actionActive ? t.accent : t.border}`,
-        borderRight: 'none',
-      }"
-      :title="props.actionButton.title ?? props.actionButton.label"
-      @click.stop="handleAction"
-      @dblclick.stop
-      @mousedown.stop
-      @pointerdown.stop
-    >
-      <span
-        class="text-[9px] font-bold tracking-widest transition-colors"
-        :style="{ color: actionActive ? t.accent : t.textSub }"
-        style="writing-mode: vertical-lr; text-orientation: mixed"
-      >{{ props.actionButton.label }}</span>
-    </button>
-
-    <div
-        class="flint-node min-w-[196px] w-max relative select-none flex"
-        :class="{ selected: props.selected, 'opacity-40': props.disabled }"
+  <div
+    class="flex flex-col items-start gap-1.5"
+    :class="{ 'opacity-40': props.disabled }"
+  >
+    <!-- Row: action button + main node + toggle button -->
+    <div class="flex items-stretch">
+      <!-- Action button (optional, displayed left of the node) -->
+      <button
+        v-if="props.actionButton"
+        class="shrink-0 w-9 flex items-center justify-center transition-all duration-100 nopan nodrag"
         :style="{
-            border: `1px solid ${props.selected ? t.accent : t.border}`,
-            borderLeft: `3px solid ${t.accent}`,
-            boxShadow: props.selected
-                ? `0 0 0 1px ${t.accentBdr}, 0 4px 20px ${t.accentGlow}`
-                : 'none',
-            outline: isDebugHovered ? `1px dashed ${t.accent}` : undefined,
-            outlineOffset: isDebugHovered ? '-1px' : undefined,
-            minHeight: nodeMinHeight,
+          background: actionActive ? t.accent + '22' : '#161b22',
+          border: `1px solid ${actionActive ? t.accent : t.border}`,
+          borderRight: 'none',
+          borderRadius: '6px 0 0 6px',
         }"
-    >
+        :title="props.actionButton.title ?? props.actionButton.label"
+        @click.stop="handleAction"
+        @dblclick.stop
+        @mousedown.stop
+        @pointerdown.stop
+      >
+        <span
+          class="text-[9px] font-bold tracking-widest transition-colors"
+          :style="{ color: actionActive ? t.accent : t.textSub }"
+          style="writing-mode: vertical-lr; text-orientation: mixed"
+        >{{ props.actionButton.label }}</span>
+      </button>
+
+      <!-- Main node body -->
+      <div
+        class="flint-node relative flex flex-col rounded-md min-w-[210px] select-none"
+        :class="{ selected: props.selected }"
+        :style="{
+          background: '#161b22',
+          minHeight: nodeMinHeight,
+          border: `1px solid ${props.selected ? t.accent : t.border}`,
+          boxShadow: props.selected ? `0 0 0 1px ${t.accent}, 0 4px 20px ${t.accentGlow}` : 'none',
+          outline: isDebugHovered ? `1px dashed ${t.accent}` : undefined,
+          outlineOffset: isDebugHovered ? '-1px' : undefined,
+        }"
+      >
         <!-- Input Handles -->
         <Handle
-            v-for="h in inputHandles"
-            :key="h.id"
-            :id="h.id"
-            type="target"
-            :position="Position.Left"
-            :style="h.style"
-            class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
-            :class="
-                selected
-                    ? '!border-accent !bg-accent/20'
-                    : '!border-terminal-text-dim !bg-terminal-surface'
-            "
+          v-for="h in inputHandles"
+          :key="h.id"
+          :id="h.id"
+          type="target"
+          :position="Position.Left"
+          :style="{
+            ...h.style,
+            borderColor: selected ? t.accent : '#7d8590',
+            background: selected ? t.accent + '33' : '#161b22',
+          }"
+          class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
         />
 
         <!-- Output Handles -->
         <Handle
-            v-for="h in outputHandles"
-            :key="h.id"
-            :id="h.id"
-            type="source"
-            :position="Position.Right"
-            :style="h.style"
-            class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
-            :class="
-                selected
-                    ? '!border-accent !bg-accent/20'
-                    : '!border-terminal-text-dim !bg-terminal-surface'
-            "
+          v-for="h in outputHandles"
+          :key="h.id"
+          :id="h.id"
+          type="source"
+          :position="Position.Right"
+          :style="{
+            ...h.style,
+            borderColor: selected ? t.accent : '#7d8590',
+            background: selected ? t.accent + '33' : '#161b22',
+          }"
+          class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
         />
 
-        <!-- Left icon column -->
+        <!-- Header: icon + typeLabel + badge + dirty -->
+        <div class="flex items-center gap-2 px-3 pt-2.5">
+          <slot name="icon">
+            <span :style="{ color: t.accent }"><NodeIcon :type="props.nodeType" /></span>
+          </slot>
+          <span
+            class="text-[11px] font-semibold tracking-wide truncate flex-1"
+            :style="{ color: t.accent }"
+          >
+            {{ typeLabel }}
+          </span>
+          <slot name="badge" />
+          <span
+            v-if="isDirty"
+            class="w-2 h-2 shrink-0 rounded-full"
+            style="background: #58a6ff; box-shadow: 0 0 4px #58a6ff80"
+            title="Undeployed changes"
+          />
+        </div>
+
+        <!-- Body: custom label takes priority, otherwise slot content -->
         <div
-            class="w-10 shrink-0 flex items-center justify-center"
-            :style="{ background: t.bgIcon, color: t.accent }"
+          v-if="hasCustomLabel || $slots.body"
+          class="px-3 py-1 text-[10px] font-mono"
+          style="color: #b1bac2"
         >
-            <slot name="icon"><NodeIcon :type="props.nodeType" /></slot>
+          <span v-if="hasCustomLabel">{{ props.label }}</span>
+          <slot v-else name="body" />
         </div>
 
-        <!-- Right content area -->
-        <div class="flex-1 min-w-0 flex flex-col">
-            <!-- Header -->
-            <div
-                class="flex items-center gap-1.5 px-2 py-1"
-                :style="{
-                    background: t.bgHdr,
-                    borderBottom: `1px solid ${t.border}`,
-                }"
-            >
-                <span
-                    class="text-[11px] font-medium tracking-wide truncate flex-1"
-                    :style="{ color: t.accent }"
-                >
-                    {{ typeLabel }}
-                </span>
-                <slot name="badge" />
-                <span
-                    v-if="isDirty"
-                    class="w-2 h-2 shrink-0 rounded-full -mt-2"
-                    style="background: #58a6ff; box-shadow: 0 0 4px #58a6ff80"
-                    title="Undeployed changes"
-                />
-            </div>
-
-            <!-- Body: custom label takes priority, otherwise slot content -->
-            <div
-                v-if="hasCustomLabel || $slots.body"
-                class="px-2 py-0.5 text-[10px] font-mono flex-1 flex items-center"
-                :style="{ background: t.bg, color: t.textSub }"
-            >
-                <span v-if="hasCustomLabel">{{ props.label }}</span>
-                <slot v-else name="body" />
-            </div>
-
-            <!-- Actions (optional) -->
-            <div
-                v-if="$slots.actions"
-                :style="{
-                    background: t.bg,
-                    borderTop: `1px solid ${t.border}`,
-                }"
-            >
-                <slot name="actions" />
-            </div>
-
-            <!-- Status bar -->
-            <div
-                v-if="props.status"
-                class="flex items-center gap-1.5 px-2 py-1 text-[10px]"
-                :style="{
-                    background: t.bg,
-                    borderTop: `1px solid ${t.border}`,
-                    color: t.textSub,
-                }"
-            >
-                <span
-                    class="w-1.5 h-1.5 shrink-0 rounded-full"
-                    :style="{ background: statusColor }"
-                />
-                <span class="truncate">{{ props.status.text ?? "" }}</span>
-            </div>
+        <!-- Actions (optional) -->
+        <div v-if="$slots.actions" class="px-3 pb-1">
+          <slot name="actions" />
         </div>
 
-        <!-- Disabled overlay -->
-        <div
-            v-if="props.disabled"
-            class="absolute inset-0 bg-terminal-bg/60 flex items-center justify-center"
-        >
-            <span
-                class="text-[9px] text-terminal-text-dim uppercase tracking-widest"
-                >disabled</span
-            >
-        </div>
+        <!-- Bottom accent line — pinned to the bottom even when min-height kicks in -->
+        <div class="h-[2px] rounded-b-md mt-auto" :style="{ background: t.accent }" />
+      </div>
+
+      <!-- Toggle button (optional, displayed right of the node) -->
+      <button
+        v-if="props.toggleButton"
+        class="shrink-0 w-9 flex items-center justify-center transition-all duration-100 nopan nodrag"
+        :style="{
+          background: props.toggleState ? t.accent + '22' : '#161b22',
+          border: `1px solid ${props.toggleState ? t.accent : t.border}`,
+          borderLeft: 'none',
+          borderRadius: '0 6px 6px 0',
+        }"
+        :title="props.toggleState ? 'Enabled — click to disable' : 'Disabled — click to enable'"
+        @click.stop="handleToggle"
+        @dblclick.stop
+        @mousedown.stop
+        @pointerdown.stop
+      >
+        <span
+          class="text-[9px] font-bold tracking-widest transition-colors"
+          :style="{ color: props.toggleState ? t.accent : t.textSub }"
+          style="writing-mode: vertical-lr; text-orientation: mixed"
+        >{{ props.toggleState ? 'ON' : 'OFF' }}</span>
+      </button>
     </div>
 
-    <!-- Toggle button (optional, displayed right of the node) -->
-    <button
-      v-if="props.toggleButton"
-      class="shrink-0 w-10 flex flex-col items-center justify-center rounded-r-[8px] transition-all duration-100 nopan nodrag"
+    <!-- Status pill — lives outside the node body -->
+    <div
+      v-if="props.status"
+      class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ml-2"
       :style="{
-        background: props.toggleState ? t.accent + '22' : t.bg,
-        border: `1px solid ${props.toggleState ? t.accent : t.border}`,
-        borderLeft: 'none',
+        background: statusColor + '22',
+        color: statusColor,
+        border: `1px solid ${statusColor}55`,
+        whiteSpace: 'nowrap',
       }"
-      :title="props.toggleState ? 'Enabled — click to disable' : 'Disabled — click to enable'"
-      @click.stop="handleToggle"
-      @dblclick.stop
-      @mousedown.stop
-      @pointerdown.stop
     >
       <span
-        class="text-[9px] font-bold tracking-widest transition-colors"
-        :style="{ color: props.toggleState ? t.accent : t.textSub }"
-        style="writing-mode: vertical-lr; text-orientation: mixed"
-      >{{ props.toggleState ? 'ON' : 'OFF' }}</span>
-    </button>
+        class="w-1.5 h-1.5 rounded-full"
+        :style="{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }"
+      />
+      <span>{{ props.status.text ?? "" }}</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .flint-node {
     transition: box-shadow 0.15s;
-    border-radius: 0px;
 }
 </style>

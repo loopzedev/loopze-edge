@@ -1,8 +1,30 @@
 <script setup lang="ts">
 defineProps<{ type: string }>()
 
-// Each icon is a set of SVG path commands for a 24x24 viewBox.
-// Using stroke-based line art for consistency.
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand icons — full SVG definitions with their own viewBox, rendered filled
+// in currentColor. Use these for technology logos that don't fit the
+// stroke-based line-art style.
+// ─────────────────────────────────────────────────────────────────────────────
+interface BrandIcon {
+  viewBox: string
+  d: string
+}
+
+// MQTT — official mqtt.org logo (Bjorn Lammers / dashboard-icons).
+const MQTT_LOGO: BrandIcon = {
+  viewBox: '0 0 512 512',
+  d: 'M1.5 290.2H0V486c0 14.1 11.6 25.7 25.7 25.7h201.6C225.6 389.4 125.2 290.2 1.5 290.2m0-161.5H0V212c166.3.8 301.5 134.5 303.3 299.8h86.3C388.1 300.3 214.7 128.7 1.5 128.7M512 486.3V309.4C453.5 166 335.6 52.7 189 0H25.7C11.6 0 0 11.6 0 25.7v25c255.9.8 464.1 206.9 465.6 461.3h20.7c14.3-.3 25.7-11.6 25.7-25.7M444.6 71.4c23.7 23.7 47.9 53.7 67.4 80.2V25.5c0-14-11.3-25.4-25.3-25.5H356.5c30.3 20.9 61.6 44.9 88.1 71.4',
+}
+
+const brandIcons: Record<string, BrandIcon> = {
+  'mqtt-in':  MQTT_LOGO,
+  'mqtt-out': MQTT_LOGO,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Line-art icons — stroke-based path commands for a 24x24 viewBox.
+// ─────────────────────────────────────────────────────────────────────────────
 const icons: Record<string, string[]> = {
   // ── Core ──────────────────────────────────
   inject:        ['M6 4l12 8-12 8V4z'],                                               // play triangle
@@ -20,10 +42,6 @@ const icons: Record<string, string[]> = {
   'http-in':     ['M3 12h12', 'M11 8l4 4-4 4', 'M19 4v16'],                           // arrow into wall
   'http-response':['M21 12H9', 'M13 8l-4 4 4 4', 'M5 4v16'],                          // arrow from wall
   'http-request':['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20', 'M12 2a15 15 0 0 0 0 20'], // globe
-
-  // ── Messaging ─────────────────────────────
-  'mqtt-in':     ['M4 4h16', 'M12 4v16', 'M8 14l4 4 4-4'],                            // down into line
-  'mqtt-out':    ['M4 20h16', 'M12 20V4', 'M8 10l4-4 4 4'],                           // up from line
 
   // ── Transport ─────────────────────────────
   'tcp-in':      ['M5 4v16', 'M5 12h10a4 4 0 0 0 0-8H9', 'M11 8l-4 4 4 4'],          // plug in
@@ -62,7 +80,20 @@ const icons: Record<string, string[]> = {
 </script>
 
 <template>
+  <!-- Brand logo: filled paths in currentColor with native viewBox -->
   <svg
+    v-if="brandIcons[type]"
+    xmlns="http://www.w3.org/2000/svg"
+    :viewBox="brandIcons[type].viewBox"
+    fill="currentColor"
+    class="w-5 h-5"
+  >
+    <path :d="brandIcons[type].d" />
+  </svg>
+
+  <!-- Default line-art icon -->
+  <svg
+    v-else
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="none"

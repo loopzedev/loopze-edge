@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import BaseNode from '@/components/nodes/BaseNode.vue'
-import NodeIcon from '@/components/nodes/NodeIcon.vue'
 import { useFlowStore } from '@/stores/flowStore'
 
 defineOptions({ inheritAttrs: false })
@@ -51,8 +50,6 @@ function handleToggle(value: boolean) {
     :toggle-state="enabled"
     @toggle="handleToggle"
   >
-    <template #icon><NodeIcon type="debug" /></template>
-
     <template #badge>
       <span
         v-if="messageCount !== null"
@@ -63,7 +60,7 @@ function handleToggle(value: boolean) {
     </template>
 
     <template #body>
-      <span class="text-terminal-text-dim">{{ bodyText }}</span>
+      <span>{{ bodyText }}</span>
     </template>
   </BaseNode>
 </template>

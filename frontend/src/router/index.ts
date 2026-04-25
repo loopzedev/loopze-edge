@@ -12,6 +12,11 @@ const routes: RouteRecordRaw[] = [
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),
   },
+  {
+    path: '/design-preview',
+    name: 'DesignPreview',
+    component: () => import('@/views/DesignPreview.vue'),
+  },
 ]
 
 const router = createRouter({

@@ -69,12 +69,25 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a2010',
     textSub:    '#b8704a',
   },
+  // Tech-specific palette: MQTT brand magenta-purple from the mqtt.org logo,
+  // brightened so it reads on a dark surface.
+  mqtt: {
+    accent:     '#c026d3',
+    accentDim:  '#c026d312',
+    accentBdr:  '#c026d32a',
+    accentGlow: '#c026d312',
+    bg:         '#0c060e',
+    bgHdr:      '#1a0a1c',
+    bgIcon:     '#22122a',
+    border:     '#3a1a40',
+    textSub:    '#a85aaa',
+  },
 }
 
 // Map node type → category
 const TYPE_CATEGORY: Record<string, string> = {
   inject:          'input',
-  'mqtt-in':       'input',
+  'mqtt-in':       'mqtt',
   'http-in':       'input',
   'tcp-in':        'input',
   'udp-in':        'input',
@@ -102,7 +115,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   statemachine:    'process',
 
   debug:           'output',
-  'mqtt-out':      'output',
+  'mqtt-out':      'mqtt',
   'http-response': 'output',
   'http-request':  'output',
   'tcp-out':       'output',

@@ -376,15 +376,12 @@ func (e *Engine) deployModifiedNodes(flows []Flow, configs []ConfigNode) error {
 		restartSet[id] = true
 	}
 
-	// Stop and remove deleted nodes.
-	for _, nodeID := range diff.RemovedNodes {
-		e.stopAndRemoveNode(nodeID)
-	}
-
-	// Stop modified nodes (will be re-instantiated).
-	for _, nodeID := range diff.ModifiedNodes {
-		e.stopAndRemoveNode(nodeID)
-	}
+	// Stop and remove deleted + modified nodes in one bulk pass so the routing
+	// rewire happens once and the stop ordering is correct.
+	toStop := make([]string, 0, len(diff.RemovedNodes)+len(diff.ModifiedNodes))
+	toStop = append(toStop, diff.RemovedNodes...)
+	toStop = append(toStop, diff.ModifiedNodes...)
+	e.stopAndRemoveNodes(toStop)
 
 	// Instantiate added and modified nodes.
 	newNodeIndex := make(map[string]struct{ node Node; flowID string })
@@ -587,28 +584,73 @@ func (e *Engine) startAllNodeLoops() {
 	}
 }
 
-// stopAndRemoveNode stops a single node's goroutine and instance, then removes
-// it from all engine maps.
+// stopAndRemoveNode stops a single node and removes it from all engine maps.
+// Convenience wrapper around stopAndRemoveNodes for the single-node case.
 func (e *Engine) stopAndRemoveNode(nodeID string) {
-	rn, ok := e.nodes[nodeID]
-	if !ok {
+	e.stopAndRemoveNodes([]string{nodeID})
+}
+
+// stopAndRemoveNodes stops a batch of nodes safely, even when other nodes are
+// still running and might be sending to them.
+//
+// Order matters to avoid "send on closed channel" panics: we first detach the
+// targets from the routing maps and re-wire the remaining nodes so nothing
+// resolves to these nodes anymore. Only then do we stop the source goroutines
+// (Inject tickers, MQTT subscribers, …) and finally close the input channels.
+func (e *Engine) stopAndRemoveNodes(nodeIDs []string) {
+	if len(nodeIDs) == 0 {
 		return
 	}
 
-	// Signal goroutine to exit and wait.
-	close(rn.stopCh)
-	<-rn.done
-
-	if err := rn.instance.Stop(); err != nil {
-		slog.Error("error stopping node",
-			"node_id", nodeID, "type", rn.config.Type, "error", err)
+	// Snapshot the running nodes that actually exist.
+	rns := make([]*runningNode, 0, len(nodeIDs))
+	for _, id := range nodeIDs {
+		if rn, ok := e.nodes[id]; ok {
+			rns = append(rns, rn)
+		}
 	}
-	close(rn.inputCh)
+	if len(rns) == 0 {
+		return
+	}
 
-	delete(e.nodes, nodeID)
-	delete(e.wires, nodeID)
-	delete(e.linkRegistry, nodeID)
-	e.statusCache.Delete(nodeID)
+	// Step 1: detach from routing maps so wireAllNodes won't pick them up
+	// as targets anymore.
+	for _, id := range nodeIDs {
+		delete(e.nodes, id)
+		delete(e.wires, id)
+		delete(e.linkRegistry, id)
+	}
+
+	// Step 2: rewire the remaining nodes so their cached SendFuncs forget
+	// the removed targets. After this, no SendFunc resolves to a removed node.
+	e.wireAllNodes()
+
+	// Step 3: stop instances — terminates source goroutines (Inject tickers,
+	// MQTT subscribers, …) so nothing new is enqueued anywhere.
+	for _, rn := range rns {
+		if err := rn.instance.Stop(); err != nil {
+			slog.Error("error stopping node",
+				"node_id", rn.config.ID, "type", rn.config.Type, "error", err)
+		}
+	}
+
+	// Step 4: stop the per-node consumer goroutines.
+	for _, rn := range rns {
+		close(rn.stopCh)
+	}
+	for _, rn := range rns {
+		<-rn.done
+	}
+
+	// Step 5: close input channels — safe now, no sender remains.
+	for _, rn := range rns {
+		close(rn.inputCh)
+	}
+
+	// Cleanup status cache.
+	for _, id := range nodeIDs {
+		e.statusCache.Delete(id)
+	}
 }
 
 // stopNodesInFlow stops and removes all nodes belonging to a specific flow.
@@ -619,13 +661,16 @@ func (e *Engine) stopNodesInFlow(flowID string) {
 			nodeIDs = append(nodeIDs, id)
 		}
 	}
-	for _, id := range nodeIDs {
-		e.stopAndRemoveNode(id)
-	}
+	e.stopAndRemoveNodes(nodeIDs)
 }
 
 // stopAllNodes stops all currently running node instances, waits for goroutines
 // to finish, and clears the active node state.
+//
+// Order matters to avoid "send on closed channel" panics: stop the instances
+// first (which terminates source goroutines like Inject tickers), then stop
+// the per-node consumer goroutines, and only after all senders are gone do we
+// close the input channels.
 func (e *Engine) stopAllNodes() {
 	if len(e.nodes) == 0 {
 		return
@@ -633,21 +678,26 @@ func (e *Engine) stopAllNodes() {
 
 	slog.Debug("stopping active nodes", "count", len(e.nodes))
 
-	// Signal all nodeLoop goroutines to exit.
-	for _, rn := range e.nodes {
-		close(rn.stopCh)
-	}
-	// Wait for all goroutines to finish.
-	for _, rn := range e.nodes {
-		<-rn.done
-	}
-
-	// Call Stop() on each node instance.
+	// Step 1: stop instances — terminates source goroutines (Inject tickers,
+	// MQTT subscribers, …) so nothing new is enqueued anywhere.
 	for nodeID, rn := range e.nodes {
 		if err := rn.instance.Stop(); err != nil {
 			slog.Error("error stopping node",
 				"node_id", nodeID, "type", rn.config.Type, "error", err)
 		}
+	}
+
+	// Step 2: signal all nodeLoop consumer goroutines to exit.
+	for _, rn := range e.nodes {
+		close(rn.stopCh)
+	}
+	// Step 3: wait for all consumer goroutines to finish.
+	for _, rn := range e.nodes {
+		<-rn.done
+	}
+
+	// Step 4: close all input channels — safe now, no sender remains.
+	for _, rn := range e.nodes {
 		close(rn.inputCh)
 	}
 

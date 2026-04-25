@@ -96,8 +96,8 @@ Messages vom Node bis ins Frontend durchschleusen.
 
 ### 2.1 Processing Nodes
 
-- [ ] **Function Node** – JavaScript via Goja ausführen, `msg` rein → `msg` raus
-- [ ] **Change Node** – `msg`-Properties setzen, ändern, löschen, verschieben (Rules-basiert)
+- [x] **Function Node** – JavaScript via Goja ausführen, `msg` rein → `msg` raus
+- [x] **Change Node** – `msg`-Properties setzen, ändern, löschen, verschieben (Rules-basiert)
 - [ ] **Switch Node** – Messages anhand von Regeln auf verschiedene Outputs routen
 - [ ] **Template Node** – Go `text/template` für String-Rendering mit `msg`-Daten
 - [ ] **Delay Node** – Messages verzögern oder Rate-Limiten

@@ -248,31 +248,10 @@
   }
 
   /* ── Node Base ── */
+  /* Visual styling for .flint-node lives inline in BaseNode.vue so the
+     per-node accent token can drive border, glow, and selected state. */
   .flint-node {
-    @apply bg-terminal-surface border border-terminal-border
-           text-terminal-text text-xs
-           min-w-[140px] select-none;
+    @apply text-terminal-text text-xs select-none;
     font-family: 'Inter', system-ui, sans-serif;
-  }
-
-  .flint-node.selected {
-    border-color: #58a6ff;
-    box-shadow: 0 0 0 1px #58a6ff44, 0 0 20px #58a6ff18;
-  }
-
-  .flint-node-header {
-    @apply flex items-center gap-1.5 px-2 py-1.5
-           border-b border-terminal-border
-           text-xs font-semibold uppercase tracking-wide;
-  }
-
-  .flint-node-body {
-    @apply px-2 py-1.5 text-terminal-text-dim text-xs font-mono;
-  }
-
-  .flint-node-status {
-    @apply flex items-center gap-1.5 px-2 py-1
-           border-t border-terminal-border
-           text-terminal-text-dim text-[10px];
   }
 }

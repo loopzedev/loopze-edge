@@ -43,11 +43,11 @@ const targetInfo = computed(() => {
   >
     <template #body>
       <div v-if="targetInfo" class="flex items-center gap-1 truncate">
-        <span class="text-terminal-text-dim">{{ targetInfo.flowLabel }}</span>
-        <span class="text-terminal-text-dim">/</span>
+        <span>{{ targetInfo.flowLabel }}</span>
+        <span>/</span>
         <span class="text-terminal-text">{{ targetInfo.nodeName }}</span>
       </div>
-      <span v-else class="text-terminal-text-dim italic">nicht verknüpft</span>
+      <span v-else class="italic">nicht verknüpft</span>
     </template>
   </BaseNode>
 </template>

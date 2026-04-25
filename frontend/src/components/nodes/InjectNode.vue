@@ -47,8 +47,8 @@ function handleTrigger(): void {
     >
         <template #body>
             <div class="flex items-center justify-between gap-1">
-                <span class="uppercase tracking-wider text-terminal-text-dim">{{ intervalLabel }}</span>
-                <span class="text-terminal-text-dim truncate">{{ props.data?.config?.payloadType ?? "timestamp" }}</span>
+                <span class="uppercase tracking-wider">{{ intervalLabel }}</span>
+                <span class="truncate">{{ props.data?.config?.payloadType ?? "timestamp" }}</span>
             </div>
         </template>
     </BaseNode>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import BaseNode from '@/components/nodes/BaseNode.vue'
-import NodeIcon from '@/components/nodes/NodeIcon.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -39,10 +38,8 @@ function machineId(config: Record<string, unknown> | undefined): string {
     :status="(props.data.status as any)"
     :disabled="props.data.disabled"
   >
-    <template #icon><NodeIcon type="statemachine" /></template>
-
     <template #body>
-      <span class="truncate block text-terminal-text-dim">
+      <span class="truncate block">
         {{ machineId(props.data.config) || 'state machine' }}
       </span>
     </template>

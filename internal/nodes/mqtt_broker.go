@@ -24,10 +24,11 @@ type MqttBroker struct {
 
 	mu          sync.RWMutex
 	client      mqtt.Client
-	subscribers map[string]brokerSub     // topic → subscription info
-	statusFuncs []flow.StatusFunc        // broadcast status to all referencing nodes
-	currentFill string                   // current status fill color
-	currentText string                   // current status text
+	subscribers map[string]map[string]brokerSub // subscriberID → topic → subscription info
+	muxPatterns map[string]byte                 // patterns currently subscribed at the paho client → effective QoS
+	statusFuncs []flow.StatusFunc               // broadcast status to all referencing nodes
+	currentFill string                          // current status fill color
+	currentText string                          // current status text
 }
 
 // brokerSub holds a subscription registered by an mqtt-in node.
@@ -89,7 +90,8 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		id:          cfg.ID,
 		name:        cfg.Name,
 		opts:        opts,
-		subscribers: make(map[string]brokerSub),
+		subscribers: make(map[string]map[string]brokerSub),
+		muxPatterns: make(map[string]byte),
 		currentFill: "grey",
 		currentText: "disconnected",
 	}
@@ -159,22 +161,108 @@ func (b *MqttBroker) Status() (string, string) {
 	return b.currentFill, b.currentText
 }
 
-// Subscribe registers a topic subscription. If the client is connected,
-// the subscription is established immediately.
-func (b *MqttBroker) Subscribe(topic string, qos byte, handler mqtt.MessageHandler) error {
+// Subscribe registers a topic subscription on behalf of a subscriber (typically
+// the node ID). If the same pattern is already subscribed at the paho client by
+// another subscriber, no additional MQTT subscribe is issued — incoming messages
+// are dispatched to all registered handlers via an internal multiplex handler.
+//
+// If a new subscriber requests a higher QoS than the pattern is currently
+// subscribed with, the pattern is re-subscribed at the paho client with the
+// elevated QoS so all subscribers get at least their requested level.
+func (b *MqttBroker) Subscribe(subscriberID, topic string, qos byte, handler mqtt.MessageHandler) error {
 	b.mu.Lock()
-	b.subscribers[topic] = brokerSub{qos: qos, handler: handler}
+	if _, ok := b.subscribers[subscriberID]; !ok {
+		b.subscribers[subscriberID] = make(map[string]brokerSub)
+	}
+	b.subscribers[subscriberID][topic] = brokerSub{qos: qos, handler: handler}
+
+	currentQoS, hadPahoSub := b.muxPatterns[topic]
+	needPahoSub := !hadPahoSub || qos > currentQoS
+	effectiveQoS := qos
+	if hadPahoSub && currentQoS > effectiveQoS {
+		effectiveQoS = currentQoS
+	}
+	if needPahoSub {
+		b.muxPatterns[topic] = effectiveQoS
+	}
 	client := b.client
 	b.mu.Unlock()
 
-	if client != nil && client.IsConnected() {
-		token := client.Subscribe(topic, qos, handler)
+	if needPahoSub && client != nil && client.IsConnected() {
+		slog.Debug("mqtt-broker paho subscribe", "broker_id", b.id, "topic", topic, "qos", effectiveQoS)
+		token := client.Subscribe(topic, effectiveQoS, b.makeMuxHandler(topic))
 		token.WaitTimeout(5 * time.Second)
 		if token.Error() != nil {
+			// Roll back the registration so a retry can establish a fresh subscription.
+			b.mu.Lock()
+			delete(b.subscribers[subscriberID], topic)
+			if len(b.subscribers[subscriberID]) == 0 {
+				delete(b.subscribers, subscriberID)
+			}
+			if hadPahoSub {
+				b.muxPatterns[topic] = currentQoS
+			} else {
+				delete(b.muxPatterns, topic)
+			}
+			b.mu.Unlock()
 			return fmt.Errorf("mqtt-broker %s: subscribe to %q failed: %w", b.id, topic, token.Error())
 		}
 	}
 	return nil
+}
+
+// Unsubscribe removes a single topic subscription for a subscriber. If no other
+// subscriber holds the same pattern, it is unsubscribed at the paho client too.
+func (b *MqttBroker) Unsubscribe(subscriberID, topic string) error {
+	b.mu.Lock()
+	if topics, ok := b.subscribers[subscriberID]; ok {
+		delete(topics, topic)
+		if len(topics) == 0 {
+			delete(b.subscribers, subscriberID)
+		}
+	}
+	stillUsed := false
+	for _, topics := range b.subscribers {
+		if _, ok := topics[topic]; ok {
+			stillUsed = true
+			break
+		}
+	}
+	releasePahoSub := !stillUsed
+	if releasePahoSub {
+		delete(b.muxPatterns, topic)
+	}
+	client := b.client
+	b.mu.Unlock()
+
+	if releasePahoSub && client != nil && client.IsConnected() {
+		token := client.Unsubscribe(topic)
+		token.WaitTimeout(5 * time.Second)
+		if token.Error() != nil {
+			return fmt.Errorf("mqtt-broker %s: unsubscribe %q failed: %w", b.id, topic, token.Error())
+		}
+	}
+	return nil
+}
+
+// makeMuxHandler returns a paho handler that dispatches an incoming message to
+// every subscriber registered for the given pattern at the time of delivery.
+// Capturing the pattern in the closure decouples dispatch from the actual topic
+// of the received message (which can be a concrete match for a wildcard).
+func (b *MqttBroker) makeMuxHandler(pattern string) mqtt.MessageHandler {
+	return func(c mqtt.Client, m mqtt.Message) {
+		b.mu.RLock()
+		handlers := make([]mqtt.MessageHandler, 0, 4)
+		for _, topics := range b.subscribers {
+			if sub, ok := topics[pattern]; ok {
+				handlers = append(handlers, sub.handler)
+			}
+		}
+		b.mu.RUnlock()
+		for _, h := range handlers {
+			h(c, m)
+		}
+	}
 }
 
 // Publish sends a message to the broker.
@@ -208,9 +296,20 @@ func (b *MqttBroker) onConnect(client mqtt.Client) {
 	slog.Info("mqtt broker connected", "id", b.id, "name", b.name)
 	b.mu.Lock()
 	b.setStatus("green", "connected")
-	// Re-subscribe all topics after reconnect.
-	for topic, sub := range b.subscribers {
-		client.Subscribe(topic, sub.qos, sub.handler)
+	// Rebuild paho subscriptions: one per unique pattern across all subscribers.
+	// Use the highest QoS requested by any subscriber for that pattern.
+	patternQoS := make(map[string]byte)
+	for _, topics := range b.subscribers {
+		for topic, sub := range topics {
+			if q, ok := patternQoS[topic]; !ok || sub.qos > q {
+				patternQoS[topic] = sub.qos
+			}
+		}
+	}
+	b.muxPatterns = make(map[string]byte, len(patternQoS))
+	for pattern, qos := range patternQoS {
+		b.muxPatterns[pattern] = qos
+		client.Subscribe(pattern, qos, b.makeMuxHandler(pattern))
 	}
 	b.mu.Unlock()
 }

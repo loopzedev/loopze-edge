@@ -330,13 +330,17 @@ onMounted(async () => {
                     :label="nodeProps.data?.label"
                     node-type="mqtt-in"
                     :selected="nodeProps.selected"
-                    :inputs="0"
+                    :inputs="nodeProps.data?.inputs ?? 0"
                     :outputs="1"
                     :status="nodeProps.data?.status"
                     :disabled="nodeProps.data?.disabled"
                 >
                     <template #body>
-                        <span class="truncate">{{ nodeProps.data?.config?.topic || '' }}</span>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'dynamic'
+                                ? 'dynamic'
+                                : (nodeProps.data?.config?.topic || '')
+                        }}</span>
                     </template>
                 </BaseNode>
             </template>

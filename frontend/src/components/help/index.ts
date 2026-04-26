@@ -1,6 +1,9 @@
 import type { Component } from 'vue'
 import InjectHelp from './InjectHelp.vue'
 
+export { getNodeHelpDoc } from './docs'
+export type { NodeHelpDoc } from './types'
+
 export const nodeHelpComponents: Record<string, Component> = {
   inject: InjectHelp,
 }
@@ -90,8 +93,9 @@ const summaries: Record<string, NodeSummaryFn> = {
   },
 
   'mqtt-in'(cfg) {
-    const topic = (cfg.topic as string) || '—'
     const qos = Number(cfg.qos ?? 0)
+    if (cfg.mode === 'dynamic') return `Dynamic · QoS ${qos}`
+    const topic = (cfg.topic as string) || '—'
     return `Subscribed to ${topic} · QoS ${qos}`
   },
 

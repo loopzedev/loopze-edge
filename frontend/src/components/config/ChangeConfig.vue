@@ -102,13 +102,13 @@ const searchTypes = [
               :model-value="item.t"
               :options="operations"
               width="84px"
-              @update:model-value="updateRule(index, 't', $event)"
+              @update:model-value="updateRule(index, 't', String($event))"
             />
             <FormSelect
               :model-value="item.pt"
               :options="scopes"
               width="72px"
-              @update:model-value="updateRule(index, 'pt', $event)"
+              @update:model-value="updateRule(index, 'pt', String($event))"
             />
             <FormInput
               :model-value="item.p"
@@ -123,7 +123,7 @@ const searchTypes = [
               :model-value="item.ps"
               :options="STORAGE_TYPES"
               width="80px"
-              @update:model-value="updateRule(index, 'ps', $event)"
+              @update:model-value="updateRule(index, 'ps', String($event))"
             />
           </div>
           <div v-if="!item.p" class="text-[10px] text-status-error leading-tight">
@@ -151,7 +151,7 @@ const searchTypes = [
                 :model-value="item.fromt"
                 :options="searchTypes"
                 width="80px"
-                @update:model-value="updateRule(index, 'fromt', $event)"
+                @update:model-value="updateRule(index, 'fromt', String($event))"
               />
               <FormInput
                 :model-value="item.from"
@@ -165,7 +165,7 @@ const searchTypes = [
                 :model-value="item.froms"
                 :options="STORAGE_TYPES"
                 width="80px"
-                @update:model-value="updateRule(index, 'froms', $event)"
+                @update:model-value="updateRule(index, 'froms', String($event))"
               />
             </div>
             <div class="pl-3">
@@ -188,7 +188,7 @@ const searchTypes = [
               :model-value="item.tot"
               :options="scopes"
               width="80px"
-              @update:model-value="updateRule(index, 'tot', $event)"
+              @update:model-value="updateRule(index, 'tot', String($event))"
             />
             <FormInput
               :model-value="item.to"
@@ -202,7 +202,7 @@ const searchTypes = [
               :model-value="item.tos"
               :options="STORAGE_TYPES"
               width="80px"
-              @update:model-value="updateRule(index, 'tos', $event)"
+              @update:model-value="updateRule(index, 'tos', String($event))"
             />
           </div>
         </PropertyListItem>

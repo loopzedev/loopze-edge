@@ -106,13 +106,16 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 
 ### 2. MQTT Subscribe Node (`mqtt-in`)
 
-- **Canvas**: 0 Inputs, 1 Output (Source Node)
-- **Funktion**: Verbindet sich über den konfigurierten Broker mit einem MQTT-Topic und leitet empfangene Nachrichten als Flow-Messages weiter
-- **Konfiguration** (minimal für ersten Wurf):
+- **Canvas**:
+  - Static Mode: 0 Inputs, 1 Output (Source Node)
+  - Dynamic Mode: 1 Input, 1 Output — der Input dient nur der Steuerung (subscribe / clear), nicht der Datenweitergabe
+- **Funktion**: Verbindet sich über den konfigurierten Broker und leitet empfangene MQTT-Nachrichten als Flow-Messages weiter. Die Subscription kann entweder fest in der Config hinterlegt oder zur Laufzeit per Eingangs-Message gesteuert werden.
+- **Konfiguration**:
   - `broker` (string) — ID des referenzierten `mqtt-broker` Config Nodes
-  - `topic` (string) — MQTT Topic zum Abonnieren, z.B. "sensor/temperature"
+  - `mode` (string) — `static` (Default) oder `dynamic`
+  - `topic` (string) — MQTT Topic zum Abonnieren, z.B. `sensor/temperature` (nur im Static-Modus relevant)
   - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
-- **Ausgehende Message**:
+- **Ausgehende Message** (für jede empfangene MQTT-Nachricht):
   ```json
   {
     "topic": "sensor/temperature",
@@ -121,8 +124,30 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
     "retain": false
   }
   ```
+
+#### Static Mode (Default)
+
+- Beim Deploy / Start subscribed der Node das in `topic` konfigurierte Pattern.
+- Subscription bleibt für die gesamte Lebensdauer des Nodes bestehen.
+- Eingangs-Port ist nicht vorhanden.
+
+#### Dynamic Mode
+
+- Beim Deploy / Start hat der Node **keine** aktiven Subscriptions — er wartet auf Steuer-Messages.
+- Steuerung über `msg.action`:
+  - `msg.action = "subscribe"` → die in `msg.payload` angegebenen Topics werden subscribed:
+    - `msg.payload` als **string** → ein einzelnes Topic
+    - `msg.payload` als **string-array** → mehrere Topics
+  - **Bei jedem `subscribe` werden zuerst alle bestehenden Subscriptions des Nodes unsubscribed**, danach werden die neuen Topics subscribed. Es gibt also stets nur den jüngsten Stand.
+- Eingehende Steuer-Messages werden **nicht** am Output durchgereicht — der Output liefert ausschließlich empfangene MQTT-Nachrichten.
+- Topics, die im selben `subscribe`-Aufruf bereits aktiv sind, dürfen ohne Aussetzer weitergehen (Implementation: Diff `alt → neu`, nur Differenzen un-/subscriben — Optimierung, nicht zwingend für v1).
+- Ein leeres Array bzw. ein leerer String wirkt als „alle Subscriptions löschen“.
+- **QoS-Override per Message:** `msg.qos` (number, gültige Werte 0/1/2) überschreibt für diesen `subscribe`-Aufruf den in der Config hinterlegten QoS. Fehlt `msg.qos` oder liegt der Wert außerhalb 0–2, wird der konfigurierte Default verwendet. Der QoS gilt einheitlich für alle Topics, die mit der Steuer-Message subscribed werden.
+
 - **Status-Anzeige** (via `SetStatus`):
-  - Grün: "verbunden" — Broker-Verbindung steht, Subscription aktiv
+  - Grün: "verbunden" — Broker-Verbindung steht
+    - Static: Format `verbunden · <topic>`
+    - Dynamic: Format `verbunden · <n> Topic(s)` (oder "verbunden · idle" wenn keine aktiv)
   - Gelb: "verbinde..." — Verbindungsaufbau läuft
   - Rot: "getrennt" / Fehlermeldung — Verbindung fehlgeschlagen
 
@@ -139,7 +164,10 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  └────────────────────────────────┘ └───┘    │
 │  Edit broker config                           │
 │                                               │
-│  Topic                                        │
+│  Mode                                         │
+│  ( • ) Static    ( ) Dynamic (msg.action)     │
+│                                               │
+│  Topic                          (Static only) │
 │  ┌────────────────────────────────────────┐   │
 │  │ sensor/temperature                     │   │
 │  └────────────────────────────────────────┘   │
@@ -150,6 +178,14 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  └────────────────────────────────────────┘   │
 │                                               │
 └──────────────────────────────────────────────┘
+```
+
+Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selectors ein Hinweis-Block gezeigt:
+
+```
+ℹ Send msg.action = "subscribe" with msg.payload as
+   topic string or array of topics. Existing
+   subscriptions are replaced on each call.
 ```
 
 ### 3. MQTT Publish Node (`mqtt-out`)
@@ -244,7 +280,24 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
           "wires": [["node-debug-1"]],
           "config": {
             "broker": "broker-1",
+            "mode": "static",
             "topic": "sensor/temperature",
+            "qos": 0
+          }
+        },
+        {
+          "id": "node-mqtt-in-2",
+          "type": "mqtt-in",
+          "name": "Dynamische Subscription",
+          "x": 200,
+          "y": 250,
+          "z": "flow-1",
+          "inputs": 1,
+          "outputs": 1,
+          "wires": [["node-debug-1"]],
+          "config": {
+            "broker": "broker-1",
+            "mode": "dynamic",
             "qos": 0
           }
         },
@@ -388,6 +441,47 @@ func (n *MqttInNode) onMessage(client mqtt.Client, mqttMsg mqtt.Message) {
     n.send(0, msg)
 }
 ```
+
+### Dynamic Subscription (mqtt-in, Dynamic Mode)
+
+Im Dynamic-Modus implementiert der Node `OnInput`, hält die Liste der aktuell aktiven
+Topics intern und reagiert auf Steuer-Messages:
+
+```go
+type MqttInNode struct {
+    // … broker, qos, …
+    activeTopics []string // nur im Dynamic-Modus belegt
+    mu           sync.Mutex
+}
+
+func (n *MqttInNode) OnInput(msg Message) {
+    if action, _ := msg.GetString("action"); action != "subscribe" {
+        return // nur "subscribe" wird akzeptiert; alles andere wird verworfen
+    }
+
+    next := toTopicSlice(msg.Get("payload")) // string → [s], []string → s, leer → []
+    qos  := extractQoS(msg.Get("qos"), n.qos) // msg.qos überschreibt config-qos (0/1/2), sonst Fallback
+
+    n.mu.Lock()
+    defer n.mu.Unlock()
+
+    // Alle bisherigen Topics dieses Nodes unsubscriben
+    for _, t := range n.activeTopics {
+        n.broker.Unsubscribe(n.id, t)
+    }
+    // Neue Topics subscriben
+    for _, t := range next {
+        n.broker.Subscribe(n.id, t, qos, n.onMessage)
+    }
+    n.activeTopics = next
+    n.updateStatus()
+}
+```
+
+Wichtig:
+- Steuer-Messages werden **nicht** weitergeleitet (`return` statt `n.send(0, msg)`).
+- Beim Stop / Redeploy müssen alle `activeTopics` sauber unsubscribed werden.
+- Der MQTT Broker (Config Node) muss `Subscribe` und `Unsubscribe` per Subscriber-ID anbieten, damit beim Redeploy oder Re-Subscribe gezielt aufgeräumt werden kann.
 
 ### Payload-Handling (mqtt-out)
 

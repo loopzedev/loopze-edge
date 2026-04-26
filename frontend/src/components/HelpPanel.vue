@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { getTokens } from '@/components/nodes/tokens'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
-import { getNodeHelp } from '@/components/help'
+import { getNodeHelp, getNodeHelpDoc } from '@/components/help'
+import NodeHelp from '@/components/help/NodeHelp.vue'
 
 const flow = useFlowStore()
 
@@ -21,6 +22,9 @@ const tokens = computed(() =>
 )
 
 const nodeHelp = computed(() => getNodeHelp(nodeType.value))
+const nodeHelpDoc = computed(() =>
+  nodeHelp.value ? null : getNodeHelpDoc(nodeType.value),
+)
 </script>
 
 <template>
@@ -59,10 +63,12 @@ const nodeHelp = computed(() => getNodeHelp(nodeType.value))
         </div>
       </div>
 
-      <!-- Node-specific help (if available) -->
+      <!-- Node-specific custom Vue help component (if registered) -->
       <component :is="nodeHelp" v-if="nodeHelp" />
 
-      <!-- Generic fallback -->
+      <!-- Structured help doc (default for most nodes) -->
+      <NodeHelp v-else-if="nodeHelpDoc" :doc="nodeHelpDoc" />
+
       <template v-else>
         <!-- Description -->
         <div v-if="catalogEntry?.description" class="px-4 py-3 border-b border-terminal-border">

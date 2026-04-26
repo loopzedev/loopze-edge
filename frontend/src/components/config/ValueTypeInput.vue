@@ -71,7 +71,7 @@ const placeholder = computed(() => {
       :model-value="type"
       :options="filteredTypes"
       width="80px"
-      @update:model-value="emit('update:type', $event)"
+      @update:model-value="emit('update:type', String($event))"
     />
 
     <FormInput
@@ -88,7 +88,7 @@ const placeholder = computed(() => {
       :model-value="value || 'epoch'"
       :options="timestampFormats"
       class="flex-1 min-w-0"
-      @update:model-value="emit('update:value', $event)"
+      @update:model-value="emit('update:value', String($event))"
     />
 
     <FormSelect
@@ -96,7 +96,7 @@ const placeholder = computed(() => {
       :model-value="storage"
       :options="storageTypes"
       width="80px"
-      @update:model-value="emit('update:storage', $event)"
+      @update:model-value="emit('update:storage', String($event))"
     />
   </div>
 </template>

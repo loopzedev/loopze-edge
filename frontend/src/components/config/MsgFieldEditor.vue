@@ -88,7 +88,7 @@ function patch(partial: Partial<MsgField>) {
         :model-value="modelValue.vt"
         :options="filteredTypes"
         width="92px"
-        @update:model-value="patch({ vt: $event })"
+        @update:model-value="patch({ vt: String($event) })"
       />
       <!-- Family dot overlay -->
       <span
@@ -102,7 +102,7 @@ function patch(partial: Partial<MsgField>) {
       :model-value="modelValue.v || 'epoch'"
       :options="TIMESTAMP_FORMATS"
       class="flex-1 min-w-0"
-      @update:model-value="patch({ v: $event })"
+      @update:model-value="patch({ v: String($event) })"
     />
     <FormInput
       v-else
@@ -118,7 +118,7 @@ function patch(partial: Partial<MsgField>) {
       :model-value="modelValue.vs"
       :options="STORAGE_TYPES"
       width="80px"
-      @update:model-value="patch({ vs: $event })"
+      @update:model-value="patch({ vs: String($event) })"
     />
   </div>
 </template>

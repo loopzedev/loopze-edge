@@ -19,18 +19,28 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
+  'update:modelValue': [value: string | number]
 }>()
 
 const selectedLabel = computed(() =>
   props.options.find(o => String(o.value) === String(props.modelValue))?.label ?? ''
 )
+
+// radix-vue's SelectRoot emits the picked value as a string (its model is
+// always string-typed). We resolve it back to the original option value so a
+// number-typed option round-trips as a number — otherwise consumers like
+// node configs would silently store "2" instead of 2 and Go decoders looking
+// for float64 would fall back to defaults.
+function handleUpdate(rawValue: string) {
+  const match = props.options.find(o => String(o.value) === rawValue)
+  emit('update:modelValue', match ? match.value : rawValue)
+}
 </script>
 
 <template>
   <SelectRoot
     :model-value="String(modelValue)"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="handleUpdate"
   >
     <SelectTrigger
       class="inline-flex items-center justify-between gap-1

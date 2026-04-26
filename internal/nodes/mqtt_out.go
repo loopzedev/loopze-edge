@@ -44,9 +44,7 @@ func (n *MqttOutNode) Init() error {
 	n.topic, _ = props["topic"].(string)
 	// topic is optional — can come from msg.topic at runtime
 
-	if v, ok := props["qos"].(float64); ok {
-		n.qos = byte(v)
-	}
+	n.qos = extractQoS(props["qos"], 0)
 
 	if v, ok := props["retain"].(bool); ok {
 		n.retain = v

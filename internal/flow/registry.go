@@ -38,15 +38,70 @@ type NodeStatusPayload struct {
 // StatusMessage represents a status update from a node, sent to the editor UI.
 // Matches the frontend StatusEvent type: { nodeId, flowId, status: { fill, text } }
 type StatusMessage struct {
-	NodeID string            `json:"nodeId"`
-	FlowID string            `json:"flowId"`
-	Status NodeStatusPayload `json:"status"`
+	NodeID     string            `json:"nodeId"`
+	FlowID     string            `json:"flowId"`
+	Status     NodeStatusPayload `json:"status"`
+	SourceType string            `json:"sourceType,omitempty"`
+	SourceName string            `json:"sourceName,omitempty"`
 }
 
 // PublishStatusFunc is a callback the server provides to the engine so that
 // status messages can be published externally (e.g. to NATS) without the
 // engine needing a direct dependency on the messaging infrastructure.
 type PublishStatusFunc func(subject string, msg StatusMessage)
+
+// StatusListenerFunc is invoked by the engine for every status update of any
+// node, except status updates emitted by Status Nodes themselves (those are
+// filtered out at the source to prevent feedback loops between Status Nodes).
+type StatusListenerFunc func(msg StatusMessage)
+
+// StatusListenerProvider is implemented by nodes that want to observe status
+// events of other nodes (e.g. the Status Node). The engine injects a
+// registration function that returns an unregister closure; the node is
+// responsible for calling unregister in Stop() to release the listener slot.
+type StatusListenerProvider interface {
+	SetStatusListener(register func(StatusListenerFunc) (unregister func()))
+}
+
+// ErrorMessage represents a runtime error raised by a node, carrying enough
+// context for a Catch Node downstream to react. Msg is the message that was
+// being processed when the error occurred (may be nil for errors that are not
+// tied to a specific incoming message, e.g. background subscription failures).
+type ErrorMessage struct {
+	NodeID     string
+	FlowID     string
+	SourceType string
+	SourceName string
+	Error      string
+	Msg        *Message
+}
+
+// ErrorFunc is a callback nodes can use to report an asynchronous error to the
+// engine — for errors that surface after HandleMessage has returned (e.g. an
+// MQTT publish callback, an HTTP response that fails). For synchronous errors
+// the engine calls the same pipeline automatically based on the HandleMessage
+// return value, so most nodes never need to invoke this directly.
+type ErrorFunc func(err error, msg *Message)
+
+// ErrorListenerFunc is invoked by the engine for every node error, except
+// errors raised by Catch Nodes themselves (those are filtered out at the
+// source to prevent feedback loops between Catch Nodes).
+type ErrorListenerFunc func(msg ErrorMessage)
+
+// ErrorListenerProvider is implemented by nodes that want to observe errors
+// raised by other nodes (e.g. the Catch Node). The engine injects a
+// registration function that returns an unregister closure; the node is
+// responsible for calling unregister in Stop() to release the listener slot.
+type ErrorListenerProvider interface {
+	SetErrorListener(register func(ErrorListenerFunc) (unregister func()))
+}
+
+// ErrorProvider is an optional interface nodes can implement to receive an
+// ErrorFunc for reporting asynchronous errors (errors that occur after
+// HandleMessage has returned). The engine injects the callback during wiring.
+type ErrorProvider interface {
+	SetError(fn ErrorFunc)
+}
 
 // DebugFunc is a callback that nodes use to emit debug messages.
 // The engine provides this function via SetDebug before calling Start().
@@ -143,6 +198,9 @@ type NodeConfig struct {
 
 	// Name is the optional user-defined label for this node instance.
 	Name string `json:"name"`
+
+	// FlowID is the ID of the flow that this node belongs to.
+	FlowID string `json:"flowId"`
 
 	// Properties holds all user-configured properties for this node instance.
 	// Populated from Node.Config during deployment.

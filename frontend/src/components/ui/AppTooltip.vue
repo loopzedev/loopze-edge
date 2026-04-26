@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { TooltipRoot, TooltipTrigger, TooltipPortal, TooltipContent, TooltipProvider } from 'radix-vue'
 
-withDefaults(defineProps<{
-  text: string
+const props = withDefaults(defineProps<{
+  text?: string
   side?: 'top' | 'right' | 'bottom' | 'left'
   delay?: number
 }>(), {
+  text: '',
   side: 'top',
   delay: 400,
 })
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="delay">
+  <slot v-if="!props.text" />
+  <TooltipProvider v-else :delay-duration="delay">
     <TooltipRoot>
       <TooltipTrigger as-child>
         <slot />

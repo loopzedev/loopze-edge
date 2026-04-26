@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/flint/internal/logbuffer"
 	flintnats "github.com/niceclouds/flint/internal/nats"
 	"github.com/niceclouds/flint/internal/storage"
 	"github.com/niceclouds/flint/internal/ws"
@@ -22,10 +23,11 @@ import (
 
 // Deps holds the dependencies that API handlers need.
 type Deps struct {
-	Engine  *flow.Engine
-	Storage storage.Storage
-	Broker  *flintnats.Broker
-	Hub     *ws.Hub
+	Engine    *flow.Engine
+	Storage   storage.Storage
+	Broker    *flintnats.Broker
+	Hub       *ws.Hub
+	LogBuffer *logbuffer.Buffer
 }
 
 // deployRequest is the JSON body sent by the frontend on deploy.
@@ -316,4 +318,29 @@ func (d *Deps) handleGetDebugMessages(w http.ResponseWriter, r *http.Request) {
 		"count":    len(messages),
 		"limit":    limit,
 	})
+}
+
+// handleGetLogs returns the most recent application log entries from the
+// in-memory ring buffer that backs the Terminal Log panel.
+//
+// GET /api/v1/logs?limit=N
+//
+// limit is clamped to [1, 1000]. Default is 200. Response is a flat JSON
+// array of LogEntry, oldest-first.
+func (d *Deps) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	limit := 200
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if d.LogBuffer == nil {
+		jsonResponse(w, http.StatusOK, []logbuffer.LogEntry{})
+		return
+	}
+	entries := d.LogBuffer.Last(limit)
+	jsonResponse(w, http.StatusOK, entries)
 }

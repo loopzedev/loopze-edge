@@ -124,6 +124,21 @@ function selectMode(mode: DeployModeType): void {
         </svg>
       </router-link>
 
+      <!-- Toggle Terminal Log -->
+      <button
+        class="p-1.5 rounded transition-all duration-100"
+        :class="uiStore.logsPanelOpen
+          ? 'text-accent bg-accent/10'
+          : 'text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt'"
+        title="Terminal Log"
+        @click="uiStore.toggleLogsPanel()"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 11l3-3-3-3M11 14h4" />
+        </svg>
+      </button>
+
       <!-- Toggle Properties panel -->
       <button
         class="p-1.5 rounded transition-all duration-100"

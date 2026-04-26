@@ -4,6 +4,14 @@ import { ref, computed } from 'vue'
 export type InfoTab = 'help' | 'config' | 'context' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
+export type LogsLimit = 100 | 200 | 500 | 1000
+
+const ALLOWED_LOGS_LIMITS = [100, 200, 500, 1000] as const
+
+function loadLogsLimit(): LogsLimit {
+  const raw = parseInt(localStorage.getItem('flint-logs-limit') ?? '200', 10)
+  return (ALLOWED_LOGS_LIMITS as readonly number[]).includes(raw) ? (raw as LogsLimit) : 200
+}
 export type PropertiesContext =
   | { type: 'node' }
   | { type: 'flow-create' }
@@ -25,6 +33,8 @@ export const useUiStore = defineStore('ui', () => {
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   const propertiesContext = ref<PropertiesContext>(null)
+  const logsPanelOpen = ref<boolean>(false)
+  const logsLimit = ref<LogsLimit>(loadLogsLimit())
   let deployResetTimer: ReturnType<typeof setTimeout> | null = null
 
   // ── Getters ────────────────────────────────────────────────────────
@@ -105,6 +115,23 @@ export const useUiStore = defineStore('ui', () => {
     connectionStatus.value = status
   }
 
+  function toggleLogsPanel() {
+    logsPanelOpen.value = !logsPanelOpen.value
+  }
+
+  function openLogsPanel() {
+    logsPanelOpen.value = true
+  }
+
+  function closeLogsPanel() {
+    logsPanelOpen.value = false
+  }
+
+  function setLogsLimit(n: LogsLimit) {
+    logsLimit.value = n
+    localStorage.setItem('flint-logs-limit', String(n))
+  }
+
   function setDeployStatus(status: DeployStatus) {
     if (deployResetTimer !== null) {
       clearTimeout(deployResetTimer)
@@ -131,6 +158,8 @@ export const useUiStore = defineStore('ui', () => {
     contextAutoRefresh,
     connectionStatus,
     deployStatus,
+    logsPanelOpen,
+    logsLimit,
 
     // getters
     isConnected,
@@ -154,5 +183,9 @@ export const useUiStore = defineStore('ui', () => {
     setContextAutoRefresh,
     setConnectionStatus,
     setDeployStatus,
+    toggleLogsPanel,
+    openLogsPanel,
+    closeLogsPanel,
+    setLogsLimit,
   }
 })

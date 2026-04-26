@@ -34,7 +34,7 @@ watch(
 
 onBeforeUnmount(() => {
   if (scrollFrame !== 0) cancelAnimationFrame(scrollFrame)
-  flowStore.setHoveredDebugNodeId(null)
+  flowStore.setHoveredHighlightNodeId(null)
 })
 
 // Programmatic scrolls dispatch async scroll events. If new content lands
@@ -145,8 +145,8 @@ function formatTimestamp(ts: string): string {
           'border-red-900/50 bg-red-950/20': msg.status === 'error',
           'border-yellow-900/50 bg-yellow-950/15': msg.status === 'warn',
         }"
-        @mouseenter="flowStore.setHoveredDebugNodeId(msg.nodeId)"
-        @mouseleave="flowStore.setHoveredDebugNodeId(null)"
+        @mouseenter="flowStore.setHoveredHighlightNodeId(msg.nodeId)"
+        @mouseleave="flowStore.setHoveredHighlightNodeId(null)"
       >
         <!-- Header line: timestamp + node name + format -->
         <div class="flex items-center gap-2 mb-1">

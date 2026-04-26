@@ -42,6 +42,10 @@ type Config struct {
 
 	// LogLevel controls the minimum log level: debug, info, warn, error.
 	LogLevel string
+
+	// LogBufferSize is the capacity of the in-memory log ring buffer that
+	// backs the Terminal Log panel in the editor.
+	LogBufferSize int
 }
 
 // Build-time variables injected via ldflags.
@@ -61,6 +65,7 @@ const (
 	defaultKeyFile         = "flint.key"
 	defaultNATSPort        = 4222
 	defaultLogLevel        = "info"
+	defaultLogBufferSize   = 1000
 
 	envPrefix = "FLINT_"
 )
@@ -79,11 +84,16 @@ func Load() *Config {
 	flag.StringVar(&cfg.KeyFile, "key-file", defaultKeyFile, "filename for encryption key")
 	flag.IntVar(&cfg.NATSPort, "nats-port", defaultNATSPort, "port for the embedded NATS server (-1 for auto)")
 	flag.StringVar(&cfg.LogLevel, "log-level", defaultLogLevel, "log level: debug, info, warn, error")
+	flag.IntVar(&cfg.LogBufferSize, "log-buffer-size", defaultLogBufferSize, "in-memory log ring buffer capacity (entries)")
 
 	flag.Parse()
 
 	// Override with environment variables if flags were not explicitly set.
 	applyEnvOverrides(cfg)
+
+	if cfg.LogBufferSize < 1 {
+		cfg.LogBufferSize = defaultLogBufferSize
+	}
 
 	return cfg
 }
@@ -118,6 +128,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v, ok := getenv("LOG_LEVEL"); ok && !flagProvided("log-level") {
 		cfg.LogLevel = v
+	}
+	if v, ok := getenv("LOG_BUFFER_SIZE"); ok && !flagProvided("log-buffer-size") {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.LogBufferSize = n
+		}
 	}
 }
 

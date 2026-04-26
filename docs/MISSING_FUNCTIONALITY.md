@@ -57,7 +57,7 @@ Fokus auf Plattform-Features, nicht einzelne Node-Typen.
 ### 2.3 Message Routing
 - [ ] Switch-Node (Routing basierend auf Bedingungen → verschiedene Outputs)
 - [ ] Split/Join (Messages aufteilen und wieder zusammenführen)
-- [ ] Delay-Node (Verzögerung, Rate-Limiting, Queue)
+- [x] Delay-Node (Verzögerung, Rate-Limiting, Queue) – siehe `docs/issues/NODE_DELAY.md`
 - [ ] Trigger-Node (Debounce, Throttle, Watchdog-Timer)
 - [ ] Filter/RBE-Node (Report by Exception – nur bei Änderung weiterleiten)
 

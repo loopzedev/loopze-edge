@@ -19,6 +19,45 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     ],
   },
 
+  switch: {
+    overview:
+      'Routes the incoming message to one or more outputs based on rules evaluated against a single property. Each rule corresponds to one output port (top to bottom). Use it as if/elseif/else for messages.',
+    inputs: ['Any message — the configured property is read and compared against each rule.'],
+    outputs: ['One port per rule. The same message is forwarded unchanged to every matching port.'],
+    properties: [
+      { key: 'property',     desc: 'Path of the value to test (e.g. payload, payload.status.code).' },
+      { key: 'propertyType', desc: 'Scope of the property: msg / flow / global.' },
+      { key: 'rules',        desc: 'Ordered list of rules; each rule maps to one output port. Drag to reorder.' },
+      { key: 't (op)',       desc: 'Operator: ==, !=, <, <=, >, >=, between, contains, regex, is true/false/null/empty, is of type, otherwise.' },
+      { key: 'v / vt',       desc: 'Comparison value and its type (str/num/bool/json/msg/flow/global/env).' },
+      { key: 'case',         desc: 'For regex/contains: enable case-sensitive matching (default off).' },
+      { key: 'checkall',     desc: 'false (default): stop after first match. true: forward to every matching output.' },
+    ],
+    examples: [
+      {
+        title: 'Status routing',
+        config: 'msg.payload.status   == "ok" → 1   == "warn" → 2   == "error" → 3   otherwise → 4',
+        result: 'Splits a status field into four downstream branches.',
+      },
+      {
+        title: 'Threshold split',
+        config: 'msg.payload   < 10 → low   between 10..50 → mid   > 50 → high',
+        result: 'Routes a numeric value into three buckets.',
+      },
+      {
+        title: 'Regex topic filter',
+        config: 'msg.topic   matches /^sensor\\/temp\\// → 1   matches /^sensor\\/hum\\// → 2   otherwise → 3',
+        result: 'Forwards messages by topic pattern.',
+      },
+    ],
+    tips: [
+      '"otherwise" only fires when no other rule matched — works in both modes.',
+      'Equality uses loose comparison: "10" == 10 is true.',
+      'Regex defaults to case-insensitive — toggle "case-sensitive" if you need strict matching.',
+      'Reordering rules also reorders the output ports; existing wires follow their rule.',
+    ],
+  },
+
   change: {
     overview:
       'Sets, changes, deletes, or moves properties on the message. Multiple rules are applied top-to-bottom — the result of one rule is the input of the next.',
@@ -52,6 +91,48 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     tips: [
       'Use "delete" to strip sensitive fields before they are forwarded.',
       'Order matters: a later rule sees the result of all earlier rules in the same node.',
+    ],
+  },
+
+  delay: {
+    overview:
+      'Holds, paces, or jitters the message stream. Three modes: fixed delay (every message held for the same duration), rate limit (at most N messages per interval, with queue or drop overflow), and random delay (uniform jitter between two bounds).',
+    inputs: ['Any message. Three optional control fields are honoured and stripped before forwarding: msg.delay (ms — overrides this message\'s wait), msg.flush (releases all pending now), msg.reset (discards all pending).'],
+    outputs: ['The forwarded message, after the configured wait. On reset/flush the control message itself is consumed, not forwarded.'],
+    properties: [
+      { key: 'mode',           desc: '"delay" | "rate" | "random". Selects which set of fields is used.' },
+      { key: 'timeout',        desc: '(delay) Hold duration per message.' },
+      { key: 'timeoutUnits',   desc: '(delay) milliseconds | seconds | minutes | hours | day.' },
+      { key: 'rate',           desc: '(rate) Messages per rateUnits.' },
+      { key: 'rateUnits',      desc: '(rate) second | minute | hour | day.' },
+      { key: 'behaviour',      desc: '(rate) "queue" drops oldest on overflow; "drop" rejects new ones.' },
+      { key: 'maxQueueLength', desc: '(rate, queue behaviour) Buffer size — guards against unbounded memory growth.' },
+      { key: 'randomFirst',    desc: '(random) Lower bound of the uniform delay range.' },
+      { key: 'randomLast',     desc: '(random) Upper bound. Must be ≥ randomFirst.' },
+      { key: 'randomUnits',    desc: '(random) Same unit set as timeoutUnits.' },
+    ],
+    examples: [
+      {
+        title: 'Delay every message by 500 ms',
+        config: 'mode=delay · timeout=500 · units=milliseconds',
+        result: 'FIFO preserved. Stop() discards anything still pending.',
+      },
+      {
+        title: 'Rate-limit a chatty source to 10 msg/s',
+        config: 'mode=rate · rate=10 · rateUnits=second · behaviour=queue',
+        result: 'Bursts are buffered up to maxQueueLength. Once full, the oldest is dropped to make room.',
+      },
+      {
+        title: 'Stagger trigger fan-out (jitter)',
+        config: 'mode=random · randomFirst=0 · randomLast=2000 · units=milliseconds',
+        result: 'Each message is held for a uniformly random delay between 0 and 2 s. Order is not preserved.',
+      },
+    ],
+    tips: [
+      'msg.delay (number, ms) overrides this single message\'s wait — useful for "delay until" patterns driven from upstream.',
+      'msg.flush sends a control message that releases all pending messages immediately. The flush message itself is not forwarded.',
+      'msg.reset discards everything currently held without sending. Same control-message semantics as flush.',
+      'On flow stop or redeploy, all pending messages are discarded — never replayed.',
     ],
   },
 
@@ -193,6 +274,35 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     tips: [
       'Watchers fire for every change — use specific patterns to avoid noise.',
       'Combine with the Context tab in the Information Sidebar to verify keys exist.',
+    ],
+  },
+
+  catch: {
+    overview:
+      'Emits a message whenever another node in scope raises an error. Use it to log failures, send notifications or write a dead-letter queue. The Catch Node has no input — it is triggered by error events from the engine, not by upstream wires.',
+    outputs: [
+      'For each caught error: the original message that was being processed (when available), enriched with msg._error = { message, source: { id, type, name, flowId } }.',
+    ],
+    properties: [
+      { key: 'scope',       desc: 'flow (default): catch errors from this flow. selected: catch only from a chosen list of nodes. all: catch errors across every flow.' },
+      { key: 'targetNodes', desc: 'Used when scope = selected. Multi-select of nodes from this flow whose errors should trigger the catch.' },
+    ],
+    examples: [
+      {
+        title: 'Dead-letter queue',
+        config: 'scope = flow → Change (wrap original + _error) → MQTT out: deadletter',
+        result: 'Every failing message in the flow is forwarded to a dead-letter topic instead of being silently dropped.',
+      },
+      {
+        title: 'Error notifications for critical nodes',
+        config: 'scope = selected, targetNodes = [HTTP request, DB insert] → Function (format) → MQTT out: alerts',
+        result: 'Only failures of the picked nodes raise an alert; routine errors elsewhere stay quiet.',
+      },
+    ],
+    tips: [
+      'Catch is for logging and notifications, not retries. Errors raised along a catch branch are intentionally not re-caught — wiring a catch back into the failing node would otherwise loop.',
+      'Multiple Catch Nodes can coexist; each one independently fans out for every matching error.',
+      'Errors from Catch Nodes themselves are filtered at the engine level — they never trigger another catch.',
     ],
   },
 

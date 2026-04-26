@@ -7,6 +7,7 @@ import type {
   StatusEvent,
   DeployEvent,
   NotificationEvent,
+  LogEntry,
 } from '@/types/events'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
@@ -45,11 +46,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     status: Set<MessageCallback<'status'>>
     deploy: Set<MessageCallback<'deploy'>>
     notification: Set<MessageCallback<'notification'>>
+    log: Set<MessageCallback<'log'>>
   } = {
     debug: new Set(),
     status: new Set(),
     deploy: new Set(),
     notification: new Set(),
+    log: new Set(),
   }
 
   function getReconnectDelay(): number {
@@ -165,6 +168,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       case 'notification':
         listeners.notification.forEach((cb) => cb(payload as NotificationEvent))
         break
+      case 'log':
+        listeners.log.forEach((cb) => cb(payload as LogEntry))
+        break
       default:
         console.warn(`[Flint WS] Unknown message type: ${type}`)
     }
@@ -188,6 +194,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   function onNotification(callback: MessageCallback<'notification'>): () => void {
     listeners.notification.add(callback)
     return () => listeners.notification.delete(callback)
+  }
+
+  function onLog(callback: MessageCallback<'log'>): () => void {
+    listeners.log.add(callback)
+    return () => listeners.log.delete(callback)
   }
 
   function send(data: unknown): void {
@@ -221,5 +232,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     onStatus,
     onDeploy,
     onNotification,
+    onLog,
   }
 }

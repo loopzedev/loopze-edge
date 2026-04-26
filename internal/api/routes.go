@@ -37,6 +37,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 	// Debug message stream endpoint.
 	r.Get("/debug/messages", deps.handleGetDebugMessages)
 
+	// Application log endpoint (Terminal Log panel snapshot).
+	r.Get("/logs", deps.handleGetLogs)
+
 	// Context store endpoints (view + delete keys in NATS KV context buckets).
 	r.Route("/context", func(r chi.Router) {
 		r.Get("/global/{storage}", deps.handleGetContextStore)

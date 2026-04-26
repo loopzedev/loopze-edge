@@ -5,6 +5,7 @@ import type {
   DeployResponse,
   NodeCatalogEntry,
 } from '@/types/flow'
+import type { LogEntry } from '@/types/events'
 
 export interface ApiError {
   status: number
@@ -176,6 +177,15 @@ export function useApi() {
     })
   }
 
+  /**
+   * Fetch the most recent application log entries from the in-memory ring
+   * buffer that backs the Terminal Log panel. Returns oldest-first; the
+   * server clamps limit to [1, 1000].
+   */
+  async function getLogs(limit: number): Promise<LogEntry[]> {
+    return request<LogEntry[]>(`/logs?limit=${limit}`)
+  }
+
   // ── Context store endpoints ──────────────────────────────────────────────
 
   function ctxBasePath(scope: ContextScope, storage: ContextStorage, flowId?: string | null): string {
@@ -248,6 +258,7 @@ export function useApi() {
     updateSettings,
     getNodeStatuses,
     triggerInject,
+    getLogs,
     getContext,
     getContextKey,
     deleteContextKey,

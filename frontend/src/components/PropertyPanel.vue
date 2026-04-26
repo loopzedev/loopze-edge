@@ -11,10 +11,14 @@ import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
+import SwitchConfig from '@/components/config/SwitchConfig.vue'
 import DebugConfig from '@/components/config/DebugConfig.vue'
+import DelayConfig from '@/components/config/DelayConfig.vue'
 import LinkConfig from '@/components/config/LinkConfig.vue'
 import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
 import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
+import StatusConfig from '@/components/config/StatusConfig.vue'
+import CatchConfig from '@/components/config/CatchConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 import { getNodeSummary } from '@/components/help'
@@ -240,9 +244,13 @@ function onResizeEnd() {
               <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
+              <SwitchConfig v-else-if="selectedNode?.type === 'switch'" />
               <DebugConfig v-else-if="selectedNode?.type === 'debug'" />
+              <DelayConfig v-else-if="selectedNode?.type === 'delay'" />
               <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
               <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
+              <StatusConfig v-else-if="selectedNode?.type === 'status'" />
+              <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

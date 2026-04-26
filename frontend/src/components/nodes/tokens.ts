@@ -69,6 +69,17 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a2010',
     textSub:    '#b8704a',
   },
+  error: {
+    accent:     '#ef4444',
+    accentDim:  '#ef444412',
+    accentBdr:  '#ef44442a',
+    accentGlow: '#ef444414',
+    bg:         '#0e0606',
+    bgHdr:      '#1f0c0c',
+    bgIcon:     '#2a0f0f',
+    border:     '#4a1a1a',
+    textSub:    '#b86060',
+  },
   // Tech-specific palette: MQTT brand magenta-purple from the mqtt.org logo,
   // brightened so it reads on a dark surface.
   mqtt: {
@@ -94,7 +105,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   'modbus-read':   'input',
   'file-in':       'input',
   'link-in':       'link',
-  catch:           'input',
+  catch:           'error',
   status:          'input',
 
   function:        'process',

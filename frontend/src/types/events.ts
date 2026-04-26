@@ -2,7 +2,7 @@
  * WebSocket event types for Flint real-time communication.
  */
 
-export type WebSocketEventType = 'debug' | 'status' | 'deploy' | 'notification'
+export type WebSocketEventType = 'debug' | 'status' | 'deploy' | 'notification' | 'log'
 
 export interface WebSocketEnvelope<T extends WebSocketEventType = WebSocketEventType> {
   type: T
@@ -50,11 +50,22 @@ export interface NotificationEvent {
   timeout?: number
 }
 
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+
+export interface LogEntry {
+  seq: number
+  time: string
+  level: LogLevel
+  message: string
+  attrs?: Record<string, unknown>
+}
+
 export interface WebSocketPayloadMap {
   debug: DebugMessage
   status: StatusEvent
   deploy: DeployEvent
   notification: NotificationEvent
+  log: LogEntry
 }
 
 export type WebSocketMessageHandler<T extends WebSocketEventType> = (
@@ -66,4 +77,5 @@ export interface WebSocketHandlers {
   onStatus?: WebSocketMessageHandler<'status'>
   onDeploy?: WebSocketMessageHandler<'deploy'>
   onNotification?: WebSocketMessageHandler<'notification'>
+  onLog?: WebSocketMessageHandler<'log'>
 }

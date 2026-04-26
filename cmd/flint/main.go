@@ -15,19 +15,27 @@ import (
 	"syscall"
 
 	"github.com/niceclouds/flint/internal/config"
+	"github.com/niceclouds/flint/internal/logbuffer"
 	"github.com/niceclouds/flint/internal/server"
+	"github.com/niceclouds/flint/internal/ws"
 )
 
 func main() {
 	// Load configuration from flags, environment variables, and defaults.
 	cfg := config.Load()
 
-	// Initialize structured logger with configured log level.
+	// Initialize structured logger with configured log level. The logbuffer
+	// handler wraps the stdout TextHandler so every record is also captured
+	// into an in-memory ring buffer (for the Terminal Log panel) without
+	// changing the stdout output. The notify callback is wired below once
+	// the WebSocket hub exists.
 	logLevel := cfg.ParseLogLevel()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	logBuf := logbuffer.New(cfg.LogBufferSize)
+	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,
-	}))
-	slog.SetDefault(logger)
+	})
+	logHandler := logbuffer.NewHandler(textHandler, logBuf)
+	slog.SetDefault(slog.New(logHandler))
 
 	slog.Info("starting Flint",
 		"version", config.Version,
@@ -48,11 +56,19 @@ func main() {
 	}
 
 	// Create and start the server.
-	srv, err := server.New(cfg)
+	srv, err := server.New(cfg, logBuf)
 	if err != nil {
 		slog.Error("failed to initialize server", "error", err)
 		os.Exit(1)
 	}
+
+	// Now that the WebSocket hub exists, route every captured log entry to
+	// all connected clients. Hub.Broadcast is non-blocking (drops on full
+	// channel), which keeps any reentrant log line — e.g. the hub itself
+	// warning about a full channel — from spinning into a hot loop.
+	logHandler.SetNotify(func(e logbuffer.LogEntry) {
+		srv.Hub().Broadcast(ws.EventLog, e)
+	})
 
 	// Start the server in a goroutine so we can listen for shutdown signals.
 	go func() {

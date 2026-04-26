@@ -13,9 +13,13 @@ import DebugNode from "@/components/nodes/DebugNode.vue";
 import FunctionNode from "@/components/nodes/FunctionNode.vue";
 import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
 import ChangeNode from "@/components/nodes/ChangeNode.vue";
+import DelayNode from "@/components/nodes/DelayNode.vue";
+import SwitchNode from "@/components/nodes/SwitchNode.vue";
 import LinkNode from "@/components/nodes/LinkNode.vue";
 import LinkCallNode from "@/components/nodes/LinkCallNode.vue";
 import StateMachineNode from "@/components/nodes/StateMachineNode.vue";
+import StatusNode from "@/components/nodes/StatusNode.vue";
+import CatchNode from "@/components/nodes/CatchNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -297,7 +301,7 @@ onMounted(async () => {
             </template>
 
             <template #node-switch="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <SwitchNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-template="nodeProps">
@@ -305,7 +309,7 @@ onMounted(async () => {
             </template>
 
             <template #node-delay="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <DelayNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-filter="nodeProps">
@@ -423,11 +427,11 @@ onMounted(async () => {
             </template>
 
             <template #node-catch="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <CatchNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-status="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <StatusNode v-bind="nodeProps as any" />
             </template>
 
             <!-- Background grid -->

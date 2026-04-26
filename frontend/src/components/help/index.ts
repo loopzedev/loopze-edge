@@ -122,6 +122,30 @@ const summaries: Record<string, NodeSummaryFn> = {
     const pattern = (cfg.keyPattern as string) || '>'
     return `${scope}.${pattern} · ${storage}`
   },
+
+  delay(cfg) {
+    const mode = (cfg.mode as string) ?? 'delay'
+    const fmt = (n: number, unit: string) => `${n}${unit === 'milliseconds' ? 'ms' : unit === 'day' ? 'd' : unit[0]}`
+
+    if (mode === 'rate') {
+      const rate = Number(cfg.rate ?? 1)
+      const unit = (cfg.rateUnits as string) ?? 'second'
+      const behaviour = (cfg.behaviour as string) ?? 'queue'
+      const max = Number(cfg.maxQueueLength ?? 1000)
+      const tail = behaviour === 'drop' ? '· drop' : `· queue (max ${max})`
+      return `${rate} msg/${unit} ${tail}`
+    }
+    if (mode === 'random') {
+      const a = Number(cfg.randomFirst ?? 0)
+      const b = Number(cfg.randomLast ?? 0)
+      const unit = (cfg.randomUnits as string) ?? 'milliseconds'
+      return `Random ${fmt(a, unit)}–${fmt(b, unit)}`
+    }
+    // mode === 'delay'
+    const t = Number(cfg.timeout ?? 0)
+    const unit = (cfg.timeoutUnits as string) ?? 'milliseconds'
+    return `Delay ${fmt(t, unit)}`
+  },
 }
 
 export function getNodeSummary(

@@ -33,6 +33,7 @@ type StateMachineNode struct {
 	send   flow.SendFunc
 	status flow.StatusFunc
 	debug  flow.DebugFunc
+	errFn  flow.ErrorFunc
 
 	// Context stores (injected via ContextProvider).
 	ctxMem   flow.ContextStore
@@ -55,6 +56,11 @@ type StateMachineNode struct {
 
 	// Collects messages sent via node.send() during action execution.
 	pendingSends []*flow.Message
+
+	// currentMsg is the message currently being processed in HandleMessage,
+	// used so guard/action error reports carry the originating message.
+	// nil for events triggered by after-timers.
+	currentMsg *flow.Message
 }
 
 // NewStateMachineNode is the NodeFactory for the statemachine node type.
@@ -99,6 +105,12 @@ func (n *StateMachineNode) Init() error {
 func (n *StateMachineNode) SetSend(fn flow.SendFunc)     { n.send = fn }
 func (n *StateMachineNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
 func (n *StateMachineNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
+
+// SetError implements flow.ErrorProvider so guard/action errors raised inside
+// the JS runtime can be surfaced to Catch Nodes via the engine's error fan-out.
+// Without this, runtime errors in guards or actions would only appear in the
+// server log and never reach the flow.
+func (n *StateMachineNode) SetError(fn flow.ErrorFunc) { n.errFn = fn }
 
 // SetContext implements flow.ContextProvider.
 func (n *StateMachineNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
@@ -170,6 +182,9 @@ func (n *StateMachineNode) Start() error {
 		result, err := callable(goja.Undefined(), n.vm.ToValue(ctx), n.vm.ToValue(event))
 		if err != nil {
 			slog.Warn("statemachine: guard error", "guard", name, "error", err, "node_id", n.config.ID)
+			if n.errFn != nil {
+				n.errFn(fmt.Errorf("guard %q: %w", name, err), n.currentMsg)
+			}
 			return false
 		}
 		return result.ToBoolean()
@@ -192,6 +207,9 @@ func (n *StateMachineNode) Start() error {
 		}
 		if _, err := callable(goja.Undefined(), n.vm.ToValue(ctx), n.vm.ToValue(event)); err != nil {
 			slog.Warn("statemachine: action error", "action", name, "error", err, "node_id", n.config.ID)
+			if n.errFn != nil {
+				n.errFn(fmt.Errorf("action %q: %w", name, err), n.currentMsg)
+			}
 		}
 	}
 
@@ -233,6 +251,11 @@ func (n *StateMachineNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 
 	// Reset per-call pending sends.
 	n.pendingSends = nil
+
+	// Track the originating message so guard/action error reports can
+	// preserve it on the catch output. Cleared on return.
+	n.currentMsg = msg
+	defer func() { n.currentMsg = nil }()
 
 	topic := msg.Topic()
 	if topic == "" {

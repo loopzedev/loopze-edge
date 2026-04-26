@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { Handle, Position } from "@vue-flow/core";
 import NodeIcon from "@/components/nodes/NodeIcon.vue";
+import AppTooltip from "@/components/ui/AppTooltip.vue";
 import { getTokens, STATUS_COLORS } from "@/components/nodes/tokens";
 import { useFlowStore } from "@/stores/flowStore";
 
@@ -18,6 +19,8 @@ export interface BaseNodeProps {
     nodeType?: string;
     inputs?: number;
     outputs?: number;
+    /** Optional per-output tooltips. Index matches the port index. */
+    outputLabels?: string[];
     selected?: boolean;
     disabled?: boolean;
     actionButton?: ActionButton | null;
@@ -93,8 +96,8 @@ const hasCustomLabel = computed(() => {
 });
 const isDirty = computed(() => flowStore.isNodeDirty(props.id));
 
-const isDebugHovered = computed(
-    () => flowStore.hoveredDebugNodeId === props.id && !props.selected,
+const isHighlighted = computed(
+    () => flowStore.hoveredHighlightNodeId === props.id && !props.selected,
 );
 
 const statusColor = computed(() =>
@@ -120,6 +123,7 @@ const inputHandles = computed(() =>
 const outputHandles = computed(() =>
     Array.from({ length: props.outputs }, (_, i) => ({
         id: `output-${i}`,
+        title: props.outputLabels?.[i] ?? "",
         style: {
             top: `${(i + 1) * PORT_SPACING}px`,
         },
@@ -166,8 +170,8 @@ const outputHandles = computed(() =>
           minHeight: nodeMinHeight,
           border: `1px solid ${props.selected ? t.accent : t.border}`,
           boxShadow: props.selected ? `0 0 0 1px ${t.accent}, 0 4px 20px ${t.accentGlow}` : 'none',
-          outline: isDebugHovered ? `1px dashed ${t.accent}` : undefined,
-          outlineOffset: isDebugHovered ? '-1px' : undefined,
+          outline: isHighlighted ? `1px dashed ${t.accent}` : undefined,
+          outlineOffset: isHighlighted ? '-1px' : undefined,
         }"
       >
         <!-- Input Handles -->
@@ -186,19 +190,24 @@ const outputHandles = computed(() =>
         />
 
         <!-- Output Handles -->
-        <Handle
+        <AppTooltip
           v-for="h in outputHandles"
           :key="h.id"
-          :id="h.id"
-          type="source"
-          :position="Position.Right"
-          :style="{
-            ...h.style,
-            borderColor: selected ? t.accent : '#7d8590',
-            background: selected ? t.accent + '33' : '#161b22',
-          }"
-          class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
-        />
+          :text="h.title"
+          side="right"
+        >
+          <Handle
+            :id="h.id"
+            type="source"
+            :position="Position.Right"
+            :style="{
+              ...h.style,
+              borderColor: selected ? t.accent : '#7d8590',
+              background: selected ? t.accent + '33' : '#161b22',
+            }"
+            class="!w-2.5 !h-2.5 !rounded-full !border-2 transition-colors"
+          />
+        </AppTooltip>
 
         <!-- Header: icon + typeLabel + badge + dirty -->
         <div class="flex items-center gap-2 px-3 pt-2.5">

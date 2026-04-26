@@ -49,7 +49,9 @@ export const useFlowStore = defineStore("flow", () => {
   const edges = ref<FlowEdge[]>([]);
   const selectedNodeId = ref<string | null>(null);
   const selectedNodeIds = ref<string[]>([]);
-  const hoveredDebugNodeId = ref<string | null>(null);
+  // Generic node-highlight cue: any panel (debug, status config, …) can set
+  // this to make the matching node render with a dashed outline.
+  const hoveredHighlightNodeId = ref<string | null>(null);
   // Bumped by focusNode() to request the FlowEditor pan/zoom to a node.
   // ts ensures repeated clicks on the same node still trigger the watcher.
   const focusRequest = ref<{ nodeId: string; flowId: string; ts: number } | null>(null);
@@ -286,6 +288,32 @@ export const useFlowStore = defineStore("flow", () => {
     }
   }
 
+  /**
+   * Re-route output edges of a node according to an index mapping.
+   * Each entry maps an old port index to a new port index, or to null
+   * if the port is being removed entirely. Edges whose port is not
+   * mentioned in the mapping are left untouched.
+   *
+   * Use this when a node's output ports can be reordered or removed
+   * (e.g. Switch node rules) so that wires follow their semantic
+   * source rather than sticking to the original index.
+   */
+  function remapOutputEdges(
+    nodeId: string,
+    mapping: Record<number, number | null>,
+  ): void {
+    edges.value = edges.value.flatMap((e) => {
+      if (e.source !== nodeId || !e.sourceHandle) return [e];
+      const oldIdx = parseInt(e.sourceHandle.replace("output-", ""), 10);
+      if (isNaN(oldIdx)) return [e];
+      if (!(oldIdx in mapping)) return [e];
+      const newIdx = mapping[oldIdx];
+      if (newIdx === null) return [];
+      return [{ ...e, sourceHandle: `output-${newIdx}` }];
+    });
+    markDirty();
+  }
+
   function updateNodeStatus(nodeId: string, status: { fill: string; text: string }): void {
     // Search active flow nodes first
     let node = nodes.value.find((n) => n.id === nodeId);
@@ -358,8 +386,8 @@ export const useFlowStore = defineStore("flow", () => {
     selectedNodeIds.value = nodeId ? [nodeId] : [];
   }
 
-  function setHoveredDebugNodeId(nodeId: string | null): void {
-    hoveredDebugNodeId.value = nodeId;
+  function setHoveredHighlightNodeId(nodeId: string | null): void {
+    hoveredHighlightNodeId.value = nodeId;
   }
 
   function focusNode(nodeId: string, flowId: string): void {
@@ -700,7 +728,7 @@ export const useFlowStore = defineStore("flow", () => {
     edges,
     selectedNodeId,
     selectedNodeIds,
-    hoveredDebugNodeId,
+    hoveredHighlightNodeId,
     focusRequest,
     clipboard,
     dirty,
@@ -727,6 +755,7 @@ export const useFlowStore = defineStore("flow", () => {
     addNode,
     removeNode,
     updateNodeData,
+    remapOutputEdges,
     updateNodeStatus,
     updateNodePosition,
     isNodeDirty,
@@ -735,7 +764,7 @@ export const useFlowStore = defineStore("flow", () => {
     connectNodes,
     removeEdge,
     selectNode,
-    setHoveredDebugNodeId,
+    setHoveredHighlightNodeId,
     focusNode,
     setSelectedNodeIds,
     copySelectedNodes,

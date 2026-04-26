@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, provide, watch } from 'vue'
 import HeaderBar from '@/components/HeaderBar.vue'
 import FlowTabBar from '@/components/FlowTabBar.vue'
 import NodePalette from '@/components/NodePalette.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
 import InformationSidebar from '@/components/InformationSidebar.vue'
+import TerminalLogPanel from '@/components/TerminalLogPanel.vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useFlowStore } from '@/stores/flowStore'
 import { useDebugStore } from '@/stores/debugStore'
@@ -15,6 +16,10 @@ const flowStore = useFlowStore()
 const debugStore = useDebugStore()
 
 const ws = useWebSocket()
+
+// TerminalLogPanel mounts/unmounts dynamically; pass the existing onLog
+// dispatcher through provide so it does not spawn a second WebSocket.
+provide('onLog', ws.onLog)
 
 ws.onDebug((msg) => {
   debugStore.addMessage(msg)
@@ -77,10 +82,12 @@ const mainAreaStyle = computed(() => {
 
       <!-- Center: Flow Editor -->
       <main
-        class="flex-1 overflow-hidden transition-all duration-150"
+        class="flex-1 overflow-hidden transition-all duration-150 relative"
         :style="mainAreaStyle"
       >
         <router-view />
+        <!-- Terminal Log overlay: covers the canvas, leaves sidebars visible -->
+        <TerminalLogPanel />
       </main>
 
       <!-- Right Sidebars: Properties | Debug (side by side) -->

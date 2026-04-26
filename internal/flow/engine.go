@@ -66,6 +66,11 @@ type runningNode struct {
 	// Local snapshots set during wireAllNodes(), read lock-free from nodeLoop.
 	localWires   [][]string               // snapshot of wires for this node
 	localTargets map[string]*runningNode   // targetNodeID → runningNode pointer
+
+	// errorFn is the per-node error callback installed during wireAllNodes,
+	// used by nodeLoop for synchronous errors and by ErrorProvider nodes for
+	// asynchronous errors raised from background goroutines.
+	errorFn ErrorFunc
 }
 
 // Engine is the core flow runtime that manages the lifecycle of deployed flows.
@@ -96,6 +101,19 @@ type Engine struct {
 	globalCtxMemory  ContextStore       // volatile in-memory global context store
 	globalCtxPersist ContextStore       // file-backed persistent global context store
 	flowCtxFactory   FlowContextFactory // creates dedicated KV stores per flow ID
+
+	// Status fan-out: in-process listeners that observe all node status updates
+	// (except updates from Status Nodes themselves; see makeStatusFunc).
+	statusListenersMu sync.RWMutex
+	statusListenerSeq uint64
+	statusListeners   map[uint64]StatusListenerFunc
+
+	// Error fan-out: in-process listeners that observe all node errors
+	// (except errors raised by Catch Nodes themselves; see makeErrorFunc).
+	errorListenersMu sync.RWMutex
+	errorListenerSeq uint64
+	errorListeners   map[uint64]ErrorListenerFunc
+
 	running      bool
 }
 
@@ -106,10 +124,12 @@ func NewEngine(cfg *config.Config) *Engine {
 	return &Engine{
 		cfg:      cfg,
 		registry: NewNodeRegistry(),
-		nodes:        make(map[string]*runningNode),
-		wires:        make(map[string][][]string),
-		linkRegistry: make(map[string]*runningNode),
-		statusCache:  statusCache{entries: make(map[string]StatusMessage)},
+		nodes:           make(map[string]*runningNode),
+		wires:           make(map[string][][]string),
+		linkRegistry:    make(map[string]*runningNode),
+		statusCache:     statusCache{entries: make(map[string]StatusMessage)},
+		statusListeners: make(map[uint64]StatusListenerFunc),
+		errorListeners:  make(map[uint64]ErrorListenerFunc),
 	}
 }
 
@@ -456,6 +476,7 @@ func (e *Engine) instantiateNode(n Node, flowID string) {
 		ID:         n.ID,
 		Type:       n.Type,
 		Name:       n.Name,
+		FlowID:     flowID,
 		Properties: n.Config,
 	}
 
@@ -552,6 +573,37 @@ func (e *Engine) wireAllNodes() {
 	for _, rn := range e.nodes {
 		if cp, ok := rn.instance.(ConfigProvider); ok {
 			cp.SetConfigLookup(configLookup)
+		}
+	}
+
+	// Inject status listener registration for nodes that implement
+	// StatusListenerProvider (e.g. the Status Node). Re-wire is safe:
+	// nodes are expected to drop their previous registration before
+	// installing a new one — see StatusNode.SetStatusListener.
+	for _, rn := range e.nodes {
+		if slp, ok := rn.instance.(StatusListenerProvider); ok {
+			slp.SetStatusListener(e.registerStatusListener)
+		}
+	}
+
+	// Build the per-node error callback once and cache it on runningNode so
+	// the nodeLoop can use it for synchronous errors. The same closure is
+	// injected into nodes that implement ErrorProvider so they can report
+	// asynchronous errors from background goroutines.
+	for nodeID, rn := range e.nodes {
+		rn.errorFn = e.makeErrorFunc(nodeID, rn)
+		if ep, ok := rn.instance.(ErrorProvider); ok {
+			ep.SetError(rn.errorFn)
+		}
+	}
+
+	// Inject error listener registration for nodes that implement
+	// ErrorListenerProvider (e.g. the Catch Node). Re-wire is safe:
+	// nodes are expected to drop their previous registration before
+	// installing a new one — see CatchNode.SetErrorListener.
+	for _, rn := range e.nodes {
+		if elp, ok := rn.instance.(ErrorListenerProvider); ok {
+			elp.SetErrorListener(e.registerErrorListener)
 		}
 	}
 }
@@ -865,19 +917,123 @@ func (e *Engine) publishNodeError(nodeID string, rn *runningNode, err error) {
 }
 
 // makeStatusFunc creates a StatusFunc closure for a specific node that publishes
-// status messages via the engine's publishStatus callback (typically to NATS).
+// status messages via the engine's publishStatus callback (typically to NATS)
+// and dispatches them to in-process status listeners (e.g. the Status Node).
+//
+// Status updates emitted by Status Nodes themselves are intentionally excluded
+// from the in-process fan-out: this prevents Status Nodes from triggering each
+// other and makes feedback loops architecturally impossible. Their updates
+// still reach the frontend via NATS so the node UI keeps rendering them.
 func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 	return func(fill string, text string) {
 		msg := StatusMessage{
-			NodeID: nodeID,
-			FlowID: rn.flowID,
-			Status: NodeStatusPayload{Fill: fill, Text: text},
+			NodeID:     nodeID,
+			FlowID:     rn.flowID,
+			Status:     NodeStatusPayload{Fill: fill, Text: text},
+			SourceType: rn.config.Type,
+			SourceName: rn.config.Name,
 		}
 		e.statusCache.Set(nodeID, msg)
+		if rn.config.Type != "status" {
+			e.fanoutStatus(msg)
+		}
 		if e.publishStatus != nil {
 			subject := fmt.Sprintf("status.%s.%s", rn.flowID, nodeID)
 			e.publishStatus(subject, msg)
 		}
+	}
+}
+
+// registerStatusListener adds a listener to the in-process status fan-out and
+// returns an unregister closure that the caller must invoke to release the
+// slot (typically in the node's Stop() method).
+func (e *Engine) registerStatusListener(fn StatusListenerFunc) func() {
+	e.statusListenersMu.Lock()
+	e.statusListenerSeq++
+	id := e.statusListenerSeq
+	e.statusListeners[id] = fn
+	e.statusListenersMu.Unlock()
+	return func() {
+		e.statusListenersMu.Lock()
+		delete(e.statusListeners, id)
+		e.statusListenersMu.Unlock()
+	}
+}
+
+// fanoutStatus dispatches a status message to all registered listeners.
+// Listeners run synchronously on the caller's goroutine — they must be cheap
+// and non-blocking; long work belongs in the listener's own goroutine.
+func (e *Engine) fanoutStatus(msg StatusMessage) {
+	e.statusListenersMu.RLock()
+	defer e.statusListenersMu.RUnlock()
+	for _, fn := range e.statusListeners {
+		fn(msg)
+	}
+}
+
+// makeErrorFunc creates an ErrorFunc closure for a specific node that publishes
+// the error to the debug panel via publishNodeError and dispatches it to
+// in-process error listeners (e.g. the Catch Node).
+//
+// Errors raised by Catch Nodes themselves are intentionally excluded from the
+// in-process fan-out: this prevents Catch Nodes from triggering each other and
+// makes feedback loops architecturally impossible. Their errors still reach
+// the frontend debug panel via publishNodeError.
+func (e *Engine) makeErrorFunc(nodeID string, rn *runningNode) ErrorFunc {
+	return func(err error, msg *Message) {
+		if err == nil {
+			return
+		}
+		e.publishNodeError(nodeID, rn, err)
+		// Loop guard 1: errors raised by Catch Nodes themselves never
+		// fan out — Catch cannot catch Catch.
+		if rn.config.Type == "catch" {
+			return
+		}
+		// Loop guard 2: messages that already carry the _caught marker
+		// originated from a Catch Node's output branch. Fanning them out
+		// again would let a failing branch re-trigger any catch in scope,
+		// which is a fast path to an infinite loop.
+		if msg != nil {
+			if v, ok := msg.Get("_caught").(bool); ok && v {
+				return
+			}
+		}
+		e.fanoutError(ErrorMessage{
+			NodeID:     nodeID,
+			FlowID:     rn.flowID,
+			SourceType: rn.config.Type,
+			SourceName: rn.config.Name,
+			Error:      err.Error(),
+			Msg:        msg,
+		})
+	}
+}
+
+// registerErrorListener adds a listener to the in-process error fan-out and
+// returns an unregister closure that the caller must invoke to release the
+// slot (typically in the node's Stop() method).
+func (e *Engine) registerErrorListener(fn ErrorListenerFunc) func() {
+	e.errorListenersMu.Lock()
+	e.errorListenerSeq++
+	id := e.errorListenerSeq
+	e.errorListeners[id] = fn
+	e.errorListenersMu.Unlock()
+	return func() {
+		e.errorListenersMu.Lock()
+		delete(e.errorListeners, id)
+		e.errorListenersMu.Unlock()
+	}
+}
+
+// fanoutError dispatches an error message to all registered listeners.
+// Listeners run synchronously on the caller's goroutine — they must be cheap
+// and non-blocking; long work belongs in the listener's own goroutine.
+func (e *Engine) fanoutError(msg ErrorMessage) {
+	e.errorListenersMu.RLock()
+	defer e.errorListenersMu.RUnlock()
+	for _, fn := range e.errorListeners {
+		fn(msg)
 	}
 }
 
@@ -918,7 +1074,11 @@ func (e *Engine) nodeLoop(nodeID string, rn *runningNode) {
 			if err != nil {
 				slog.Error("node HandleMessage error",
 					"node_id", nodeID, "error", err)
-				e.publishNodeError(nodeID, rn, err)
+				if rn.errorFn != nil {
+					rn.errorFn(err, msg)
+				} else {
+					e.publishNodeError(nodeID, rn, err)
+				}
 				continue
 			}
 			// Use node-local wire snapshot (set by wireAllNodes under write lock).

@@ -8,7 +8,7 @@ Flint benötigt seinen ersten **Data Connector** — MQTT. Zwei neue Node-Typen 
 
 Dieses Issue führt gleichzeitig das neue Konzept der **Config Nodes** ein — konfigurierbare Entitäten, die nicht auf dem Canvas erscheinen, aber von mehreren Nodes referenziert werden können (z.B. Server-Verbindungen, Authentifizierung). Der MQTT-Broker ist der erste Config Node in Flint.
 
-**Scope**: MQTT v3.1.1. Unterstützung für MQTT v5 wird in einem Folge-Issue ergänzt. Fokus liegt auf funktionierender Broker-Konfiguration und -Instanziierung. Die Subscribe/Publish-Konfiguration ist bewusst minimal gehalten.
+**Scope**: **MQTT v5 ist Pflicht.** Der Broker-Client muss v5 sprechen. v3.1.1 bleibt als alternativ wählbare Protokoll-Version verfügbar — die Auswahl trifft der Anwender pro Broker-Config bewusst, es gibt keinen automatischen Fallback. Fokus liegt auf funktionierender Broker-Konfiguration und -Instanziierung. Die Subscribe/Publish-Konfiguration ist bewusst minimal gehalten — v5-spezifische Features (User Properties, Message Expiry, Shared Subscriptions) werden in einer schlanken ersten Stufe unterstützt.
 
 ## Übersicht
 
@@ -54,11 +54,31 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
   - `host` (string) — Hostname oder IP, z.B. "mqtt.example.com"
   - `port` (number) — Standard: 1883
   - `clientId` (string) — Client-ID, Standard: auto-generiert (`flint-<random>`)
+  - `protocolVersion` (string) — `5` (Default) oder `3.1.1`. Muss vom Anwender bewusst gewählt werden — kein automatischer Fallback
   - `username` (string, optional) — Benutzername
   - `password` (string, optional) — Passwort
   - `keepalive` (number) — Keep-Alive Intervall in Sekunden, Standard: 60
-  - `cleanSession` (boolean) — Clean Session Flag, Standard: true
+  - `cleanStart` (boolean) — Clean Start (v5) bzw. Clean Session (v3.1.1) Flag, Standard: true
+  - `sessionExpiry` (number, v5) — Session Expiry Interval in Sekunden, Standard: 0 (Session endet beim Disconnect). Wird im v3.1.1-Fallback ignoriert
   - `useTLS` (boolean) — TLS aktivieren, Standard: false
+  - **onConnect Message** — Client-seitige Konvention: wird vom Flint-Client unmittelbar nach erfolgreichem CONNACK als regulärer PUBLISH gesendet (typischer "online"-Status). Optional, alle Felder leer = keine Nachricht:
+    - `onConnectTopic` (string)
+    - `onConnectPayload` (string)
+    - `onConnectQoS` (number) — 0, 1 oder 2. Standard: 0
+    - `onConnectRetain` (boolean) — Standard: false
+  - **onDisconnect Message** — Client-seitige Konvention: wird vom Flint-Client vor einem **regulären** Disconnect (Stop / Re-Deploy) als regulärer PUBLISH gesendet, bevor das DISCONNECT-Paket geht. Optional:
+    - `onDisconnectTopic` (string)
+    - `onDisconnectPayload` (string)
+    - `onDisconnectQoS` (number) — Standard: 0
+    - `onDisconnectRetain` (boolean) — Standard: false
+  - **LastWill** — MQTT-Protokoll-Feature: wird im CONNECT-Paket an den Broker übergeben und vom **Broker** publiziert, wenn der Client **unsauber** abreißt (Keep-Alive-Timeout, Verbindungsverlust ohne sauberes DISCONNECT). Optional:
+    - `lastWillTopic` (string)
+    - `lastWillPayload` (string)
+    - `lastWillQoS` (number) — 0, 1 oder 2. Standard: 0
+    - `lastWillRetain` (boolean) — Standard: false
+    - `lastWillDelayInterval` (number, v5) — Verzögerung in Sekunden, bevor der Broker den LastWill publiziert. Standard: 0. Im v3.1.1-Modus ignoriert
+
+  onConnect, onDisconnect und LastWill sind drei separate Messages mit klar getrennten Triggern: **onConnect** nach erfolgreicher Verbindung, **onDisconnect** beim sauberen Disconnect (vom Client gesendet), **LastWill** beim unsauberen Disconnect (vom Broker gesendet).
 
 - **Zugriff auf den Properties-Dialog**:
   - **Neuer Broker**: Über den "+" Button neben dem Broker-Dropdown in MQTT Nodes
@@ -94,9 +114,31 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  │ ••••••••                              │     │
 │  └──────────────────────────────────────┘     │
 │                                               │
+│  Protocol Version                             │
+│  ┌────────────────────────────────────────┐   │
+│  │ MQTT v5 (Default)                  ▼  │   │
+│  └────────────────────────────────────────┘   │
+│                                               │
 │  ┌─────┐                                     │
 │  │ TLS │  Keep-Alive: [60]s                   │
-│  └─────┘  ☑ Clean Session                     │
+│  └─────┘  ☑ Clean Start                       │
+│                                               │
+│  Session Expiry: [0]s         (v5 only)       │
+│                                               │
+│  ▼ onConnect (after connect, optional)        │
+│  Topic:   [status/flint-abc123          ]     │
+│  Payload: [online                       ]     │
+│  QoS: [0 ▼]   ☐ Retain                        │
+│                                               │
+│  ▼ onDisconnect (clean disconnect)            │
+│  Topic:   [status/flint-abc123          ]     │
+│  Payload: [offline                      ]     │
+│  QoS: [0 ▼]   ☐ Retain                        │
+│                                               │
+│  ▼ LastWill (unclean disconnect, MQTT-spec)   │
+│  Topic:   [status/flint-abc123          ]     │
+│  Payload: [offline                      ]     │
+│  QoS: [0 ▼]   ☐ Retain   Delay: [0]s (v5)     │
 │                                               │
 │  ┌────────────┐  ┌────────────┐              │
 │  │  Speichern  │  │ Abbrechen  │              │
@@ -121,9 +163,17 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
     "topic": "sensor/temperature",
     "payload": "<empfangene Daten>",
     "qos": 0,
-    "retain": false
+    "retain": false,
+    "userProperties": { "source": "sensor-42" },
+    "contentType": "application/json",
+    "responseTopic": "sensor/temperature/reply",
+    "correlationData": "<bytes>",
+    "messageExpiry": 60
   }
   ```
+  Die v5-Felder (`userProperties`, `contentType`, `responseTopic`, `correlationData`, `messageExpiry`) werden nur gesetzt, wenn sie in der eingehenden MQTT-Nachricht vorhanden sind. Im v3.1.1-Modus fehlen sie immer.
+
+- **Shared Subscriptions (v5)**: Topic-Pattern `$share/<group>/<topic>` werden transparent unterstützt — die MQTT-Bibliothek leitet diese als gewöhnliche Subscription an den Broker weiter, der die Lastverteilung übernimmt. Im v3.1.1-Fallback würde ein solches Topic literal subscribed, daher ist die Verwendung an v5 gebunden.
 
 #### Static Mode (Default)
 
@@ -200,6 +250,12 @@ Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selecto
 - **Eingehende Message**:
   - `msg.payload` wird als MQTT-Payload gesendet
   - `msg.topic` wird als Fallback-Topic verwendet wenn keins konfiguriert ist
+  - **MQTT v5 (optional)** — folgende Felder werden, falls vorhanden, an den Publish übergeben (im v3.1.1-Modus ignoriert):
+    - `msg.userProperties` (object) — String-zu-String-Map, wird als User Properties gesetzt
+    - `msg.contentType` (string)
+    - `msg.responseTopic` (string)
+    - `msg.correlationData` (string/bytes)
+    - `msg.messageExpiry` (number, Sekunden)
 - **Status-Anzeige**: Analog zu `mqtt-in`
 
 - **Properties-Panel**:
@@ -330,11 +386,26 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
         "host": "mqtt.example.com",
         "port": 1883,
         "clientId": "flint-abc123",
+        "protocolVersion": "5",
         "username": "user",
         "password": "",
         "keepalive": 60,
-        "cleanSession": true,
-        "useTLS": false
+        "cleanStart": true,
+        "sessionExpiry": 0,
+        "useTLS": false,
+        "onConnectTopic": "status/flint-abc123",
+        "onConnectPayload": "online",
+        "onConnectQoS": 0,
+        "onConnectRetain": true,
+        "onDisconnectTopic": "status/flint-abc123",
+        "onDisconnectPayload": "offline",
+        "onDisconnectQoS": 0,
+        "onDisconnectRetain": true,
+        "lastWillTopic": "status/flint-abc123",
+        "lastWillPayload": "offline",
+        "lastWillQoS": 0,
+        "lastWillRetain": true,
+        "lastWillDelayInterval": 0
       }
     }
   ]
@@ -389,7 +460,9 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
 
 ### Go Dependencies
 
-- `github.com/eclipse/paho.mqtt.golang` — MQTT v3.1.1 Client Library
+- `github.com/eclipse/paho.golang/paho` — MQTT v5 Client Library (Eclipse Paho v5)
+- `github.com/eclipse/paho.golang/autopaho` — Connection-Manager mit Auto-Reconnect-Logik um den v5-Client herum
+- **Hinweis**: Die ältere `github.com/eclipse/paho.mqtt.golang` Library spricht nur v3.1.1 und ist daher nicht ausreichend. Der v5-Fallback auf v3.1.1 wird über die Protocol-Negotiation des Brokers abgewickelt — die `paho.golang` Library kann das für unsere Zwecke ausreichend abbilden, ggf. muss bei `protocolVersion=3.1.1` explizit gegen die alte Library oder einen separaten v3-Pfad gefahren werden.
 
 ## Technische Hinweise
 
@@ -408,12 +481,22 @@ Stop:     Reguläre Nodes stoppen → Config Nodes stoppen
 
 ### MQTT Broker – Reconnect-Strategie
 
-Der MQTT-Client sollte automatisches Reconnect implementieren:
+Der MQTT-Client implementiert automatisches Reconnect über `paho.golang/autopaho`:
 
-- `paho.mqtt.golang` bietet `AutoReconnect: true` und `ConnectRetry: true`
+- `autopaho.NewConnection` übernimmt Verbindungsaufbau und Reconnect mit konfigurierbarem Backoff
+- Bei v5-Sessions mit `sessionExpiry > 0` reaktiviert der Broker bestehende Subscriptions; bei `cleanStart=true` muss Flint nach Reconnect alle Subscriptions selbst wiederherstellen
 - Bei Verbindungsverlust: Status auf Gelb ("reconnecting...")
-- Bei erfolgreicher Wiederverbindung: Subscriptions automatisch erneuern, Status auf Grün
+- Bei erfolgreicher Wiederverbindung: Subscriptions automatisch erneuern (sofern nicht durch Session bereits aktiv), Status auf Grün
 - Bei dauerhaftem Fehler: Status auf Rot mit Fehlermeldung
+- Lehnt der Broker die gewählte Protokoll-Version ab, schlägt der CONNECT mit Status Rot und Reason-Code in der Fehlermeldung fehl — der Anwender muss in der Broker-Config explizit auf v3.1.1 umstellen
+
+### onConnect / onDisconnect / LastWill – Lifecycle
+
+- **onConnect**: nach jedem erfolgreichen CONNACK (auch nach Reconnect) feuert der Broker-Manager als erste Aktion den onConnect-Publish, bevor irgendein anderer Node Subscriptions registrieren oder publizieren darf. Dadurch sehen Konsumenten konsistent erst „online", dann den eigentlichen Datenstrom
+- **onDisconnect**: beim regulären Stop / Re-Deploy publiziert der Broker-Manager zuerst die onDisconnect-Message, wartet auf das ACK (bei QoS > 0) bzw. den Flush (bei QoS 0) und schickt erst dann das DISCONNECT-Paket
+- **LastWill**: wird im CONNECT-Paket an den Broker übergeben und ausschließlich vom Broker selbst publiziert, wenn die Verbindung unsauber abreißt. Bei einem regulären DISCONNECT verwirft der Broker den LastWill (so spezifiziert) — daher braucht es die separate onDisconnect-Message
+- onConnect und onDisconnect sind **Client-seitige Konvention** (reguläre PUBLISH-Pakete), LastWill ist das **MQTT-Protokoll-Feature**
+- Wenn onConnect und onDisconnect auf dasselbe Topic mit `retain=true` publizieren, ist LastWill mit `retain=true` empfehlenswert, damit der retained-Status bei jeder Disconnect-Variante konsistent bleibt
 
 ### Broker-Dropdown im Frontend
 
@@ -429,15 +512,38 @@ Der "+" Button neben dem Dropdown öffnet den `MqttBrokerConfig.vue` Dialog. Nac
 
 ### Message-Mapping (mqtt-in)
 
-Empfangene MQTT-Nachrichten werden in das Flint Message-Format übersetzt:
+Empfangene MQTT-Nachrichten werden in das Flint Message-Format übersetzt. v5-Properties werden, falls vom Broker mitgeliefert, in die ausgehende Message übernommen:
 
 ```go
-func (n *MqttInNode) onMessage(client mqtt.Client, mqttMsg mqtt.Message) {
+func (n *MqttInNode) onPublish(p *paho.Publish) {
     msg := NewMessage()
-    msg.Set("topic", mqttMsg.Topic())
-    msg.Set("payload", string(mqttMsg.Payload()))
-    msg.Set("qos", int(mqttMsg.Qos()))
-    msg.Set("retain", mqttMsg.Retained())
+    msg.Set("topic", p.Topic)
+    msg.Set("payload", string(p.Payload))
+    msg.Set("qos", int(p.QoS))
+    msg.Set("retain", p.Retain)
+
+    if props := p.Properties; props != nil { // MQTT v5 Properties
+        if len(props.User) > 0 {
+            up := map[string]string{}
+            for _, kv := range props.User {
+                up[kv.Key] = kv.Value
+            }
+            msg.Set("userProperties", up)
+        }
+        if props.ContentType != "" {
+            msg.Set("contentType", props.ContentType)
+        }
+        if props.ResponseTopic != "" {
+            msg.Set("responseTopic", props.ResponseTopic)
+        }
+        if len(props.CorrelationData) > 0 {
+            msg.Set("correlationData", props.CorrelationData)
+        }
+        if props.MessageExpiry != nil {
+            msg.Set("messageExpiry", *props.MessageExpiry)
+        }
+    }
+
     n.send(0, msg)
 }
 ```
@@ -499,8 +605,7 @@ Der Publish Node liest `msg.payload` und konvertiert es für den MQTT-Publish:
 
 ## Abgrenzung / Nicht im Scope
 
-- **MQTT v5**: Wird in einem Folge-Issue behandelt (Shared Subscriptions, Message Expiry, User Properties etc.)
+- **MQTT v5 Pflicht, aber begrenzter Feature-Umfang**: Unterstützt werden Protocol-Negotiation (v5 mit v3.1.1-Fallback), User Properties, Message Expiry, Content Type, Response Topic / Correlation Data und Shared Subscriptions. Bewusst **nicht** in v1: Topic Aliases (werden vom Client transparent verwaltet, aber nicht konfigurierbar), Subscription Identifiers, Subscription Options (No Local, Retain As Published, Retain Handling), Reason-Code-Routing, Auth-Properties / Enhanced Authentication, Flow Control (Receive Maximum)
 - **Wildcard-Topics**: `+` und `#` Wildcards in Topics werden für den ersten Wurf nicht explizit validiert, funktionieren aber transparent über den MQTT-Client
-- **Last Will / Testament**: Nicht in v1
 - **Erweiterte TLS-Konfiguration**: Client-Zertifikate, CA-Bundle etc. — nicht in v1
 - **Credential Encryption**: Passwörter werden vorerst im Klartext in der Config gespeichert. Verschlüsselung wird separat über ein Credential-System adressiert

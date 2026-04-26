@@ -98,9 +98,9 @@ Messages vom Node bis ins Frontend durchschleusen.
 
 - [x] **Function Node** – JavaScript via Goja ausführen, `msg` rein → `msg` raus
 - [x] **Change Node** – `msg`-Properties setzen, ändern, löschen, verschieben (Rules-basiert)
-- [ ] **Switch Node** – Messages anhand von Regeln auf verschiedene Outputs routen
+- [x] **Switch Node** – Messages anhand von Regeln auf verschiedene Outputs routen
 - [ ] **Template Node** – Go `text/template` für String-Rendering mit `msg`-Daten
-- [ ] **Delay Node** – Messages verzögern oder Rate-Limiten
+- [x] **Delay Node** – Messages verzögern, Rate-Limiten oder Random-Jitter (3 Modi); Override per `msg.delay`/`msg.flush`/`msg.reset`
 
 ### 2.2 Context-System (NATS KV)
 
@@ -123,7 +123,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 ### 2.4 Error Handling
 
 - [ ] **Catch Node** – Fängt Fehler von Nodes im selben Flow
-- [ ] **Status Node** – Meldet Node-Status-Änderungen (connected, disconnected, error)
+- [x] **Status Node** – Meldet Node-Status-Änderungen (connected, disconnected, error)
 - [ ] Globaler Error-Handler im Engine (unhandled errors → Log + WebSocket Notification)
 
 **Ergebnis Phase 2:** Vollständige Datenverarbeitung. Function-Nodes mit Context, Routing, Error Handling.

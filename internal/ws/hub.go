@@ -38,6 +38,7 @@ const (
 	EventStatus       = "status"
 	EventDeploy       = "deploy"
 	EventNotification = "notification"
+	EventLog          = "log"
 )
 
 // upgrader configures the WebSocket upgrade from HTTP. CheckOrigin allows all

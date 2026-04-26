@@ -24,6 +24,7 @@ import (
 	"github.com/niceclouds/flint/internal/api"
 	"github.com/niceclouds/flint/internal/config"
 	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/flint/internal/logbuffer"
 	flintnats "github.com/niceclouds/flint/internal/nats"
 	"github.com/niceclouds/flint/internal/nodes"
 	"github.com/niceclouds/flint/internal/storage"
@@ -60,12 +61,18 @@ type Server struct {
 
 	// store is the persistent storage for flows and credentials.
 	store storage.Storage
+
+	// logBuffer holds recent application log entries for the Terminal Log panel.
+	logBuffer *logbuffer.Buffer
 }
 
 // New creates a new Server with the given configuration. It sets up the Chi
 // router, registers middleware, mounts API routes, the WebSocket endpoint,
 // and the embedded frontend file server.
-func New(cfg *config.Config) (*Server, error) {
+//
+// logBuffer may be nil; when nil the /api/v1/logs endpoint returns an empty
+// array and no log events are broadcast.
+func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	// Start the embedded NATS broker with JetStream before anything else.
 	broker, err := flintnats.New(flintnats.Config{
 		DataDir: cfg.DataDir,
@@ -84,12 +91,13 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	s := &Server{
-		router: chi.NewRouter(),
-		cfg:    cfg,
-		engine: engine,
-		hub:    ws.NewHub(),
-		broker: broker,
-		store:  store,
+		router:    chi.NewRouter(),
+		cfg:       cfg,
+		engine:    engine,
+		hub:       ws.NewHub(),
+		broker:    broker,
+		store:     store,
+		logBuffer: logBuffer,
 	}
 
 	s.setupMiddleware()
@@ -130,10 +138,11 @@ func (s *Server) setupMiddleware() {
 func (s *Server) setupRoutes() {
 	// Mount REST API routes under /api/v1/.
 	deps := &api.Deps{
-		Engine:  s.engine,
-		Storage: s.store,
-		Broker:  s.broker,
-		Hub:     s.hub,
+		Engine:    s.engine,
+		Storage:   s.store,
+		Broker:    s.broker,
+		Hub:       s.hub,
+		LogBuffer: s.logBuffer,
 	}
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
@@ -347,13 +356,17 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("debug", nodes.NewDebugNode, nodes.DebugTypeInfo())
 	registry.Register("function", nodes.NewFunctionNode, nodes.FunctionTypeInfo())
 	registry.Register("context-watch", nodes.NewContextWatchNode, nodes.ContextWatchTypeInfo())
+	registry.Register("catch", nodes.NewCatchNode, nodes.CatchTypeInfo())
 	registry.Register("change", nodes.NewChangeNode, nodes.ChangeTypeInfo())
+	registry.Register("delay", nodes.NewDelayNode, nodes.DelayTypeInfo())
 	registry.Register("link-in", nodes.NewLinkInNode, nodes.LinkInTypeInfo())
 	registry.Register("link-out", nodes.NewLinkOutNode, nodes.LinkOutTypeInfo())
 	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
 	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
 	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
 	registry.Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())
+	registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())

@@ -72,6 +72,21 @@ export const QOS_LEVELS: OptionEntry<number>[] = [
   { value: 2, label: '2 — exactly once' },
 ]
 
+// ── MQTT v5 Retain Handling (subscribe option) ───────────────────────
+
+export const RETAIN_HANDLING_OPTIONS: OptionEntry<number>[] = [
+  { value: 0, label: '0 — send retained at every subscribe' },
+  { value: 1, label: '1 — send retained only on new subscription' },
+  { value: 2, label: '2 — never send retained' },
+]
+
+// ── MQTT v5 Payload Format Indicator (publish property) ──────────────
+
+export const PAYLOAD_FORMAT_OPTIONS: OptionEntry<number>[] = [
+  { value: 0, label: '0 — bytes / unspecified' },
+  { value: 1, label: '1 — UTF-8 text' },
+]
+
 // ── Placeholder per value type ───────────────────────────────────────
 
 export function placeholderFor(vt: string): string {

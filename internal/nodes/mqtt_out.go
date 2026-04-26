@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eclipse/paho.golang/paho"
 	"github.com/niceclouds/flint/internal/flow"
 )
 
@@ -26,6 +27,15 @@ type MqttOutNode struct {
 	qos      byte
 	retain   bool
 	broker   *MqttBroker
+
+	// MQTT v5 default publish properties. These act as fallbacks: msg.* fields
+	// always win when present. UserProperties are merged (msg keys override
+	// config keys; non-overlapping keys from both sides survive).
+	defaultUserProperties map[string]string
+	defaultContentType    string
+	defaultResponseTopic  string
+	defaultMessageExpiry  *uint32
+	defaultPayloadFormat  *byte
 }
 
 // NewMqttOutNode creates a new MQTT publish node.
@@ -50,7 +60,42 @@ func (n *MqttOutNode) Init() error {
 		n.retain = v
 	}
 
+	n.defaultUserProperties = readStringMap(props["defaultUserProperties"])
+	if ct, ok := props["defaultContentType"].(string); ok && ct != "" {
+		n.defaultContentType = ct
+	}
+	if rt, ok := props["defaultResponseTopic"].(string); ok && rt != "" {
+		n.defaultResponseTopic = rt
+	}
+	if me, ok := readUint32(props["defaultMessageExpiry"]); ok && me > 0 {
+		n.defaultMessageExpiry = &me
+	}
+	if pf, ok := readPayloadFormat(props["defaultPayloadFormat"]); ok {
+		n.defaultPayloadFormat = &pf
+	}
+
 	return nil
+}
+
+// readPayloadFormat parses the v5 payload-format-indicator (0=bytes, 1=UTF-8).
+// Anything outside that range, or absent, returns ok=false.
+func readPayloadFormat(v any) (byte, bool) {
+	switch x := v.(type) {
+	case nil:
+		return 0, false
+	case float64:
+		if x != 0 && x != 1 {
+			return 0, false
+		}
+		return byte(x), true
+	case int:
+		if x != 0 && x != 1 {
+			return 0, false
+		}
+		return byte(x), true
+	default:
+		return 0, false
+	}
 }
 
 func (n *MqttOutNode) SetSend(fn flow.SendFunc)               { n.send = fn }
@@ -96,12 +141,139 @@ func (n *MqttOutNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error
 		return nil, fmt.Errorf("mqtt-out %s: payload conversion failed: %w", n.config.ID, err)
 	}
 
-	if err := n.broker.Publish(topic, n.qos, n.retain, payload); err != nil {
+	props := n.mergeV5PublishProperties(msg)
+
+	if err := n.broker.Publish(topic, n.qos, n.retain, payload, props); err != nil {
 		n.status("red", err.Error())
 		return nil, fmt.Errorf("mqtt-out %s: publish failed: %w", n.config.ID, err)
 	}
 
 	return nil, nil // sink node, no output
+}
+
+// mergeV5PublishProperties combines the node's configured v5 defaults with
+// any v5 fields present on the incoming flow message. Rules:
+//
+//   - Scalars (contentType, responseTopic, messageExpiry, payloadFormat):
+//     msg.* wins when present and non-empty/valid; otherwise the configured
+//     default is used.
+//   - userProperties are merged: keys from defaultUserProperties are added
+//     first, then keys from msg.userProperties — so msg keys override config
+//     keys at the same name, and non-overlapping keys from both sides survive.
+//   - correlationData has no static default (per design — it's per-request);
+//     only msg.correlationData applies.
+//
+// Returns nil if neither defaults nor msg contribute any field — paho-go is
+// happy with a nil PublishProperties on the wire.
+func (n *MqttOutNode) mergeV5PublishProperties(msg *flow.Message) *paho.PublishProperties {
+	var props *paho.PublishProperties
+	ensure := func() *paho.PublishProperties {
+		if props == nil {
+			props = &paho.PublishProperties{}
+		}
+		return props
+	}
+
+	// User properties: config first, msg overrides per-key.
+	merged := mergeUserProperties(n.defaultUserProperties, msg.Get("userProperties"))
+	for k, v := range merged {
+		ensure().User.Add(k, v)
+	}
+
+	contentType := n.defaultContentType
+	if ct, ok := msg.Get("contentType").(string); ok && ct != "" {
+		contentType = ct
+	}
+	if contentType != "" {
+		ensure().ContentType = contentType
+	}
+
+	responseTopic := n.defaultResponseTopic
+	if rt, ok := msg.Get("responseTopic").(string); ok && rt != "" {
+		responseTopic = rt
+	}
+	if responseTopic != "" {
+		ensure().ResponseTopic = responseTopic
+	}
+
+	if cd := msg.Get("correlationData"); cd != nil {
+		switch v := cd.(type) {
+		case []byte:
+			if len(v) > 0 {
+				ensure().CorrelationData = v
+			}
+		case string:
+			if v != "" {
+				ensure().CorrelationData = []byte(v)
+			}
+		}
+	}
+
+	if me, ok := readUint32(msg.Get("messageExpiry")); ok {
+		ensure().MessageExpiry = &me
+	} else if n.defaultMessageExpiry != nil {
+		v := *n.defaultMessageExpiry
+		ensure().MessageExpiry = &v
+	}
+
+	if pf, ok := readPayloadFormat(msg.Get("payloadFormat")); ok {
+		ensure().PayloadFormat = &pf
+	} else if n.defaultPayloadFormat != nil {
+		v := *n.defaultPayloadFormat
+		ensure().PayloadFormat = &v
+	}
+
+	return props
+}
+
+// mergeUserProperties returns a single map that has all keys from defaults,
+// overlaid with all keys from msgValue. msgValue may be nil, map[string]string
+// or map[string]any (the latter from JSON-decoded wire format). Returns nil if
+// the merge result is empty.
+func mergeUserProperties(defaults map[string]string, msgValue any) map[string]string {
+	out := make(map[string]string, len(defaults))
+	for k, v := range defaults {
+		out[k] = v
+	}
+	switch m := msgValue.(type) {
+	case map[string]string:
+		for k, v := range m {
+			out[k] = v
+		}
+	case map[string]any:
+		for k, v := range m {
+			if s, ok := v.(string); ok {
+				out[k] = s
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// readUint32 accepts the typical wire formats (float64 from JSON, int, uint32)
+// and reports whether the value is a valid non-negative integer.
+func readUint32(v any) (uint32, bool) {
+	switch x := v.(type) {
+	case nil:
+		return 0, false
+	case float64:
+		if x < 0 {
+			return 0, false
+		}
+		return uint32(x), true
+	case int:
+		if x < 0 {
+			return 0, false
+		}
+		return uint32(x), true
+	case uint32:
+		return x, true
+	default:
+		return 0, false
+	}
 }
 
 func (n *MqttOutNode) Stop() error {
@@ -136,10 +308,15 @@ func MqttOutTypeInfo() flow.NodeTypeInfo {
 		Description: "Publishes messages to an MQTT topic",
 		Icon:        "wifi",
 		Defaults: map[string]any{
-			"broker": "",
-			"topic":  "",
-			"qos":    0,
-			"retain": false,
+			"broker":                "",
+			"topic":                 "",
+			"qos":                   0,
+			"retain":                false,
+			"defaultUserProperties": map[string]string{},
+			"defaultContentType":    "",
+			"defaultResponseTopic":  "",
+			"defaultMessageExpiry":  0,
+			"defaultPayloadFormat":  0,
 		},
 		Inputs:  1,
 		Outputs: 0,

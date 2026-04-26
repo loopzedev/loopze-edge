@@ -60,7 +60,10 @@
       "Bash(mkdir -p /tmp/flint-e2e-data)",
       "Bash(echo \"PID=$!\" sleep 2 echo \"\" echo \"--- /api/v1/logs?limit=5 ---\" curl -s 'http://localhost:1898/api/v1/logs?limit=5')",
       "Bash(curl -s -o /dev/null 'http://localhost:1898/api/v1/flows')",
-      "Bash(kill 304844)"
+      "Bash(kill 304844)",
+      "Bash(go get *)",
+      "Bash(go doc *)",
+      "Bash(go mod *)"
     ]
   }
 }

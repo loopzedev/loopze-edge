@@ -152,11 +152,24 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
   - Static Mode: 0 Inputs, 1 Output (Source Node)
   - Dynamic Mode: 1 Input, 1 Output — der Input dient nur der Steuerung (subscribe / clear), nicht der Datenweitergabe
 - **Funktion**: Verbindet sich über den konfigurierten Broker und leitet empfangene MQTT-Nachrichten als Flow-Messages weiter. Die Subscription kann entweder fest in der Config hinterlegt oder zur Laufzeit per Eingangs-Message gesteuert werden.
-- **Konfiguration**:
+- **Basis-Konfiguration**:
   - `broker` (string) — ID des referenzierten `mqtt-broker` Config Nodes
   - `mode` (string) — `static` (Default) oder `dynamic`
   - `topic` (string) — MQTT Topic zum Abonnieren, z.B. `sensor/temperature` (nur im Static-Modus relevant)
   - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
+
+- **MQTT v5 Subscription Options** (alle optional, gelten pro Subscription; im v3.1.1-Modus ignoriert):
+  - `noLocal` (boolean, default `false`) — verhindert, dass der Broker dem Client seine eigenen Publishes auf demselben Topic zustellt. Nützlich gegen Echo-Schleifen, wenn ein Flint-Flow auf ein Topic published, das er auch subscribed
+  - `retainAsPublished` (boolean, default `false`) — wenn `true`, wird das Retain-Flag der Original-Publish unverändert weitergereicht. Wenn `false` (Default), setzt der Broker das Flag bei Auslieferung auf `0` — Konsumenten können also nicht mehr unterscheiden, ob die Nachricht retained war
+  - `retainHandling` (number, default `0`) — Steuert, wann retained Messages beim Subscribe gesendet werden:
+    - `0`: bei jedem Subscribe alle retained Messages senden (Default-Verhalten)
+    - `1`: retained Messages nur senden, wenn die Subscription neu ist (kein Re-Send beim Re-Subscribe nach Reconnect mit Session)
+    - `2`: niemals retained Messages beim Subscribe senden
+  - `subscriptionIdentifier` (number, optional) — numerische ID, die der Broker bei jedem Publish, der diese Subscription matcht, zurückliefert. Nützlich bei Dynamic-Mode mit mehreren parallelen Subscriptions, um die Quelle einer Nachricht zu identifizieren
+
+- **MQTT v5 SUBSCRIBE Properties** (alle optional, einmal pro SUBSCRIBE-Paket):
+  - `subscribeUserProperties` (object) — String-zu-String-Map, wird als User Properties am SUBSCRIBE-Paket mitgesendet. Selten genutzt; manche Broker werten sie für Authorization-Hooks aus
+
 - **Ausgehende Message** (für jede empfangene MQTT-Nachricht):
   ```json
   {
@@ -168,10 +181,19 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
     "contentType": "application/json",
     "responseTopic": "sensor/temperature/reply",
     "correlationData": "<bytes>",
-    "messageExpiry": 60
+    "messageExpiry": 60,
+    "payloadFormat": 1,
+    "subscriptionIdentifier": 42
   }
   ```
-  Die v5-Felder (`userProperties`, `contentType`, `responseTopic`, `correlationData`, `messageExpiry`) werden nur gesetzt, wenn sie in der eingehenden MQTT-Nachricht vorhanden sind. Im v3.1.1-Modus fehlen sie immer.
+  Die v5-Felder werden nur gesetzt, wenn sie in der eingehenden MQTT-Nachricht vorhanden sind. Im v3.1.1-Modus fehlen sie immer.
+  - `userProperties` (object) — String-zu-String-Map mit den User Properties aus dem PUBLISH-Paket
+  - `contentType` (string) — z.B. `application/json`, `text/plain`
+  - `responseTopic` (string) — Topic, auf das eine Antwort publiziert werden soll (Request/Response-Pattern)
+  - `correlationData` (bytes) — opake Bytes zur Korrelation von Request und Response
+  - `messageExpiry` (number, Sekunden) — verbleibende Lebensdauer der Nachricht; bei Empfang nach Ablauf hätte der Broker sie ohnehin verworfen
+  - `payloadFormat` (number, 0 oder 1) — `0` = unspezifiziert/Bytes, `1` = UTF-8 Text. Hint für Konsumenten zur Decodierung
+  - `subscriptionIdentifier` (number) — die ID, die beim Subscribe gesetzt wurde. Bei Shared Subscriptions oder mehreren überlappenden Subscriptions kann der Broker mehrere zurückgeben — wir liefern dann ein `[]number`-Array
 
 - **Shared Subscriptions (v5)**: Topic-Pattern `$share/<group>/<topic>` werden transparent unterstützt — die MQTT-Bibliothek leitet diese als gewöhnliche Subscription an den Broker weiter, der die Lastverteilung übernimmt. Im v3.1.1-Fallback würde ein solches Topic literal subscribed, daher ist die Verwendung an v5 gebunden.
 
@@ -227,6 +249,19 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  │ 0 - At most once                   ▼  │   │
 │  └────────────────────────────────────────┘   │
 │                                               │
+│  ▼ MQTT v5 Subscription Options (optional)    │
+│  ☐ No Local                                   │
+│  ☐ Retain As Published                        │
+│  Retain Handling: [0 — send always         ▼]│
+│  Subscription ID: [          ] (leave empty)  │
+│                                               │
+│  ▼ MQTT v5 SUBSCRIBE Properties (rare)        │
+│  User Properties:                             │
+│  ┌──────────────┐ ┌──────────────┐ ┌───┐     │
+│  │ key          │ │ value        │ │ × │     │
+│  └──────────────┘ └──────────────┘ └───┘     │
+│  [+ Add property]                             │
+│                                               │
 └──────────────────────────────────────────────┘
 ```
 
@@ -238,24 +273,42 @@ Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selecto
    subscriptions are replaced on each call.
 ```
 
+Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` überschrieben werden:
+- `msg.noLocal` (boolean), `msg.retainAsPublished` (boolean), `msg.retainHandling` (number 0/1/2), `msg.subscriptionIdentifier` (number)
+- Fehlt das Feld in der Steuer-Message, gilt der Config-Wert.
+
 ### 3. MQTT Publish Node (`mqtt-out`)
 
 - **Canvas**: 1 Input, 0 Outputs (Sink Node)
 - **Funktion**: Publiziert eingehende Messages über den konfigurierten Broker auf ein MQTT-Topic
-- **Konfiguration** (minimal für ersten Wurf):
+- **Basis-Konfiguration**:
   - `broker` (string) — ID des referenzierten `mqtt-broker` Config Nodes
   - `topic` (string, optional) — MQTT Topic zum Publizieren. Wenn leer, wird `msg.topic` verwendet
   - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
   - `retain` (boolean) — Retain Flag. Standard: false
+
+- **MQTT v5 Default Properties** (alle optional, gelten als Defaults für jeden Publish; können per `msg` überschrieben werden — siehe unten):
+  - `defaultUserProperties` (object) — String-zu-String-Map; wird mit `msg.userProperties` zusammengeführt (msg-Keys gewinnen bei Konflikt)
+  - `defaultContentType` (string) — z.B. `application/json`
+  - `defaultResponseTopic` (string) — Topic für Antworten (Request/Response-Pattern)
+  - `defaultMessageExpiry` (number, Sekunden) — Default-Ablauf für jede gesendete Nachricht
+  - `defaultPayloadFormat` (number, 0 oder 1) — `0` = Bytes (Default), `1` = UTF-8 Text. Wenn `1` gesetzt ist und der Payload kein gültiger UTF-8-String ist, wird er trotzdem gesendet (der Broker kann ggf. ablehnen)
+
+  **Bewusst nicht in der Static-Config**:
+  - `correlationData` ist per Definition pro-Message (Request/Response-Korrelation) — nur via `msg.correlationData`
+  - `topicAlias` wird vom Client transparent verwaltet (Optimierung im Broker-Manager) — nicht user-konfigurierbar
+  - `subscriptionIdentifier` ist nur im PUBLISH **vom Broker** an den Subscriber relevant, nie im Outbound-Publish
+
 - **Eingehende Message**:
   - `msg.payload` wird als MQTT-Payload gesendet
   - `msg.topic` wird als Fallback-Topic verwendet wenn keins konfiguriert ist
-  - **MQTT v5 (optional)** — folgende Felder werden, falls vorhanden, an den Publish übergeben (im v3.1.1-Modus ignoriert):
-    - `msg.userProperties` (object) — String-zu-String-Map, wird als User Properties gesetzt
-    - `msg.contentType` (string)
-    - `msg.responseTopic` (string)
-    - `msg.correlationData` (string/bytes)
-    - `msg.messageExpiry` (number, Sekunden)
+  - **MQTT v5 (optional)** — folgende Felder überschreiben die Default-Properties aus der Config (im v3.1.1-Modus ignoriert):
+    - `msg.userProperties` (object) — wird mit `defaultUserProperties` zusammengeführt; bei gleichem Key gewinnt msg
+    - `msg.contentType` (string) — überschreibt `defaultContentType`
+    - `msg.responseTopic` (string) — überschreibt `defaultResponseTopic`
+    - `msg.correlationData` (string/bytes) — kein Config-Default, nur per Message
+    - `msg.messageExpiry` (number, Sekunden) — überschreibt `defaultMessageExpiry`
+    - `msg.payloadFormat` (number, 0 oder 1) — überschreibt `defaultPayloadFormat`
 - **Status-Anzeige**: Analog zu `mqtt-in`
 
 - **Properties-Panel**:
@@ -282,6 +335,24 @@ Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selecto
 │  └────────────────────────────────────────┘   │
 │                                               │
 │  ☐ Retain                                     │
+│                                               │
+│  ▼ MQTT v5 Default Properties (optional)      │
+│  Content Type    [application/json         ]  │
+│  Response Topic  [                         ]  │
+│  Message Expiry  [    ] sec                   │
+│  Payload Format  [0 — bytes              ▼]   │
+│                                               │
+│  User Properties:                             │
+│  ┌──────────────┐ ┌──────────────┐ ┌───┐     │
+│  │ source       │ │ flint-flow-1 │ │ × │     │
+│  └──────────────┘ └──────────────┘ └───┘     │
+│  [+ Add property]                             │
+│                                               │
+│  ℹ  msg.userProperties / msg.contentType /    │
+│     msg.responseTopic / msg.messageExpiry /   │
+│     msg.payloadFormat überschreiben die       │
+│     Defaults pro Message.                     │
+│     msg.correlationData ist nur per Message.  │
 │                                               │
 └──────────────────────────────────────────────┘
 ```
@@ -605,7 +676,15 @@ Der Publish Node liest `msg.payload` und konvertiert es für den MQTT-Publish:
 
 ## Abgrenzung / Nicht im Scope
 
-- **MQTT v5 Pflicht, aber begrenzter Feature-Umfang**: Unterstützt werden Protocol-Negotiation (v5 mit v3.1.1-Fallback), User Properties, Message Expiry, Content Type, Response Topic / Correlation Data und Shared Subscriptions. Bewusst **nicht** in v1: Topic Aliases (werden vom Client transparent verwaltet, aber nicht konfigurierbar), Subscription Identifiers, Subscription Options (No Local, Retain As Published, Retain Handling), Reason-Code-Routing, Auth-Properties / Enhanced Authentication, Flow Control (Receive Maximum)
+- **MQTT v5 Feature-Umfang**:
+  - **Drin**: User Properties (CONNECT, PUBLISH, SUBSCRIBE — outbound + inbound), Message Expiry Interval, Content Type, Response Topic, Correlation Data, Payload Format Indicator, Shared Subscriptions, Subscription Identifiers (set + receive), Subscription Options (No Local, Retain As Published, Retain Handling), LastWill mit Will Delay Interval, Session Expiry Interval, Clean Start
+  - **Bewusst nicht in v1**:
+    - **Topic Aliases**: werden vom Client-Manager transparent verwaltet, sind aber nicht user-konfigurierbar (z.B. `Topic Alias Maximum` im CONNECT). Default 0 = aus
+    - **Reason-Code-Routing** auf Catch-Outputs: ACK-Reason-Codes (PUBACK, SUBACK, UNSUBACK, DISCONNECT) werden geloggt, aber nicht als separater Flow-Output bereitgestellt
+    - **Enhanced Authentication** (Auth-Properties, AUTH-Paket, SASL-Style-Flows): nicht in v1
+    - **Flow Control**: `Receive Maximum`, `Maximum Packet Size`, `Server Keep Alive`, `Server Reference` — Default-Werte des Clients werden verwendet, keine UI-Konfiguration
+    - **Request/Response-Information** im CONNECT (`Request Response Information`, `Request Problem Information`): default true für Problem Information, ansonsten nicht konfigurierbar
+    - **CONNECT User Properties**: aktuell nicht im UI; können über Library-API gesetzt werden, falls jemand sie brauchen sollte (Erweiterung später)
 - **Wildcard-Topics**: `+` und `#` Wildcards in Topics werden für den ersten Wurf nicht explizit validiert, funktionieren aber transparent über den MQTT-Client
 - **Erweiterte TLS-Konfiguration**: Client-Zertifikate, CA-Bundle etc. — nicht in v1
 - **Credential Encryption**: Passwörter werden vorerst im Klartext in der Config gespeichert. Verschlüsselung wird separat über ein Credential-System adressiert

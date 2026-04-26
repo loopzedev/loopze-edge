@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"sync"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/eclipse/paho.golang/paho"
 	"github.com/niceclouds/flint/internal/flow"
 )
 
@@ -35,6 +35,14 @@ type MqttInNode struct {
 	topic    string // static mode only
 	qos      byte
 	broker   *MqttBroker
+
+	// MQTT v5 subscription options (default values used in static mode and as
+	// fallbacks in dynamic mode when the control message doesn't override them).
+	noLocal                bool
+	retainAsPublished      bool
+	retainHandling         byte
+	subscriptionIdentifier int
+	subscribeUserProperties map[string]string
 
 	mu           sync.Mutex
 	activeTopics []string // currently subscribed topics (both modes track this for clean teardown)
@@ -71,7 +79,73 @@ func (n *MqttInNode) Init() error {
 
 	n.qos = extractQoS(props["qos"], 0)
 
+	if v, ok := props["noLocal"].(bool); ok {
+		n.noLocal = v
+	}
+	if v, ok := props["retainAsPublished"].(bool); ok {
+		n.retainAsPublished = v
+	}
+	n.retainHandling = extractRetainHandling(props["retainHandling"], 0)
+	if v, ok := props["subscriptionIdentifier"].(float64); ok && v > 0 {
+		n.subscriptionIdentifier = int(v)
+	}
+	n.subscribeUserProperties = readStringMap(props["subscribeUserProperties"])
+
 	return nil
+}
+
+// extractRetainHandling parses the v5 retain-handling option (0/1/2). Anything
+// out of range or unparseable returns the fallback.
+func extractRetainHandling(v any, fallback byte) byte {
+	switch x := v.(type) {
+	case nil:
+		return fallback
+	case float64:
+		if x < 0 || x > 2 {
+			return fallback
+		}
+		return byte(x)
+	case int:
+		if x < 0 || x > 2 {
+			return fallback
+		}
+		return byte(x)
+	default:
+		return fallback
+	}
+}
+
+// readStringMap converts a config-side user-properties map into a clean
+// string-to-string map. Accepts both map[string]string (from Go callers) and
+// map[string]any (from JSON-decoded wire format); non-string values are dropped.
+func readStringMap(v any) map[string]string {
+	switch m := v.(type) {
+	case map[string]string:
+		if len(m) == 0 {
+			return nil
+		}
+		out := make(map[string]string, len(m))
+		for k, val := range m {
+			out[k] = val
+		}
+		return out
+	case map[string]any:
+		if len(m) == 0 {
+			return nil
+		}
+		out := make(map[string]string, len(m))
+		for k, val := range m {
+			if s, ok := val.(string); ok {
+				out[k] = s
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func (n *MqttInNode) SetSend(fn flow.SendFunc)                 { n.send = fn }
@@ -102,7 +176,7 @@ func (n *MqttInNode) Start() error {
 	n.broker.RegisterStatusFunc(n.handleBrokerStatus)
 
 	if n.mode == "static" {
-		if err := n.broker.Subscribe(n.config.ID, n.topic, n.qos, n.onMessage); err != nil {
+		if err := n.broker.Subscribe(n.config.ID, n.topic, n.subscribeOptionsFromConfig(), n.onMessage); err != nil {
 			n.status("red", "subscribe failed")
 			return fmt.Errorf("mqtt-in %s: subscribe failed: %w", n.config.ID, err)
 		}
@@ -117,12 +191,55 @@ func (n *MqttInNode) Start() error {
 	return nil
 }
 
-func (n *MqttInNode) onMessage(_ mqtt.Client, mqttMsg mqtt.Message) {
+// subscribeOptionsFromConfig builds SubscribeOptions from the static
+// configuration. Used directly in static mode and as the default in dynamic
+// mode before applying per-message overrides.
+func (n *MqttInNode) subscribeOptionsFromConfig() SubscribeOptions {
+	return SubscribeOptions{
+		QoS:                    n.qos,
+		NoLocal:                n.noLocal,
+		RetainAsPublished:      n.retainAsPublished,
+		RetainHandling:         n.retainHandling,
+		SubscriptionIdentifier: n.subscriptionIdentifier,
+		UserProperties:         n.subscribeUserProperties,
+	}
+}
+
+func (n *MqttInNode) onMessage(p *paho.Publish) {
 	msg := flow.NewMessage()
-	msg.Set("topic", mqttMsg.Topic())
-	msg.Set("payload", string(mqttMsg.Payload()))
-	msg.Set("qos", int(mqttMsg.Qos()))
-	msg.Set("retain", mqttMsg.Retained())
+	msg.Set("topic", p.Topic)
+	msg.Set("payload", string(p.Payload))
+	msg.Set("qos", int(p.QoS))
+	msg.Set("retain", p.Retain)
+
+	if props := p.Properties; props != nil {
+		if len(props.User) > 0 {
+			up := make(map[string]string, len(props.User))
+			for _, kv := range props.User {
+				up[kv.Key] = kv.Value
+			}
+			msg.Set("userProperties", up)
+		}
+		if props.ContentType != "" {
+			msg.Set("contentType", props.ContentType)
+		}
+		if props.ResponseTopic != "" {
+			msg.Set("responseTopic", props.ResponseTopic)
+		}
+		if len(props.CorrelationData) > 0 {
+			msg.Set("correlationData", props.CorrelationData)
+		}
+		if props.MessageExpiry != nil {
+			msg.Set("messageExpiry", *props.MessageExpiry)
+		}
+		if props.PayloadFormat != nil {
+			msg.Set("payloadFormat", int(*props.PayloadFormat))
+		}
+		if props.SubscriptionIdentifier != nil {
+			msg.Set("subscriptionIdentifier", *props.SubscriptionIdentifier)
+		}
+	}
+
 	n.send(0, msg)
 }
 
@@ -141,7 +258,7 @@ func (n *MqttInNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error)
 	}
 
 	next := toTopicSlice(msg.Get("payload"))
-	qos := extractQoS(msg.Get("qos"), n.qos)
+	opts := n.applyDynamicOverrides(msg)
 
 	n.mu.Lock()
 	old := n.activeTopics
@@ -154,16 +271,66 @@ func (n *MqttInNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error)
 		}
 	}
 	for _, t := range next {
-		if err := n.broker.Subscribe(n.config.ID, t, qos, n.onMessage); err != nil {
+		if err := n.broker.Subscribe(n.config.ID, t, opts, n.onMessage); err != nil {
 			slog.Warn("mqtt-in: subscribe failed", "node_id", n.config.ID, "topic", t, "error", err)
 		}
 	}
 	if len(next) > 0 {
-		slog.Info("mqtt-in dynamic subscribe", "node_id", n.config.ID, "topics", next, "qos", qos)
+		slog.Info("mqtt-in dynamic subscribe", "node_id", n.config.ID, "topics", next, "qos", opts.QoS)
 	}
 
 	n.refreshStatus()
 	return nil, nil
+}
+
+// applyDynamicOverrides starts from the configured SubscribeOptions and
+// overlays any msg.* fields the control message provides. Missing or invalid
+// fields fall back to the configured value.
+func (n *MqttInNode) applyDynamicOverrides(msg *flow.Message) SubscribeOptions {
+	opts := n.subscribeOptionsFromConfig()
+	opts.QoS = extractQoS(msg.Get("qos"), opts.QoS)
+
+	if v, ok := readBool(msg.Get("noLocal")); ok {
+		opts.NoLocal = v
+	}
+	if v, ok := readBool(msg.Get("retainAsPublished")); ok {
+		opts.RetainAsPublished = v
+	}
+	opts.RetainHandling = extractRetainHandling(msg.Get("retainHandling"), opts.RetainHandling)
+	if v, ok := readPositiveInt(msg.Get("subscriptionIdentifier")); ok {
+		opts.SubscriptionIdentifier = v
+	}
+	return opts
+}
+
+// readBool extracts a boolean from typical wire formats. Returns ok=false if
+// the value is absent or not a bool.
+func readBool(v any) (bool, bool) {
+	if b, ok := v.(bool); ok {
+		return b, true
+	}
+	return false, false
+}
+
+// readPositiveInt parses a positive integer from typical wire formats. Returns
+// ok=false for absent, zero, or negative values.
+func readPositiveInt(v any) (int, bool) {
+	switch x := v.(type) {
+	case nil:
+		return 0, false
+	case float64:
+		if x <= 0 {
+			return 0, false
+		}
+		return int(x), true
+	case int:
+		if x <= 0 {
+			return 0, false
+		}
+		return x, true
+	default:
+		return 0, false
+	}
 }
 
 // extractQoS reads a QoS override from a control message. Valid values 0/1/2
@@ -294,10 +461,15 @@ func MqttInTypeInfo() flow.NodeTypeInfo {
 		Description: "Subscribes to an MQTT topic and receives messages",
 		Icon:        "wifi",
 		Defaults: map[string]any{
-			"broker": "",
-			"mode":   "static",
-			"topic":  "",
-			"qos":    0,
+			"broker":                  "",
+			"mode":                    "static",
+			"topic":                   "",
+			"qos":                     0,
+			"noLocal":                 false,
+			"retainAsPublished":       false,
+			"retainHandling":          0,
+			"subscriptionIdentifier":  0,
+			"subscribeUserProperties": map[string]string{},
 		},
 		Inputs:  0,
 		Outputs: 1,

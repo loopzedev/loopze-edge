@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
-	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/eclipse/paho.golang v0.23.0
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/nats-io/nats-server/v2 v2.12.5
@@ -27,7 +27,6 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

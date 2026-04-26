@@ -7,9 +7,12 @@ import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
 import FormField from '@/components/ui/FormField.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
+import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
+import UserPropertiesEditor from '@/components/ui/UserPropertiesEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
-import { QOS_LEVELS } from '@/components/config/enums'
+import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS } from '@/components/config/enums'
 
 const flowStore = useFlowStore()
 const { updateNodeInternals } = useVueFlow('flint-flow-editor')
@@ -24,6 +27,20 @@ const qos = useNodeProperty<number>('qos', 0)
 const retain = useNodeProperty<boolean>('retain', false)
 
 const rawMode = useNodeProperty<string>('mode', 'static')
+
+// mqtt-in v5 subscription options
+const noLocal = useNodeProperty<boolean>('noLocal', false)
+const retainAsPublished = useNodeProperty<boolean>('retainAsPublished', false)
+const retainHandling = useNodeProperty<number>('retainHandling', 0)
+const subscriptionIdentifier = useNodeProperty<number>('subscriptionIdentifier', 0)
+const subscribeUserProperties = useNodeProperty<Record<string, string>>('subscribeUserProperties', {})
+
+// mqtt-out v5 default publish properties
+const defaultUserProperties = useNodeProperty<Record<string, string>>('defaultUserProperties', {})
+const defaultContentType = useNodeProperty<string>('defaultContentType', '')
+const defaultResponseTopic = useNodeProperty<string>('defaultResponseTopic', '')
+const defaultMessageExpiry = useNodeProperty<number>('defaultMessageExpiry', 0)
+const defaultPayloadFormat = useNodeProperty<number>('defaultPayloadFormat', 0)
 
 // Mode is a structural property — switching it changes the input port count.
 // Mirror it onto node.inputs and trigger updateNodeInternals so the handles
@@ -116,5 +133,72 @@ const topicError = computed(() =>
     </FormField>
 
     <FormCheckbox v-if="isMqttOut" v-model="retain" label="Retain message on broker" />
+
+    <!-- mqtt-in: MQTT v5 subscription options -->
+    <SectionHeader v-if="!isMqttOut" title="MQTT v5 Subscription Options">
+      <div class="flex flex-col gap-2">
+        <FormCheckbox v-model="noLocal" label="No Local (don't echo own publishes)" />
+        <FormCheckbox v-model="retainAsPublished" label="Retain As Published (preserve retain flag)" />
+        <FormField label="Retain Handling">
+          <FormSelect v-model="retainHandling" :options="RETAIN_HANDLING_OPTIONS" />
+        </FormField>
+        <FormField
+          label="Subscription Identifier"
+          hint="0 = not set; broker echoes the ID on every matching publish"
+        >
+          <NumberInput v-model="subscriptionIdentifier" :min="0" />
+        </FormField>
+        <p
+          v-if="isDynamic"
+          class="text-[9px] text-terminal-text-dim leading-relaxed mt-1"
+        >
+          In Dynamic mode, every option above can be overridden per call via
+          <span class="font-mono text-accent">msg.noLocal</span>,
+          <span class="font-mono text-accent">msg.retainAsPublished</span>,
+          <span class="font-mono text-accent">msg.retainHandling</span>,
+          <span class="font-mono text-accent">msg.subscriptionIdentifier</span>.
+        </p>
+      </div>
+    </SectionHeader>
+
+    <SectionHeader v-if="!isMqttOut" title="SUBSCRIBE User Properties (rare)">
+      <UserPropertiesEditor v-model="subscribeUserProperties" />
+    </SectionHeader>
+
+    <!-- mqtt-out: MQTT v5 default publish properties -->
+    <SectionHeader v-if="isMqttOut" title="MQTT v5 Default Properties">
+      <div class="flex flex-col gap-2">
+        <FormField label="Content Type">
+          <FormInput v-model="defaultContentType" placeholder="e.g. application/json" mono />
+        </FormField>
+        <FormField label="Response Topic">
+          <FormInput v-model="defaultResponseTopic" placeholder="e.g. reply/topic" mono />
+        </FormField>
+        <FormField label="Message Expiry">
+          <NumberInput v-model="defaultMessageExpiry" :min="0" unit="sec" />
+        </FormField>
+        <FormField label="Payload Format">
+          <FormSelect v-model="defaultPayloadFormat" :options="PAYLOAD_FORMAT_OPTIONS" />
+        </FormField>
+        <p class="text-[9px] text-terminal-text-dim leading-relaxed mt-1">
+          msg fields override these defaults per message:
+          <span class="font-mono text-accent">msg.contentType</span>,
+          <span class="font-mono text-accent">msg.responseTopic</span>,
+          <span class="font-mono text-accent">msg.messageExpiry</span>,
+          <span class="font-mono text-accent">msg.payloadFormat</span>.
+          <span class="font-mono text-accent">msg.correlationData</span> is per-message only (no default).
+        </p>
+      </div>
+    </SectionHeader>
+
+    <SectionHeader v-if="isMqttOut" title="Default User Properties">
+      <div class="flex flex-col gap-1">
+        <UserPropertiesEditor v-model="defaultUserProperties" />
+        <p class="text-[9px] text-terminal-text-dim leading-relaxed mt-1">
+          <span class="font-mono text-accent">msg.userProperties</span> is merged with these defaults per
+          message — msg keys override config keys at the same name; non-overlapping keys from both sides survive.
+        </p>
+      </div>
+    </SectionHeader>
   </div>
 </template>

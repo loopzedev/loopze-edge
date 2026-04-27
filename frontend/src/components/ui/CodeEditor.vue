@@ -4,6 +4,7 @@ import '@/lib/monaco/setup-workers'
 import * as monaco from 'monaco-editor'
 import { flintTypeDefinitions } from '@/lib/monaco/flint-types'
 import { registerExprLanguage } from '@/lib/monaco/expr-language'
+import { registerGoCompletions } from '@/lib/monaco/go-language'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -151,6 +152,9 @@ onMounted(() => {
   configureMonaco()
   if (props.language === 'expr') {
     registerExprLanguage()
+  }
+  if (props.language === 'go') {
+    registerGoCompletions()
   }
 
   // Create a model. JS gets wrapped in a function body so Monaco's TS service

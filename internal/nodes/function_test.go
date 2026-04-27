@@ -94,6 +94,100 @@ func TestFunctionNode_ModifyPayload(t *testing.T) {
 	}
 }
 
+// Verifies the JS Buffer interop with mqtt-in's wire format. mqtt-in produces
+// []int for buffer-mode payloads; the function node should accept this via
+// Buffer.from() and emit []int again when the user assigns a Buffer back to
+// msg.payload — not leak the JS Buffer object's internal fields.
+func TestFunctionNode_BufferRoundTrip(t *testing.T) {
+	t.Run("Buffer.from accepts []int directly", func(t *testing.T) {
+		n, _ := newFunctionNode(t, `
+			let buf = Buffer.from(msg.payload);
+			msg.length = buf.length;
+			msg.firstByte = buf.readUInt8(0);
+			msg.payload = buf;
+			return msg;
+		`, 1)
+
+		outputs, err := n.HandleMessage(inMsg([]int{0xCA, 0xFE, 0xBA, 0xBE}))
+		if err != nil {
+			t.Fatalf("HandleMessage: %v", err)
+		}
+		if len(outputs) == 0 || len(outputs[0]) == 0 {
+			t.Fatal("expected message on port 0")
+		}
+		out := outputs[0][0]
+
+		if l, _ := out.Get("length").(int64); l != 4 {
+			t.Errorf("length = %v, want 4", out.Get("length"))
+		}
+		if fb, _ := out.Get("firstByte").(int64); fb != 0xCA {
+			t.Errorf("firstByte = %v, want 0xCA", out.Get("firstByte"))
+		}
+		// The crucial check: the payload must come back as []int — not as a
+		// map[string]any of the JS Buffer's internal fields.
+		got, ok := out.Payload().([]int)
+		if !ok {
+			t.Fatalf("payload type = %T, want []int", out.Payload())
+		}
+		want := []int{0xCA, 0xFE, 0xBA, 0xBE}
+		for i, v := range want {
+			if got[i] != v {
+				t.Errorf("payload[%d] = %d, want %d", i, got[i], v)
+			}
+		}
+	})
+
+	t.Run("Buffer modification is preserved as []int", func(t *testing.T) {
+		n, _ := newFunctionNode(t, `
+			let buf = Buffer.from(msg.payload);
+			buf.writeUInt8(0xFF, 0);
+			msg.payload = buf;
+			return msg;
+		`, 1)
+
+		outputs, err := n.HandleMessage(inMsg([]int{0x01, 0x02, 0x03}))
+		if err != nil {
+			t.Fatalf("HandleMessage: %v", err)
+		}
+		got, ok := outputs[0][0].Payload().([]int)
+		if !ok {
+			t.Fatalf("payload type = %T, want []int", outputs[0][0].Payload())
+		}
+		want := []int{0xFF, 0x02, 0x03}
+		for i, v := range want {
+			if got[i] != v {
+				t.Errorf("payload[%d] = %d, want %d", i, got[i], v)
+			}
+		}
+	})
+
+	t.Run("Buffer.alloc + writes produces clean []int", func(t *testing.T) {
+		n, _ := newFunctionNode(t, `
+			let buf = Buffer.alloc(3);
+			buf.writeUInt8(0xDE, 0);
+			buf.writeUInt8(0xAD, 1);
+			buf.writeUInt8(0xBE, 2);
+			msg.payload = buf;
+			return msg;
+		`, 1)
+
+		outputs, err := n.HandleMessage(inMsg(nil))
+		if err != nil {
+			t.Fatalf("HandleMessage: %v", err)
+		}
+		got, ok := outputs[0][0].Payload().([]int)
+		if !ok {
+			t.Fatalf("payload type = %T, want []int", outputs[0][0].Payload())
+		}
+		want := []int{0xDE, 0xAD, 0xBE}
+		for i, v := range want {
+			if got[i] != v {
+				t.Errorf("payload[%d] = %d, want %d", i, got[i], v)
+			}
+		}
+	})
+}
+
 func TestFunctionNode_ReturnNull(t *testing.T) {
 	n, _ := newFunctionNode(t, `return null;`, 1)
 

@@ -74,6 +74,7 @@ const typeLabel = computed(() => {
         change: "Change",
         switch: "Switch",
         template: "Template",
+        json: "JSON",
         delay: "Delay",
         filter: "Filter",
         comment: "Comment",
@@ -279,7 +280,7 @@ const outputHandles = computed(() =>
     <!-- Status pill — lives outside the node body. Hidden for disabled nodes
          since they don't run and can't have a live status. -->
     <div
-      v-if="props.status && !props.disabled"
+      v-if="props.status && props.status.fill && !props.disabled"
       class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ml-2"
       :style="{
         background: statusColor + '22',

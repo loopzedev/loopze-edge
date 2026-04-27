@@ -407,6 +407,13 @@ func (n *FunctionNode) messageToJS(msg *flow.Message) goja.Value {
 
 // jsValueToMessage converts a Goja value (JS object) back to a *flow.Message.
 // Returns nil if the value is null or undefined.
+//
+// Buffer-shaped values (created via the JS Buffer.* API in this VM) are
+// detected per top-level key and converted to []int, matching the wire format
+// produced by mqtt-in's buffer mode. Without this, JS Buffer objects would
+// leak across the message boundary as a map of internal fields (__bufferData,
+// length, plus all method functions) — invalid as a payload for mqtt-out and
+// cluttering the debug viewer.
 func (n *FunctionNode) jsValueToMessage(val goja.Value) *flow.Message {
 	if val == nil || goja.IsNull(val) || goja.IsUndefined(val) {
 		return nil
@@ -417,9 +424,35 @@ func (n *FunctionNode) jsValueToMessage(val goja.Value) *flow.Message {
 	}
 	data := make(map[string]any)
 	for _, key := range obj.Keys() {
-		data[key] = obj.Get(key).Export()
+		data[key] = n.exportJSValue(obj.Get(key))
 	}
 	return flow.NewMessageFromData(data)
+}
+
+// exportJSValue exports a Goja value to a Go value, recognising Function-Node
+// Buffer objects and converting them to []int. All other values pass through
+// to Goja's default Export.
+//
+// Buffer detection works on the post-Export form: a JS Buffer (built via
+// wrapBuffer) exports as a map[string]interface{} containing __bufferData as
+// a []byte alongside method functions. We pick the bytes out and discard the
+// rest. Other map-typed values (plain JS objects, arrays of objects, …) flow
+// through unchanged.
+func (n *FunctionNode) exportJSValue(v goja.Value) any {
+	if v == nil {
+		return nil
+	}
+	exported := v.Export()
+	if m, ok := exported.(map[string]any); ok {
+		if raw, ok := m["__bufferData"].([]byte); ok {
+			out := make([]int, len(raw))
+			for i, b := range raw {
+				out[i] = int(b)
+			}
+			return out
+		}
+	}
+	return exported
 }
 
 // resultToOutputs converts the return value of the user function to [][]*Message.

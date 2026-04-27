@@ -87,6 +87,14 @@ export const PAYLOAD_FORMAT_OPTIONS: OptionEntry<number>[] = [
   { value: 1, label: '1 — UTF-8 text' },
 ]
 
+// ── mqtt-in output payload format ────────────────────────────────────
+
+export const MQTT_IN_OUTPUT_FORMATS: OptionEntry<string>[] = [
+  { value: 'string', label: 'String' },
+  { value: 'json',   label: 'JSON (parsed)' },
+  { value: 'buffer', label: 'Buffer (raw bytes)' },
+]
+
 // ── Placeholder per value type ───────────────────────────────────────
 
 export function placeholderFor(vt: string): string {

@@ -157,6 +157,10 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
   - `mode` (string) — `static` (Default) oder `dynamic`
   - `topic` (string) — MQTT Topic zum Abonnieren, z.B. `sensor/temperature` (nur im Static-Modus relevant)
   - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
+  - `outputFormat` (string) — Format, in dem `msg.payload` an den Output geliefert wird:
+    - `string` (Default) — der MQTT-Payload wird als Go-String weitergegeben (rohe Bytes als UTF-8 interpretiert; Nicht-UTF-8-Bytes bleiben byte-identisch erhalten, sind aber als Strings möglicherweise nicht druckbar)
+    - `json` — der Payload wird als JSON geparst; das Ergebnis ist ein strukturierter Wert (Map/Array/Number/Bool/null). Schlägt das Parsen fehl, wird auf `string` zurückgefallen und ein `msg.parseError` mit der Fehlermeldung gesetzt (die Nachricht geht trotzdem raus)
+    - `buffer` — der Payload wird als Zahlen-Array (`[]int`) durchgereicht, z.B. `[222, 173, 190, 239]` für die Bytes `0xDE 0xAD 0xBE 0xEF`. Sinnvoll für binäre Daten (Bilder, Protobuf, MessagePack etc.). Hinweis: bewusst kein `[]byte`, weil Go's `encoding/json` `[]byte` als Base64-String serialisiert, was im Debug-Viewer unleserlich ist und bei JSON-Round-Trips Typ-Info verliert. Der mqtt-out-Node erkennt das Zahlen-Array beim Publishen wieder und baut die Original-Bytes zurück.
 
 - **MQTT v5 Subscription Options** (alle optional, gelten pro Subscription; im v3.1.1-Modus ignoriert):
   - `noLocal` (boolean, default `false`) — verhindert, dass der Broker dem Client seine eigenen Publishes auf demselben Topic zustellt. Nützlich gegen Echo-Schleifen, wenn ein Flint-Flow auf ein Topic published, das er auch subscribed

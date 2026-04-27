@@ -123,6 +123,17 @@ const summaries: Record<string, NodeSummaryFn> = {
     return `${scope}.${pattern} · ${storage}`
   },
 
+  json(cfg) {
+    const property = (cfg.property as string) || 'payload'
+    const action = (cfg.action as string) || 'auto'
+    const indent = Number(cfg.indent ?? 0)
+    if (action === 'parse') return `parse msg.${property}`
+    if (action === 'stringify') {
+      return `stringify msg.${property}${indent > 0 ? ` (indent ${indent})` : ''}`
+    }
+    return `auto-detect on msg.${property}`
+  },
+
   delay(cfg) {
     const mode = (cfg.mode as string) ?? 'delay'
     const fmt = (n: number, unit: string) => `${n}${unit === 'milliseconds' ? 'ms' : unit === 'day' ? 'd' : unit[0]}`

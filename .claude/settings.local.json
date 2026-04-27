@@ -116,7 +116,8 @@
       "Bash(node gen-icons.mjs)",
       "Bash(node gen-ico.mjs)",
       "Bash(node -e ' *)",
-      "Bash(node gen-bolt-icons.mjs)"
+      "Bash(node gen-bolt-icons.mjs)",
+      "Bash(gh issue *)"
     ]
   }
 }

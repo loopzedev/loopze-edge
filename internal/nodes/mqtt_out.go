@@ -282,12 +282,27 @@ func (n *MqttOutNode) Stop() error {
 }
 
 // toBytes converts a payload value to a byte slice for MQTT publishing.
+//
+// Numeric arrays are recognised so that buffer-mode payloads from mqtt-in (and
+// JSON-round-tripped equivalents) publish as their original bytes rather than
+// the literal "[1,2,3]" string.
 func toBytes(v any) ([]byte, error) {
 	switch val := v.(type) {
 	case string:
 		return []byte(val), nil
 	case []byte:
 		return val, nil
+	case []int:
+		return intsToBytes(val), nil
+	case []any:
+		if buf, ok := anyToBytes(val); ok {
+			return buf, nil
+		}
+		data, err := json.Marshal(val)
+		if err != nil {
+			return nil, err
+		}
+		return data, nil
 	case nil:
 		return []byte{}, nil
 	default:
@@ -297,6 +312,35 @@ func toBytes(v any) ([]byte, error) {
 		}
 		return data, nil
 	}
+}
+
+// intsToBytes packs an []int into []byte, clamping each element to a single
+// byte (out-of-range values are taken modulo 256).
+func intsToBytes(in []int) []byte {
+	out := make([]byte, len(in))
+	for i, n := range in {
+		out[i] = byte(n)
+	}
+	return out
+}
+
+// anyToBytes recognises a []any whose elements are all numeric and packs them
+// as a byte slice. This is the format produced by JSON-decoding a buffer-mode
+// payload — every number arrives as float64. Returns ok=false if any element
+// is not a number, leaving the caller to fall back to JSON-marshaling.
+func anyToBytes(in []any) ([]byte, bool) {
+	out := make([]byte, len(in))
+	for i, e := range in {
+		switch n := e.(type) {
+		case float64:
+			out[i] = byte(int(n))
+		case int:
+			out[i] = byte(n)
+		default:
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 // MqttOutTypeInfo returns the node type metadata for the palette.

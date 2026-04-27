@@ -5,6 +5,7 @@
 package nodes
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -30,11 +31,12 @@ type MqttInNode struct {
 	debug        flow.DebugFunc
 	configLookup flow.ConfigLookupFunc
 
-	mode     string
-	brokerID string
-	topic    string // static mode only
-	qos      byte
-	broker   *MqttBroker
+	mode         string
+	brokerID     string
+	topic        string // static mode only
+	qos          byte
+	outputFormat string // "string" (default) | "json" | "buffer"
+	broker       *MqttBroker
 
 	// MQTT v5 subscription options (default values used in static mode and as
 	// fallbacks in dynamic mode when the control message doesn't override them).
@@ -79,6 +81,17 @@ func (n *MqttInNode) Init() error {
 
 	n.qos = extractQoS(props["qos"], 0)
 
+	n.outputFormat, _ = props["outputFormat"].(string)
+	switch n.outputFormat {
+	case "", "string":
+		n.outputFormat = "string"
+	case "json", "buffer":
+	default:
+		slog.Warn("mqtt-in: unknown outputFormat, falling back to string",
+			"node_id", n.config.ID, "outputFormat", n.outputFormat)
+		n.outputFormat = "string"
+	}
+
 	if v, ok := props["noLocal"].(bool); ok {
 		n.noLocal = v
 	}
@@ -92,6 +105,38 @@ func (n *MqttInNode) Init() error {
 	n.subscribeUserProperties = readStringMap(props["subscribeUserProperties"])
 
 	return nil
+}
+
+// setPayload writes the MQTT payload onto the flow message in the requested
+// format. On JSON parse failure it falls back to the raw string and adds a
+// `parseError` field — the message is still emitted so downstream catch nodes
+// can react.
+//
+// Buffer format note: we emit []int rather than []byte. Go's encoding/json
+// serializes []byte as base64, which is opaque on the debug viewer and — more
+// importantly — not round-trip-safe (after JSON decode the value is a string,
+// not bytes). []int serializes as a JSON number array that survives JSON
+// round-trips and is human-readable in the inspector. mqtt-out's payload
+// converter accepts the array form and reconstructs the bytes when publishing.
+func setPayload(msg *flow.Message, raw []byte, format string) {
+	switch format {
+	case "buffer":
+		buf := make([]int, len(raw))
+		for i, b := range raw {
+			buf[i] = int(b)
+		}
+		msg.Set("payload", buf)
+	case "json":
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			msg.Set("payload", string(raw))
+			msg.Set("parseError", err.Error())
+			return
+		}
+		msg.Set("payload", v)
+	default: // "string" or unknown
+		msg.Set("payload", string(raw))
+	}
 }
 
 // extractRetainHandling parses the v5 retain-handling option (0/1/2). Anything
@@ -208,7 +253,7 @@ func (n *MqttInNode) subscribeOptionsFromConfig() SubscribeOptions {
 func (n *MqttInNode) onMessage(p *paho.Publish) {
 	msg := flow.NewMessage()
 	msg.Set("topic", p.Topic)
-	msg.Set("payload", string(p.Payload))
+	setPayload(msg, p.Payload, n.outputFormat)
 	msg.Set("qos", int(p.QoS))
 	msg.Set("retain", p.Retain)
 
@@ -465,6 +510,7 @@ func MqttInTypeInfo() flow.NodeTypeInfo {
 			"mode":                    "static",
 			"topic":                   "",
 			"qos":                     0,
+			"outputFormat":            "string",
 			"noLocal":                 false,
 			"retainAsPublished":       false,
 			"retainHandling":          0,

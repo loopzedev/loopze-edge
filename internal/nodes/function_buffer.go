@@ -84,6 +84,20 @@ func (n *FunctionNode) registerBuffer() {
 			}
 			return n.wrapBuffer(buffer.From(data))
 
+		case []int:
+			data := make([]byte, len(v))
+			for i, num := range v {
+				data[i] = byte(num)
+			}
+			return n.wrapBuffer(buffer.From(data))
+
+		case []int64:
+			data := make([]byte, len(v))
+			for i, num := range v {
+				data[i] = byte(num)
+			}
+			return n.wrapBuffer(buffer.From(data))
+
 		case []byte:
 			return n.wrapBuffer(buffer.From(v))
 

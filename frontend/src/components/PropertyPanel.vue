@@ -21,6 +21,7 @@ import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
 import StatusConfig from '@/components/config/StatusConfig.vue'
 import CatchConfig from '@/components/config/CatchConfig.vue'
 import TemplateConfig from '@/components/config/TemplateConfig.vue'
+import JSONParserConfig from '@/components/config/JSONParserConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 import { getNodeSummary } from '@/components/help'
@@ -264,6 +265,7 @@ function onResizeEnd() {
               <StatusConfig v-else-if="selectedNode?.type === 'status'" />
               <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
               <TemplateConfig v-else-if="selectedNode?.type === 'template'" />
+              <JSONParserConfig v-else-if="selectedNode?.type === 'json'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

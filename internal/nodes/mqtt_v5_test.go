@@ -5,6 +5,7 @@ package nodes
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eclipse/paho.golang/paho"
@@ -104,6 +105,114 @@ func TestMqttIn_OnMessage_PayloadFormatAndSubscriptionIdentifier(t *testing.T) {
 	if got, _ := msg.Get("subscriptionIdentifier").(int); got != 42 {
 		t.Errorf("subscriptionIdentifier = %v, want 42", got)
 	}
+}
+
+// Tests for the configurable outputFormat: string (default), json, buffer.
+// JSON-parse failure falls back to string and surfaces a parseError so flows
+// can catch malformed payloads without losing the message.
+func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
+	t.Run("string (default) — bytes become Go string", func(t *testing.T) {
+		c := &collector{}
+		n := &MqttInNode{send: c.send, outputFormat: "string"}
+		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`{"a":1}`)})
+
+		got, ok := c.last().Get("payload").(string)
+		if !ok {
+			t.Fatalf("payload type = %T, want string", c.last().Get("payload"))
+		}
+		if got != `{"a":1}` {
+			t.Errorf("payload = %q", got)
+		}
+	})
+
+	t.Run("buffer — bytes preserved as []int (round-trip-safe via JSON)", func(t *testing.T) {
+		c := &collector{}
+		n := &MqttInNode{send: c.send, outputFormat: "buffer"}
+		raw := []byte{0xCA, 0xFE, 0xBA, 0xBE}
+		n.onMessage(&paho.Publish{Topic: "x", Payload: raw})
+
+		got, ok := c.last().Get("payload").([]int)
+		if !ok {
+			t.Fatalf("payload type = %T, want []int", c.last().Get("payload"))
+		}
+		want := []int{0xCA, 0xFE, 0xBA, 0xBE}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("payload = %v, want %v", got, want)
+		}
+		// Mutating the source bytes must not affect the emitted slice.
+		raw[0] = 0
+		got2, _ := c.last().Get("payload").([]int)
+		if got2[0] != 0xCA {
+			t.Errorf("emitted buffer aliased the source slice — got2[0]=%x", got2[0])
+		}
+	})
+
+	t.Run("buffer — JSON round-trip preserves data and re-serialises to bytes", func(t *testing.T) {
+		c := &collector{}
+		n := &MqttInNode{send: c.send, outputFormat: "buffer"}
+		raw := []byte{0xDE, 0xAD, 0xBE, 0xEF}
+		n.onMessage(&paho.Publish{Topic: "x", Payload: raw})
+
+		// Round-trip the message through JSON — exactly what happens on the
+		// wire to the frontend or NATS. After this the payload is []any of
+		// float64 (json.Unmarshal default).
+		jsonBytes, err := c.last().MarshalJSON()
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		// The wire format must be a number array, not a base64 string.
+		if !strings.Contains(string(jsonBytes), `"payload":[222,173,190,239]`) {
+			t.Errorf("expected number-array payload in JSON, got: %s", jsonBytes)
+		}
+
+		var roundtripped flow.Message
+		if err := roundtripped.UnmarshalJSON(jsonBytes); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		// mqtt-out's converter must reconstruct the original bytes from the
+		// post-JSON form (which is []any of float64).
+		published, err := toBytes(roundtripped.Payload())
+		if err != nil {
+			t.Fatalf("toBytes: %v", err)
+		}
+		if !reflect.DeepEqual(published, raw) {
+			t.Errorf("round-trip lost data: got %v, want %v", published, raw)
+		}
+	})
+
+	t.Run("json — valid JSON is decoded to a structured value", func(t *testing.T) {
+		c := &collector{}
+		n := &MqttInNode{send: c.send, outputFormat: "json"}
+		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`{"a":1,"b":[true,null]}`)})
+
+		got, ok := c.last().Get("payload").(map[string]any)
+		if !ok {
+			t.Fatalf("payload type = %T, want map[string]any", c.last().Get("payload"))
+		}
+		if v, _ := got["a"].(float64); v != 1 {
+			t.Errorf("payload[a] = %v, want 1", got["a"])
+		}
+		if pe := c.last().Get("parseError"); pe != nil {
+			t.Errorf("parseError should be absent for valid JSON, got %v", pe)
+		}
+	})
+
+	t.Run("json — invalid JSON falls back to string + parseError", func(t *testing.T) {
+		c := &collector{}
+		n := &MqttInNode{send: c.send, outputFormat: "json"}
+		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`not json`)})
+
+		got, ok := c.last().Get("payload").(string)
+		if !ok {
+			t.Fatalf("payload type = %T, want string fallback", c.last().Get("payload"))
+		}
+		if got != "not json" {
+			t.Errorf("fallback payload = %q", got)
+		}
+		if pe, _ := c.last().Get("parseError").(string); pe == "" {
+			t.Errorf("expected parseError to be set on JSON failure")
+		}
+	})
 }
 
 // Test that an MQTT v3-style publish (no Properties) doesn't surface any v5

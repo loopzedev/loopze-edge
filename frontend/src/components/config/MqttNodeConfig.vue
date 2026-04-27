@@ -12,7 +12,7 @@ import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import UserPropertiesEditor from '@/components/ui/UserPropertiesEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
-import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS } from '@/components/config/enums'
+import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS } from '@/components/config/enums'
 
 const flowStore = useFlowStore()
 const { updateNodeInternals } = useVueFlow('flint-flow-editor')
@@ -27,6 +27,7 @@ const qos = useNodeProperty<number>('qos', 0)
 const retain = useNodeProperty<boolean>('retain', false)
 
 const rawMode = useNodeProperty<string>('mode', 'static')
+const outputFormat = useNodeProperty<string>('outputFormat', 'string')
 
 // mqtt-in v5 subscription options
 const noLocal = useNodeProperty<boolean>('noLocal', false)
@@ -130,6 +131,14 @@ const topicError = computed(() =>
 
     <FormField label="QoS">
       <FormSelect v-model="qos" :options="QOS_LEVELS" />
+    </FormField>
+
+    <FormField
+      v-if="!isMqttOut"
+      label="Output Format"
+      hint="JSON falls back to String on parse failure (sets msg.parseError)"
+    >
+      <FormSelect v-model="outputFormat" :options="MQTT_IN_OUTPUT_FORMATS" />
     </FormField>
 
     <FormCheckbox v-if="isMqttOut" v-model="retain" label="Retain message on broker" />

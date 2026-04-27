@@ -104,7 +104,19 @@
       "Bash(curl -s -b /tmp/flint-smoke/cookies http://localhost:18804/api/v1/auth/status)",
       "Bash(FLINT_DATA_DIR=./data FLINT_PORT=18805 FLINT_NATS_PORT=-1 FLINT_AUTH_INSECURE_COOKIES=1 ./flint)",
       "Bash(curl -s http://localhost:18805/api/v1/auth/status)",
-      "Bash(curl -s http://localhost:18805/)"
+      "Bash(curl -s http://localhost:18805/)",
+      "Bash(rsvg-convert --version)",
+      "Bash(npm list *)",
+      "Bash(python3 -c \"from PIL import Image; print\\('PIL ok'\\)\")",
+      "Bash(python3 -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(apt list *)",
+      "Bash(node -e \"require\\('sharp'\\)\")",
+      "Bash(dpkg -L imagemagick-6-common)",
+      "Bash(npm init *)",
+      "Bash(node gen-icons.mjs)",
+      "Bash(node gen-ico.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node gen-bolt-icons.mjs)"
     ]
   }
 }

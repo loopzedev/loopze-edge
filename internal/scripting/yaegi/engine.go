@@ -109,7 +109,20 @@ type Program struct {
 //
 // Compile failures cover: forbidden imports (refusal to resolve), syntax /
 // type errors in user code, missing or wrong-shaped `handle` symbol.
-func (e *Engine) Compile(code string) (*Program, error) {
+//
+// The named return + deferred recover() guards against panics from Yaegi's
+// internals — some malformed user code paths trigger `log.Panic` deep in the
+// interpreter (nil reflect types, unknown symbols, …) which would otherwise
+// kill the host process. We turn every such panic into a regular error so the
+// node goes red instead of taking the engine down.
+func (e *Engine) Compile(code string) (prog *Program, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			prog = nil
+			err = fmt.Errorf("compile panic: %v", r)
+		}
+	}()
+
 	i := interp.New(interp.Options{})
 
 	if err := i.Use(e.symbols); err != nil {

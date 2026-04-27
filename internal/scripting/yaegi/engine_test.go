@@ -435,6 +435,64 @@ func handle() any {
 	}
 }
 
+// Reproduces the user-reported crash: handle refers to an undeclared `node`
+// (forgot the second parameter). Yaegi's internals raise log.Panic("nil
+// reflect type") which would kill the process — we expect Compile to surface
+// the panic as a regular error instead.
+func TestCompile_UndefinedSymbolDoesNotCrashHost(t *testing.T) {
+	engine := scriptingyaegi.New()
+	_, err := engine.Compile(`
+package main
+
+import "flintnode"
+
+var _ = flintnode.Node(nil)
+
+func handle(payload any) any {
+	node.FlowSet("key", "value")
+	return payload
+}
+`)
+	if err == nil {
+		t.Fatal("expected error for undefined node symbol, got nil")
+	}
+}
+
+// Belt-and-suspenders: a wider set of malformed inputs that historically
+// triggered Yaegi-internal panics. None should kill the host; all should
+// return errors.
+func TestCompile_MalformedInputsAreRecovered(t *testing.T) {
+	cases := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "undefined identifier in body",
+			code: `package main
+func handle(payload any) any { return undefinedSymbol }`,
+		},
+		{
+			name: "method call on undefined receiver",
+			code: `package main
+func handle(payload any) any { foo.Bar(); return payload }`,
+		},
+		{
+			name: "type assertion to undefined type",
+			code: `package main
+func handle(payload any) any { return payload.(NotAType) }`,
+		},
+	}
+	engine := scriptingyaegi.New()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := engine.Compile(tc.code)
+			if err == nil {
+				t.Errorf("expected error, got nil")
+			}
+		})
+	}
+}
+
 func TestRun_PanicRecovered(t *testing.T) {
 	engine := scriptingyaegi.New()
 	prog, err := engine.Compile(`

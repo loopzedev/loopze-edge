@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useApi } from '@/composables/useApi'
+import { useAuthStore } from '@/stores/authStore'
 import type { NodeCatalogEntry } from '@/types/flow'
 import NodeIcon from '@/components/nodes/NodeIcon.vue'
 import { getTokens } from '@/components/nodes/tokens'
 
 const api = useApi()
+const auth = useAuthStore()
 
 const nodes = ref<NodeCatalogEntry[]>([])
 const loading = ref(true)
@@ -65,6 +67,10 @@ function toggleCategory(name: string): void {
 }
 
 function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
+  if (!auth.can('deploy')) {
+    event.preventDefault()
+    return
+  }
   if (!event.dataTransfer) return
   event.dataTransfer.setData(
     'application/flint-node',
@@ -152,9 +158,11 @@ function onDragStart(event: DragEvent, node: NodeCatalogEntry): void {
             <div
               v-for="node in cat.nodes"
               :key="node.type"
-              draggable="true"
-              class="cursor-grab active:cursor-grabbing group"
-              :title="node.description"
+              :draggable="auth.can('deploy')"
+              :class="auth.can('deploy')
+                ? 'cursor-grab active:cursor-grabbing group'
+                : 'cursor-default group opacity-70'"
+              :title="auth.can('deploy') ? node.description : 'Read-only — sign in as editor or admin to add nodes'"
               @dragstart="onDragStart($event, node)"
             >
               <!-- Mini node preview -->

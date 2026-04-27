@@ -9,11 +9,13 @@ const props = withDefaults(defineProps<{
   readonly?: boolean
   placeholder?: string
   minHeight?: string
+  language?: 'javascript' | 'plaintext'
 }>(), {
   modelValue: '',
   readonly: false,
   placeholder: '',
   minHeight: '180px',
+  language: 'javascript',
 })
 
 const emit = defineEmits<{
@@ -117,8 +119,11 @@ function configureMonaco() {
   }
 }
 
+const isJS = props.language === 'javascript'
+
 /** Extract user code from the wrapped model content. */
 function unwrap(fullContent: string): string {
+  if (!isJS) return fullContent
   const lines = fullContent.split('\n')
   // Remove first line (wrapper prefix) and last line (wrapper suffix)
   return lines.slice(PREFIX_LINES, lines.length - 1).join('\n')
@@ -126,6 +131,7 @@ function unwrap(fullContent: string): string {
 
 /** Build the full wrapped model content from user code. */
 function wrap(userCode: string): string {
+  if (!isJS) return userCode
   return WRAPPER_PREFIX + userCode + WRAPPER_SUFFIX
 }
 
@@ -134,9 +140,12 @@ onMounted(() => {
 
   configureMonaco()
 
-  // Create a model with the user code wrapped in a function body.
-  const uri = monaco.Uri.parse('file:///flint-function-' + Date.now() + '.js')
-  const model = monaco.editor.createModel(wrap(props.modelValue), 'javascript', uri)
+  // Create a model. JS gets wrapped in a function body so Monaco's TS service
+  // sees `return` as valid. Plain text is used as-is.
+  const uri = monaco.Uri.parse(
+    `file:///flint-${isJS ? 'function' : 'template'}-${Date.now()}.${isJS ? 'js' : 'txt'}`,
+  )
+  const model = monaco.editor.createModel(wrap(props.modelValue), props.language, uri)
 
   editor.value = monaco.editor.create(container.value, {
     model,
@@ -145,7 +154,7 @@ onMounted(() => {
     fontSize: 12,
     fontFamily: "'IBM Plex Mono', monospace",
     fontLigatures: false,
-    lineNumbers: (lineNumber) => String(lineNumber - PREFIX_LINES),
+    lineNumbers: isJS ? (lineNumber) => String(lineNumber - PREFIX_LINES) : 'on',
     lineNumbersMinChars: 3,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -183,44 +192,52 @@ onMounted(() => {
     fixedOverflowWidgets: true,
   })
 
-  // Hide the wrapper lines (first and last) from the user.
-  const ed = editor.value;
-  (ed as any).setHiddenAreas([
-    // Hide the wrapper prefix line
-    new monaco.Range(1, 1, PREFIX_LINES, 1),
-    // Hide the wrapper suffix line
-    new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
-  ])
+  const ed = editor.value
 
-  // Place cursor at the start of user code
-  ed.setPosition({ lineNumber: PREFIX_LINES + 1, column: 1 })
-
-  // Prevent editing the hidden wrapper lines
-  ed.onDidChangeModelContent((e) => {
-    if (internalUpdate) return
-
-    // Check if any change touched the wrapper lines
-    for (const change of e.changes) {
-      if (change.range.startLineNumber <= PREFIX_LINES ||
-          change.range.startLineNumber >= model.getLineCount()) {
-        // Undo wrapper modifications
-        internalUpdate = true
-        ed.trigger('flint', 'undo', null)
-        internalUpdate = false
-        return
-      }
-    }
-
-    internalUpdate = true
-    emit('update:modelValue', unwrap(model.getValue()));
-    internalUpdate = false;
-
-    // Re-hide wrapper suffix (line count may have changed)
+  if (isJS) {
+    // Hide the wrapper lines (first and last) from the user.
     (ed as any).setHiddenAreas([
       new monaco.Range(1, 1, PREFIX_LINES, 1),
       new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
     ])
-  })
+
+    // Place cursor at the start of user code
+    ed.setPosition({ lineNumber: PREFIX_LINES + 1, column: 1 })
+
+    // Prevent editing the hidden wrapper lines
+    ed.onDidChangeModelContent((e) => {
+      if (internalUpdate) return
+
+      // Check if any change touched the wrapper lines
+      for (const change of e.changes) {
+        if (change.range.startLineNumber <= PREFIX_LINES ||
+            change.range.startLineNumber >= model.getLineCount()) {
+          // Undo wrapper modifications
+          internalUpdate = true
+          ed.trigger('flint', 'undo', null)
+          internalUpdate = false
+          return
+        }
+      }
+
+      internalUpdate = true
+      emit('update:modelValue', unwrap(model.getValue()));
+      internalUpdate = false;
+
+      // Re-hide wrapper suffix (line count may have changed)
+      (ed as any).setHiddenAreas([
+        new monaco.Range(1, 1, PREFIX_LINES, 1),
+        new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
+      ])
+    })
+  } else {
+    ed.onDidChangeModelContent(() => {
+      if (internalUpdate) return
+      internalUpdate = true
+      emit('update:modelValue', model.getValue())
+      internalUpdate = false
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -242,12 +259,14 @@ watch(() => props.modelValue, (val) => {
 
   const current = unwrap(model.getValue())
   if (val !== current) {
-    internalUpdate = true;
-    model.setValue(wrap(val));
-    (ed as any).setHiddenAreas([
-      new monaco.Range(1, 1, PREFIX_LINES, 1),
-      new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
-    ])
+    internalUpdate = true
+    model.setValue(wrap(val))
+    if (isJS) {
+      (ed as any).setHiddenAreas([
+        new monaco.Range(1, 1, PREFIX_LINES, 1),
+        new monaco.Range(model.getLineCount(), 1, model.getLineCount(), 1),
+      ])
+    }
     internalUpdate = false
   }
 })

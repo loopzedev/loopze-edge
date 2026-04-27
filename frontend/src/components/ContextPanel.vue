@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import { useContextStore, type ContextView, type TaggedContextEntry } from '@/stores/contextStore'
 import JsonTreeView from '@/components/JsonTreeView.vue'
 
 const flow = useFlowStore()
 const ui = useUiStore()
+const auth = useAuthStore()
 const ctx = useContextStore()
 
 interface ViewOption {
@@ -262,6 +264,7 @@ function storageTagLabel(storage: string): string {
           </button>
 
           <button
+            v-if="auth.can('mutateContext')"
             class="shrink-0 p-1 text-terminal-text-dim hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
             title="Delete this key"
             @click="handleDeleteKey(entry)"
@@ -281,7 +284,7 @@ function storageTagLabel(storage: string): string {
 
     <!-- Footer: Clear All -->
     <div
-      v-if="ctx.entries.length > 0"
+      v-if="ctx.entries.length > 0 && auth.can('mutateContext')"
       class="px-3 py-2 border-t border-terminal-border shrink-0 flex justify-end"
     >
       <button

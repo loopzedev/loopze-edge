@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import FormLabel from '@/components/ui/FormLabel.vue'
 import FormInput from '@/components/ui/FormInput.vue'
@@ -9,6 +10,7 @@ import AppSwitch from '@/components/ui/AppSwitch.vue'
 
 const flowStore = useFlowStore()
 const ui = useUiStore()
+const auth = useAuthStore()
 
 const ctx = computed(() => ui.propertiesContext)
 const isCreate = computed(() => ctx.value?.type === 'flow-create')
@@ -161,7 +163,7 @@ const canDelete = computed(() => flowStore.flows.length > 1)
       </SectionHeader>
     </div>
 
-    <div class="px-3 py-3">
+    <div v-if="auth.can('deploy')" class="px-3 py-3">
       <div v-if="!confirmingDelete">
         <button
           class="text-xs text-red-400 hover:text-red-300 transition-colors duration-100 disabled:opacity-30 disabled:cursor-not-allowed"

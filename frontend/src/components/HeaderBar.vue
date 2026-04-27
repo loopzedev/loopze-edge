@@ -2,10 +2,16 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import type { DeployModeType } from '@/types/flow'
 
 const flowStore = useFlowStore()
 const uiStore = useUiStore()
+const auth = useAuthStore()
+
+async function handleLogout(): Promise<void> {
+  await auth.logout()
+}
 
 const connectionDotColor = computed(() => uiStore.connectionStatusColor)
 
@@ -112,6 +118,18 @@ function selectMode(mode: DeployModeType): void {
       <!-- Separator -->
       <div class="w-px h-5 bg-terminal-border mx-1" />
 
+      <!-- Users link (admins only) -->
+      <router-link
+        v-if="auth.can('manageUsers')"
+        to="/users"
+        class="p-1.5 rounded text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt transition-all duration-100"
+        title="Users"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      </router-link>
+
       <!-- Settings link -->
       <router-link
         to="/settings"
@@ -170,8 +188,36 @@ function selectMode(mode: DeployModeType): void {
       <!-- Separator -->
       <div class="w-px h-5 bg-terminal-border mx-1" />
 
+      <!-- User identity + logout -->
+      <div v-if="auth.user" class="flex items-center gap-1.5">
+        <span class="text-[10px] text-terminal-text-dim font-mono hidden sm:inline" :title="auth.user.role">
+          {{ auth.user.username }}
+        </span>
+        <button
+          class="p-1.5 rounded text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt transition-all duration-100"
+          title="Sign out"
+          @click="handleLogout"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Read-only badge for viewers (replaces the deploy button) -->
+      <div
+        v-if="auth.user && !auth.can('deploy')"
+        class="px-2 py-1 border border-terminal-border rounded-sm text-[10px] uppercase tracking-wider text-terminal-text-dim font-mono"
+        title="You can view flows but not modify or deploy them."
+      >
+        Read-only
+      </div>
+
+      <!-- Separator -->
+      <div v-if="auth.user" class="w-px h-5 bg-terminal-border mx-1" />
+
       <!-- Deploy split-button -->
-      <div class="deploy-menu-container relative">
+      <div v-if="auth.can('deploy')" class="deploy-menu-container relative">
         <div class="flex items-center">
           <!-- Main deploy button -->
           <button

@@ -28,6 +28,11 @@ type Deps struct {
 	Broker    *flintnats.Broker
 	Hub       *ws.Hub
 	LogBuffer *logbuffer.Buffer
+
+	// authDeps embeds the auth-specific dependencies (UserStore,
+	// SessionManager, Middleware, throttle, setup mutex) so the auth
+	// and user handlers can be defined as methods on *Deps too.
+	authDeps
 }
 
 // deployRequest is the JSON body sent by the frontend on deploy.

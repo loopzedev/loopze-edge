@@ -70,6 +70,11 @@ type Client struct {
 	conn *websocket.Conn
 	send chan []byte
 	id   string
+
+	// userID identifies the authenticated user behind this connection.
+	// Set during ServeWSAuthed; empty for anonymous clients (only
+	// possible when auth is disabled).
+	userID string
 }
 
 // Hub maintains the set of active WebSocket clients and broadcasts messages
@@ -138,14 +143,18 @@ func (h *Hub) Run() {
 				select {
 				case client.send <- message:
 				default:
-					// Client send buffer is full; drop it.
+					// Client send buffer is full; drop it. Re-check
+					// membership under the write lock so a concurrent
+					// DisconnectUser cannot cause a double-close.
 					h.mu.RUnlock()
 					h.mu.Lock()
-					delete(h.clients, client)
-					close(client.send)
+					if _, ok := h.clients[client]; ok {
+						delete(h.clients, client)
+						close(client.send)
+						slog.Warn("websocket client dropped (slow consumer)", "client", client.id)
+					}
 					h.mu.Unlock()
 					h.mu.RLock()
-					slog.Warn("websocket client dropped (slow consumer)", "client", client.id)
 				}
 			}
 			h.mu.RUnlock()
@@ -200,12 +209,40 @@ func (h *Hub) ClientCount() int {
 	return len(h.clients)
 }
 
-// ServeWS handles a WebSocket upgrade request from an HTTP client. It upgrades
-// the connection, registers the client with the hub, and starts the read/write
-// pump goroutines. This should be mounted as an HTTP handler:
-//
-//	router.Get("/ws", hub.ServeWS)
+// AuthFunc is the signature of an authentication hook used by
+// ServeWSAuthed. It runs *before* the WebSocket upgrade. Returning a
+// non-empty userID accepts the request; an empty userID rejects it
+// with HTTP 401 and the error (if non-nil) is logged.
+type AuthFunc func(r *http.Request) (userID string, err error)
+
+// ServeWS handles a WebSocket upgrade request without authentication. It
+// is intended only for development setups (FLINT_AUTH_DISABLE) — in
+// normal operation use ServeWSAuthed.
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
+	h.upgradeAndRun(w, r, "")
+}
+
+// ServeWSAuthed returns an http.HandlerFunc that authenticates the
+// upgrade request using authFn before performing the WebSocket upgrade.
+// Failed auth produces a plain 401 (no upgrade), so misbehaving clients
+// cannot keep an open connection without credentials.
+func (h *Hub) ServeWSAuthed(authFn AuthFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := authFn(r)
+		if err != nil {
+			slog.Warn("websocket auth error", "error", err, "remote", r.RemoteAddr)
+		}
+		if userID == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		h.upgradeAndRun(w, r, userID)
+	}
+}
+
+// upgradeAndRun performs the WebSocket upgrade and starts the read/write
+// pumps. userID is attached to the Client for later targeted teardown.
+func (h *Hub) upgradeAndRun(w http.ResponseWriter, r *http.Request, userID string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err, "remote", r.RemoteAddr)
@@ -213,10 +250,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		hub:  h,
-		conn: conn,
-		send: make(chan []byte, 256),
-		id:   r.RemoteAddr,
+		hub:    h,
+		conn:   conn,
+		send:   make(chan []byte, 256),
+		id:     r.RemoteAddr,
+		userID: userID,
 	}
 
 	h.register <- client
@@ -225,6 +263,34 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// current goroutine (which is the HTTP handler goroutine).
 	go client.writePump()
 	go client.readPump()
+}
+
+// DisconnectUser closes every WebSocket connection that belongs to the
+// given user. Used when a user logs out, is disabled, or has their
+// password reset — the open WS sessions must terminate immediately so
+// the user does not keep receiving live events on stale credentials.
+//
+// Closing the send channel makes the write pump send a CloseMessage and
+// drop the underlying conn, which in turn causes the read pump to exit
+// and unregister the client through the normal path.
+func (h *Hub) DisconnectUser(userID string) {
+	if userID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	closed := 0
+	for client := range h.clients {
+		if client.userID != userID {
+			continue
+		}
+		delete(h.clients, client)
+		close(client.send)
+		closed++
+	}
+	if closed > 0 {
+		slog.Info("websocket clients disconnected for user", "user_id", userID, "count", closed)
+	}
 }
 
 // readPump reads messages from the WebSocket connection. It runs in its own

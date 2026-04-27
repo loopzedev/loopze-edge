@@ -47,6 +47,16 @@ type Storage interface {
 	// SaveCredentials writes the raw (encrypted) credentials bytes to storage.
 	// The caller is responsible for encryption via the credentials package.
 	SaveCredentials(data []byte) error
+
+	// LoadUsers reads the raw user-records bytes from storage. The caller is
+	// responsible for JSON unmarshalling. Returns nil bytes and no error if
+	// no users file exists yet (this is the normal first-run state).
+	LoadUsers() ([]byte, error)
+
+	// SaveUsers writes the raw user-records bytes to storage. The caller is
+	// responsible for marshalling to JSON. The bytes contain Argon2 password
+	// hashes, so the file is written with 0600 permissions.
+	SaveUsers(data []byte) error
 }
 
 // FileStorage implements the Storage interface using JSON files on disk.
@@ -59,14 +69,15 @@ type Storage interface {
 type FileStorage struct {
 	flowFile        string
 	credentialsFile string
+	usersFile       string
 	mu              sync.RWMutex
 }
 
 // NewFileStorage creates a FileStorage that reads and writes to the given paths.
-// It ensures the parent directories exist for both files.
-func NewFileStorage(flowFile, credentialsFile string) (*FileStorage, error) {
-	// Ensure parent directories exist for both files.
-	for _, path := range []string{flowFile, credentialsFile} {
+// It ensures the parent directories exist for all files.
+func NewFileStorage(flowFile, credentialsFile, usersFile string) (*FileStorage, error) {
+	// Ensure parent directories exist for all files.
+	for _, path := range []string{flowFile, credentialsFile, usersFile} {
 		dir := filepath.Dir(path)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("storage: failed to create directory %q: %w", dir, err)
@@ -76,6 +87,7 @@ func NewFileStorage(flowFile, credentialsFile string) (*FileStorage, error) {
 	return &FileStorage{
 		flowFile:        flowFile,
 		credentialsFile: credentialsFile,
+		usersFile:       usersFile,
 	}, nil
 }
 
@@ -237,6 +249,41 @@ func (fs *FileStorage) SaveCredentials(data []byte) error {
 	}
 
 	slog.Debug("credentials saved to storage", "path", fs.credentialsFile, "size", len(data))
+	return nil
+}
+
+// LoadUsers reads the raw user-records bytes from the users file. Returns
+// nil bytes and no error if the file does not exist yet (first-run state).
+// The caller is responsible for JSON unmarshalling.
+func (fs *FileStorage) LoadUsers() ([]byte, error) {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	data, err := os.ReadFile(fs.usersFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Debug("no existing users file found", "path", fs.usersFile)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("storage: failed to read users file %q: %w", fs.usersFile, err)
+	}
+
+	slog.Debug("users loaded from storage", "path", fs.usersFile, "size", len(data))
+	return data, nil
+}
+
+// SaveUsers writes the raw user-records bytes to the users file. The file
+// contains Argon2id password hashes, so it is written with restrictive
+// permissions (0600). Atomic write is used to prevent corruption.
+func (fs *FileStorage) SaveUsers(data []byte) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	if err := atomicWriteFile(fs.usersFile, data, 0600); err != nil {
+		return fmt.Errorf("storage: failed to write users file %q: %w", fs.usersFile, err)
+	}
+
+	slog.Debug("users saved to storage", "path", fs.usersFile, "size", len(data))
 	return nil
 }
 

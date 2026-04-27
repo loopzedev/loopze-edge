@@ -15,6 +15,7 @@
 | **Frontend** (Vue 3 + Vue Flow, Stores, Palette, Debug Panel) | ✅ Fertig – Backend angebunden, Deploy + Debug funktionieren |
 | **Flow Engine** (Types, Registry, Deploy, Message-Routing) | ✅ Fertig – Full Lifecycle, Goroutine-per-Node |
 | **API Handler** | ✅ Fertig – Flows, Nodes, Inject, Debug |
+| **Auth** (First-Run-Setup, Argon2id, Sessions, Rollen, Dev-Bypass) | ✅ Fertig – siehe `docs/issues/USER_AUTH.md` |
 | **Node-Typen** | 🟡 2 implementiert (Inject, Debug) |
 
 ---
@@ -122,7 +123,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 
 ### 2.4 Error Handling
 
-- [ ] **Catch Node** – Fängt Fehler von Nodes im selben Flow
+- [x] **Catch Node** – Fängt Fehler von Nodes im selben Flow
 - [x] **Status Node** – Meldet Node-Status-Änderungen (connected, disconnected, error)
 - [ ] Globaler Error-Handler im Engine (unhandled errors → Log + WebSocket Notification)
 

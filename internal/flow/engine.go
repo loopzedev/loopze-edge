@@ -860,7 +860,7 @@ func (e *Engine) makeSendFunc(sourceID string, wires [][]string, targets map[str
 		for _, targetID := range wires[port] {
 			targetNode := targets[targetID]
 			if targetNode == nil {
-				slog.Warn("wire target not found",
+				slog.Debug("wire target not active (disabled or unknown)",
 					"source", sourceID, "target", targetID, "port", port)
 				continue
 			}

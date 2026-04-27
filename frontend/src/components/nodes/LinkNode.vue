@@ -28,7 +28,7 @@ const hasOutput = computed(() => (props.data?.outputs ?? 0) > 0);
       width: '48px',
       height: '48px',
       background: t.bgIcon,
-      border: `1px solid ${props.selected ? t.accent : t.border}`,
+      border: `1px ${props.data?.disabled ? 'dashed' : 'solid'} ${props.selected ? t.accent : t.border}`,
       borderRadius: '6px',
       boxShadow: props.selected
         ? `0 0 0 1px ${t.accentBdr}, 0 4px 12px ${t.accentGlow}`

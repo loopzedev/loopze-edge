@@ -6,11 +6,26 @@ import type {
   NodeCatalogEntry,
 } from '@/types/flow'
 import type { LogEntry } from '@/types/events'
+import type { Role, User } from '@/types/auth'
 
 export interface ApiError {
   status: number
   message: string
   details?: unknown
+}
+
+// Hooks the auth store registers with setApiHooks(). request() invokes
+// them on the corresponding HTTP status codes so the store can react to
+// "session lost" / "first-run setup needed" without every caller doing
+// it manually.
+interface ApiHooks {
+  onUnauthorized?: () => void
+  onSetupRequired?: () => void
+}
+let hooks: ApiHooks = {}
+
+export function setApiHooks(next: ApiHooks): void {
+  hooks = { ...hooks, ...next }
 }
 
 export type ContextScope = 'global' | 'flow'
@@ -46,6 +61,7 @@ async function request<T>(
   }
 
   const response = await fetch(url, {
+    credentials: 'same-origin',
     ...options,
     headers,
   })
@@ -62,6 +78,12 @@ async function request<T>(
       details = errorBody
     } catch {
       // response body is not JSON, use default message
+    }
+
+    if (response.status === 401) {
+      hooks.onUnauthorized?.()
+    } else if (response.status === 503) {
+      hooks.onSetupRequired?.()
     }
 
     const error: ApiError = {
@@ -234,6 +256,76 @@ export function useApi() {
     })
   }
 
+  // ── Auth endpoints ───────────────────────────────────────────────────────
+
+  async function setupAdmin(username: string, password: string): Promise<User> {
+    const res = await request<{ user: User }>('/setup', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    })
+    return res.user
+  }
+
+  async function login(username: string, password: string): Promise<User> {
+    const res = await request<{ user: User }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    })
+    return res.user
+  }
+
+  async function logout(): Promise<void> {
+    return request<void>('/auth/logout', { method: 'POST' })
+  }
+
+  async function getMe(): Promise<User> {
+    const res = await request<{ user: User }>('/auth/me')
+    return res.user
+  }
+
+  /** Returns the joint setup + auth state in a single call. Used at app
+   *  start so the SPA can pick the initial UI (Setup / Login / Editor)
+   *  without ambiguity between "no admin yet" and "logged out". */
+  async function getAuthStatus(): Promise<{
+    needsSetup: boolean
+    authenticated: boolean
+    user?: User
+  }> {
+    return request<{ needsSetup: boolean; authenticated: boolean; user?: User }>(
+      '/auth/status',
+    )
+  }
+
+  // ── User management endpoints (admin only) ───────────────────────────────
+
+  async function listUsers(): Promise<User[]> {
+    const res = await request<{ users: User[] }>('/users')
+    return res.users ?? []
+  }
+
+  async function createUser(username: string, password: string, role: Role): Promise<User> {
+    const res = await request<{ user: User }>('/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role }),
+    })
+    return res.user
+  }
+
+  async function updateUser(id: string, patch: { role?: Role; disabled?: boolean }): Promise<User> {
+    const res = await request<{ user: User }>(`/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+    return res.user
+  }
+
+  async function setUserPassword(id: string, password: string): Promise<void> {
+    return request<void>(`/users/${encodeURIComponent(id)}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    })
+  }
+
   /**
    * Check if an error is an ApiError.
    */
@@ -263,6 +355,15 @@ export function useApi() {
     getContextKey,
     deleteContextKey,
     clearContext,
+    setupAdmin,
+    login,
+    logout,
+    getMe,
+    getAuthStatus,
+    listUsers,
+    createUser,
+    updateUser,
+    setUserPassword,
     isApiError,
   }
 }

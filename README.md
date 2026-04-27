@@ -16,6 +16,7 @@ Designed for automation technicians, PLC programmers, and engineers who think in
 - **Embedded NATS** — Built-in message broker for context storage, debug streams, and fleet communication.
 - **Cross-Platform** — Linux (x64/ARM64/ARM32), Windows (x64), macOS (x64/ARM64).
 - **Encrypted Credentials** — Secrets stored separately with AES-256-GCM encryption.
+- **Local User Accounts** — First-run admin setup, Argon2id password hashing, three roles (admin/editor/viewer).
 
 ## Quick Start
 
@@ -42,15 +43,24 @@ make build
 
 # Open your browser
 # http://localhost:1880
+# On first launch you will be prompted to create the initial admin
+# account — the editor stays locked until that is done.
 ```
 
 ### Command-Line Options
 
-| Flag         | Default     | Description                     |
-|--------------|-------------|---------------------------------|
-| `--host`     | `0.0.0.0`  | Host address to bind to         |
-| `--port`     | `1880`      | HTTP port for the web interface |
-| `--data-dir` | `./data`    | Directory for flows and data    |
+| Flag                       | Default            | Description                                                  |
+|----------------------------|--------------------|--------------------------------------------------------------|
+| `--host`                   | `0.0.0.0`          | Host address to bind to                                      |
+| `--port`                   | `1880`             | HTTP port for the web interface                              |
+| `--data-dir`               | `./data`           | Directory for flows and data                                 |
+| `--users-file`             | `users.json`       | User records file (in `--data-dir`)                          |
+| `--session-key-file`       | `flint.session.key`| HMAC signing key for session cookies (auto-generated)        |
+| `--session-ttl`            | `12h`              | Sliding-window session lifetime                              |
+| `--auth-insecure-cookies`  | `false`            | Drop `Secure` flag on cookies — only use over plain HTTP/dev |
+| `--auth-disable`           | `false`            | Skip authentication entirely (development only)              |
+
+All flags are mirrored as `FLINT_*` environment variables (e.g. `FLINT_AUTH_DISABLE=1`).
 
 ### Development
 
@@ -77,11 +87,12 @@ flint/
 ├── cmd/flint/          # Application entry point
 ├── internal/
 │   ├── api/            # REST API handlers and routes
+│   ├── auth/           # User identity, sessions, role-based middleware
 │   ├── config/         # Configuration management
 │   ├── credentials/    # Encrypted credential storage
 │   ├── flow/           # Flow runtime engine, types, and node registry
 │   ├── server/         # HTTP server setup and middleware
-│   ├── storage/        # Flow and credential file persistence
+│   ├── storage/        # Flow, credential, and user file persistence
 │   └── ws/             # WebSocket hub for real-time communication
 ├── web/                # Embedded Vue 3 frontend (go:embed)
 ├── go.mod

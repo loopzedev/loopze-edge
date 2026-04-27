@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 
+import { useAuthStore } from '@/stores/authStore'
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -13,6 +15,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/SettingsView.vue'),
   },
   {
+    path: '/users',
+    name: 'Users',
+    component: () => import('@/views/UsersView.vue'),
+    meta: { requiresAdmin: true },
+  },
+  {
     path: '/design-preview',
     name: 'DesignPreview',
     component: () => import('@/views/DesignPreview.vue'),
@@ -22,6 +30,20 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+// Block admin-only routes for non-admins. The store is populated before
+// the very first navigation finishes (App.vue runs auth.init() at mount,
+// and route loading is async), but to be safe we redirect to "/" if no
+// user or wrong role.
+router.beforeEach((to) => {
+  if (to.meta.requiresAdmin) {
+    const auth = useAuthStore()
+    if (auth.role !== 'admin') {
+      return { path: '/' }
+    }
+  }
+  return true
 })
 
 export default router

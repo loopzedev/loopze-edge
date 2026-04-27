@@ -2,12 +2,23 @@
 import { computed } from "vue";
 import type { NodeProps } from "@vue-flow/core";
 import { useApi } from "@/composables/useApi";
+import { useAuthStore } from "@/stores/authStore";
 import BaseNode from "@/components/nodes/BaseNode.vue";
 
 defineOptions({ inheritAttrs: false });
 
 const props = defineProps<NodeProps>();
 const api = useApi();
+const auth = useAuthStore();
+
+// The action button (TRIG) only makes sense for users who can fire
+// inject nodes. For viewers we hide it; the rest of the node still
+// renders so they can see what is on the canvas.
+const actionButton = computed(() =>
+  auth.can("inject")
+    ? { label: "TRIG", title: "Trigger inject" }
+    : null,
+);
 
 const label = computed(() => props.data?.label);
 
@@ -42,7 +53,7 @@ function handleTrigger(): void {
         :outputs="1"
         :status="props.data?.status"
         :disabled="props.data?.disabled"
-        :action-button="{ label: 'TRIG', title: 'Trigger inject' }"
+        :action-button="actionButton"
         @action="handleTrigger"
     >
         <template #body>

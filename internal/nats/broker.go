@@ -263,6 +263,23 @@ func (b *Broker) SetupContextKV(ctx context.Context) (memory jetstream.KeyValue,
 	return memory, persistent, nil
 }
 
+// SetupSessionKV creates (or updates) the JetStream KV bucket used by the
+// auth package to persist user sessions. File-storage so sessions survive
+// a restart; per-entry TTL = ttl, refreshed on every Put (sliding window).
+func (b *Broker) SetupSessionKV(ctx context.Context, ttl time.Duration) (jetstream.KeyValue, error) {
+	kv, err := b.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "auth-sessions",
+		Storage: jetstream.FileStorage,
+		History: 1,
+		TTL:     ttl,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("nats: failed to create session KV: %w", err)
+	}
+	slog.Info("NATS session KV ready", "bucket", "auth-sessions", "ttl", ttl)
+	return kv, nil
+}
+
 // SetupFlowContextKV creates (or updates) KV buckets for a specific flow's
 // context state (flow.get/flow.set in Function Nodes).
 // Two buckets are created per flow: memory and persistent.

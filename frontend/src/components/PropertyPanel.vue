@@ -6,6 +6,7 @@ import PanelHeader from '@/components/ui/PanelHeader.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import FormLabel from '@/components/ui/FormLabel.vue'
 import FormInput from '@/components/ui/FormInput.vue'
+import AppSwitch from '@/components/ui/AppSwitch.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
 import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
@@ -19,6 +20,7 @@ import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
 import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
 import StatusConfig from '@/components/config/StatusConfig.vue'
 import CatchConfig from '@/components/config/CatchConfig.vue'
+import TemplateConfig from '@/components/config/TemplateConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 import { getNodeSummary } from '@/components/help'
@@ -213,16 +215,26 @@ function onResizeEnd() {
 
         <!-- ── Zone 2: Body (scrollable) ──────────────────────── -->
         <div class="flex-1 overflow-y-auto flex flex-col min-h-0">
-          <!-- Properties (Name) -->
+          <!-- Properties (Name + Enabled toggle) -->
           <div class="px-4 py-3 border-b border-terminal-border">
             <SectionHeader title="Properties">
-              <div class="flex flex-col gap-1">
-                <FormLabel>Name</FormLabel>
-                <FormInput
-                  :model-value="(nodeData?.label as string) ?? ''"
-                  placeholder="Node name"
-                  @update:model-value="flowStore.updateNodeData(selectedNode!.id, { label: $event })"
-                />
+              <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-1">
+                  <FormLabel>Name</FormLabel>
+                  <FormInput
+                    :model-value="(nodeData?.label as string) ?? ''"
+                    placeholder="Node name"
+                    @update:model-value="flowStore.updateNodeData(selectedNode!.id, { label: $event })"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <FormLabel>Status</FormLabel>
+                  <AppSwitch
+                    :model-value="!(nodeData?.disabled ?? false)"
+                    label="Aktiviert"
+                    @update:model-value="flowStore.updateNodeData(selectedNode!.id, { disabled: !$event })"
+                  />
+                </div>
               </div>
             </SectionHeader>
           </div>
@@ -251,6 +263,7 @@ function onResizeEnd() {
               <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
               <StatusConfig v-else-if="selectedNode?.type === 'status'" />
               <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
+              <TemplateConfig v-else-if="selectedNode?.type === 'template'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

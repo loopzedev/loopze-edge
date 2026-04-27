@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, toRaw } from "vue";
+import { computed, ref, toRaw, watch } from "vue";
 import { useUiStore } from "./uiStore";
 import type {
   Node as FlintNode,
@@ -717,6 +717,35 @@ export const useFlowStore = defineStore("flow", () => {
   }
 
   // --------------- Return ---------------
+
+  // Re-style edges whose source or target node is disabled, so the visual
+  // break in the flow is obvious. Triggers on disabled-flag changes and on
+  // edge-list mutations (add/remove).
+  watch(
+    [
+      () => nodes.value.map((n) => `${n.id}:${n.data?.disabled ? "1" : "0"}`).join(","),
+      () => edges.value.length,
+    ],
+    () => {
+      const disabledSet = new Set(
+        nodes.value.filter((n) => n.data?.disabled).map((n) => n.id),
+      );
+      for (const edge of edges.value) {
+        const isDisabled =
+          disabledSet.has(edge.source) || disabledSet.has(edge.target);
+        const base = (edge.style ?? {}) as Record<string, unknown>;
+        if (isDisabled) {
+          edge.style = { ...base, strokeDasharray: "4 4", opacity: 0.4 };
+        } else if ("strokeDasharray" in base) {
+          const next = { ...base };
+          delete next.strokeDasharray;
+          delete next.opacity;
+          edge.style = next;
+        }
+      }
+    },
+    { immediate: true },
+  );
 
   return {
     // State

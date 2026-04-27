@@ -12,7 +12,7 @@ Fokus auf Plattform-Features, nicht einzelne Node-Typen.
 - [ ] Subflow-Status-Anzeige
 
 ### 1.2 Node-Editing
-- [ ] Node Enable/Disable (einzelne Nodes deaktivieren ohne Löschen)
+- [x] Node Enable/Disable (einzelne Nodes deaktivieren ohne Löschen) – siehe `docs/issues/NODE_ENABLE_DISABLE.md`
 - [ ] Node-Gruppen (visuelle Gruppierung mit Rahmen/Kommentar)
 - [ ] Comment-Nodes (reine Kommentar-Blöcke im Flow)
 - [ ] Wires: Bend-Points / Link-Routing

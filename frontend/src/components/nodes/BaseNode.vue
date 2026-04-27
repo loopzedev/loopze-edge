@@ -142,6 +142,8 @@ const outputHandles = computed(() =>
       <button
         v-if="props.actionButton"
         class="shrink-0 w-9 flex items-center justify-center transition-all duration-100 nopan nodrag"
+        :class="{ 'pointer-events-none': props.disabled }"
+        :disabled="props.disabled"
         :style="{
           background: actionActive ? t.accent + '22' : '#161b22',
           border: `1px solid ${actionActive ? t.accent : t.border}`,
@@ -168,7 +170,7 @@ const outputHandles = computed(() =>
         :style="{
           background: '#161b22',
           minHeight: nodeMinHeight,
-          border: `1px solid ${props.selected ? t.accent : t.border}`,
+          border: `1px ${props.disabled ? 'dashed' : 'solid'} ${props.selected ? t.accent : t.border}`,
           boxShadow: props.selected ? `0 0 0 1px ${t.accent}, 0 4px 20px ${t.accentGlow}` : 'none',
           outline: isHighlighted ? `1px dashed ${t.accent}` : undefined,
           outlineOffset: isHighlighted ? '-1px' : undefined,
@@ -252,6 +254,8 @@ const outputHandles = computed(() =>
       <button
         v-if="props.toggleButton"
         class="shrink-0 w-9 flex items-center justify-center transition-all duration-100 nopan nodrag"
+        :class="{ 'pointer-events-none': props.disabled }"
+        :disabled="props.disabled"
         :style="{
           background: props.toggleState ? t.accent + '22' : '#161b22',
           border: `1px solid ${props.toggleState ? t.accent : t.border}`,
@@ -272,9 +276,10 @@ const outputHandles = computed(() =>
       </button>
     </div>
 
-    <!-- Status pill — lives outside the node body -->
+    <!-- Status pill — lives outside the node body. Hidden for disabled nodes
+         since they don't run and can't have a live status. -->
     <div
-      v-if="props.status"
+      v-if="props.status && !props.disabled"
       class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ml-2"
       :style="{
         background: statusColor + '22',

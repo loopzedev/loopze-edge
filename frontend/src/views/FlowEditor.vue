@@ -20,6 +20,7 @@ import LinkCallNode from "@/components/nodes/LinkCallNode.vue";
 import StateMachineNode from "@/components/nodes/StateMachineNode.vue";
 import StatusNode from "@/components/nodes/StatusNode.vue";
 import CatchNode from "@/components/nodes/CatchNode.vue";
+import TemplateNode from "@/components/nodes/TemplateNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -168,6 +169,20 @@ function handleKeyDown(event: KeyboardEvent): void {
             event.preventDefault();
             flowStore.duplicateSelectedNodes();
             break;
+        case "e": {
+            event.preventDefault();
+            const selected = getSelectedNodes.value;
+            if (selected.length === 0) break;
+            const states = selected.map((n: any) => !!n.data?.disabled);
+            const allSame = states.every((s: boolean) => s === states[0]);
+            const next = allSame ? !states[0] : false;
+            for (const n of selected) {
+                if (!!n.data?.disabled !== next) {
+                    flowStore.updateNodeData(n.id, { disabled: next });
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -305,7 +320,7 @@ onMounted(async () => {
             </template>
 
             <template #node-template="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <TemplateNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-delay="nodeProps">

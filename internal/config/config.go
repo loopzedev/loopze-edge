@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds the runtime configuration for the Flint application.
@@ -34,8 +35,30 @@ type Config struct {
 	// CredentialsFile is the filename for the encrypted credentials file (relative to DataDir).
 	CredentialsFile string
 
+	// UsersFile is the filename for the user records file (relative to DataDir).
+	// Stores Argon2id password hashes for local users.
+	UsersFile string
+
 	// KeyFile is the filename for the AES-256-GCM encryption key (relative to DataDir).
 	KeyFile string
+
+	// SessionKeyFile is the filename for the HMAC session-cookie signing
+	// key (relative to DataDir). Auto-generated on first run.
+	SessionKeyFile string
+
+	// AuthInsecureCookies, when true, disables the Secure flag on the
+	// session cookie so login works over plain HTTP. Intended for
+	// localhost development; never enable in production.
+	AuthInsecureCookies bool
+
+	// AuthDisable, when true, bypasses authentication entirely. A
+	// synthetic admin user is injected into every request. Intended for
+	// localhost development and CI.
+	AuthDisable bool
+
+	// SessionTTL is the lifetime of a session, sliding-window. Refreshed
+	// on every authenticated request.
+	SessionTTL time.Duration
 
 	// NATSPort is the TCP port for the embedded NATS server. Use -1 for auto-assigned.
 	NATSPort int
@@ -62,10 +85,13 @@ const (
 	defaultDataDir         = "./data"
 	defaultFlowFile        = "workspace.json"
 	defaultCredentialsFile = "credentials.json"
+	defaultUsersFile       = "users.json"
 	defaultKeyFile         = "flint.key"
+	defaultSessionKeyFile  = "flint.session.key"
 	defaultNATSPort        = 4222
 	defaultLogLevel        = "info"
 	defaultLogBufferSize   = 1000
+	defaultSessionTTL      = 12 * time.Hour
 
 	envPrefix = "FLINT_"
 )
@@ -81,10 +107,15 @@ func Load() *Config {
 	flag.StringVar(&cfg.DataDir, "data-dir", defaultDataDir, "directory for data storage (flows, credentials, keys)")
 	flag.StringVar(&cfg.FlowFile, "flow-file", defaultFlowFile, "filename for flow definitions")
 	flag.StringVar(&cfg.CredentialsFile, "credentials-file", defaultCredentialsFile, "filename for encrypted credentials")
+	flag.StringVar(&cfg.UsersFile, "users-file", defaultUsersFile, "filename for user records")
 	flag.StringVar(&cfg.KeyFile, "key-file", defaultKeyFile, "filename for encryption key")
+	flag.StringVar(&cfg.SessionKeyFile, "session-key-file", defaultSessionKeyFile, "filename for session signing key")
 	flag.IntVar(&cfg.NATSPort, "nats-port", defaultNATSPort, "port for the embedded NATS server (-1 for auto)")
 	flag.StringVar(&cfg.LogLevel, "log-level", defaultLogLevel, "log level: debug, info, warn, error")
 	flag.IntVar(&cfg.LogBufferSize, "log-buffer-size", defaultLogBufferSize, "in-memory log ring buffer capacity (entries)")
+	flag.BoolVar(&cfg.AuthInsecureCookies, "auth-insecure-cookies", false, "disable Secure flag on session cookies (development only)")
+	flag.BoolVar(&cfg.AuthDisable, "auth-disable", false, "bypass authentication; inject a synthetic admin (development only)")
+	flag.DurationVar(&cfg.SessionTTL, "session-ttl", defaultSessionTTL, "lifetime of an authenticated session (sliding window)")
 
 	flag.Parse()
 
@@ -118,8 +149,25 @@ func applyEnvOverrides(cfg *Config) {
 	if v, ok := getenv("CREDENTIALS_FILE"); ok && !flagProvided("credentials-file") {
 		cfg.CredentialsFile = v
 	}
+	if v, ok := getenv("USERS_FILE"); ok && !flagProvided("users-file") {
+		cfg.UsersFile = v
+	}
 	if v, ok := getenv("KEY_FILE"); ok && !flagProvided("key-file") {
 		cfg.KeyFile = v
+	}
+	if v, ok := getenv("SESSION_KEY_FILE"); ok && !flagProvided("session-key-file") {
+		cfg.SessionKeyFile = v
+	}
+	if v, ok := getenv("AUTH_INSECURE_COOKIES"); ok && !flagProvided("auth-insecure-cookies") {
+		cfg.AuthInsecureCookies = parseBool(v)
+	}
+	if v, ok := getenv("AUTH_DISABLE"); ok && !flagProvided("auth-disable") {
+		cfg.AuthDisable = parseBool(v)
+	}
+	if v, ok := getenv("SESSION_TTL"); ok && !flagProvided("session-ttl") {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.SessionTTL = d
+		}
 	}
 	if v, ok := getenv("NATS_PORT"); ok && !flagProvided("nats-port") {
 		if port, err := strconv.Atoi(v); err == nil {
@@ -146,9 +194,29 @@ func (c *Config) CredentialsFilePath() string {
 	return filepath.Join(c.DataDir, c.CredentialsFile)
 }
 
+// UsersFilePath returns the full path to the user records file.
+func (c *Config) UsersFilePath() string {
+	return filepath.Join(c.DataDir, c.UsersFile)
+}
+
 // KeyFilePath returns the full path to the encryption key file.
 func (c *Config) KeyFilePath() string {
 	return filepath.Join(c.DataDir, c.KeyFile)
+}
+
+// SessionKeyFilePath returns the full path to the session signing key file.
+func (c *Config) SessionKeyFilePath() string {
+	return filepath.Join(c.DataDir, c.SessionKeyFile)
+}
+
+// parseBool accepts "1"/"true"/"yes"/"on" (case-insensitive) as true.
+// Anything else (including empty) is false.
+func parseBool(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // ListenAddr returns the formatted host:port address string for the HTTP server.

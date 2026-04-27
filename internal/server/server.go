@@ -22,6 +22,7 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/niceclouds/flint/internal/api"
+	"github.com/niceclouds/flint/internal/auth"
 	"github.com/niceclouds/flint/internal/config"
 	"github.com/niceclouds/flint/internal/flow"
 	"github.com/niceclouds/flint/internal/logbuffer"
@@ -64,6 +65,17 @@ type Server struct {
 
 	// logBuffer holds recent application log entries for the Terminal Log panel.
 	logBuffer *logbuffer.Buffer
+
+	// users persists local user records.
+	users auth.UserStore
+
+	// sessions issues and validates session cookies.
+	sessions *auth.SessionManager
+
+	// authMW provides the request-time auth gates (Authenticate,
+	// RequireRole, RequireSetupComplete) and is also reused by the
+	// WebSocket handler for WS-upgrade authentication.
+	authMW *auth.Middleware
 }
 
 // New creates a new Server with the given configuration. It sets up the Chi
@@ -85,9 +97,44 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	engine := flow.NewEngine(cfg)
 	registerNodes(engine.Registry())
 
-	store, err := storage.NewFileStorage(cfg.FlowFilePath(), cfg.CredentialsFilePath())
+	store, err := storage.NewFileStorage(cfg.FlowFilePath(), cfg.CredentialsFilePath(), cfg.UsersFilePath())
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to create storage: %w", err)
+	}
+
+	users, err := auth.NewFileStore(store)
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to load user store: %w", err)
+	}
+
+	signKey, err := auth.EnsureSessionKey(cfg.SessionKeyFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to ensure session key: %w", err)
+	}
+
+	sessionKV, err := broker.SetupSessionKV(context.Background(), cfg.SessionTTL)
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to setup session KV: %w", err)
+	}
+
+	sessions, err := auth.NewSessionManager(auth.NewNATSSessionStore(sessionKV), signKey, cfg.SessionTTL)
+	if err != nil {
+		return nil, fmt.Errorf("server: failed to create session manager: %w", err)
+	}
+
+	authMW := &auth.Middleware{
+		Users:        users,
+		Sessions:     sessions,
+		CookieSecure: !cfg.AuthInsecureCookies,
+	}
+	if cfg.AuthDisable {
+		slog.Warn("⚠ FLINT_AUTH_DISABLE is set — authentication is bypassed; do NOT use in production")
+		authMW.DevUser = &auth.User{
+			ID:           "dev-bypass",
+			Username:     "dev",
+			Role:         auth.RoleAdmin,
+			AuthProvider: auth.ProviderLocal,
+		}
 	}
 
 	s := &Server{
@@ -98,6 +145,9 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		broker:    broker,
 		store:     store,
 		logBuffer: logBuffer,
+		users:     users,
+		sessions:  sessions,
+		authMW:    authMW,
 	}
 
 	s.setupMiddleware()
@@ -144,16 +194,56 @@ func (s *Server) setupRoutes() {
 		Hub:       s.hub,
 		LogBuffer: s.logBuffer,
 	}
+	deps.Users = s.users
+	deps.Sessions = s.sessions
+	deps.AuthMW = s.authMW
+	deps.Throttle = auth.NewLoginThrottle(nil)
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
 		api.RegisterRoutes(r, deps)
 	})
 
-	// WebSocket endpoint for real-time editor communication.
-	s.router.Get("/ws", s.hub.ServeWS)
+	// WebSocket endpoint for real-time editor communication. Reuses the
+	// auth middleware to validate the session cookie before upgrading.
+	s.router.Get("/ws", s.hub.ServeWSAuthed(s.wsAuthFunc()))
+
+	// Tear down open WS connections immediately when their session is
+	// invalidated (logout, disable, password reset).
+	s.sessions.SetOnDeleted(s.hub.DisconnectUser)
 
 	// Serve the embedded Vue 3 frontend as a single-page application.
 	s.serveFrontend()
+}
+
+// wsAuthFunc returns the AuthFunc the WebSocket hub uses to validate
+// upgrade requests. It honours the same dev-bypass that the HTTP
+// middleware uses, so FLINT_AUTH_DISABLE turns off WS auth too.
+func (s *Server) wsAuthFunc() ws.AuthFunc {
+	return func(r *http.Request) (string, error) {
+		if s.authMW.DevUser != nil {
+			return s.authMW.DevUser.ID, nil
+		}
+		cookie, err := r.Cookie(auth.CookieName)
+		if err != nil {
+			return "", nil
+		}
+		sessionID, err := s.sessions.VerifyCookieValue(cookie.Value)
+		if err != nil {
+			return "", nil
+		}
+		sess, err := s.sessions.Get(r.Context(), sessionID)
+		if err != nil {
+			return "", nil
+		}
+		user, err := s.users.Get(sess.UserID)
+		if err != nil {
+			return "", nil
+		}
+		if user.Disabled {
+			return "", nil
+		}
+		return user.ID, nil
+	}
 }
 
 // serveFrontend configures the router to serve the embedded frontend files.
@@ -367,6 +457,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
 	registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())
 	registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
+	registry.Register("template", nodes.NewTemplateNode, nodes.TemplateTypeInfo())
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())

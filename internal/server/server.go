@@ -445,6 +445,8 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("inject", nodes.NewInjectNode, nodes.InjectTypeInfo())
 	registry.Register("debug", nodes.NewDebugNode, nodes.DebugTypeInfo())
 	registry.Register("function", nodes.NewFunctionNode, nodes.FunctionTypeInfo())
+	registry.Register("function-expr", nodes.NewFunctionExprNode, nodes.FunctionExprTypeInfo())
+	registry.Register("function-go", nodes.NewFunctionGoNode, nodes.FunctionGoTypeInfo())
 	registry.Register("json", nodes.NewJSONParserNode, nodes.JSONParserTypeInfo())
 	registry.Register("context-watch", nodes.NewContextWatchNode, nodes.ContextWatchTypeInfo())
 	registry.Register("catch", nodes.NewCatchNode, nodes.CatchTypeInfo())

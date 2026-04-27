@@ -10,6 +10,8 @@ import AppSwitch from '@/components/ui/AppSwitch.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
 import InjectConfig from '@/components/config/InjectConfig.vue'
 import FunctionConfig from '@/components/config/FunctionConfig.vue'
+import ExprFunctionConfig from '@/components/config/ExprFunctionConfig.vue'
+import GoFunctionConfig from '@/components/config/GoFunctionConfig.vue'
 import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
 import SwitchConfig from '@/components/config/SwitchConfig.vue'
@@ -255,6 +257,8 @@ function onResizeEnd() {
             <SectionHeader v-else title="Configuration">
               <InjectConfig v-if="selectedNode?.type === 'inject'" />
               <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
+              <ExprFunctionConfig v-else-if="selectedNode?.type === 'function-expr'" />
+              <GoFunctionConfig v-else-if="selectedNode?.type === 'function-go'" />
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
               <SwitchConfig v-else-if="selectedNode?.type === 'switch'" />

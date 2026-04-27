@@ -10,6 +10,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/niceclouds/flint/internal/flow"
+	scriptingoja "github.com/niceclouds/flint/internal/scripting/goja"
 )
 
 // FunctionNode executes user-supplied JavaScript for each incoming message.
@@ -48,9 +49,10 @@ type FunctionNode struct {
 	outputs int    // number of output ports
 
 	// Runtime state (set in Start, cleared in Stop).
-	vm       *goja.Runtime
-	compiled *goja.Program
-	callable goja.Callable // cached function reference from compiled program
+	vm        *goja.Runtime
+	compiled  *goja.Program
+	callable  goja.Callable // cached function reference from compiled program
+	bufferWrp *scriptingoja.BufferWrapper
 
 	// Node-scoped in-memory context (private to this node instance).
 	// Survives across HandleMessage calls but lost on redeploy.
@@ -101,8 +103,9 @@ func (n *FunctionNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.
 // Start creates the Goja runtime and compiles the user script.
 func (n *FunctionNode) Start() error {
 	n.vm = goja.New()
+	n.bufferWrp = scriptingoja.NewBufferWrapper(n.vm)
 	n.registerGlobals()
-	n.registerBuffer()
+	n.bufferWrp.Register()
 
 	// Wrap the user's function body so they can write return statements.
 	wrapped := fmt.Sprintf("(function(msg){ %s })", n.code)
@@ -424,35 +427,9 @@ func (n *FunctionNode) jsValueToMessage(val goja.Value) *flow.Message {
 	}
 	data := make(map[string]any)
 	for _, key := range obj.Keys() {
-		data[key] = n.exportJSValue(obj.Get(key))
+		data[key] = scriptingoja.ExportValue(obj.Get(key))
 	}
 	return flow.NewMessageFromData(data)
-}
-
-// exportJSValue exports a Goja value to a Go value, recognising Function-Node
-// Buffer objects and converting them to []int. All other values pass through
-// to Goja's default Export.
-//
-// Buffer detection works on the post-Export form: a JS Buffer (built via
-// wrapBuffer) exports as a map[string]interface{} containing __bufferData as
-// a []byte alongside method functions. We pick the bytes out and discard the
-// rest. Other map-typed values (plain JS objects, arrays of objects, …) flow
-// through unchanged.
-func (n *FunctionNode) exportJSValue(v goja.Value) any {
-	if v == nil {
-		return nil
-	}
-	exported := v.Export()
-	if m, ok := exported.(map[string]any); ok {
-		if raw, ok := m["__bufferData"].([]byte); ok {
-			out := make([]int, len(raw))
-			for i, b := range raw {
-				out[i] = int(b)
-			}
-			return out
-		}
-	}
-	return exported
 }
 
 // resultToOutputs converts the return value of the user function to [][]*Message.

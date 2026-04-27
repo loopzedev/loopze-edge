@@ -19,9 +19,10 @@ export const VALUE_TYPES: OptionEntry[] = [
   { value: 'json', label: 'JSON' },
   { value: 'date', label: 'timestamp' },
   { value: 'env', label: 'env' },
+  { value: 'expr', label: 'expr' },
 ]
 
-export type ValueTypeFamily = 'context' | 'literal' | 'dynamic'
+export type ValueTypeFamily = 'context' | 'literal' | 'dynamic' | 'expression'
 
 export const VALUE_TYPE_FAMILY: Record<string, ValueTypeFamily> = {
   msg: 'context',
@@ -33,6 +34,7 @@ export const VALUE_TYPE_FAMILY: Record<string, ValueTypeFamily> = {
   bool: 'literal',
   json: 'literal',
   date: 'dynamic',
+  expr: 'expression',
 }
 
 export const TIMESTAMP_FORMATS: OptionEntry[] = [
@@ -105,6 +107,7 @@ export function placeholderFor(vt: string): string {
     case 'msg': return 'property path'
     case 'flow':
     case 'global': return 'key'
+    case 'expr': return 'payload * 2'
     default: return 'value'
   }
 }

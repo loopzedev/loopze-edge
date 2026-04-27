@@ -4,6 +4,7 @@
 package nodes
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -346,5 +347,125 @@ func TestChangeNode_EnvVar(t *testing.T) {
 	got := outputs[0][0].Payload()
 	if got != "from-env" {
 		t.Errorf("payload: want %q, got %v", "from-env", got)
+	}
+}
+
+// ── Expr Value Type ──────────────────────────────────────────────
+
+func TestChangeNode_SetExpr_Numeric(t *testing.T) {
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "payload", "pt": "msg", "to": "payload * 1.8 + 32", "tot": "expr"},
+	})
+
+	outputs, err := n.HandleMessage(changeMsg(20.0))
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	if got := outputs[0][0].Payload(); got != 68.0 {
+		t.Errorf("payload: want 68, got %v", got)
+	}
+}
+
+func TestChangeNode_SetExpr_Conditional(t *testing.T) {
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "severity", "pt": "msg",
+			"to": `payload.value > 50 ? "high" : "low"`, "tot": "expr"},
+	})
+
+	msg := changeMsg(map[string]any{"value": 75})
+	outputs, _ := n.HandleMessage(msg)
+	if got := outputs[0][0].Get("severity"); got != "high" {
+		t.Errorf("severity: want high, got %v", got)
+	}
+
+	msg2 := changeMsg(map[string]any{"value": 30})
+	outputs2, _ := n.HandleMessage(msg2)
+	if got := outputs2[0][0].Get("severity"); got != "low" {
+		t.Errorf("severity: want low, got %v", got)
+	}
+}
+
+func TestChangeNode_SetExpr_TopicRewrite(t *testing.T) {
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "topic", "pt": "msg",
+			"to": `topic + "/converted"`, "tot": "expr"},
+	})
+
+	msg := changeMsg("payload")
+	msg.SetTopic("sensor/raw")
+	outputs, _ := n.HandleMessage(msg)
+	if got := outputs[0][0].Topic(); got != "sensor/raw/converted" {
+		t.Errorf("topic: want sensor/raw/converted, got %q", got)
+	}
+}
+
+func TestChangeNode_SetExpr_FullMsgEscapeHatch(t *testing.T) {
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "payload", "pt": "msg",
+			"to": `msg["customField"]`, "tot": "expr"},
+	})
+
+	msg := changeMsg("ignored")
+	msg.Set("customField", "extracted")
+	outputs, _ := n.HandleMessage(msg)
+	if got := outputs[0][0].Payload(); got != "extracted" {
+		t.Errorf("payload: want extracted, got %v", got)
+	}
+}
+
+func TestChangeNode_SetExpr_CompileError_PinpointsRuleIndex(t *testing.T) {
+	config := flow.NodeConfig{
+		ID:   "change-expr-err",
+		Type: "change",
+		Properties: map[string]any{
+			"rules": toAnySlice([]map[string]any{
+				{"t": "set", "p": "payload", "pt": "msg", "to": "10", "tot": "num"},
+				{"t": "set", "p": "payload", "pt": "msg", "to": "payload * * 2", "tot": "expr"}, // rule index 1
+			}),
+		},
+	}
+	inst, err := NewChangeNode(config)
+	if err != nil {
+		t.Fatalf("NewChangeNode: %v", err)
+	}
+	err = inst.(*ChangeNode).Init()
+	if err == nil {
+		t.Fatal("Init: expected compile error, got nil")
+	}
+	if !strings.Contains(err.Error(), "rule 1") {
+		t.Errorf("error should pinpoint rule 1, got: %v", err)
+	}
+}
+
+func TestChangeNode_SetExpr_RuntimeErrorIsLoggedNotFatal(t *testing.T) {
+	// Runtime error in an expr rule logs and continues — matches existing
+	// rule-error behaviour (see HandleMessage's slog.Warn path).
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "payload", "pt": "msg",
+			"to": `payload + 1`, "tot": "expr"},
+	})
+
+	// String + int → runtime error; the rule swallows and continues.
+	outputs, err := n.HandleMessage(changeMsg("not-a-number"))
+	if err != nil {
+		t.Fatalf("HandleMessage should not return error from a single bad rule: %v", err)
+	}
+	// Original payload survives because the bad rule didn't write anything.
+	if got := outputs[0][0].Payload(); got != "not-a-number" {
+		t.Errorf("payload should be unchanged after rule error, got %v", got)
+	}
+}
+
+func TestChangeNode_SetExpr_EmptyExpressionYieldsNil(t *testing.T) {
+	// An expr rule with an empty value-string is allowed (Init tolerance for
+	// half-configured rules) and resolves to nil, mirroring resolveValue's
+	// permissive contract.
+	n := newChangeNode(t, []map[string]any{
+		{"t": "set", "p": "payload", "pt": "msg", "to": "", "tot": "expr"},
+	})
+
+	outputs, _ := n.HandleMessage(changeMsg("anything"))
+	if got := outputs[0][0].Payload(); got != nil {
+		t.Errorf("payload: want nil, got %v", got)
 	}
 }

@@ -78,6 +78,25 @@ const summaries: Record<string, NodeSummaryFn> = {
     return pluralize(outputs, 'output port')
   },
 
+  'function-expr'(cfg) {
+    const expr = String(cfg.expression ?? '').trim()
+    const out = String(cfg.outputProperty ?? 'payload')
+    const through = cfg.passThrough ? ' · pass-through' : ''
+    if (!expr) return `→ msg.${out}${through}`
+    const preview = expr.length > 32 ? expr.slice(0, 32) + '…' : expr
+    return `${preview} → msg.${out}${through}`
+  },
+
+  'function-go'(cfg) {
+    const outputs = Number(cfg.outputs ?? 1)
+    const code = String(cfg.code ?? '')
+    const sig = code.split('\n').map(l => l.trim()).find(l => l.startsWith('func handle'))
+    const ports = pluralize(outputs, 'output port')
+    if (!sig) return ports
+    const trimmed = sig.length > 40 ? sig.slice(0, 40) + '…' : sig
+    return `${trimmed} · ${ports}`
+  },
+
   'link-in'(cfg) {
     const links = Array.isArray(cfg.links) ? cfg.links.length : 0
     return links === 0 ? 'No targets linked' : `${pluralize(links, 'target')} linked`

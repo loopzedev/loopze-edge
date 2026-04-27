@@ -3,13 +3,14 @@ import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import '@/lib/monaco/setup-workers'
 import * as monaco from 'monaco-editor'
 import { flintTypeDefinitions } from '@/lib/monaco/flint-types'
+import { registerExprLanguage } from '@/lib/monaco/expr-language'
 
 const props = withDefaults(defineProps<{
   modelValue: string
   readonly?: boolean
   placeholder?: string
   minHeight?: string
-  language?: 'javascript' | 'plaintext'
+  language?: 'javascript' | 'plaintext' | 'expr' | 'go'
 }>(), {
   modelValue: '',
   readonly: false,
@@ -121,6 +122,15 @@ function configureMonaco() {
 
 const isJS = props.language === 'javascript'
 
+// File-extension hint for the Monaco model URI. Each language gets a unique
+// extension so Monaco picks the right tokenizer; `.txt` falls back to plain.
+const FILE_EXT: Record<string, string> = {
+  javascript: 'js',
+  go: 'go',
+  expr: 'expr',
+  plaintext: 'txt',
+}
+
 /** Extract user code from the wrapped model content. */
 function unwrap(fullContent: string): string {
   if (!isJS) return fullContent
@@ -139,11 +149,15 @@ onMounted(() => {
   if (!container.value) return
 
   configureMonaco()
+  if (props.language === 'expr') {
+    registerExprLanguage()
+  }
 
   // Create a model. JS gets wrapped in a function body so Monaco's TS service
-  // sees `return` as valid. Plain text is used as-is.
+  // sees `return` as valid. Other languages are used as-is.
+  const ext = FILE_EXT[props.language] ?? 'txt'
   const uri = monaco.Uri.parse(
-    `file:///flint-${isJS ? 'function' : 'template'}-${Date.now()}.${isJS ? 'js' : 'txt'}`,
+    `file:///flint-${props.language}-${Date.now()}.${ext}`,
   )
   const model = monaco.editor.createModel(wrap(props.modelValue), props.language, uri)
 

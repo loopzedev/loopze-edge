@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
+import { VALUE_TYPES, TIMESTAMP_FORMATS, STORAGE_TYPES, placeholderFor } from './enums'
+
+// Lazy — Monaco is heavy and most ValueTypeInput rows render plain inputs.
+const CodeEditor = defineAsyncComponent(() =>
+  import('@/components/ui/CodeEditor.vue')
+)
 
 const props = withDefaults(defineProps<{
   value: string
@@ -21,51 +27,25 @@ const emit = defineEmits<{
   'update:storage': [value: string]
 }>()
 
-const allValueTypes = [
-  { value: 'msg', label: 'msg.' },
-  { value: 'flow', label: 'flow.' },
-  { value: 'global', label: 'global.' },
-  { value: 'str', label: 'string' },
-  { value: 'num', label: 'number' },
-  { value: 'bool', label: 'boolean' },
-  { value: 'json', label: 'JSON' },
-  { value: 'date', label: 'timestamp' },
-  { value: 'env', label: 'env' },
-]
-
-const timestampFormats = [
-  { value: 'epoch', label: 'milliseconds since epoch' },
-  { value: 'rfc3339', label: 'YYYY-MM-DDTHH:mm:ss.sssZ' },
-]
-
-const storageTypes = [
-  { value: 'memory', label: 'memory' },
-  { value: 'persistent', label: 'persist' },
-]
-
 const filteredTypes = computed(() =>
-  allValueTypes.filter(t => !props.excludeTypes.includes(t.value))
+  VALUE_TYPES.filter(t => !props.excludeTypes.includes(String(t.value)))
 )
 
 const isContextScope = computed(() =>
   props.type === 'flow' || props.type === 'global'
 )
 
-const placeholder = computed(() => {
-  switch (props.type) {
-    case 'json': return '{...}'
-    case 'bool': return 'true / false'
-    case 'env':  return 'ENV_VAR_NAME'
-    case 'msg':  return 'property path'
-    case 'flow': case 'global': return 'key'
-    default: return 'value'
-  }
-})
+const isExpr = computed(() => props.type === 'expr')
+
+const placeholder = computed(() => placeholderFor(props.type))
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5">
-    <span v-if="label" class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right">{{ label }}</span>
+  <div class="flex items-start gap-1.5">
+    <span
+      v-if="label"
+      class="text-[10px] text-terminal-text-dim shrink-0 w-[52px] text-right pt-1"
+    >{{ label }}</span>
 
     <FormSelect
       :model-value="type"
@@ -74,8 +54,29 @@ const placeholder = computed(() => {
       @update:model-value="emit('update:type', String($event))"
     />
 
+    <!-- expr: small Monaco editor with the expr tokenizer -->
+    <div v-if="isExpr" class="flex-1 min-w-0 flex flex-col">
+      <CodeEditor
+        :model-value="value"
+        language="expr"
+        :placeholder="placeholder"
+        min-height="60px"
+        @update:model-value="emit('update:value', $event)"
+      />
+    </div>
+
+    <!-- date: timestamp format selector -->
+    <FormSelect
+      v-else-if="type === 'date'"
+      :model-value="value || 'epoch'"
+      :options="TIMESTAMP_FORMATS"
+      class="flex-1 min-w-0"
+      @update:model-value="emit('update:value', String($event))"
+    />
+
+    <!-- everything else: plain text input -->
     <FormInput
-      v-if="type !== 'date'"
+      v-else
       :model-value="value"
       mono
       class="flex-1 min-w-0"
@@ -84,17 +85,9 @@ const placeholder = computed(() => {
     />
 
     <FormSelect
-      v-else
-      :model-value="value || 'epoch'"
-      :options="timestampFormats"
-      class="flex-1 min-w-0"
-      @update:model-value="emit('update:value', String($event))"
-    />
-
-    <FormSelect
       v-if="isContextScope"
       :model-value="storage"
-      :options="storageTypes"
+      :options="STORAGE_TYPES"
       width="80px"
       @update:model-value="emit('update:storage', String($event))"
     />

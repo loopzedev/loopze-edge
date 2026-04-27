@@ -1,17 +1,35 @@
 // Copyright 2025 NiceClouds GmbH
 // Licensed under the Elastic License 2.0 (ELv2).
 
-package nodes
+// Package goja contains the Goja-specific bridge between Flint's flow.Message
+// world and JavaScript. The most substantial piece is the Node.js-compatible
+// Buffer API exposed to user scripts — extracted here so the function-node
+// implementation in internal/nodes stays focused on lifecycle and dispatch.
+package goja
 
 import (
 	"fmt"
 
 	"github.com/dop251/goja"
+
 	"github.com/niceclouds/flint/internal/buffer"
 )
 
-// registerBuffer adds the Buffer global to the Goja VM, providing a
-// Node.js-compatible Buffer API for byte manipulation in Function Nodes.
+// BufferWrapper bundles the Buffer global registration and the wrapBuffer
+// closure for a single Goja Runtime. Construct one per VM with NewBufferWrapper,
+// call Register() to install the `Buffer` global, and use Wrap() when the
+// hosting node needs to convert a *buffer.Buffer back into a JS value (e.g.
+// when reconstructing a Buffer from a stored byte payload).
+type BufferWrapper struct {
+	vm *goja.Runtime
+}
+
+// NewBufferWrapper creates a wrapper bound to the given Runtime.
+func NewBufferWrapper(vm *goja.Runtime) *BufferWrapper {
+	return &BufferWrapper{vm: vm}
+}
+
+// Register installs the `Buffer` global on the wrapped VM.
 //
 // JS API:
 //
@@ -27,21 +45,19 @@ import (
 //	buf.toString(), buf.toString("hex"), buf.toString("base64")
 //	buf.toJSON(), buf.slice(start, end), buf.copy(target, ...)
 //	buf.length
-func (n *FunctionNode) registerBuffer() {
-	bufferObj := n.vm.NewObject()
+func (b *BufferWrapper) Register() {
+	bufferObj := b.vm.NewObject()
 
 	// ── Static methods ──────────────────────────────────────────────
 
-	// Buffer.alloc(size)
 	_ = bufferObj.Set("alloc", func(call goja.FunctionCall) goja.Value {
 		size := int(call.Argument(0).ToInteger())
 		if size < 0 {
 			size = 0
 		}
-		return n.wrapBuffer(buffer.Alloc(size))
+		return b.Wrap(buffer.Alloc(size))
 	})
 
-	// Buffer.from(data, encoding?)
 	_ = bufferObj.Set("from", func(call goja.FunctionCall) goja.Value {
 		arg := call.Argument(0)
 		encoding := ""
@@ -57,17 +73,17 @@ func (n *FunctionNode) registerBuffer() {
 			case "hex":
 				buf, err := buffer.FromHex(v)
 				if err != nil {
-					panic(n.vm.NewGoError(err))
+					panic(b.vm.NewGoError(err))
 				}
-				return n.wrapBuffer(buf)
+				return b.Wrap(buf)
 			case "base64":
 				buf, err := buffer.FromBase64(v)
 				if err != nil {
-					panic(n.vm.NewGoError(err))
+					panic(b.vm.NewGoError(err))
 				}
-				return n.wrapBuffer(buf)
+				return b.Wrap(buf)
 			default:
-				return n.wrapBuffer(buffer.FromString(v))
+				return b.Wrap(buffer.FromString(v))
 			}
 
 		case []interface{}:
@@ -82,34 +98,33 @@ func (n *FunctionNode) registerBuffer() {
 					data[i] = 0
 				}
 			}
-			return n.wrapBuffer(buffer.From(data))
+			return b.Wrap(buffer.From(data))
 
 		case []int:
 			data := make([]byte, len(v))
 			for i, num := range v {
 				data[i] = byte(num)
 			}
-			return n.wrapBuffer(buffer.From(data))
+			return b.Wrap(buffer.From(data))
 
 		case []int64:
 			data := make([]byte, len(v))
 			for i, num := range v {
 				data[i] = byte(num)
 			}
-			return n.wrapBuffer(buffer.From(data))
+			return b.Wrap(buffer.From(data))
 
 		case []byte:
-			return n.wrapBuffer(buffer.From(v))
+			return b.Wrap(buffer.From(v))
 
 		default:
-			// Try to treat as array-like via the JS object.
-			obj := arg.ToObject(n.vm)
+			obj := arg.ToObject(b.vm)
 			if obj == nil {
-				panic(n.vm.NewGoError(fmt.Errorf("Buffer.from: unsupported argument type")))
+				panic(b.vm.NewGoError(fmt.Errorf("Buffer.from: unsupported argument type")))
 			}
 			lengthVal := obj.Get("length")
 			if goja.IsUndefined(lengthVal) || goja.IsNull(lengthVal) {
-				panic(n.vm.NewGoError(fmt.Errorf("Buffer.from: argument has no length")))
+				panic(b.vm.NewGoError(fmt.Errorf("Buffer.from: argument has no length")))
 			}
 			length := int(lengthVal.ToInteger())
 			data := make([]byte, length)
@@ -119,16 +134,15 @@ func (n *FunctionNode) registerBuffer() {
 					data[i] = byte(val.ToInteger())
 				}
 			}
-			return n.wrapBuffer(buffer.From(data))
+			return b.Wrap(buffer.From(data))
 		}
 	})
 
-	// Buffer.concat(list)
 	_ = bufferObj.Set("concat", func(call goja.FunctionCall) goja.Value {
 		arg := call.Argument(0).Export()
 		arr, ok := arg.([]interface{})
 		if !ok {
-			return n.wrapBuffer(buffer.Alloc(0))
+			return b.Wrap(buffer.Alloc(0))
 		}
 		bufs := make([]*buffer.Buffer, 0, len(arr))
 		for _, item := range arr {
@@ -138,16 +152,18 @@ func (n *FunctionNode) registerBuffer() {
 				}
 			}
 		}
-		return n.wrapBuffer(buffer.Concat(bufs...))
+		return b.Wrap(buffer.Concat(bufs...))
 	})
 
-	_ = n.vm.Set("Buffer", bufferObj)
+	_ = b.vm.Set("Buffer", bufferObj)
 }
 
-// wrapBuffer creates a Goja JS object that wraps a Go Buffer instance,
-// exposing all read/write/swap/convert methods.
-func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
-	obj := n.vm.NewObject()
+// Wrap creates a Goja JS object that wraps a Go Buffer instance, exposing
+// all read/write/swap/convert methods. Used by Register() internally and
+// available to callers that need to project a Go buffer into JS land
+// (e.g. mqtt-in payload reconstruction).
+func (b *BufferWrapper) Wrap(buf *buffer.Buffer) goja.Value {
+	obj := b.vm.NewObject()
 
 	// Store raw data for Buffer.concat to access.
 	_ = obj.Set("__bufferData", buf.Bytes())
@@ -160,113 +176,113 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 	_ = obj.Set("readUInt8", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadUInt8(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readInt8", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadInt8(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readUInt16BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadUInt16BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readUInt16LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadUInt16LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readInt16BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadInt16BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readInt16LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadInt16LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readUInt32BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadUInt32BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readUInt32LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadUInt32LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readInt32BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadInt32BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readInt32LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadInt32LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(int64(v))
+		return b.vm.ToValue(int64(v))
 	})
 
 	_ = obj.Set("readBigUInt64BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadBigUInt64BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readBigUInt64LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadBigUInt64LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readBigInt64BE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadBigInt64BE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readBigInt64LE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadBigInt64LE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readUIntBE", func(call goja.FunctionCall) goja.Value {
@@ -274,9 +290,9 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		byteLen := int(call.Argument(1).ToInteger())
 		v, err := buf.ReadUIntBE(offset, byteLen)
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readUIntLE", func(call goja.FunctionCall) goja.Value {
@@ -284,9 +300,9 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		byteLen := int(call.Argument(1).ToInteger())
 		v, err := buf.ReadUIntLE(offset, byteLen)
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readIntBE", func(call goja.FunctionCall) goja.Value {
@@ -294,9 +310,9 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		byteLen := int(call.Argument(1).ToInteger())
 		v, err := buf.ReadIntBE(offset, byteLen)
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readIntLE", func(call goja.FunctionCall) goja.Value {
@@ -304,9 +320,9 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		byteLen := int(call.Argument(1).ToInteger())
 		v, err := buf.ReadIntLE(offset, byteLen)
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	// ── Read — Float ────────────────────────────────────────────────
@@ -314,59 +330,58 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 	_ = obj.Set("readFloatBE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadFloatBE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readFloatLE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadFloatLE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(float64(v))
+		return b.vm.ToValue(float64(v))
 	})
 
 	_ = obj.Set("readDoubleBE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadDoubleBE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(v)
+		return b.vm.ToValue(v)
 	})
 
 	_ = obj.Set("readDoubleLE", func(call goja.FunctionCall) goja.Value {
 		v, err := buf.ReadDoubleLE(optOffset(call, 0))
 		if err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
-		return n.vm.ToValue(v)
+		return b.vm.ToValue(v)
 	})
 
 	// ── Write — Integer ─────────────────────────────────────────────
 
-	_ = obj.Set("writeUInt8", n.writeMethod(buf, 1, func(v int64, o int) error { return buf.WriteUInt8(uint8(v), o) }))
-	_ = obj.Set("writeInt8", n.writeMethod(buf, 1, func(v int64, o int) error { return buf.WriteInt8(int8(v), o) }))
-	_ = obj.Set("writeUInt16BE", n.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteUInt16BE(uint16(v), o) }))
-	_ = obj.Set("writeUInt16LE", n.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteUInt16LE(uint16(v), o) }))
-	_ = obj.Set("writeInt16BE", n.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteInt16BE(int16(v), o) }))
-	_ = obj.Set("writeInt16LE", n.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteInt16LE(int16(v), o) }))
-	_ = obj.Set("writeUInt32BE", n.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteUInt32BE(uint32(v), o) }))
-	_ = obj.Set("writeUInt32LE", n.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteUInt32LE(uint32(v), o) }))
-	_ = obj.Set("writeInt32BE", n.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteInt32BE(int32(v), o) }))
-	_ = obj.Set("writeInt32LE", n.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteInt32LE(int32(v), o) }))
-	_ = obj.Set("writeBigUInt64BE", n.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigUInt64BE(uint64(v), o) }))
-	_ = obj.Set("writeBigUInt64LE", n.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigUInt64LE(uint64(v), o) }))
-	_ = obj.Set("writeBigInt64BE", n.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigInt64BE(v, o) }))
-	_ = obj.Set("writeBigInt64LE", n.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigInt64LE(v, o) }))
+	_ = obj.Set("writeUInt8", b.writeMethod(buf, 1, func(v int64, o int) error { return buf.WriteUInt8(uint8(v), o) }))
+	_ = obj.Set("writeInt8", b.writeMethod(buf, 1, func(v int64, o int) error { return buf.WriteInt8(int8(v), o) }))
+	_ = obj.Set("writeUInt16BE", b.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteUInt16BE(uint16(v), o) }))
+	_ = obj.Set("writeUInt16LE", b.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteUInt16LE(uint16(v), o) }))
+	_ = obj.Set("writeInt16BE", b.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteInt16BE(int16(v), o) }))
+	_ = obj.Set("writeInt16LE", b.writeMethod(buf, 2, func(v int64, o int) error { return buf.WriteInt16LE(int16(v), o) }))
+	_ = obj.Set("writeUInt32BE", b.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteUInt32BE(uint32(v), o) }))
+	_ = obj.Set("writeUInt32LE", b.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteUInt32LE(uint32(v), o) }))
+	_ = obj.Set("writeInt32BE", b.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteInt32BE(int32(v), o) }))
+	_ = obj.Set("writeInt32LE", b.writeMethod(buf, 4, func(v int64, o int) error { return buf.WriteInt32LE(int32(v), o) }))
+	_ = obj.Set("writeBigUInt64BE", b.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigUInt64BE(uint64(v), o) }))
+	_ = obj.Set("writeBigUInt64LE", b.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigUInt64LE(uint64(v), o) }))
+	_ = obj.Set("writeBigInt64BE", b.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigInt64BE(v, o) }))
+	_ = obj.Set("writeBigInt64LE", b.writeMethod(buf, 8, func(v int64, o int) error { return buf.WriteBigInt64LE(v, o) }))
 
-	// Variable-length write: writeUIntBE(value, offset, byteLength)
 	_ = obj.Set("writeUIntBE", func(call goja.FunctionCall) goja.Value {
 		value := uint64(call.Argument(0).ToInteger())
 		offset := int(call.Argument(1).ToInteger())
 		byteLen := int(call.Argument(2).ToInteger())
 		if err := buf.WriteUIntBE(value, offset, byteLen); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
@@ -376,7 +391,7 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		offset := int(call.Argument(1).ToInteger())
 		byteLen := int(call.Argument(2).ToInteger())
 		if err := buf.WriteUIntLE(value, offset, byteLen); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
@@ -386,7 +401,7 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		offset := int(call.Argument(1).ToInteger())
 		byteLen := int(call.Argument(2).ToInteger())
 		if err := buf.WriteIntBE(value, offset, byteLen); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
@@ -396,7 +411,7 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		offset := int(call.Argument(1).ToInteger())
 		byteLen := int(call.Argument(2).ToInteger())
 		if err := buf.WriteIntLE(value, offset, byteLen); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
@@ -405,28 +420,28 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 
 	_ = obj.Set("writeFloatBE", func(call goja.FunctionCall) goja.Value {
 		if err := buf.WriteFloatBE(float32(call.Argument(0).ToFloat()), optOffset(call, 1)); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
 
 	_ = obj.Set("writeFloatLE", func(call goja.FunctionCall) goja.Value {
 		if err := buf.WriteFloatLE(float32(call.Argument(0).ToFloat()), optOffset(call, 1)); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
 
 	_ = obj.Set("writeDoubleBE", func(call goja.FunctionCall) goja.Value {
 		if err := buf.WriteDoubleBE(call.Argument(0).ToFloat(), optOffset(call, 1)); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
 
 	_ = obj.Set("writeDoubleLE", func(call goja.FunctionCall) goja.Value {
 		if err := buf.WriteDoubleLE(call.Argument(0).ToFloat(), optOffset(call, 1)); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	})
@@ -435,21 +450,21 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 
 	_ = obj.Set("swap16", func(call goja.FunctionCall) goja.Value {
 		if err := buf.Swap16(); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return obj
 	})
 
 	_ = obj.Set("swap32", func(call goja.FunctionCall) goja.Value {
 		if err := buf.Swap32(); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return obj
 	})
 
 	_ = obj.Set("swap64", func(call goja.FunctionCall) goja.Value {
 		if err := buf.Swap64(); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return obj
 	})
@@ -463,16 +478,16 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		}
 		switch encoding {
 		case "hex":
-			return n.vm.ToValue(buf.ToHex())
+			return b.vm.ToValue(buf.ToHex())
 		case "base64":
-			return n.vm.ToValue(buf.ToBase64())
+			return b.vm.ToValue(buf.ToBase64())
 		default:
-			return n.vm.ToValue(buf.ToString())
+			return b.vm.ToValue(buf.ToString())
 		}
 	})
 
 	_ = obj.Set("toJSON", func(call goja.FunctionCall) goja.Value {
-		return n.vm.ToValue(buf.ToJSON())
+		return b.vm.ToValue(buf.ToJSON())
 	})
 
 	_ = obj.Set("slice", func(call goja.FunctionCall) goja.Value {
@@ -481,17 +496,17 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		if arg1 := call.Argument(1); !goja.IsUndefined(arg1) && !goja.IsNull(arg1) {
 			end = int(arg1.ToInteger())
 		}
-		return n.wrapBuffer(buf.Slice(start, end))
+		return b.Wrap(buf.Slice(start, end))
 	})
 
 	_ = obj.Set("copy", func(call goja.FunctionCall) goja.Value {
-		targetObj := call.Argument(0).ToObject(n.vm)
+		targetObj := call.Argument(0).ToObject(b.vm)
 		if targetObj == nil {
-			panic(n.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
+			panic(b.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
 		}
 		targetData, ok := targetObj.Get("__bufferData").Export().([]byte)
 		if !ok {
-			panic(n.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
+			panic(b.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
 		}
 		targetBuf := buffer.From(targetData)
 		targetStart := optOffset(call, 1)
@@ -503,19 +518,19 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
 		copied := buf.Copy(targetBuf, targetStart, sourceStart, sourceEnd)
 		// Write back to the target object's backing data.
 		copy(targetData, targetBuf.Bytes())
-		return n.vm.ToValue(copied)
+		return b.vm.ToValue(copied)
 	})
 
 	return obj
 }
 
 // writeMethod creates a Goja function for write operations with signature: write(value, offset?).
-func (n *FunctionNode) writeMethod(_ *buffer.Buffer, _ int, fn func(int64, int) error) func(goja.FunctionCall) goja.Value {
+func (b *BufferWrapper) writeMethod(_ *buffer.Buffer, _ int, fn func(int64, int) error) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		value := call.Argument(0).ToInteger()
 		offset := optOffset(call, 1)
 		if err := fn(value, offset); err != nil {
-			panic(n.vm.NewGoError(err))
+			panic(b.vm.NewGoError(err))
 		}
 		return goja.Undefined()
 	}
@@ -529,4 +544,33 @@ func optOffset(call goja.FunctionCall, argIdx int) int {
 		return 0
 	}
 	return int(arg.ToInteger())
+}
+
+// ExportValue exports a Goja value to a Go value, recognising Function-Node
+// Buffer objects (created via wrapBuffer) and converting them to []int.
+// All other values pass through to Goja's default Export.
+//
+// Buffer detection works on the post-Export form: a JS Buffer (built via
+// Wrap) exports as a map[string]interface{} containing __bufferData as
+// a []byte alongside method functions. The bytes are extracted; everything
+// else (plain JS objects, arrays of objects, …) flows through unchanged.
+//
+// This lets the function node emit []int payloads compatible with mqtt-out's
+// buffer mode and avoids leaking the JS Buffer's internal fields into the
+// downstream message.
+func ExportValue(v goja.Value) any {
+	if v == nil {
+		return nil
+	}
+	exported := v.Export()
+	if m, ok := exported.(map[string]any); ok {
+		if raw, ok := m["__bufferData"].([]byte); ok {
+			out := make([]int, len(raw))
+			for i, by := range raw {
+				out[i] = int(by)
+			}
+			return out
+		}
+	}
+	return exported
 }

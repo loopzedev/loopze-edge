@@ -11,6 +11,8 @@ import BaseNode from "@/components/nodes/BaseNode.vue";
 import InjectNode from "@/components/nodes/InjectNode.vue";
 import DebugNode from "@/components/nodes/DebugNode.vue";
 import FunctionNode from "@/components/nodes/FunctionNode.vue";
+import FunctionExprNode from "@/components/nodes/FunctionExprNode.vue";
+import FunctionGoNode from "@/components/nodes/FunctionGoNode.vue";
 import ContextWatchNode from "@/components/nodes/ContextWatchNode.vue";
 import ChangeNode from "@/components/nodes/ChangeNode.vue";
 import DelayNode from "@/components/nodes/DelayNode.vue";
@@ -301,6 +303,14 @@ onMounted(async () => {
 
             <template #node-function="nodeProps">
                 <FunctionNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-function-expr="nodeProps">
+                <FunctionExprNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-function-go="nodeProps">
+                <FunctionGoNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-context-watch="nodeProps">

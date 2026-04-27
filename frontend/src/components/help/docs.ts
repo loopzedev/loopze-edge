@@ -68,8 +68,8 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       { key: 't (op)', desc: 'Operation type: set, change (replace text), delete, move.' },
       { key: 'p',      desc: 'Target property path (dotted, e.g. payload.user.name).' },
       { key: 'pt',     desc: 'Target context: msg / flow / global.' },
-      { key: 'to',     desc: 'New value (literal, msg.path, flow./global. context, or expression).' },
-      { key: 'tot',    desc: 'How "to" is interpreted (string, num, bool, json, env, msg, flow, global).' },
+      { key: 'to',     desc: 'New value (literal, msg.path, flow./global. context, or expr expression).' },
+      { key: 'tot',    desc: 'How "to" is interpreted (string, num, bool, json, env, msg, flow, global, expr).' },
     ],
     examples: [
       {
@@ -87,10 +87,21 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
         config: 'set · p=payload · tot=flow · to=lastValue',
         result: 'Reads flow.lastValue and assigns it to msg.payload.',
       },
+      {
+        title: 'Inline expression — Celsius → Fahrenheit',
+        config: 'set · p=payload · tot=expr · to=payload * 1.8 + 32',
+        result: 'Computes a fresh value from the current message — no Function Node needed.',
+      },
+      {
+        title: 'Conditional severity tag',
+        config: 'set · p=severity · tot=expr · to=payload.value > 50 ? "high" : "low"',
+        result: 'Adds a severity field based on a payload threshold.',
+      },
     ],
     tips: [
       'Use "delete" to strip sensitive fields before they are forwarded.',
       'Order matters: a later rule sees the result of all earlier rules in the same node.',
+      'expr value-type: the expression sees `payload`, `topic`, and `msg` (full message map). Compile errors surface at deploy time as a red node status.',
     ],
   },
 
@@ -169,6 +180,83 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       'Available context APIs: node.get/set/delete (per-node, in-memory), flow.* and global.* (configurable memory or persistent storage).',
       'Throwing or returning a Promise that rejects routes the message to the catch flow (if any).',
       'Heavy work? Prefer a dedicated node — long-running JS can stall the flow.',
+    ],
+  },
+
+  'function-go': {
+    overview:
+      'Runs Go code (interpreted by Yaegi) for each incoming message. Best for batch-numeric work, binary parsing, and algorithms with real control flow that would be slow in JavaScript. Slower than native Go but much faster than the JS Function for compute-heavy workloads.',
+    inputs: ['Any message — payload is bound to the handle function\'s first argument.'],
+    outputs: [
+      'Configurable (1+). Either return a value (goes to port 0, replaces payload) or call node.Send(port, msg) for multi-output / explicit routing.',
+    ],
+    properties: [
+      { key: 'code',    desc: 'Go source. Must be `package main` with a `func handle(...)` whose signature is one of the supported shapes (see examples).' },
+      { key: 'outputs', desc: 'Number of output ports (1–N). node.Send(port, …) writes to a specific port.' },
+    ],
+    examples: [
+      {
+        title: 'Pass-through',
+        config: 'package main\n\nfunc handle(payload any) any {\n    return payload\n}',
+        result: 'Forwards the message unchanged.',
+      },
+      {
+        title: 'Filter typed structs',
+        config: 'package main\n\ntype Reading struct {\n    Temperature float64 `json:"temperature"`\n}\n\nfunc handle(payload []Reading) []Reading {\n    out := []Reading{}\n    for _, r := range payload {\n        if r.Temperature > 25 { out = append(out, r) }\n    }\n    return out\n}',
+        result: 'JSON-marshals incoming records into typed Reading structs, filters in native Go.',
+      },
+      {
+        title: 'Binary parsing',
+        config: 'package main\n\nimport "encoding/binary"\n\nfunc handle(payload []byte) uint64 {\n    return binary.BigEndian.Uint64(payload[:8])\n}',
+        result: 'Reads a uint64 from the first 8 bytes of an mqtt-in buffer payload.',
+      },
+      {
+        title: 'Multi-output via node.Send',
+        config: 'package main\n\nimport "flintnode"\n\nfunc handle(payload any, node flintnode.Node) {\n    if v, ok := payload.(int); ok && v > 50 {\n        node.Send(0, payload)\n    } else {\n        node.Send(1, payload)\n    }\n}',
+        result: 'Routes high values to port 0, low values to port 1.',
+      },
+    ],
+    tips: [
+      'Allowed imports: bytes, encoding/{binary,base64,hex,json}, errors, fmt, math, math/big, math/bits, math/rand, regexp, sort, strconv, strings, time (no Sleep), unicode, unicode/utf8, unicode/utf16. Imports outside this list cause a compile error.',
+      'For typed payloads, JSON tags drive the boundary conversion — make sure your struct fields have matching `json:"…"` tags.',
+      '[]byte input maps to mqtt-in\'s buffer wire format ([]int) automatically; returning []byte converts back transparently.',
+      'flintnode.Node also exposes Get/Set/Delete (node-scope), Flow{Get,Set,Delete}/FlowGetP (flow scope, P = persistent), and Global{Get,Set,Delete}/GlobalGetP (global scope).',
+    ],
+  },
+
+  'function-expr': {
+    overview:
+      'Evaluates a single expr-lang expression for each incoming message. Idiomatic for pipeline transforms (map/filter/reduce), aggregates, and conditional value construction. Faster than the JS Function for batch-numeric work, slower than Go Function — pick by use case.',
+    inputs: ['Any message — fields are exposed via the env (payload, topic, msg).'],
+    outputs: [
+      'One port. Default: a fresh message with topic + the result on the configured output property. With pass-through enabled: the original message with the output property overwritten.',
+    ],
+    properties: [
+      { key: 'expression',     desc: 'expr-lang expression. Compile errors surface at deploy time as a red status.' },
+      { key: 'outputProperty', desc: 'Where the result is written on the outgoing message. Dotted paths (payload.value) build nested maps.' },
+      { key: 'passThrough',    desc: 'When true, the original message survives and only the output property is overwritten. When false, a new message is emitted carrying just topic + the result.' },
+    ],
+    examples: [
+      {
+        title: 'Pipeline aggregate',
+        config: 'expression: { avg: mean(map(payload, .temperature)), max: max(map(payload, .temperature)) }',
+        result: 'Computes average and max temperature across a list of records.',
+      },
+      {
+        title: 'Conditional severity',
+        config: 'expression: payload.value > 50 ? "high" : "low"\noutputProperty: severity\npassThrough: true',
+        result: 'Tags the original message with a severity field.',
+      },
+      {
+        title: 'Topic rewrite',
+        config: 'expression: topic + "/converted"\noutputProperty: topic\npassThrough: true',
+        result: 'Appends a suffix to msg.topic.',
+      },
+    ],
+    tips: [
+      'Use map(list, .field) and filter(list, .field > x) for pipeline-style data work.',
+      'msg gives you the full message map as an escape-hatch for fields outside payload/topic.',
+      'For control flow (loops, mutations) prefer the JS Function or Go Function nodes.',
     ],
   },
 

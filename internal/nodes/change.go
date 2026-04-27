@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/flint/internal/scripting"
+	scriptingexpr "github.com/niceclouds/flint/internal/scripting/expr"
 )
 
 // Rule represents a single change operation within the Change Node.
@@ -19,12 +21,13 @@ type Rule struct {
 	PropType    string // Target scope: "msg", "flow", "global"
 	PropStorage string // "memory" or "persistent" (only when PropType is flow/global)
 	To          string // Value or target property
-	ToType      string // Value type: "msg", "flow", "global", "str", "num", "bool", "json", "date", "env"
+	ToType      string // Value type: "msg", "flow", "global", "str", "num", "bool", "json", "date", "env", "expr"
 	ToStorage   string // "memory" or "persistent" (only when ToType is flow/global)
 	From        string // Search string (only for "change")
 	FromType    string // Search type: "str", "re", "num", "bool", "env"
 	FromStorage string // "memory" or "persistent" (only when FromType is flow/global)
-	FromRE      *regexp.Regexp // Compiled regex (only when FromType == "re")
+	FromRE      *regexp.Regexp        // Compiled regex (only when FromType == "re")
+	ToExpr      *scriptingexpr.Program // Compiled expr program (only when ToType == "expr")
 }
 
 // ChangeNode manipulates message properties, flow context, and global context
@@ -91,10 +94,33 @@ func (n *ChangeNode) Init() error {
 			rule.FromRE = re
 		}
 
+		// Compile expr program if value type is "expr". The empty-string case
+		// is left uncompiled so that {valueType: expr, value: ""} doesn't fail
+		// deploys for partially configured rules.
+		if rule.ToType == "expr" && rule.To != "" {
+			prog, err := scriptingexpr.Compile(rule.To, exprEnvShape())
+			if err != nil {
+				return fmt.Errorf("change node %s: rule %d: invalid expr %q: %w",
+					n.config.ID, i, rule.To, err)
+			}
+			rule.ToExpr = prog
+		}
+
 		n.rules = append(n.rules, rule)
 	}
 
 	return nil
+}
+
+// exprEnvShape declares the variables an expr-typed change rule sees at
+// runtime. payload is dynamic (left undefined → AllowUndefinedVariables in
+// the engine) so type-checks defer to runtime; topic is always a string;
+// msg gives full-message access for less-common fields.
+func exprEnvShape() map[string]any {
+	return map[string]any{
+		"topic": "",
+		"msg":   map[string]any{},
+	}
 }
 
 func (n *ChangeNode) SetSend(fn flow.SendFunc)    { n.send = fn }
@@ -162,7 +188,7 @@ func (n *ChangeNode) applyRule(msg *flow.Message, rule Rule) error {
 
 // applySet sets a property to a resolved value.
 func (n *ChangeNode) applySet(msg *flow.Message, rule Rule) error {
-	val, err := n.resolveValue(msg, rule.To, rule.ToType, rule.ToStorage)
+	val, err := n.resolveRuleValue(msg, rule)
 	if err != nil {
 		return fmt.Errorf("set: resolve value: %w", err)
 	}
@@ -180,7 +206,7 @@ func (n *ChangeNode) applyChange(msg *flow.Message, rule Rule) error {
 	currentStr := fmt.Sprintf("%v", current)
 
 	// Resolve the replacement value.
-	replaceVal, err := n.resolveValue(msg, rule.To, rule.ToType, rule.ToStorage)
+	replaceVal, err := n.resolveRuleValue(msg, rule)
 	if err != nil {
 		return fmt.Errorf("change: resolve replacement: %w", err)
 	}
@@ -229,6 +255,20 @@ func (n *ChangeNode) applyMove(msg *flow.Message, rule Rule) error {
 // resolveValue delegates to the shared ResolveValue utility.
 func (n *ChangeNode) resolveValue(msg *flow.Message, value, valueType, storage string) (any, error) {
 	return ResolveValue(valueType, value, storage, msg, n.valueContext())
+}
+
+// resolveRuleValue resolves a rule's `to` value, handling the expr value-type
+// out of band (it needs the per-rule compiled program) and delegating
+// everything else to the generic resolveValue path.
+func (n *ChangeNode) resolveRuleValue(msg *flow.Message, rule Rule) (any, error) {
+	if rule.ToType == "expr" {
+		if rule.ToExpr == nil {
+			// Empty expression — null value, mirroring Init's tolerance.
+			return nil, nil
+		}
+		return rule.ToExpr.Run(scripting.MessageEnv(msg))
+	}
+	return n.resolveValue(msg, rule.To, rule.ToType, rule.ToStorage)
 }
 
 // getProperty reads a value from the specified scope + storage.

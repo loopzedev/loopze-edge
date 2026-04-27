@@ -109,6 +109,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   status:          'input',
 
   function:        'process',
+  'function-expr': 'process',
+  'function-go':   'process',
   change:          'process',
   switch:          'process',
   template:        'process',

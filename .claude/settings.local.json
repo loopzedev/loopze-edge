@@ -117,7 +117,13 @@
       "Bash(node gen-ico.mjs)",
       "Bash(node -e ' *)",
       "Bash(node gen-bolt-icons.mjs)",
-      "Bash(gh issue *)"
+      "Bash(gh issue *)",
+      "Bash(python3-config --includes)",
+      "Bash(ldconfig -p)",
+      "Bash(dpkg -l)",
+      "Bash(apt-cache policy *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

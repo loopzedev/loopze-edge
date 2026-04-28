@@ -106,6 +106,11 @@ func (n *FunctionGoNode) Start() error {
 	}
 	n.program = prog
 
+	// Clear any leftover status from a previous failed deploy.
+	if n.status != nil {
+		n.status("", "")
+	}
+
 	slog.Info("function-go node started", "node_id", n.config.ID, "outputs", n.outputs)
 	return nil
 }

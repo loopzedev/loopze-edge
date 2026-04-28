@@ -3,6 +3,9 @@
 // - Goja        (current Function-Node engine)
 // - expr        (compiled bytecode VM, pipeline-style)
 // - Yaegi       (Go interpreter)
+// - Python      (persistent subprocess worker — realistic for a Flint
+//                Python-Function-Node implementation. cgo-embedding would be
+//                ~5-10x faster but isn't viable without python3-dev installed.)
 //
 // Two data shapes are exercised:
 //
@@ -18,8 +21,14 @@
 package flintbench
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
+	"os/exec"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -299,6 +308,93 @@ func BenchmarkYaegi(b *testing.B) {
 				}
 				_ = sink
 			})
+		})
+	}
+}
+
+// ── Python (persistent subprocess, streamed per-call) ───────────────────────
+//
+// Honest per-message benchmark: each iteration JSON-encodes the records on the
+// Go side, writes them through the pipe, the Python worker decodes the JSON,
+// runs the compute, and sends the float result back. This mirrors what a real
+// Flint Python-Function-Node would have to do — every flow message arrives
+// fresh on the Go side and has to cross the process boundary.
+//
+// Symmetry with the other engines:
+//   - Goja pays vm.ToValue(records) per iter (Go→JS proxy materialisation).
+//   - Yaegi/expr/Native get the records as a Go-native slice for free —
+//     they live in the same process, no boundary, no conversion.
+//   - Python pays json.Marshal + pipe write + json.loads — the unavoidable
+//     cost of crossing into a separate process.
+//
+// The previous "preloaded" variant was misleading: a real Python-node-via-
+// subprocess would never have the data already inside the worker.
+
+const pythonWorkerStreamed = `
+import sys, json
+sys.stdin.reconfigure(line_buffering=False)
+for line in sys.stdin:
+    line = line.rstrip()
+    if not line:
+        continue
+    records = json.loads(line)
+    s = 0.0
+    for r in records:
+        t = r["temperature"]
+        if t > 20:
+            s += t * 1.8 + 32
+    sys.stdout.write(repr(s) + "\n"); sys.stdout.flush()
+`
+
+func pythonBench(b *testing.B, records []map[string]any) {
+	cmd := exec.Command("python3", "-u", "-c", pythonWorkerStreamed)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		b.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		b.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		b.Fatal(err)
+	}
+	// Pipe-line buffer must accommodate the JSON payload at 100k records
+	// (~8 MB); the default 4 KB ReadString buffer would only matter on the
+	// reply side though (small floats), so a default reader is fine here.
+	out := bufio.NewReader(stdout)
+	b.Cleanup(func() {
+		_ = stdin.Close()
+		_ = cmd.Wait()
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		jsonBytes, err := json.Marshal(records)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := stdin.Write(jsonBytes); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := io.WriteString(stdin, "\n"); err != nil {
+			b.Fatal(err)
+		}
+		line, err := out.ReadString('\n')
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := strconv.ParseFloat(strings.TrimSpace(line), 64); err != nil {
+			b.Fatalf("bad result line %q: %v", line, err)
+		}
+	}
+}
+
+func BenchmarkPython(b *testing.B) {
+	for _, n := range sizes {
+		b.Run(fmt.Sprintf("map/%d", n), func(b *testing.B) {
+			pythonBench(b, generateMapRecords(n))
 		})
 	}
 }

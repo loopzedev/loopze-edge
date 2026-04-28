@@ -328,6 +328,38 @@ func TestFunctionGoNode_NodeStatus(t *testing.T) {
 	}
 }
 
+func TestFunctionGoNode_SuccessfulCompileClearsStatus(t *testing.T) {
+	cfg := flow.NodeConfig{
+		ID:   "fgo-clear",
+		Type: "function-go",
+		Properties: map[string]any{
+			"code":    "package main\n\nfunc handle(payload any) any { return payload }\n",
+			"outputs": float64(1),
+		},
+	}
+	n, _ := nodes.NewFunctionGoNode(cfg)
+	_ = n.Init()
+
+	type call struct{ fill, text string }
+	var calls []call
+	n.SetSend(func(int, *flow.Message) {})
+	n.SetStatus(func(fill, text string) { calls = append(calls, call{fill, text}) })
+	n.SetDebug(func(flow.DebugMessage) {})
+
+	if err := n.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = n.Stop() })
+
+	if len(calls) == 0 {
+		t.Fatal("expected status() to be called on successful start")
+	}
+	last := calls[len(calls)-1]
+	if last.fill != "" {
+		t.Errorf("last status fill: got %q, want empty (clearing)", last.fill)
+	}
+}
+
 func TestFunctionGoNode_NodeLog(t *testing.T) {
 	n, capt := newFunctionGoNode(t, `
 package main

@@ -180,6 +180,37 @@ func TestFunctionExprNode_RuntimeError(t *testing.T) {
 	}
 }
 
+func TestFunctionExprNode_SuccessfulCompileClearsStatus(t *testing.T) {
+	cfg := flow.NodeConfig{
+		ID:   "fexpr-clear",
+		Type: "function-expr",
+		Properties: map[string]any{
+			"expression": "payload * 2",
+		},
+	}
+	n, _ := nodes.NewFunctionExprNode(cfg)
+	_ = n.Init()
+
+	type call struct{ fill, text string }
+	var calls []call
+	n.SetSend(func(int, *flow.Message) {})
+	n.SetStatus(func(fill, text string) { calls = append(calls, call{fill, text}) })
+	n.SetDebug(func(flow.DebugMessage) {})
+
+	if err := n.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = n.Stop() })
+
+	if len(calls) == 0 {
+		t.Fatal("expected status() to be called on successful start")
+	}
+	last := calls[len(calls)-1]
+	if last.fill != "" {
+		t.Errorf("last status fill: got %q, want empty (clearing)", last.fill)
+	}
+}
+
 func TestFunctionExprNode_EmptyExpressionPassThrough(t *testing.T) {
 	n := newFunctionExprNode(t, "", "payload", false)
 	msg := inMsg("untouched")

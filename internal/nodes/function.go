@@ -126,6 +126,13 @@ func (n *FunctionNode) Start() error {
 	}
 	n.callable = callable
 
+	// Clear any leftover status from a previous failed deploy. Without this,
+	// a node that went red on the previous compile and then succeeded on the
+	// next would still show the stale red indicator in the editor.
+	if n.status != nil {
+		n.status("", "")
+	}
+
 	slog.Info("function node started",
 		"node_id", n.config.ID,
 		"outputs", n.outputs,

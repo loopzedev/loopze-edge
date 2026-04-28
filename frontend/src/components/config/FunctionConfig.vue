@@ -50,7 +50,7 @@ const outputPresets = [
       <CodeEditor
         v-model="funcCode"
         placeholder="return msg;"
-        min-height="180px"
+        min-height="360px"
       />
     </FormField>
 

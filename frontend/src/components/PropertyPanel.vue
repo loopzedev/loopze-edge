@@ -244,21 +244,24 @@ function onResizeEnd() {
 
           <!-- Configuration -->
           <div class="px-4 py-3 flex-1 flex flex-col min-h-0">
-            <!-- State Machine: skip collapsible to preserve flex chain -->
-            <template v-if="selectedNode?.type === 'statemachine'">
+            <!-- Skip the collapsible SectionHeader for nodes whose config
+                 needs the full available height — radix's CollapsibleContent
+                 renders block-level divs that break the flex-col chain, so
+                 child editors can't grow to fill the panel otherwise. -->
+            <template v-if="['statemachine', 'function', 'function-expr', 'function-go'].includes(selectedNode?.type ?? '')">
               <p class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2.5 font-semibold">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 rotate-90 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
                 Configuration
               </p>
-              <StateMachineConfig />
-            </template>
-            <SectionHeader v-else title="Configuration">
-              <InjectConfig v-if="selectedNode?.type === 'inject'" />
+              <StateMachineConfig v-if="selectedNode?.type === 'statemachine'" />
               <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
               <ExprFunctionConfig v-else-if="selectedNode?.type === 'function-expr'" />
               <GoFunctionConfig v-else-if="selectedNode?.type === 'function-go'" />
+            </template>
+            <SectionHeader v-else title="Configuration">
+              <InjectConfig v-if="selectedNode?.type === 'inject'" />
               <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
               <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
               <SwitchConfig v-else-if="selectedNode?.type === 'switch'" />

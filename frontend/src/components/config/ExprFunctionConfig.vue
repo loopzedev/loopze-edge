@@ -24,7 +24,7 @@ const passThrough    = useNodeProperty<boolean>('passThrough', false)
         v-model="expression"
         language="expr"
         placeholder="payload"
-        min-height="160px"
+        min-height="240px"
       />
     </FormField>
 

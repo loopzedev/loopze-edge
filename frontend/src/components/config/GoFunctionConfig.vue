@@ -53,7 +53,7 @@ const outputPresets = [
       <CodeEditor
         v-model="code"
         language="go"
-        min-height="220px"
+        min-height="400px"
       />
     </FormField>
 

@@ -131,6 +131,7 @@ function setRules(newRules: Rule[]) {
 }
 
 function updateRule(idx: number, patch: Partial<Rule>) {
+  if (idx < 0 || idx >= rules.value.length) return
   const updated = [...rules.value]
   const merged = { ...updated[idx], ...patch }
   // When switching to "is of type" without an existing type-name value,

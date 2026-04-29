@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useApi, type OpcuaBrowseChild, type OpcuaReadResult } from '@/composables/useApi'
 import OpcuaBrowserTreeNode from './OpcuaBrowserTreeNode.vue'
 
@@ -58,6 +58,13 @@ const reading = ref(false)
 
 const existingSet = computed(() => new Set(props.existingNodeIds ?? []))
 
+// Promises started before unmount can still resolve; the alive flag lets
+// async handlers bail out instead of writing into a torn-down component.
+let alive = true
+onBeforeUnmount(() => {
+  alive = false
+})
+
 function rebuildSelection() {
   selectedIds.value = new Set()
   selectedMeta.value = new Map()
@@ -79,6 +86,7 @@ async function loadRoot() {
   initError.value = null
   try {
     const result = await fetchChildren('') // empty → Objects folder
+    if (!alive) return
     root.value = {
       child: result.parent ?? {
         nodeId: 'i=85',
@@ -93,9 +101,10 @@ async function loadRoot() {
     }
     focused.value = root.value
   } catch (err) {
+    if (!alive) return
     initError.value = err instanceof Error ? err.message : String(err)
   } finally {
-    initialising.value = false
+    if (alive) initialising.value = false
   }
 }
 
@@ -125,12 +134,14 @@ async function toggleNode(node: TreeNode) {
   node.error = undefined
   try {
     const result = await fetchChildren(node.child.nodeId)
+    if (!alive) return
     node.children = (result.children ?? []).map(toTreeNode)
     node.expanded = true
   } catch (err) {
+    if (!alive) return
     node.error = err instanceof Error ? err.message : String(err)
   } finally {
-    node.loading = false
+    if (alive) node.loading = false
   }
 }
 
@@ -151,15 +162,17 @@ async function readNow() {
       config: props.serverConfig,
       nodeId: focused.value.child.nodeId,
     })
+    if (!alive) return
     if (res.ok && res.result) {
       readResult.value = res.result
     } else {
       readError.value = res.error ?? 'read failed'
     }
   } catch (err) {
+    if (!alive) return
     readError.value = err instanceof Error ? err.message : String(err)
   } finally {
-    reading.value = false
+    if (alive) reading.value = false
   }
 }
 

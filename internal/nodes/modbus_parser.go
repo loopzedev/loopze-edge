@@ -88,7 +88,13 @@ func (n *ModbusParserNode) Init() error {
 	n.byteOrder = parseByteOrder(stringVal(props, "byteOrder", ""))
 	n.wordOrder = parseWordOrder(stringVal(props, "wordOrder", ""))
 
-	rawLayout, _ := props["layout"].([]any)
+	rawLayout, ok := props["layout"].([]any)
+	if !ok {
+		if _, present := props["layout"]; present {
+			return fmt.Errorf("modbus-parser %s: layout must be an array", n.config.ID)
+		}
+		return fmt.Errorf("modbus-parser %s: layout is empty (define at least one field)", n.config.ID)
+	}
 	if len(rawLayout) == 0 {
 		return fmt.Errorf("modbus-parser %s: layout is empty (define at least one field)", n.config.ID)
 	}
@@ -611,7 +617,7 @@ func (n *ModbusParserNode) encode(input map[string]any) ([]uint16, int, error) {
 func ModbusParserTypeInfo() flow.NodeTypeInfo {
 	return flow.NodeTypeInfo{
 		Type:        "modbus-parser",
-		Category:    "parser",
+		Category:    "industrial",
 		Label:       "Modbus Parser",
 		Description: "Parse register blocks into objects and back",
 		Icon:        "memory",

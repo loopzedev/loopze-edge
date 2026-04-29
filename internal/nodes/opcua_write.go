@@ -163,19 +163,14 @@ func (n *OpcuaWriteNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn
 func (n *OpcuaWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaWriteNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("opcua-write %s: config lookup not available", n.config.ID)
-	}
-	inst, ok := n.configLookup(n.serverID)
-	if !ok {
-		if n.status != nil {
-			n.status("red", "server not found")
-		}
-		return fmt.Errorf("opcua-write %s: server %q not found", n.config.ID, n.serverID)
-	}
-	server, ok := inst.(*OpcuaServer)
-	if !ok {
-		return fmt.Errorf("opcua-write %s: config %q is not an OPC UA server", n.config.ID, n.serverID)
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+		NodeKind:   "opcua-write",
+		NodeID:     n.config.ID,
+		ConfigKind: "server",
+		TypeLabel:  "an OPC UA server",
+	})
+	if err != nil {
+		return err
 	}
 	n.server = server
 

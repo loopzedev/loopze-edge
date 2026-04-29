@@ -209,19 +209,14 @@ func (n *OpcuaSubscribeNode) SetDebug(fn flow.DebugFunc)              { n.debug 
 func (n *OpcuaSubscribeNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaSubscribeNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("opcua-subscribe %s: config lookup not available", n.config.ID)
-	}
-	inst, ok := n.configLookup(n.serverID)
-	if !ok {
-		if n.status != nil {
-			n.status("red", "server not found")
-		}
-		return fmt.Errorf("opcua-subscribe %s: server %q not found", n.config.ID, n.serverID)
-	}
-	server, ok := inst.(*OpcuaServer)
-	if !ok {
-		return fmt.Errorf("opcua-subscribe %s: config %q is not an OPC UA server", n.config.ID, n.serverID)
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+		NodeKind:   "opcua-subscribe",
+		NodeID:     n.config.ID,
+		ConfigKind: "server",
+		TypeLabel:  "an OPC UA server",
+	})
+	if err != nil {
+		return err
 	}
 	n.server = server
 
@@ -768,8 +763,27 @@ func (n *OpcuaSubscribeNode) buildItemRecord(spec monitoredSpec, dv *ua.DataValu
 	rec["statusCode"] = OpcuaStatusCodeName(dv.Status)
 	rec["statusCodeRaw"] = uint32(dv.Status)
 	if dv.Value != nil {
-		rec["value"] = OpcuaValueToJSON(dv.Value, n.server)
+		converted := OpcuaValueToJSON(dv.Value, n.server)
+		rec["value"] = converted
 		rec["dataType"] = OpcuaTypeName(dv.Value.Type())
+		// Override server-side Bad status when our schema-driven decoder
+		// successfully turned the wire bytes into structured fields. See
+		// opcua_read.go.doRead for the same trick — server limitations
+		// reporting BadDataTypeIDUnknown shouldn't gate working data.
+		if dv.Value.Type() == ua.TypeIDExtensionObject {
+			if m, ok := converted.(map[string]any); ok {
+				if _, hasErr := m["_decodeError"]; !hasErr {
+					if _, hasRaw := m["_raw"]; !hasRaw && len(m) > 0 {
+						if !OpcuaStatusCodeIsGood(dv.Status) {
+							rec["serverStatusCode"] = rec["statusCode"]
+							rec["serverStatusCodeRaw"] = rec["statusCodeRaw"]
+							rec["statusCode"] = "Good"
+							rec["statusCodeRaw"] = uint32(0)
+						}
+					}
+				}
+			}
+		}
 	} else {
 		rec["value"] = nil
 	}

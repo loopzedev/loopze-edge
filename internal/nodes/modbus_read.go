@@ -134,17 +134,14 @@ func (n *ModbusReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLoo
 func (n *ModbusReadNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusReadNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("modbus-read %s: config lookup not available", n.config.ID)
-	}
-	inst, ok := n.configLookup(n.serverID)
-	if !ok {
-		n.status("red", "server not found")
-		return fmt.Errorf("modbus-read %s: server %q not found", n.config.ID, n.serverID)
-	}
-	server, ok := inst.(*ModbusServer)
-	if !ok {
-		return fmt.Errorf("modbus-read %s: config %q is not a Modbus server", n.config.ID, n.serverID)
+	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+		NodeKind:   "modbus-read",
+		NodeID:     n.config.ID,
+		ConfigKind: "server",
+		TypeLabel:  "a Modbus server",
+	})
+	if err != nil {
+		return err
 	}
 	n.server = server
 	n.server.RegisterStatusFunc(n.handleServerStatus)

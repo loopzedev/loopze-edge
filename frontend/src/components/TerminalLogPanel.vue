@@ -6,7 +6,11 @@ import LogLine from '@/components/LogLine.vue'
 import type { LogEntry, LogLevel } from '@/types/events'
 
 type OnLog = (cb: (e: LogEntry) => void) => () => void
-const onLog = inject<OnLog>('onLog')!
+const injectedOnLog = inject<OnLog>('onLog')
+if (!injectedOnLog) {
+  throw new Error('TerminalLogPanel requires an `onLog` provider in an ancestor component')
+}
+const onLog: OnLog = injectedOnLog
 
 const ui = useUiStore()
 const api = useApi()
@@ -65,7 +69,7 @@ async function open(limit: LogsLimit) {
   if (myEpoch !== loadEpoch) return
 
   entries.value = initial
-  lastSeqFromHttp = initial.length > 0 ? initial[initial.length - 1].seq : 0
+  lastSeqFromHttp = initial.length > 0 ? (initial[initial.length - 1]?.seq ?? 0) : 0
 
   // Merge anything that arrived during the fetch, deduped by seq.
   for (const e of staging) {

@@ -133,19 +133,14 @@ func (n *OpcuaReadNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn 
 func (n *OpcuaReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaReadNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("opcua-read %s: config lookup not available", n.config.ID)
-	}
-	inst, ok := n.configLookup(n.serverID)
-	if !ok {
-		if n.status != nil {
-			n.status("red", "server not found")
-		}
-		return fmt.Errorf("opcua-read %s: server %q not found", n.config.ID, n.serverID)
-	}
-	server, ok := inst.(*OpcuaServer)
-	if !ok {
-		return fmt.Errorf("opcua-read %s: config %q is not an OPC UA server", n.config.ID, n.serverID)
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+		NodeKind:   "opcua-read",
+		NodeID:     n.config.ID,
+		ConfigKind: "server",
+		TypeLabel:  "an OPC UA server",
+	})
+	if err != nil {
+		return err
 	}
 	n.server = server
 
@@ -161,14 +156,6 @@ func (n *OpcuaReadNode) Start() error {
 		done := n.doneCh
 		n.mu.Unlock()
 		go n.runStatic(stop, done)
-	}
-
-	// Schema prewarm in the background so the first read of a struct-typed
-	// variable already has the body bytes (gopcua silently drops bodies of
-	// unregistered ExtensionObject TypeIDs). Errors here only degrade the
-	// first message to the {typeId} fallback shape.
-	if len(n.nodeIDs) > 0 {
-		go n.prewarmStructs(n.nodeIDs)
 	}
 
 	slog.Info("opcua-read started", "node_id", n.config.ID, "mode", n.mode, "node_count", len(n.nodeIDs))
@@ -289,6 +276,11 @@ func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
 		return nil
 	}
 
+	// Synchronous schema prewarm before the actual Read so server-defined
+	// structures arrive with their bytes intact and the codec can decode
+	// them. The cache makes second and later calls effectively free.
+	n.prewarmStructs(nodeIDStrs)
+
 	// Pre-parse and pair NodeID strings with their parsed forms so per-item
 	// errors can be reported in the output without poisoning the whole batch.
 	type pair struct {
@@ -350,8 +342,28 @@ func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
 		entry["statusCode"] = OpcuaStatusCodeName(dv.Status)
 		entry["statusCodeRaw"] = uint32(dv.Status)
 		if dv.Value != nil {
-			entry["value"] = OpcuaValueToJSON(dv.Value, n.server)
+			converted := OpcuaValueToJSON(dv.Value, n.server)
+			entry["value"] = converted
 			entry["dataType"] = OpcuaTypeName(dv.Value.Type())
+			// Server-defined ExtensionObjects sometimes return a Bad status on
+			// Read (e.g. BadDataTypeIDUnknown) even though the wire payload was
+			// successfully decoded against the schema. In that case the data
+			// is sound — surface Good and keep the original server status as
+			// a diagnostic field so the user can still see what happened.
+			if dv.Value.Type() == ua.TypeIDExtensionObject {
+				if m, ok := converted.(map[string]any); ok {
+					if _, hasErr := m["_decodeError"]; !hasErr {
+						if _, hasRaw := m["_raw"]; !hasRaw && len(m) > 0 {
+							if !OpcuaStatusCodeIsGood(dv.Status) {
+								entry["serverStatusCode"] = entry["statusCode"]
+								entry["serverStatusCodeRaw"] = entry["statusCodeRaw"]
+								entry["statusCode"] = "Good"
+								entry["statusCodeRaw"] = uint32(0)
+							}
+						}
+					}
+				}
+			}
 		} else {
 			entry["value"] = nil
 		}

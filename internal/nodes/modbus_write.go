@@ -89,17 +89,14 @@ func (n *ModbusWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLo
 func (n *ModbusWriteNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusWriteNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("modbus-write %s: config lookup not available", n.config.ID)
-	}
-	inst, ok := n.configLookup(n.serverID)
-	if !ok {
-		n.status("red", "server not found")
-		return fmt.Errorf("modbus-write %s: server %q not found", n.config.ID, n.serverID)
-	}
-	server, ok := inst.(*ModbusServer)
-	if !ok {
-		return fmt.Errorf("modbus-write %s: config %q is not a Modbus server", n.config.ID, n.serverID)
+	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+		NodeKind:   "modbus-write",
+		NodeID:     n.config.ID,
+		ConfigKind: "server",
+		TypeLabel:  "a Modbus server",
+	})
+	if err != nil {
+		return err
 	}
 	n.server = server
 	n.server.RegisterStatusFunc(n.status)

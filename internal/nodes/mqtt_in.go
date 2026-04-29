@@ -199,19 +199,14 @@ func (n *MqttInNode) SetDebug(fn flow.DebugFunc)                { n.debug = fn }
 func (n *MqttInNode) SetConfigLookup(fn flow.ConfigLookupFunc)  { n.configLookup = fn }
 
 func (n *MqttInNode) Start() error {
-	if n.configLookup == nil {
-		return fmt.Errorf("mqtt-in %s: config lookup not available", n.config.ID)
-	}
-
-	inst, ok := n.configLookup(n.brokerID)
-	if !ok {
-		n.status("red", "broker not found")
-		return fmt.Errorf("mqtt-in %s: broker %q not found", n.config.ID, n.brokerID)
-	}
-
-	broker, ok := inst.(*MqttBroker)
-	if !ok {
-		return fmt.Errorf("mqtt-in %s: config %q is not an MQTT broker", n.config.ID, n.brokerID)
+	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.status, resolveConfigParams{
+		NodeKind:   "mqtt-in",
+		NodeID:     n.config.ID,
+		ConfigKind: "broker",
+		TypeLabel:  "an MQTT broker",
+	})
+	if err != nil {
+		return err
 	}
 	n.broker = broker
 

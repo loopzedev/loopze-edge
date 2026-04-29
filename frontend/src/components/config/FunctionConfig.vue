@@ -1,37 +1,19 @@
 <script setup lang="ts">
-import { defineAsyncComponent, nextTick, computed } from 'vue'
-import { useVueFlow } from '@vue-flow/core'
-import { useFlowStore } from '@/stores/flowStore'
+import { defineAsyncComponent } from 'vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import FormField from '@/components/ui/FormField.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
+import { useStructuralProperty } from '@/composables/useStructuralProperty'
 
 const CodeEditor = defineAsyncComponent(() =>
   import('@/components/ui/CodeEditor.vue')
 )
 
-const flowStore = useFlowStore()
-const { updateNodeInternals } = useVueFlow('flint-flow-editor')
-
 const funcCode = useNodeProperty<string>('func', 'return msg;')
-const rawOutputs = useNodeProperty<number>('outputs', 1)
-
-// Outputs is a structural property — we mirror it onto node.outputs and
-// trigger updateNodeInternals so the handles re-render.
-const outputs = computed({
-  get: () => rawOutputs.value,
-  set: (v: number) => {
-    const clamped = Math.max(1, Math.min(10, v))
-    const node = flowStore.selectedNode
-    if (!node) return
-    const cfg = (node.data?.config ?? {}) as Record<string, unknown>
-    flowStore.updateNodeData(node.id, {
-      config: { ...cfg, outputs: clamped },
-      outputs: clamped,
-    })
-    nextTick(() => updateNodeInternals([node.id]))
-  },
+const outputs = useStructuralProperty<number>('outputs', 1, {
+  port: 'outputs',
+  clamp: { min: 1, max: 10 },
 })
 
 const outputPresets = [

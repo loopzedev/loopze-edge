@@ -332,6 +332,10 @@ func (r *structResolver) findBinaryEncodingID(ctx context.Context, dataType *ua.
 // that variable arrives with the body bytes intact rather than being
 // silently dropped by the library's "unknown extobj type" path.
 //
+// Cached: the first call per Variable NodeID does the round-trips; subsequent
+// calls return immediately. Cache is cleared on reconnect (alongside the
+// type cache).
+//
 // Best-effort: errors are logged via the resolver but do not surface to
 // callers, because a missing schema only degrades to the {typeId} fallback
 // at decode time.
@@ -339,8 +343,27 @@ func (s *OpcuaServer) PrewarmStructForVariable(ctx context.Context, variableNode
 	if variableNodeID == nil {
 		return
 	}
+	key := variableNodeID.String()
+	s.prewarmedMu.RLock()
+	done := s.prewarmed[key]
+	s.prewarmedMu.RUnlock()
+	if done {
+		return
+	}
+	// Mark before doing any work so concurrent prewarms collapse to one.
+	s.prewarmedMu.Lock()
+	if s.prewarmed == nil {
+		s.prewarmed = make(map[string]bool)
+	}
+	s.prewarmed[key] = true
+	s.prewarmedMu.Unlock()
+
 	client := s.Client()
 	if client == nil {
+		// Don't keep the "done" flag if we couldn't actually do the work.
+		s.prewarmedMu.Lock()
+		delete(s.prewarmed, key)
+		s.prewarmedMu.Unlock()
 		return
 	}
 	resp, err := client.Read(ctx, &ua.ReadRequest{

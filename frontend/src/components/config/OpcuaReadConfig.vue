@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { useVueFlow } from '@vue-flow/core'
+import { computed, ref } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useConfigSelector } from '@/composables/useConfigSelector'
 import { useNodeProperty } from '@/composables/useNodeProperty'
+import { useStructuralProperty } from '@/composables/useStructuralProperty'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
 import FormField from '@/components/ui/FormField.vue'
@@ -14,32 +14,19 @@ import NodeIdInput from './shared/NodeIdInput.vue'
 import OpcuaBrowser from './shared/OpcuaBrowser.vue'
 
 const flowStore = useFlowStore()
-const { updateNodeInternals } = useVueFlow('flint-flow-editor')
 const { options: serverOptions, openNewConfig, openEditConfig } = useConfigSelector('opcua-server')
 
 const server = useNodeProperty<string>('server', '')
-const rawMode = useNodeProperty<string>('mode', 'triggered')
+const mode = useStructuralProperty<string>('mode', 'triggered', {
+  port: 'inputs',
+  derive: (v) => (v === 'static' ? 0 : 1),
+})
 const nodeIds = useNodeProperty<string[]>('nodeIds', [])
 const attribute = useNodeProperty<string>('attribute', 'Value')
 const outputShape = useNodeProperty<string>('outputShape', 'array')
 const includeMetadata = useNodeProperty<boolean>('includeMetadata', true)
 const interval = useNodeProperty<number>('interval', 1000)
 const startupRead = useNodeProperty<boolean>('startupRead', true)
-
-// Mode switching changes the input port count: static = 0, triggered/dynamic = 1.
-const mode = computed({
-  get: () => rawMode.value,
-  set: (v: string) => {
-    if (!['static', 'triggered', 'dynamic'].includes(v)) return
-    rawMode.value = v
-    const n = flowStore.selectedNode
-    if (!n) return
-    const desired = v === 'static' ? 0 : 1
-    if ((n.data?.inputs ?? 0) === desired) return
-    flowStore.updateNodeData(n.id, { inputs: desired })
-    nextTick(() => updateNodeInternals([n.id]))
-  },
-})
 
 const modePresets = [
   { label: 'Static',    value: 'static'    },

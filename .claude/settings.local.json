@@ -142,7 +142,8 @@
       "Bash(echo \"PID: $!\")",
       "Bash(kill 622433)",
       "Bash(pkill -f \"modbus-server\")",
-      "Bash(python3 -c \"import json; json.load\\(open\\('/home/dennisbleul/git/flint/demo/modbus-server/example-flow.json'\\)\\); print\\('json ok'\\)\")"
+      "Bash(python3 -c \"import json; json.load\\(open\\('/home/dennisbleul/git/flint/demo/modbus-server/example-flow.json'\\)\\); print\\('json ok'\\)\")",
+      "Bash(awk '/func.*Start\\\\\\(\\\\\\)/{found=1} found && /n\\\\.status\\\\\\(/{print FILENAME\":\"NR\": \"$0; found=0}' internal/nodes/*.go)"
     ]
   }
 }

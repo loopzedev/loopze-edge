@@ -69,6 +69,12 @@ type OpcuaServer struct {
 	// Lives next to typeCache because both share the same reset-on-reconnect
 	// semantics.
 	structResolver *structResolver
+
+	// prewarmed tracks Variable NodeIDs whose schema has already been
+	// looked up so PrewarmStructForVariable becomes a near-zero-cost call
+	// after the first hit. Reset on reconnect alongside the type cache.
+	prewarmedMu sync.RWMutex
+	prewarmed   map[string]bool
 }
 
 // NewOpcuaServer constructs an OpcuaServer instance from a workspace
@@ -327,11 +333,22 @@ func (s *OpcuaServer) watchState(ctx context.Context, stateC <-chan opcua.ConnSt
 				if s.structResolver != nil {
 					s.structResolver.reset()
 				}
+				s.prewarmedMu.Lock()
+				s.prewarmed = nil
+				s.prewarmedMu.Unlock()
 			}
 
 			if state == opcua.Connected {
 				for _, cb := range callbacks {
-					go cb()
+					go func(cb func()) {
+						defer func() {
+							if r := recover(); r != nil {
+								slog.Error("opcua server reconnect callback panicked",
+									"id", s.id, "panic", r)
+							}
+						}()
+						cb()
+					}(cb)
 				}
 			}
 		}

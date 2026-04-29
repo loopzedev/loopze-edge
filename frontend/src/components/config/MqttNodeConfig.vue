@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick } from 'vue'
-import { useVueFlow } from '@vue-flow/core'
+import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useConfigSelector } from '@/composables/useConfigSelector'
 import FormInput from '@/components/ui/FormInput.vue'
@@ -12,10 +11,10 @@ import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import UserPropertiesEditor from '@/components/ui/UserPropertiesEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
+import { useStructuralProperty } from '@/composables/useStructuralProperty'
 import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS } from '@/components/config/enums'
 
 const flowStore = useFlowStore()
-const { updateNodeInternals } = useVueFlow('flint-flow-editor')
 const { options: brokerOptions, openNewConfig, openEditConfig } = useConfigSelector('mqtt-broker')
 
 const node = computed(() => flowStore.selectedNode)
@@ -26,7 +25,12 @@ const topic = useNodeProperty<string>('topic', '')
 const qos = useNodeProperty<number>('qos', 0)
 const retain = useNodeProperty<boolean>('retain', false)
 
-const rawMode = useNodeProperty<string>('mode', 'static')
+// mqtt-out has no input port that the mode switch should grow; mqtt-in does.
+const mode = useStructuralProperty<string>('mode', 'static', {
+  port: 'inputs',
+  derive: (v) => (v === 'dynamic' ? 1 : 0),
+  enabled: () => !isMqttOut.value,
+})
 const outputFormat = useNodeProperty<string>('outputFormat', 'string')
 
 // mqtt-in v5 subscription options
@@ -42,25 +46,6 @@ const defaultContentType = useNodeProperty<string>('defaultContentType', '')
 const defaultResponseTopic = useNodeProperty<string>('defaultResponseTopic', '')
 const defaultMessageExpiry = useNodeProperty<number>('defaultMessageExpiry', 0)
 const defaultPayloadFormat = useNodeProperty<number>('defaultPayloadFormat', 0)
-
-// Mode is a structural property — switching it changes the input port count.
-// Mirror it onto node.inputs and trigger updateNodeInternals so the handles
-// re-render and any edges into the (vanishing) input port are pruned by
-// flowStore.updateNodeData.
-const mode = computed({
-  get: () => rawMode.value,
-  set: (v: string) => {
-    if (v !== 'static' && v !== 'dynamic') return
-    rawMode.value = v
-    if (isMqttOut.value) return
-    const n = flowStore.selectedNode
-    if (!n) return
-    const desired = v === 'dynamic' ? 1 : 0
-    if ((n.data?.inputs ?? 0) === desired) return
-    flowStore.updateNodeData(n.id, { inputs: desired })
-    nextTick(() => updateNodeInternals([n.id]))
-  },
-})
 
 const modePresets = [
   { label: 'Static',  value: 'static'  },

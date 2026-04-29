@@ -565,6 +565,21 @@ func OpcuaReadOnce(ctx context.Context, server *OpcuaServer, nodeIDStr string) (
 	if dv.Value != nil {
 		out.Value = OpcuaValueToJSON(dv.Value, server)
 		out.DataType = OpcuaTypeName(dv.Value.Type())
+		// Mirror the Read/Subscribe-node behaviour: when the schema decoder
+		// produced real fields, the value is sound — even if the server
+		// flags BadDataTypeIDUnknown.
+		if dv.Value.Type() == ua.TypeIDExtensionObject {
+			if m, ok := out.Value.(map[string]any); ok {
+				if _, hasErr := m["_decodeError"]; !hasErr {
+					if _, hasRaw := m["_raw"]; !hasRaw && len(m) > 0 {
+						if !OpcuaStatusCodeIsGood(dv.Status) {
+							out.StatusCode = "Good"
+							out.StatusCodeRaw = 0
+						}
+					}
+				}
+			}
+		}
 	}
 	if !dv.SourceTimestamp.IsZero() {
 		out.SourceTimestamp = dv.SourceTimestamp.UTC().Format(time.RFC3339Nano)

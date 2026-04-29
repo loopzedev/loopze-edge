@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, nextTick } from 'vue'
-import { useVueFlow } from '@vue-flow/core'
+import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useConfigSelector } from '@/composables/useConfigSelector'
 import FormSelect from '@/components/ui/FormSelect.vue'
@@ -10,6 +9,7 @@ import NumberInput from '@/components/ui/NumberInput.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
+import { useStructuralProperty } from '@/composables/useStructuralProperty'
 import {
   MODBUS_READ_FCS,
   MODBUS_WRITE_FCS,
@@ -20,7 +20,6 @@ import {
 } from '@/components/config/enums'
 
 const flowStore = useFlowStore()
-const { updateNodeInternals } = useVueFlow('flint-flow-editor')
 const { options: serverOptions, openNewConfig, openEditConfig } = useConfigSelector('modbus-server')
 
 const node = computed(() => flowStore.selectedNode)
@@ -37,44 +36,26 @@ const wordOrder = useNodeProperty<string>('wordOrder', 'bigEndian')
 const scale = useNodeProperty<number>('scale', 1)
 const offset = useNodeProperty<number>('offset', 0)
 
-// Read-specific
-const rawMode = useNodeProperty<string>('mode', 'static')
+// Read-specific: mode toggle drives input port count (static=0, dynamic=1),
+// but only on read nodes — modbus-write has no such mode dimension.
+const mode = useStructuralProperty<string>('mode', 'static', {
+  port: 'inputs',
+  derive: (v) => (v === 'dynamic' ? 1 : 0),
+  enabled: () => !isWrite.value,
+})
 const pollInterval = useNodeProperty<number>('pollInterval', 1000)
 const emitOnChange = useNodeProperty<boolean>('emitOnChange', false)
 const emitOnError = useNodeProperty<boolean>('emitOnError', false)
 
-// Write-specific
-const emitAck = useNodeProperty<boolean>('emitAck', false)
+// Write-specific: emitAck toggle drives output port count, only on write nodes.
+const emitAck = useStructuralProperty<boolean>('emitAck', false, {
+  port: 'outputs',
+  derive: (v) => (v ? 1 : 0),
+  enabled: () => isWrite.value,
+})
 
 const fcOptions = computed(() => (isWrite.value ? MODBUS_WRITE_FCS : MODBUS_READ_FCS))
 const isCoilFC = computed(() => MODBUS_COIL_FCS.has(Number(fc.value)))
-
-// In Read mode the input port count tracks the mode (static=0, dynamic=1).
-// In Write mode the OUTPUT port count tracks emitAck (false=0, true=1).
-const mode = computed({
-  get: () => rawMode.value,
-  set: (v: string) => {
-    if (v !== 'static' && v !== 'dynamic') return
-    rawMode.value = v
-    if (isWrite.value) return
-    const n = flowStore.selectedNode
-    if (!n) return
-    const desired = v === 'dynamic' ? 1 : 0
-    if ((n.data?.inputs ?? 0) === desired) return
-    flowStore.updateNodeData(n.id, { inputs: desired })
-    nextTick(() => updateNodeInternals([n.id]))
-  },
-})
-
-watch(emitAck, (v) => {
-  if (!isWrite.value) return
-  const n = flowStore.selectedNode
-  if (!n) return
-  const desired = v ? 1 : 0
-  if ((n.data?.outputs ?? 0) === desired) return
-  flowStore.updateNodeData(n.id, { outputs: desired })
-  nextTick(() => updateNodeInternals([n.id]))
-})
 
 const modePresets = [
   { label: 'Static (poll)', value: 'static'  },

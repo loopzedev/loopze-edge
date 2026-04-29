@@ -103,14 +103,13 @@ func convertOpcuaValue(v any, server *OpcuaServer) any {
 
 // convertExtensionObject is the schema-aware path that turns a server-side
 // structure back into a JSON-friendly map. The successful-decode shape is
-// flat — struct fields sit directly on the returned map, with structure
-// metadata exposed as `_typeId`, `_structureName`, `_structureType` so
-// consumers can address `msg.payload.value.<FieldName>` without descending
-// into another wrapper.
+// flat: struct fields sit directly on the returned map with no wrappers
+// or metadata fields — consumers address `msg.payload.value.<FieldName>`
+// straight up.
 //
 // On decode failure or missing schema we fall back to a placeholder map
-// (also underscore-prefixed) that at least preserves the wire bytes so the
-// message can still be routed downstream.
+// with underscore-prefixed diagnostic fields (`_typeId`, `_decodeError`,
+// `_raw`) so the user at least sees why no real fields are present.
 func convertExtensionObject(x *ua.ExtensionObject, server *OpcuaServer) any {
 	if x == nil {
 		return nil
@@ -126,15 +125,6 @@ func convertExtensionObject(x *ua.ExtensionObject, server *OpcuaServer) any {
 		if def != nil {
 			decoded, err := DecodeStructBinary(rawBytes, def)
 			if err == nil {
-				if def.Name != "" {
-					decoded["_structureName"] = def.Name
-				}
-				if def.NodeID != nil {
-					decoded["_structureType"] = FormatOpcuaNodeID(def.NodeID)
-				}
-				if encodingID != nil {
-					decoded["_typeId"] = FormatOpcuaNodeID(encodingID)
-				}
 				return decoded
 			}
 			out := errorMarker(encodingID)

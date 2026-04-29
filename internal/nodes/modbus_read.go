@@ -186,7 +186,8 @@ func (n *ModbusReadNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, er
 	if err != nil {
 		return nil, err // engine forwards via errFn for catch-node integration
 	}
-	if n.emitOnError && out == nil {
+	if out == nil {
+		// emitOnChange suppressed an unchanged read — nothing to emit.
 		return nil, nil
 	}
 	return [][]*flow.Message{{out}}, nil

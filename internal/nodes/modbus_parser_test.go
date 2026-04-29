@@ -731,6 +731,29 @@ func TestParser_EncodeAction_RejectsArray(t *testing.T) {
 	}
 }
 
+func TestParser_StartClearsStaleStatus(t *testing.T) {
+	// After a redeploy the node is fresh (inErrorState=false) but the
+	// frontend may still show a red pill from the previous incarnation.
+	// Start() must explicitly clear the status pill once.
+	statusCalls := []struct{ fill, text string }{}
+	n := initParser(t, map[string]any{
+		"layout": []any{field(0, "x", "uint16")},
+	})
+	n.SetStatus(func(fill, text string) {
+		statusCalls = append(statusCalls, struct{ fill, text string }{fill, text})
+	})
+
+	if err := n.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if len(statusCalls) != 1 {
+		t.Fatalf("expected 1 status call from Start, got %d: %v", len(statusCalls), statusCalls)
+	}
+	if statusCalls[0].fill != "" || statusCalls[0].text != "" {
+		t.Errorf("Start should clear (empty fill+text), got %v", statusCalls[0])
+	}
+}
+
 func TestParser_StatusErrorRecovery(t *testing.T) {
 	// First message fails, second succeeds — the node must clear the error
 	// status pill on recovery.

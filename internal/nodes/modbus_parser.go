@@ -231,8 +231,16 @@ func (n *ModbusParserNode) SetDebug(fn flow.DebugFunc) { n.debug = fn }
 // be routed to Catch nodes.
 func (n *ModbusParserNode) SetError(fn flow.ErrorFunc) { n.errFn = fn }
 
-// Start logs the node startup.
+// Start logs the node startup and clears any leftover status pill from a
+// previous deploy. Without this clear, a node that died with status=red and
+// got redeployed with a fixed config would keep showing the red pill until
+// the FIRST conversion error happened — because successful runs only call
+// status("", "") when n.inErrorState is true, and a fresh node always starts
+// with inErrorState=false.
 func (n *ModbusParserNode) Start() error {
+	if n.status != nil {
+		n.status("", "")
+	}
 	slog.Info("modbus-parser started",
 		"node_id", n.config.ID,
 		"action", n.action,

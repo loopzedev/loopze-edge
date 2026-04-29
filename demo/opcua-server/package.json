@@ -1,0 +1,28 @@
+{
+  "name": "flint-opcua-demo-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OPC UA demo server for testing Flint nodes (security, ExtensionObjects, simulated data)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "verify": "tsx src/verify.ts",
+    "clean": "rm -rf dist pki"
+  },
+  "dependencies": {
+    "node-opcua": "^2.139.0",
+    "node-opcua-pki": "^5.6.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

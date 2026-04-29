@@ -43,6 +43,55 @@ export interface ContextStoreResponse {
   entries: ContextEntry[]
 }
 
+export interface OpcuaDataTypeInfo {
+  nodeId: string
+  name?: string
+  isStructure: boolean
+}
+
+export interface OpcuaBrowseChild {
+  nodeId: string
+  browseName: string
+  displayName: string
+  nodeClass: string
+  hasChildren: boolean
+  dataType?: OpcuaDataTypeInfo
+  valueRank?: number
+  accessLevel?: string
+  description?: string
+  /** True for tree rows that don't exist on the server but represent
+   *  struct fields surfaced from a DataTypeDefinition. Not selectable. */
+  synthetic?: boolean
+}
+
+export interface OpcuaBrowseResult {
+  parent?: OpcuaBrowseChild
+  children: OpcuaBrowseChild[]
+  continuationPoint?: string
+}
+
+export interface OpcuaBrowseResponse {
+  ok: boolean
+  error?: string
+  result?: OpcuaBrowseResult
+}
+
+export interface OpcuaReadResult {
+  nodeId: string
+  statusCode: string
+  statusCodeRaw: number
+  value: unknown
+  dataType?: string
+  sourceTimestamp?: string
+  serverTimestamp?: string
+}
+
+export interface OpcuaReadResponse {
+  ok: boolean
+  error?: string
+  result?: OpcuaReadResult
+}
+
 const BASE_URL = '/api/v1'
 
 async function request<T>(
@@ -326,6 +375,58 @@ export function useApi() {
     })
   }
 
+  // ── OPC UA endpoints ─────────────────────────────────────────────────────
+
+  /**
+   * Probe an OPC UA server config without persisting it. Used by the
+   * "Test Connection" button in the OPC UA Server config dialog.
+   */
+  async function testOpcuaConnection(payload: {
+    id?: string
+    name?: string
+    config: Record<string, unknown>
+  }): Promise<{ ok: boolean; error?: string; serverInfo?: { endpointUrl: string; serverTime?: string } }> {
+    return request<{ ok: boolean; error?: string; serverInfo?: { endpointUrl: string; serverTime?: string } }>(
+      '/opcua/test-connection',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    )
+  }
+
+  /**
+   * Browse one level of the OPC UA address space. Either serverId (riding
+   * along on a deployed session) or config (transient ad-hoc session) must
+   * be supplied. nodeId defaults to the Objects folder when empty.
+   */
+  async function browseOpcua(payload: {
+    serverId?: string
+    config?: Record<string, unknown>
+    nodeId?: string
+  }): Promise<OpcuaBrowseResponse> {
+    return request<OpcuaBrowseResponse>('/opcua/browse', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /**
+   * One-shot Read of a single OPC UA NodeID. Used by the "Read now" button
+   * in the address-space browser to inspect the current value before
+   * committing to a subscribe/read configuration.
+   */
+  async function readOpcua(payload: {
+    serverId?: string
+    config?: Record<string, unknown>
+    nodeId: string
+  }): Promise<OpcuaReadResponse> {
+    return request<OpcuaReadResponse>('/opcua/read', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+
   /**
    * Check if an error is an ApiError.
    */
@@ -364,6 +465,9 @@ export function useApi() {
     createUser,
     updateUser,
     setUserPassword,
+    testOpcuaConnection,
+    browseOpcua,
+    readOpcua,
     isApiError,
   }
 }

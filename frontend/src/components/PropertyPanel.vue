@@ -19,6 +19,11 @@ import DebugConfig from '@/components/config/DebugConfig.vue'
 import DelayConfig from '@/components/config/DelayConfig.vue'
 import LinkConfig from '@/components/config/LinkConfig.vue'
 import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
+import ModbusNodeConfig from '@/components/config/ModbusNodeConfig.vue'
+import ModbusParserConfig from '@/components/config/ModbusParserConfig.vue'
+import OpcuaReadConfig from '@/components/config/OpcuaReadConfig.vue'
+import OpcuaWriteConfig from '@/components/config/OpcuaWriteConfig.vue'
+import OpcuaSubscribeConfig from '@/components/config/OpcuaSubscribeConfig.vue'
 import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
 import StatusConfig from '@/components/config/StatusConfig.vue'
 import CatchConfig from '@/components/config/CatchConfig.vue'
@@ -269,6 +274,11 @@ function onResizeEnd() {
               <DelayConfig v-else-if="selectedNode?.type === 'delay'" />
               <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
               <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
+              <ModbusNodeConfig v-else-if="['modbus-read', 'modbus-write'].includes(selectedNode?.type ?? '')" />
+              <ModbusParserConfig v-else-if="selectedNode?.type === 'modbus-parser'" />
+              <OpcuaReadConfig v-else-if="selectedNode?.type === 'opcua-read'" />
+              <OpcuaWriteConfig v-else-if="selectedNode?.type === 'opcua-write'" />
+              <OpcuaSubscribeConfig v-else-if="selectedNode?.type === 'opcua-subscribe'" />
               <StatusConfig v-else-if="selectedNode?.type === 'status'" />
               <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
               <TemplateConfig v-else-if="selectedNode?.type === 'template'" />

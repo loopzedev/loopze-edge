@@ -1,0 +1,48 @@
+# Flint OPC UA Demo Server – Default Configuration
+#
+# Override per environment via FLINT_OPCUA_DEMO_CONFIG=path/to/file.yaml
+
+endpoint:
+  port: 4840
+  hostname: 0.0.0.0
+  resourcePath: /flint-demo
+  applicationName: Flint OPC UA Demo Server
+  applicationUri: urn:flint:demo-server
+  productUri: urn:flint:demo-server
+
+# All combinations of policy x mode listed here are advertised as endpoints.
+# (None/None is forced if "None" is included in policies.)
+security:
+  policies:
+    - None
+    - Basic128Rsa15
+    - Basic256
+    - Basic256Sha256
+    - Aes128_Sha256_RsaOaep
+    - Aes256_Sha256_RsaPss
+  modes:
+    - None
+    - Sign
+    - SignAndEncrypt
+  allowAnonymous: true
+  # Auto-trust client certs on first connect (TOFU). Set to false to require
+  # manual move from pki/rejected/ to pki/trusted/.
+  autoAcceptUnknownCertificate: true
+
+# Loaded from config/users.json if present.
+users:
+  configFile: users.json
+
+simulation:
+  # Tick interval drives the dynamic values (Counter, Sine, Sawtooth, ...)
+  tickIntervalMs: 1000
+  enableDynamicValues: true
+  # MotorStatus extension object update tick (ms)
+  motorTickMs: 500
+
+logging:
+  level: info  # debug | info | warn | error
+  logSessions: true
+  logReads: false      # noisy on subscriptions; turn on selectively
+  logWrites: true
+  logSubscriptions: true

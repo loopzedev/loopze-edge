@@ -823,6 +823,17 @@ func (e *Engine) applyConfigDiff(diff WorkspaceDiff, configs []ConfigNode) {
 	}
 }
 
+// GetConfigInstance returns the running config node instance for the given
+// ID, or (nil, false) if nothing is registered. Used by API handlers that
+// want to ride along on an already-deployed connection rather than opening
+// a fresh ad-hoc session.
+func (e *Engine) GetConfigInstance(id string) (ConfigInstance, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	inst, ok := e.configInstances[id]
+	return inst, ok
+}
+
 // startConfigNode creates and starts a single config node instance.
 func (e *Engine) startConfigNode(cfg ConfigNode) {
 	factory, ok := e.registry.GetConfigFactory(cfg.Type)

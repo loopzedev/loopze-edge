@@ -158,6 +158,7 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
   {
     "payload": 23.7,
     "topic": "modbus/sps-halle-1/40001",
+    "bytes": [66, 49, 153, 154],
     "modbus": {
       "fc": 3,
       "address": 0,
@@ -170,6 +171,7 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
   ```
   - `msg.payload` — der dekodierte Wert (Skalar, Array, String, Bool — abhängig von `dataType`)
   - `msg.topic` — Default `modbus/<server-name>/<address>`; vom Anwender überschreibbar
+  - `msg.bytes` — bei FC3/FC4 immer gesetzt: `[]int` der wire-bytes (uint8, 0..255), passend für `Buffer.from(msg.bytes)` im Function Node. Doppelt mit `msg.modbus.raw` (uint16-Wörter) — der Anwender wählt je nach Use-Case. Bei FC1/FC2 nicht gesetzt (Coils kommen schon als `[]bool`)
   - `msg.modbus` — Metadaten-Block mit den effektiven Read-Parametern und den Roh-Registerwerten (für Debugging und Round-Trip-Szenarien)
 
 - **Status-Anzeige**:
@@ -610,4 +612,5 @@ Diese Exceptions werden in der Status-Anzeige und im Catch-Output mit Code und B
 - **Multi-Slave-Routing über RTU-Gateway**: ein Modbus-TCP-Gateway kann mehrere RTU-Slaves bündeln; jeder Slave wird über `unitId` adressiert. Das funktioniert mit dem aktuellen Design transparent — separate Server-Configs pro Gateway, Unit-ID pro Node
 - **Encryption (Modbus Secure)**: nicht im Scope — Modbus ist historisch unverschlüsselt; in geschützten OT-Netzen oder hinter VPN
 - **Function Codes außerhalb 1–6, 15, 16** (z.B. FC20/21 File Record, FC23 Read/Write Multiple): nicht in v1 — werden in der Industrie selten benötigt
-- **Bit-Felder in Holding Registers** (z.B. Bit 3 von Register 40005): nicht in v1; lässt sich aktuell mit `dataType=uint16` und einem nachgelagerten Function-Node lösen
+- **Bit-Felder in Holding Registers** (z.B. Bit 3 von Register 40005): nicht in v1; lässt sich aktuell mit `dataType=uint16` und einem nachgelagerten Function-Node lösen — wird durch den geplanten **Modbus Parser Node** (`PARSER_MODBUS_NODE.md`) deklarativ adressiert
+- **Deklarative Register-Layouts** (Mehrfeld-Mapping „Adresse → Typ → Name" pro Gerät): wird durch den separaten **Modbus Parser Node** abgedeckt, siehe [`PARSER_MODBUS_NODE.md`](./PARSER_MODBUS_NODE.md). Der Parser sitzt zwischen `modbus-read` (`raw`-Output) und Verbraucher bzw. zwischen Erzeuger und `modbus-write` (`raw`-Input) — keine Änderungen an Read/Write nötig

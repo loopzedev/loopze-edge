@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "username": "operator",
+      "password": "operator",
+      "role": "Operator",
+      "description": "Read-only access to runtime values"
+    },
+    {
+      "username": "engineer",
+      "password": "engineer",
+      "role": "Engineer",
+      "description": "Read + write to setpoints / commands"
+    },
+    {
+      "username": "admin",
+      "password": "admin",
+      "role": "Admin",
+      "description": "Full access incl. configuration nodes"
+    }
+  ]
+}

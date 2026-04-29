@@ -401,15 +401,129 @@ onMounted(async () => {
             </template>
 
             <template #node-modbus-read="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="modbus-read"
+                    :selected="nodeProps.selected"
+                    :inputs="nodeProps.data?.inputs ?? 0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'dynamic'
+                                ? 'dynamic'
+                                : `FC${nodeProps.data?.config?.fc ?? 3} @ ${nodeProps.data?.config?.address ?? 0}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-modbus-write="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="modbus-write"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="nodeProps.data?.outputs ?? 0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `FC${nodeProps.data?.config?.fc ?? 16} @ ${nodeProps.data?.config?.address ?? 0}`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-modbus-parser="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="modbus-parser"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${(nodeProps.data?.config?.layout ?? []).length} field(s) · ${nodeProps.data?.config?.action ?? 'auto'}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-opc-ua="nodeProps">
                 <BaseNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-opcua-read="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="opcua-read"
+                    :selected="nodeProps.selected"
+                    :inputs="nodeProps.data?.inputs ?? 1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'dynamic'
+                                ? 'dynamic'
+                                : `${(nodeProps.data?.config?.nodeIds ?? []).length} node(s)`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-opcua-subscribe="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="opcua-subscribe"
+                    :selected="nodeProps.selected"
+                    :inputs="nodeProps.data?.inputs ?? 0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'dynamic'
+                                ? 'dynamic'
+                                : `${(nodeProps.data?.config?.monitoredItems ?? []).length} item(s)`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-opcua-write="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="opcua-write"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="nodeProps.data?.outputs ?? 1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'dynamic'
+                                ? 'dynamic'
+                                : `${(nodeProps.data?.config?.writes ?? []).length} write(s)`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-file-in="nodeProps">

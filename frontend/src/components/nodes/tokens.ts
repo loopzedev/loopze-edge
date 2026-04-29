@@ -80,6 +80,19 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a1a1a',
     textSub:    '#b86060',
   },
+  // OPC UA palette: cyan/teal — industrial automation cue that reads well
+  // on dark surfaces and is clearly distinct from MQTT's magenta family.
+  opcua: {
+    accent:     '#22d3ee',
+    accentDim:  '#22d3ee12',
+    accentBdr:  '#22d3ee2a',
+    accentGlow: '#22d3ee14',
+    bg:         '#04101a',
+    bgHdr:      '#0a1f2a',
+    bgIcon:     '#0e2630',
+    border:     '#155a6b',
+    textSub:    '#5a9eb0',
+  },
   // Tech-specific palette: MQTT brand magenta-purple from the mqtt.org logo,
   // brightened so it reads on a dark surface.
   mqtt: {
@@ -170,6 +183,18 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a2e1a',
     textSub:    '#b88a6a',
   },
+  // Iron-oxide rust — warm brown-orange, evokes industrial / fieldbus equipment.
+  rust: {
+    accent:     '#c97644',
+    accentDim:  '#c9764412',
+    accentBdr:  '#c976442a',
+    accentGlow: '#c9764414',
+    bg:         '#0c0805',
+    bgHdr:      '#1c0f08',
+    bgIcon:     '#22140a',
+    border:     '#4a2818',
+    textSub:    '#b88a5a',
+  },
 }
 
 // Map node type → category
@@ -179,7 +204,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   'http-in':       'input',
   'tcp-in':        'input',
   'udp-in':        'input',
-  'modbus-read':   'input',
+  'modbus-read':   'rust',
   'file-in':       'input',
   'link-in':       'link',
   catch:           'error',
@@ -199,6 +224,9 @@ const TYPE_CATEGORY: Record<string, string> = {
   'link-call':     'link',
   comment:         'process',
   'opc-ua':        'process',
+  'opcua-read':      'opcua',
+  'opcua-subscribe': 'opcua',
+  'opcua-write':     'opcua',
 
   'context-watch': 'context',
 
@@ -210,7 +238,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   'http-request':  'output',
   'tcp-out':       'output',
   'udp-out':       'output',
-  'modbus-write':  'output',
+  'modbus-write':  'rust',
+  'modbus-parser': 'rust',
   'file-out':      'output',
   'link-out':      'link',
 }

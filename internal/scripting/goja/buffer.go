@@ -123,14 +123,14 @@ func (b *BufferWrapper) Register() {
 				panic(b.vm.NewGoError(fmt.Errorf("Buffer.from: unsupported argument type")))
 			}
 			lengthVal := obj.Get("length")
-			if goja.IsUndefined(lengthVal) || goja.IsNull(lengthVal) {
+			if isAbsent(lengthVal) {
 				panic(b.vm.NewGoError(fmt.Errorf("Buffer.from: argument has no length")))
 			}
 			length := int(lengthVal.ToInteger())
 			data := make([]byte, length)
 			for i := 0; i < length; i++ {
 				val := obj.Get(fmt.Sprintf("%d", i))
-				if !goja.IsUndefined(val) && !goja.IsNull(val) {
+				if !isAbsent(val) {
 					data[i] = byte(val.ToInteger())
 				}
 			}
@@ -504,7 +504,11 @@ func (b *BufferWrapper) Wrap(buf *buffer.Buffer) goja.Value {
 		if targetObj == nil {
 			panic(b.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
 		}
-		targetData, ok := targetObj.Get("__bufferData").Export().([]byte)
+		rawVal := targetObj.Get("__bufferData")
+		if isAbsent(rawVal) {
+			panic(b.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
+		}
+		targetData, ok := rawVal.Export().([]byte)
 		if !ok {
 			panic(b.vm.NewGoError(fmt.Errorf("buffer.copy: target is not a buffer")))
 		}
@@ -540,10 +544,18 @@ func (b *BufferWrapper) writeMethod(_ *buffer.Buffer, _ int, fn func(int64, int)
 // Returns 0 if the argument is undefined or null.
 func optOffset(call goja.FunctionCall, argIdx int) int {
 	arg := call.Argument(argIdx)
-	if goja.IsUndefined(arg) || goja.IsNull(arg) {
+	if isAbsent(arg) {
 		return 0
 	}
 	return int(arg.ToInteger())
+}
+
+// isAbsent reports whether a goja.Value is missing — i.e. the typed-nil
+// returned by *Object.Get for properties that don't exist, or the JS values
+// undefined/null. goja.IsUndefined and IsNull only match the sentinel values,
+// so a bare check leaves typed-nils to crash later in ToInteger / Export.
+func isAbsent(v goja.Value) bool {
+	return v == nil || goja.IsUndefined(v) || goja.IsNull(v)
 }
 
 // ExportValue exports a Goja value to a Go value, recognising Function-Node

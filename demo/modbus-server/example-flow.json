@@ -1,0 +1,102 @@
+{
+  "flows": [
+    {
+      "id": "00000000-0000-4000-a000-000000000001",
+      "type": "tab",
+      "label": "Modbus Demo",
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-a000-000000001001",
+          "type": "modbus-read",
+          "name": "Holding 0..1 (raw)",
+          "x": 200,
+          "y": 200,
+          "z": "00000000-0000-4000-a000-000000000001",
+          "inputs": 0,
+          "outputs": 1,
+          "wires": [
+            [
+              "00000000-0000-4000-a000-000000001002"
+            ]
+          ],
+          "config": {
+            "server": "00000000-0000-4000-a000-0000000000aa",
+            "mode": "static",
+            "unitId": 1,
+            "fc": 3,
+            "address": 0,
+            "quantity": 2,
+            "dataType": "raw",
+            "byteOrder": "bigEndian",
+            "wordOrder": "bigEndian",
+            "scale": 1,
+            "offset": 0,
+            "pollInterval": 1000,
+            "emitOnChange": false,
+            "emitOnError": false
+          }
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000001002",
+          "type": "function",
+          "name": "Buffer → float32",
+          "x": 540,
+          "y": 200,
+          "z": "00000000-0000-4000-a000-000000000001",
+          "inputs": 1,
+          "outputs": 1,
+          "wires": [
+            [
+              "00000000-0000-4000-a000-000000001003"
+            ]
+          ],
+          "config": {
+            "outputs": 1,
+            "func": "// modbus-read (FC3 raw) gives us BOTH representations:\n//   msg.payload → [reg0, reg1]            uint16 word array\n//   msg.bytes   → [b0, b1, b2, b3]        uint8 wire bytes\n// For the Buffer API we use msg.bytes directly — no register-to-byte conversion needed.\nconst buf = Buffer.from(msg.bytes);\n\nmsg.payload = buf.readFloatBE(0);\nmsg.topic   = 'temperature';\nreturn msg;\n"
+          }
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000001003",
+          "type": "debug",
+          "name": "Temperature",
+          "x": 880,
+          "y": 200,
+          "z": "00000000-0000-4000-a000-000000000001",
+          "inputs": 1,
+          "outputs": 0,
+          "wires": [],
+          "config": {
+            "active": true,
+            "output": "message",
+            "property": "payload",
+            "statusEnabled": true,
+            "statusOutput": "auto",
+            "statusProperty": ""
+          }
+        }
+      ],
+      "wires": []
+    }
+  ],
+  "configs": [
+    {
+      "id": "00000000-0000-4000-a000-0000000000aa",
+      "type": "modbus-server",
+      "name": "Demo Server",
+      "config": {
+        "transport": "tcp",
+        "host": "127.0.0.1",
+        "port": 5502,
+        "serialPort": "",
+        "baudRate": 9600,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "timeout": 1000,
+        "idleTimeout": 60,
+        "defaultUnitId": 1,
+        "reconnectBackoff": 5
+      }
+    }
+  ]
+}

@@ -53,6 +53,9 @@ const icons: Record<string, string[]> = {
   'modbus-read': ['M4 4h6v6H4z', 'M4 14h6v6H4z', 'M14 7h7', 'M14 17h7', 'M10 7h4', 'M10 17h4'], // registers
   'modbus-write':['M14 4h6v6h-6z', 'M14 14h6v6h-6z', 'M3 7h7', 'M3 17h7', 'M10 7h4', 'M10 17h4'],
   'opc-ua':      ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M14.5 9a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z', 'M12 11.5V15', 'M9 15h6', 'M10 15v3', 'M14 15v3'], // industrial symbol
+  'opcua-read':      ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M14.5 9a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z', 'M9 15h6', 'M11 18l-2-2 2-2', 'M5 16h6'], // OPC UA + read arrow
+  'opcua-subscribe': ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M14.5 9a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z', 'M9 15h6', 'M5 18a3 3 0 0 1 6 0', 'M5 14a7 7 0 0 1 6 0'], // OPC UA + radiating
+  'opcua-write':     ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M14.5 9a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z', 'M9 15h6', 'M19 16h-6', 'M15 14l2 2-2 2'], // OPC UA + write arrow
 
   // ── File ──────────────────────────────────
   'file-in':     ['M14 2H6v20h12V6l-4-4z', 'M14 2v4h4', 'M12 12v6', 'M9 15l3 3 3-3'], // file + down arrow

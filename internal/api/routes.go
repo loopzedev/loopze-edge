@@ -64,6 +64,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 
 			r.Post("/flows", deps.handleDeployFlows)
 			r.Post("/inject/{id}", deps.handleInjectNode)
+			r.Post("/opcua/test-connection", deps.handleOpcuaTestConnection)
+			r.Post("/opcua/browse", deps.handleOpcuaBrowse)
+			r.Post("/opcua/read", deps.handleOpcuaRead)
 
 			r.Delete("/context/global/{storage}", deps.handleClearContextStore)
 			r.Delete("/context/global/{storage}/{key}", deps.handleDeleteContextKey)

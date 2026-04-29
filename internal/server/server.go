@@ -457,6 +457,12 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
 	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
 	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
+	registry.Register("modbus-read", nodes.NewModbusReadNode, nodes.ModbusReadTypeInfo())
+	registry.Register("modbus-write", nodes.NewModbusWriteNode, nodes.ModbusWriteTypeInfo())
+	registry.Register("modbus-parser", nodes.NewModbusParserNode, nodes.ModbusParserTypeInfo())
+	registry.Register("opcua-read", nodes.NewOpcuaReadNode, nodes.OpcuaReadTypeInfo())
+	registry.Register("opcua-write", nodes.NewOpcuaWriteNode, nodes.OpcuaWriteTypeInfo())
+	registry.Register("opcua-subscribe", nodes.NewOpcuaSubscribeNode, nodes.OpcuaSubscribeTypeInfo())
 	registry.Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
 	registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())
 	registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
@@ -464,6 +470,8 @@ func registerNodes(registry *flow.NodeRegistry) {
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())
+	registry.RegisterConfig("modbus-server", nodes.NewModbusServer, nodes.ModbusServerConfigTypeInfo())
+	registry.RegisterConfig("opcua-server", nodes.NewOpcuaServer, nodes.OpcuaServerConfigTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

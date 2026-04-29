@@ -11,7 +11,7 @@ Designed for automation technicians, PLC programmers, and engineers who think in
 - **Single Binary** — No runtime dependencies, no package managers. Just download and run.
 - **Visual Flow Editor** — Drag-and-drop node editor built with Vue 3 and Vue Flow.
 - **High Performance** — Go-powered runtime with goroutine-per-node concurrency.
-- **Industrial First** — MQTT, Modbus TCP/RTU, OPC-UA, and Serial support out of the box.
+- **Industrial First** — MQTT, Modbus TCP/RTU, OPC UA (Read / Subscribe / Write with structure-aware ExtensionObject support and address-space browser), and Serial support out of the box.
 - **Dual Scripting** — JavaScript (via Goja) for complex logic, expr-lang for fast expressions.
 - **Embedded NATS** — Built-in message broker for context storage, debug streams, and fleet communication.
 - **Cross-Platform** — Linux (x64/ARM64/ARM32), Windows (x64), macOS (x64/ARM64).

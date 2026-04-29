@@ -83,6 +83,12 @@ const typeLabel = computed(() => {
         "link-call": "Link Call",
         "mqtt-in": "MQTT Subscribe",
         "mqtt-out": "MQTT Publish",
+        "modbus-read": "Modbus Read",
+        "modbus-write": "Modbus Write",
+        "modbus-parser": "Modbus Parser",
+        "opcua-read": "OPC UA Read",
+        "opcua-subscribe": "OPC UA Subscribe",
+        "opcua-write": "OPC UA Write",
         statemachine: "State Machine",
     };
     return labels[props.nodeType] ?? props.nodeType;

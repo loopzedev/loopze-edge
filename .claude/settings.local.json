@@ -123,7 +123,26 @@
       "Bash(dpkg -l)",
       "Bash(apt-cache policy *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(grep -E \"\\\\.\\(vue|ts|js|css\\)$\")",
+      "Bash(xdg-open /tmp/flint-palette.html)",
+      "Read(//usr/local/bin/**)",
+      "Read(//home/dennisbleul/bin/**)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const m = require\\('node-opcua'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.match\\(/structure|datatype|definition|nameSpace|namespace/i\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const m = require\\('node-opcua'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.match\\(/^DT|StructureType|^Field/\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const m = require\\('node-opcua'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.match\\(/Structure/\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(timeout 15 npm start)",
+      "Bash(echo \"---exit: $?---\")",
+      "Bash(timeout 12 npm start)",
+      "Bash(pnpm typecheck *)",
+      "Bash(npx vite *)",
+      "Bash(grep -rE 'getExtraDataTypeManager|\\\\$\\\\$extraDataTypeManager' 'node_modules/node-opcua-address-space/src/loader/*.ts')",
+      "Bash(/tmp/modbus-demo -listen 127.0.0.1:15502 -v)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(kill 622433)",
+      "Bash(pkill -f \"modbus-server\")",
+      "Bash(python3 -c \"import json; json.load\\(open\\('/home/dennisbleul/git/flint/demo/modbus-server/example-flow.json'\\)\\); print\\('json ok'\\)\")"
     ]
   }
 }

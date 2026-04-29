@@ -80,6 +80,22 @@ lint:
 		exit 1; \
 	fi
 
+# ─── Demo Servers ────────────────────────────────────────────────────────────
+
+## demo-opcua: Run the OPC UA demo server (Node.js, requires npm)
+.PHONY: demo-opcua
+demo-opcua:
+	@echo "▸ Starting OPC UA demo server…"
+	@cd demo/opcua-server && \
+		if [ ! -d node_modules ]; then npm install --no-audit --no-fund; fi && \
+		npm start
+
+## demo-modbus: Run the Modbus TCP demo slave on :5502 (request-tracing)
+.PHONY: demo-modbus
+demo-modbus:
+	@echo "▸ Starting Modbus TCP demo on :5502…"
+	$(GO) run ./demo/modbus-server -listen :5502 -v
+
 # ─── Cross Compilation ───────────────────────────────────────────────────────
 
 PLATFORMS := \

@@ -1,6 +1,23 @@
 # Issue: OPC UA Nodes – Read / Subscribe / Write mit Server-Konfiguration
 
-## Status: Open
+## Status: Done (v1)
+
+**Implementiert (Phase 0–7):**
+- `opcua-server` Config Node mit AutoReconnect, State-Watcher, Test-Connection-Endpoint
+- `opcua-read` Node: static / triggered / dynamic Modes, Output-Shapes single/array/object, Per-Item-StatusCodes
+- `opcua-write` Node: static / dynamic Modes, Type-Coercion mit Range-Checks, Type-Cache, Status-Pulses, ExtensionObject-Encoding über TypeResolver
+- `opcua-subscribe` Node: MonitoredItems mit Sampling/Queue/Deadband, Recovery nach Reconnect, Output-Shapes per-item/batch
+- ExtensionObject-Handling: Marker-Type-Registrierung gegen gopcua, schema-driven Encode/Decode für Struct/Enum/Optional/Union/Nested/Array
+- Type-Resolver lädt `DataTypeDefinition` mit Recursion-Schutz, geteilter Cache pro Server, Reset bei Reconnect
+- Address-Space-Browser: Modal mit Lazy-Tree, NodeClass-Filter, Multi-/Single-Select, Detail-Pane mit DataType-Info, integriert in alle drei Operations-Nodes
+- Tests gegen den extern gepflegten Deno-OPCUA-Test-Server via `FLINT_OPCUA_TEST_ENDPOINT`
+
+**Bewusst auf später verschoben (eigene Issues):**
+- Cert-Pinning (TOFU): Feld in der Server-Config vorhanden, Fingerprint-Persistenz + Vergleich nicht implementiert
+- Browse-Fallback für Server ohne `DataTypeDefinition` (1.03-Server-Kompat)
+- Subscription-Sharing zwischen Nodes mit identischem PublishingInterval
+- `/api/v1/opcua/read-attributes` und `/api/v1/opcua/resolve-path` Endpoints (Browse-Endpoint deckt v1-UI-Bedarf ab)
+- Browse-Pagination via ContinuationPoint im Frontend (Backend liefert ihn durch)
 
 ## Problembeschreibung
 
@@ -595,7 +612,7 @@ Der OPC-UA-Standard verlangt für `securityMode != None` ein Client-Zertifikat. 
 ### Backend – Neue Dateien
 
 - `internal/nodes/opcua_server.go` — Config Node: Session-Lifecycle, Reconnect, Subscription-Pool, Type-Cache. Kapselt den `gopcua/opcua` Client
-- `internal/nodes/opcua_server_test.go` — Unit-Tests gegen In-Process-Test-Server (`gopcua/opcua` enthält ein Test-Setup)
+- `internal/nodes/opcua_server_test.go` — End-to-End-Tests gegen einen externen OPC-UA-Test-Server (Node.js / `node-opcua`, gepflegt unter `demo/opcua-server/`). Tests skippen, wenn `FLINT_OPCUA_TEST_ENDPOINT` nicht gesetzt ist
 - `internal/nodes/opcua_read.go` — Read Node mit Static/Triggered/Dynamic Mode
 - `internal/nodes/opcua_read_test.go`
 - `internal/nodes/opcua_subscribe.go` — Subscribe Node mit MonitoredItem-Verwaltung
@@ -642,7 +659,8 @@ Der OPC-UA-Standard verlangt für `securityMode != None` ein Client-Zertifikat. 
 ### Go Dependencies
 
 - `github.com/gopcua/opcua` — OPC UA Client Library für Go. Aktuell die einzige produktionsreife Pure-Go-Implementierung. Unterstützt Read, Write, Subscribe, Browse, alle gängigen Security-Policies und v1.04
-- ggf. `github.com/gopcua/opcua/uatest` für Tests
+
+**Test-Server**: ein dedizierter Deno-basierter OPC-UA-Test-Server wird parallel gepflegt (separates Projekt). Tests in diesem Issue laufen gegen diesen Server via `FLINT_OPCUA_TEST_ENDPOINT`-Env-Variable.
 
 ## Technische Hinweise
 

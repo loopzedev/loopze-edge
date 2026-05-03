@@ -24,6 +24,19 @@ func OpcuaValueToJSON(v *ua.Variant, server *OpcuaServer) any {
 	return convertOpcuaValue(v.Value(), server)
 }
 
+// opcuaScalar extracts the inner scalar from a Read response Result while
+// guarding against nil DataValue and nil Variant — both happen whenever the
+// server returns a Bad status (e.g. BadAttributeIDInvalid for a Method node
+// that has no DataType attribute). Without this guard the call site's
+// `r.Value.Value().(*T)` type-assertion panics on nil-deref of `.Value`,
+// because `, ok` only catches type mismatches, not the dereference itself.
+func opcuaScalar(r *ua.DataValue) any {
+	if r == nil || r.Value == nil {
+		return nil
+	}
+	return r.Value.Value()
+}
+
 func convertOpcuaValue(v any, server *OpcuaServer) any {
 	switch x := v.(type) {
 	case nil:

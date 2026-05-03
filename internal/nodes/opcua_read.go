@@ -36,9 +36,9 @@ type OpcuaReadNode struct {
 
 	serverID        string
 	mode            string
-	nodeIDs         []string
+	nodeEntries     []nodeIDEntry
 	attribute       ua.AttributeID
-	outputShape     string // "single" | "array" | "object"
+	outputShape     string // "single" | "array" | "object" | "per-item" | "by-name"
 	includeMetadata bool
 
 	// static-mode-only timing
@@ -50,6 +50,59 @@ type OpcuaReadNode struct {
 	mu     sync.Mutex
 	stopCh chan struct{}
 	doneCh chan struct{}
+}
+
+// nodeIDEntry pairs a NodeID with an optional user-defined display name.
+// The name is used as the key in "by-name" output shape and surfaces on
+// every other shape as the `name` field for downstream routing.
+type nodeIDEntry struct {
+	id     string
+	name   string
+	parsed *ua.NodeID
+}
+
+// parseNodeIDEntries normalises both legacy (string[]) and new
+// ({id,name?}[]) workspace formats into a single slice. Legacy entries
+// migrate organically the next time the user saves the workspace.
+func parseNodeIDEntries(raw any) ([]nodeIDEntry, error) {
+	switch v := raw.(type) {
+	case nil:
+		return nil, nil
+	case []string:
+		out := make([]nodeIDEntry, 0, len(v))
+		for _, s := range v {
+			if s == "" {
+				continue
+			}
+			out = append(out, nodeIDEntry{id: s})
+		}
+		return out, nil
+	case []any:
+		out := make([]nodeIDEntry, 0, len(v))
+		for i, e := range v {
+			switch x := e.(type) {
+			case string:
+				if x == "" {
+					continue
+				}
+				out = append(out, nodeIDEntry{id: x})
+			case map[string]any:
+				id, _ := x["id"].(string)
+				if id == "" {
+					id, _ = x["nodeId"].(string)
+				}
+				if id == "" {
+					return nil, fmt.Errorf("nodeIds[%d]: empty id", i)
+				}
+				name, _ := x["name"].(string)
+				out = append(out, nodeIDEntry{id: id, name: name})
+			default:
+				return nil, fmt.Errorf("nodeIds[%d]: unsupported entry type %T", i, e)
+			}
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("nodeIds: unsupported type %T", raw)
 }
 
 // NewOpcuaReadNode is the factory used by the registry.
@@ -76,15 +129,21 @@ func (n *OpcuaReadNode) Init() error {
 	}
 	n.mode = mode
 
-	n.nodeIDs = readStringSlice(props["nodeIds"])
-	if mode != "dynamic" && len(n.nodeIDs) == 0 {
+	entries, err := parseNodeIDEntries(props["nodeIds"])
+	if err != nil {
+		return fmt.Errorf("opcua-read %s: %w", n.config.ID, err)
+	}
+	if mode != "dynamic" && len(entries) == 0 {
 		return fmt.Errorf("opcua-read %s: at least one nodeId is required in %s mode", n.config.ID, mode)
 	}
-	for _, s := range n.nodeIDs {
-		if _, err := ParseOpcuaNodeID(s); err != nil {
-			return fmt.Errorf("opcua-read %s: invalid nodeId %q: %w", n.config.ID, s, err)
+	for i := range entries {
+		parsed, err := ParseOpcuaNodeID(entries[i].id)
+		if err != nil {
+			return fmt.Errorf("opcua-read %s: invalid nodeId %q: %w", n.config.ID, entries[i].id, err)
 		}
+		entries[i].parsed = parsed
 	}
+	n.nodeEntries = entries
 
 	attrName, _ := props["attribute"].(string)
 	if attr, ok := OpcuaAttributeIDFromName(attrName); ok {
@@ -96,12 +155,12 @@ func (n *OpcuaReadNode) Init() error {
 	shape, _ := props["outputShape"].(string)
 	switch shape {
 	case "":
-		if len(n.nodeIDs) == 1 && mode != "dynamic" {
+		if len(n.nodeEntries) == 1 && mode != "dynamic" {
 			shape = "single"
 		} else {
 			shape = "array"
 		}
-	case "single", "array", "object", "per-item":
+	case "single", "array", "object", "per-item", "by-name":
 		// ok
 	default:
 		return fmt.Errorf("opcua-read %s: invalid outputShape %q", n.config.ID, shape)
@@ -158,7 +217,7 @@ func (n *OpcuaReadNode) Start() error {
 		go n.runStatic(stop, done)
 	}
 
-	slog.Info("opcua-read started", "node_id", n.config.ID, "mode", n.mode, "node_count", len(n.nodeIDs))
+	slog.Info("opcua-read started", "node_id", n.config.ID, "mode", n.mode, "node_count", len(n.nodeEntries))
 	return nil
 }
 
@@ -202,20 +261,20 @@ func (n *OpcuaReadNode) Stop() error {
 func (n *OpcuaReadNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
 	switch n.mode {
 	case "triggered":
-		outs := n.doRead(n.nodeIDs)
+		outs := n.doRead(n.nodeEntries)
 		if len(outs) == 0 {
 			return nil, nil
 		}
 		return [][]*flow.Message{outs}, nil
 	case "dynamic":
-		ids := extractNodeIDs(msg)
-		if len(ids) == 0 {
-			ids = n.nodeIDs
+		entries := entriesFromMessage(msg)
+		if len(entries) == 0 {
+			entries = n.nodeEntries
 		}
-		if len(ids) == 0 {
+		if len(entries) == 0 {
 			return nil, nil
 		}
-		outs := n.doRead(ids)
+		outs := n.doRead(entries)
 		if len(outs) == 0 {
 			return nil, nil
 		}
@@ -224,11 +283,57 @@ func (n *OpcuaReadNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, err
 	return nil, nil
 }
 
+// entriesFromMessage normalises whatever shape the user supplied in
+// msg.nodeIds into a slice of nodeIDEntry. Strings get an empty name
+// (BrowseName lookup will fill in for "by-name" shape); object entries
+// can carry a custom name.
+func entriesFromMessage(msg *flow.Message) []nodeIDEntry {
+	switch v := msg.Get("nodeIds").(type) {
+	case nil:
+		return nil
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []nodeIDEntry{{id: v}}
+	case []string:
+		out := make([]nodeIDEntry, 0, len(v))
+		for _, s := range v {
+			if s != "" {
+				out = append(out, nodeIDEntry{id: s})
+			}
+		}
+		return out
+	case []any:
+		out := make([]nodeIDEntry, 0, len(v))
+		for _, e := range v {
+			switch x := e.(type) {
+			case string:
+				if x != "" {
+					out = append(out, nodeIDEntry{id: x})
+				}
+			case map[string]any:
+				id, _ := x["id"].(string)
+				if id == "" {
+					id, _ = x["nodeId"].(string)
+				}
+				if id == "" {
+					continue
+				}
+				name, _ := x["name"].(string)
+				out = append(out, nodeIDEntry{id: id, name: name})
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 func (n *OpcuaReadNode) runStatic(stop <-chan struct{}, done chan<- struct{}) {
 	defer close(done)
 
 	emit := func() {
-		for _, msg := range n.doRead(n.nodeIDs) {
+		for _, msg := range n.doRead(n.nodeEntries) {
 			n.send(0, msg)
 		}
 	}
@@ -262,12 +367,14 @@ func (n *OpcuaReadNode) runStatic(stop <-chan struct{}, done chan<- struct{}) {
 //     metadata fields (statusCode, dataType, timestamps) sit at the
 //     message root. Use this when downstream nodes process each variable
 //     independently.
+//   - "by-name": one Message; payload is a name → value map keyed by
+//     user-supplied name (falling back to BrowseName, then NodeID).
 //   - "single":   one Message; payload is the first NodeID's value (legacy
 //     shape, sensible only for 1-NodeID configurations).
 //   - "array":    one Message; payload is an array of result records.
 //   - "object":   one Message; payload is a NodeID → value (or full record)
 //     map.
-func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
+func (n *OpcuaReadNode) doRead(entries []nodeIDEntry) []*flow.Message {
 	client := n.server.Client()
 	if client == nil {
 		if n.status != nil {
@@ -279,20 +386,29 @@ func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
 	// Synchronous schema prewarm before the actual Read so server-defined
 	// structures arrive with their bytes intact and the codec can decode
 	// them. The cache makes second and later calls effectively free.
-	n.prewarmStructs(nodeIDStrs)
+	idStrs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		idStrs = append(idStrs, e.id)
+	}
+	n.prewarmStructs(idStrs)
 
 	// Pre-parse and pair NodeID strings with their parsed forms so per-item
 	// errors can be reported in the output without poisoning the whole batch.
 	type pair struct {
 		raw    string
+		name   string
 		parsed *ua.NodeID
 		err    error
 	}
-	pairs := make([]pair, 0, len(nodeIDStrs))
-	toRead := make([]*ua.ReadValueID, 0, len(nodeIDStrs))
-	for _, s := range nodeIDStrs {
-		id, err := ParseOpcuaNodeID(s)
-		pairs = append(pairs, pair{raw: s, parsed: id, err: err})
+	pairs := make([]pair, 0, len(entries))
+	toRead := make([]*ua.ReadValueID, 0, len(entries))
+	for _, e := range entries {
+		id := e.parsed
+		var err error
+		if id == nil {
+			id, err = ParseOpcuaNodeID(e.id)
+		}
+		pairs = append(pairs, pair{raw: e.id, name: e.name, parsed: id, err: err})
 		if err == nil {
 			toRead = append(toRead, &ua.ReadValueID{NodeID: id, AttributeID: n.attribute})
 		}
@@ -322,6 +438,9 @@ func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
 	respIdx := 0
 	for _, p := range pairs {
 		entry := map[string]any{"nodeId": p.raw}
+		if p.name != "" {
+			entry["name"] = p.name
+		}
 		if p.err != nil {
 			entry["statusCode"] = "BadNodeIDInvalid"
 			entry["statusCodeRaw"] = uint32(ua.StatusBadNodeIDInvalid)
@@ -379,6 +498,12 @@ func (n *OpcuaReadNode) doRead(nodeIDStrs []string) []*flow.Message {
 	if n.outputShape == "per-item" {
 		return n.shapePerItem(results)
 	}
+	if n.outputShape == "by-name" {
+		// Resolve missing names via BrowseName lookup (cached per server)
+		// before mapping. Done here so the lookup cost is paid only when
+		// the by-name shape is actually requested.
+		n.fillNamesFromBrowse(results)
+	}
 
 	out := flow.NewMessage()
 	out.Set("payload", n.shapePayload(results))
@@ -417,6 +542,31 @@ func (n *OpcuaReadNode) shapePerItem(results []map[string]any) []*flow.Message {
 	return out
 }
 
+// fillNamesFromBrowse looks up the BrowseName for every result that doesn't
+// already carry a user-supplied name. Cached per server, so repeated reads
+// are free. Best-effort — the by-name shape falls back to NodeID when no
+// name can be resolved at all.
+func (n *OpcuaReadNode) fillNamesFromBrowse(results []map[string]any) {
+	if n.server == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), n.server.RequestTimeout())
+	defer cancel()
+	for _, r := range results {
+		if name, ok := r["name"].(string); ok && name != "" {
+			continue
+		}
+		id, _ := r["nodeId"].(string)
+		parsed, err := ParseOpcuaNodeID(id)
+		if err != nil {
+			continue
+		}
+		if browse := n.server.LookupBrowseName(ctx, parsed); browse != "" {
+			r["name"] = browse
+		}
+	}
+}
+
 // shapePayload turns the canonical per-NodeID list of result maps into the
 // payload form selected by the user. "single" and "array"/"object" with
 // includeMetadata=false strip everything but the value(s).
@@ -440,6 +590,36 @@ func (n *OpcuaReadNode) shapePayload(results []map[string]any) any {
 			} else {
 				obj[id] = r["value"]
 			}
+		}
+		return obj
+	case "by-name":
+		// Resolution: r["name"] (custom or BrowseName), then NodeID. Counter-
+		// suffix on collisions so no data is lost — duplicate keys are
+		// logged once per call.
+		obj := make(map[string]any, len(results))
+		seen := make(map[string]int, len(results))
+		dupes := 0
+		for _, r := range results {
+			key, _ := r["name"].(string)
+			if key == "" {
+				key, _ = r["nodeId"].(string)
+			}
+			if _, hit := obj[key]; hit {
+				seen[key]++
+				dupes++
+				key = fmt.Sprintf("%s_%d", key, seen[key]+1)
+			} else {
+				seen[key] = 0
+			}
+			if n.includeMetadata {
+				obj[key] = r
+			} else {
+				obj[key] = r["value"]
+			}
+		}
+		if dupes > 0 {
+			slog.Warn("opcua-read by-name: duplicate keys collapsed with counter suffix",
+				"node_id", n.config.ID, "dupes", dupes)
 		}
 		return obj
 	default: // "array"

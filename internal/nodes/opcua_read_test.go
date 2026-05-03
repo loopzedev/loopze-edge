@@ -124,6 +124,89 @@ func TestExtractNodeIDs(t *testing.T) {
 	}
 }
 
+func TestParseNodeIDEntriesAcceptsLegacyAndNew(t *testing.T) {
+	// Legacy: plain string array.
+	got, err := parseNodeIDEntries([]any{"ns=2;i=1", "ns=2;i=2"})
+	if err != nil {
+		t.Fatalf("legacy: %v", err)
+	}
+	if len(got) != 2 || got[0].id != "ns=2;i=1" || got[0].name != "" {
+		t.Errorf("legacy: %+v", got)
+	}
+
+	// New: object array with optional name.
+	got, err = parseNodeIDEntries([]any{
+		map[string]any{"id": "ns=2;i=1", "name": "Temp"},
+		map[string]any{"id": "ns=2;i=2"},
+	})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if got[0].name != "Temp" || got[1].name != "" {
+		t.Errorf("new: %+v", got)
+	}
+
+	// Mixed should also work.
+	got, err = parseNodeIDEntries([]any{
+		"ns=2;i=1",
+		map[string]any{"id": "ns=2;i=2", "name": "Pressure"},
+	})
+	if err != nil {
+		t.Fatalf("mixed: %v", err)
+	}
+	if len(got) != 2 || got[1].name != "Pressure" {
+		t.Errorf("mixed: %+v", got)
+	}
+
+	// Object form must accept legacy "nodeId" key too.
+	got, err = parseNodeIDEntries([]any{
+		map[string]any{"nodeId": "ns=2;i=3", "name": "Alt"},
+	})
+	if err != nil {
+		t.Fatalf("nodeId-key form: %v", err)
+	}
+	if got[0].id != "ns=2;i=3" || got[0].name != "Alt" {
+		t.Errorf("nodeId-key form: %+v", got)
+	}
+}
+
+func TestShapePayloadByName(t *testing.T) {
+	// User-supplied names take precedence.
+	results := []map[string]any{
+		{"nodeId": "ns=2;i=1", "name": "Temperature", "value": 23.5},
+		{"nodeId": "ns=2;i=2", "name": "Pressure", "value": 1013.0},
+	}
+	n := &OpcuaReadNode{outputShape: "by-name", includeMetadata: false}
+	obj := n.shapePayload(results).(map[string]any)
+	if obj["Temperature"] != 23.5 || obj["Pressure"] != 1013.0 {
+		t.Errorf("by-name simple: %+v", obj)
+	}
+}
+
+func TestShapePayloadByNameDuplicateKeysGetSuffix(t *testing.T) {
+	results := []map[string]any{
+		{"nodeId": "ns=2;i=1", "name": "Pressure", "value": 1.0},
+		{"nodeId": "ns=2;i=2", "name": "Pressure", "value": 2.0},
+		{"nodeId": "ns=2;i=3", "name": "Pressure", "value": 3.0},
+	}
+	n := &OpcuaReadNode{outputShape: "by-name", includeMetadata: false}
+	obj := n.shapePayload(results).(map[string]any)
+	if obj["Pressure"] != 1.0 || obj["Pressure_2"] != 2.0 || obj["Pressure_3"] != 3.0 {
+		t.Errorf("by-name dupe: %+v", obj)
+	}
+}
+
+func TestShapePayloadByNameFallsBackToNodeID(t *testing.T) {
+	results := []map[string]any{
+		{"nodeId": "ns=2;i=1", "value": 23.5},
+	}
+	n := &OpcuaReadNode{outputShape: "by-name", includeMetadata: false}
+	obj := n.shapePayload(results).(map[string]any)
+	if obj["ns=2;i=1"] != 23.5 {
+		t.Errorf("by-name fallback: %+v", obj)
+	}
+}
+
 func TestShapePayloadForms(t *testing.T) {
 	results := []map[string]any{
 		{"nodeId": "ns=2;i=1", "value": 23.5, "statusCode": "Good", "statusCodeRaw": uint32(0)},

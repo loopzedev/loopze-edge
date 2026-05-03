@@ -101,7 +101,7 @@ func (r *structResolver) resolveStruct(ctx context.Context, dataType *ua.NodeID,
 	switch v := extObj.Value.(type) {
 	case *ua.StructureDefinition:
 		name := ""
-		if qn, ok := resp.Results[1].Value.Value().(*ua.QualifiedName); ok && qn != nil {
+		if qn, ok := opcuaScalar(resp.Results[1]).(*ua.QualifiedName); ok && qn != nil {
 			name = qn.Name
 		}
 		def, err := r.buildStructDef(ctx, dataType, v, name, visited)

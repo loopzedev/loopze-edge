@@ -20,6 +20,7 @@ import (
 // It survives across reconnects so the subscription can be rebuilt verbatim.
 type monitoredSpec struct {
 	nodeID           string
+	name             string // optional user-supplied display name
 	parsed           *ua.NodeID
 	attribute        ua.AttributeID
 	samplingInterval float64 // ms; -1 = server default, 0 = "as fast as possible"
@@ -166,8 +167,10 @@ func monitoredSpecFromMap(entry map[string]any) (monitoredSpec, error) {
 		attr = ua.AttributeIDValue
 	}
 
+	name, _ := entry["name"].(string)
 	spec := monitoredSpec{
 		nodeID:           nodeID,
+		name:             name,
 		parsed:           parsed,
 		attribute:        attr,
 		samplingInterval: getFloat(entry, "samplingInterval", 1000),
@@ -753,6 +756,9 @@ func (n *OpcuaSubscribeNode) dispatchDataChange(dcn *ua.DataChangeNotification) 
 func (n *OpcuaSubscribeNode) buildItemRecord(spec monitoredSpec, dv *ua.DataValue) map[string]any {
 	rec := map[string]any{
 		"nodeId": spec.nodeID,
+	}
+	if spec.name != "" {
+		rec["name"] = spec.name
 	}
 	if dv == nil {
 		rec["statusCode"] = "BadInternalError"

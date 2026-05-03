@@ -327,11 +327,11 @@ func isStructVariable(ctx context.Context, client *opcua.Client, id *ua.NodeID) 
 	if err != nil || len(resp.Results) < 2 {
 		return false
 	}
-	nc, ok := resp.Results[0].Value.Value().(int32)
+	nc, ok := opcuaScalar(resp.Results[0]).(int32)
 	if !ok || ua.NodeClass(nc) != ua.NodeClassVariable {
 		return false
 	}
-	dt, ok := resp.Results[1].Value.Value().(*ua.NodeID)
+	dt, ok := opcuaScalar(resp.Results[1]).(*ua.NodeID)
 	if !ok || dt == nil {
 		return false
 	}
@@ -409,16 +409,16 @@ func readBrowseMetadata(ctx context.Context, client *opcua.Client, id *ua.NodeID
 		return nil, err
 	}
 	out := &OpcuaBrowseChild{}
-	if qn, ok := resp.Results[0].Value.Value().(*ua.QualifiedName); ok {
+	if qn, ok := opcuaScalar(resp.Results[0]).(*ua.QualifiedName); ok {
 		out.BrowseName = qualifiedNameString(qn)
 	}
-	if lt, ok := resp.Results[1].Value.Value().(*ua.LocalizedText); ok {
+	if lt, ok := opcuaScalar(resp.Results[1]).(*ua.LocalizedText); ok {
 		out.DisplayName = localizedTextString(lt)
 	}
-	if nc, ok := resp.Results[2].Value.Value().(int32); ok {
+	if nc, ok := opcuaScalar(resp.Results[2]).(int32); ok {
 		out.NodeClass = nodeClassName(ua.NodeClass(nc))
 	}
-	if lt, ok := resp.Results[3].Value.Value().(*ua.LocalizedText); ok {
+	if lt, ok := opcuaScalar(resp.Results[3]).(*ua.LocalizedText); ok {
 		out.Description = localizedTextString(lt)
 	}
 	return out, nil
@@ -439,7 +439,7 @@ func readVariableMetadata(ctx context.Context, client *opcua.Client, id *ua.Node
 		return nil, err
 	}
 	out := &OpcuaBrowseChild{}
-	if dt, ok := resp.Results[0].Value.Value().(*ua.NodeID); ok && dt != nil {
+	if dt, ok := opcuaScalar(resp.Results[0]).(*ua.NodeID); ok && dt != nil {
 		info := &OpcuaDataTypeInfo{NodeID: FormatOpcuaNodeID(dt)}
 		if dt.Namespace() == 0 {
 			if t, hit := dataTypeNodeIDToTypeID[dt.IntID()]; hit {
@@ -457,16 +457,49 @@ func readVariableMetadata(ctx context.Context, client *opcua.Client, id *ua.Node
 		}
 		out.DataType = info
 	}
-	if vr, ok := resp.Results[1].Value.Value().(int32); ok {
+	if vr, ok := opcuaScalar(resp.Results[1]).(int32); ok {
 		out.ValueRank = vr
 	}
-	if al, ok := resp.Results[2].Value.Value().(byte); ok {
+	if al, ok := opcuaScalar(resp.Results[2]).(byte); ok {
 		out.AccessLevel = accessLevelName(al)
 	}
-	if lt, ok := resp.Results[3].Value.Value().(*ua.LocalizedText); ok {
+	if lt, ok := opcuaScalar(resp.Results[3]).(*ua.LocalizedText); ok {
 		out.Description = localizedTextString(lt)
 	}
 	return out, nil
+}
+
+// LookupBrowseName returns the BrowseName.Name of a Variable (or any) NodeID,
+// cached per server. First call does a Read of the BrowseName attribute,
+// subsequent calls hit the in-memory map. Empty string on any failure so
+// the caller can apply its own fallback strategy without surfacing the
+// network error.
+func (s *OpcuaServer) LookupBrowseName(ctx context.Context, nodeID *ua.NodeID) string {
+	if nodeID == nil {
+		return ""
+	}
+	key := nodeID.String()
+
+	s.browseNameMu.RLock()
+	if name, ok := s.browseNameCache[key]; ok {
+		s.browseNameMu.RUnlock()
+		return name
+	}
+	s.browseNameMu.RUnlock()
+
+	client := s.Client()
+	if client == nil {
+		return ""
+	}
+	name := readDataTypeBrowseName(ctx, client, nodeID)
+
+	s.browseNameMu.Lock()
+	if s.browseNameCache == nil {
+		s.browseNameCache = make(map[string]string)
+	}
+	s.browseNameCache[key] = name
+	s.browseNameMu.Unlock()
+	return name
 }
 
 // readDataTypeBrowseName fetches just the BrowseName attribute of a DataType
@@ -481,7 +514,7 @@ func readDataTypeBrowseName(ctx context.Context, client *opcua.Client, dt *ua.No
 	if err != nil || len(resp.Results) == 0 {
 		return ""
 	}
-	if qn, ok := resp.Results[0].Value.Value().(*ua.QualifiedName); ok && qn != nil {
+	if qn, ok := opcuaScalar(resp.Results[0]).(*ua.QualifiedName); ok && qn != nil {
 		return qn.Name
 	}
 	return ""

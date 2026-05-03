@@ -7,6 +7,7 @@ import { useStructuralProperty } from '@/composables/useStructuralProperty'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
 import FormField from '@/components/ui/FormField.vue'
+import FormInput from '@/components/ui/FormInput.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
@@ -21,7 +22,27 @@ const mode = useStructuralProperty<string>('mode', 'triggered', {
   port: 'inputs',
   derive: (v) => (v === 'static' ? 0 : 1),
 })
-const nodeIds = useNodeProperty<string[]>('nodeIds', [])
+// nodeIds is the on-disk shape: each entry is { id, name? } where name is
+// the user's optional override of the BrowseName for the by-name output
+// shape. Legacy workspaces with string[] are migrated on first edit.
+interface NodeIdEntry { id: string; name?: string }
+const nodeIds = useNodeProperty<NodeIdEntry[]>('nodeIds', [])
+
+// migrateLegacyEntries normalises a freshly-loaded list: if any element is
+// a plain string (legacy), we wrap it as { id }. Runs lazily on every read
+// of nodeIds.value so it self-heals after a workspace import.
+function migrateLegacyEntries(raw: unknown): NodeIdEntry[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((e: unknown) => {
+    if (typeof e === 'string') return { id: e }
+    if (e && typeof e === 'object' && 'id' in e) return e as NodeIdEntry
+    return { id: '' }
+  })
+}
+const entries = computed<NodeIdEntry[]>({
+  get: () => migrateLegacyEntries(nodeIds.value as unknown),
+  set: (v) => { nodeIds.value = v },
+})
 const attribute = useNodeProperty<string>('attribute', 'Value')
 const outputShape = useNodeProperty<string>('outputShape', 'array')
 const includeMetadata = useNodeProperty<boolean>('includeMetadata', true)
@@ -46,23 +67,24 @@ const OUTPUT_SHAPES = [
   { value: 'per-item', label: 'Per-item (one msg per NodeID)' },
   { value: 'array',    label: 'Array (one msg with all values)' },
   { value: 'object',   label: 'Object (one msg, NodeID → value map)' },
+  { value: 'by-name',  label: 'By name (one msg, name → value map)' },
   { value: 'single',   label: 'Single (1 NodeID only)' },
 ]
 
 function addNodeId() {
-  nodeIds.value = [...(nodeIds.value ?? []), '']
+  entries.value = [...entries.value, { id: '' }]
 }
 
 function removeNodeId(idx: number) {
-  const next = [...(nodeIds.value ?? [])]
+  const next = [...entries.value]
   next.splice(idx, 1)
-  nodeIds.value = next
+  entries.value = next
 }
 
-function updateNodeId(idx: number, val: string) {
-  const next = [...(nodeIds.value ?? [])]
-  next[idx] = val
-  nodeIds.value = next
+function updateNodeIdField(idx: number, patch: Partial<NodeIdEntry>) {
+  const next = [...entries.value]
+  next[idx] = { ...next[idx], ...patch }
+  entries.value = next
 }
 
 const browserOpen = ref(false)
@@ -79,9 +101,11 @@ function openBrowser() {
 
 function handleBrowserSelect(items: Array<{ nodeId: string; displayName: string }>) {
   if (items.length === 0) return
-  const existing = new Set(nodeIds.value ?? [])
-  const additions = items.map((i) => i.nodeId).filter((id) => !existing.has(id))
-  nodeIds.value = [...(nodeIds.value ?? []), ...additions]
+  const existing = new Set(entries.value.map((e) => e.id))
+  const additions: NodeIdEntry[] = items
+    .filter((i) => !existing.has(i.nodeId))
+    .map((i) => ({ id: i.nodeId, name: i.displayName ?? '' }))
+  entries.value = [...entries.value, ...additions]
 }
 
 const isDynamic = computed(() => mode.value === 'dynamic')
@@ -119,14 +143,21 @@ const isStatic = computed(() => mode.value === 'static')
           The list below is a fallback used when the message doesn't carry it.
         </p>
         <div
-          v-for="(id, idx) in (nodeIds ?? [])"
+          v-for="(entry, idx) in entries"
           :key="idx"
           class="flex items-stretch gap-1"
         >
-          <div class="flex-1 min-w-0">
+          <div class="flex-[2] min-w-0">
             <NodeIdInput
-              :model-value="id"
-              @update:model-value="updateNodeId(idx, $event)"
+              :model-value="entry.id"
+              @update:model-value="updateNodeIdField(idx, { id: $event })"
+            />
+          </div>
+          <div class="flex-1 min-w-0">
+            <FormInput
+              :model-value="entry.name ?? ''"
+              placeholder="name (optional)"
+              @update:model-value="updateNodeIdField(idx, { name: $event })"
             />
           </div>
           <button
@@ -157,7 +188,7 @@ const isStatic = computed(() => mode.value === 'static')
       :open="browserOpen"
       :server-id="server"
       :server-config="selectedServerConfig"
-      :existing-node-ids="nodeIds"
+      :existing-node-ids="entries.map((e) => e.id)"
       :multi-select="true"
       title="Browse OPC UA Server (Read)"
       @close="browserOpen = false"

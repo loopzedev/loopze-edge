@@ -7,6 +7,7 @@ import { useStructuralProperty } from '@/composables/useStructuralProperty'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
 import FormField from '@/components/ui/FormField.vue'
+import FormInput from '@/components/ui/FormInput.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ToggleGroup from '@/components/ui/ToggleGroup.vue'
@@ -18,6 +19,7 @@ const { options: serverOptions, openNewConfig, openEditConfig } = useConfigSelec
 
 interface MonitoredItem {
   nodeId: string
+  name?: string
   samplingInterval: number
   queueSize: number
   discardOldest: boolean
@@ -55,6 +57,7 @@ const OUTPUT_SHAPES = [
 function blankItem(): MonitoredItem {
   return {
     nodeId: '',
+    name: '',
     samplingInterval: 1000,
     queueSize: 1,
     discardOldest: true,
@@ -103,7 +106,7 @@ function handleBrowserSelect(items: Array<{ nodeId: string; displayName: string 
   const existing = new Set((monitoredItems.value ?? []).map((m) => m.nodeId))
   const fresh: MonitoredItem[] = items
     .filter((i) => !existing.has(i.nodeId))
-    .map((i) => ({ ...blankItem(), nodeId: i.nodeId }))
+    .map((i) => ({ ...blankItem(), nodeId: i.nodeId, name: i.displayName ?? '' }))
   monitoredItems.value = [...(monitoredItems.value ?? []), ...fresh]
 }
 
@@ -151,10 +154,17 @@ const isStatic = computed(() => mode.value === 'static')
             class="flex flex-col gap-1.5 p-2 border border-terminal-border bg-terminal-surface/40"
           >
             <div class="flex items-stretch gap-1">
-              <div class="flex-1 min-w-0">
+              <div class="flex-[2] min-w-0">
                 <NodeIdInput
                   :model-value="item.nodeId"
                   @update:model-value="updateItem(idx, { nodeId: $event })"
+                />
+              </div>
+              <div class="flex-1 min-w-0">
+                <FormInput
+                  :model-value="item.name ?? ''"
+                  placeholder="name (optional)"
+                  @update:model-value="updateItem(idx, { name: $event })"
                 />
               </div>
               <button

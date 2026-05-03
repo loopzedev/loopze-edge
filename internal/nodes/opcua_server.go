@@ -75,6 +75,13 @@ type OpcuaServer struct {
 	// after the first hit. Reset on reconnect alongside the type cache.
 	prewarmedMu sync.RWMutex
 	prewarmed   map[string]bool
+
+	// browseNameCache stores resolved BrowseName values per Variable NodeID
+	// so the "by-name" output shape doesn't trigger one extra Read attribute
+	// call per node on every cycle. Reset on reconnect — BrowseNames don't
+	// change at runtime in well-behaved servers, but a server restart could.
+	browseNameMu    sync.RWMutex
+	browseNameCache map[string]string
 }
 
 // NewOpcuaServer constructs an OpcuaServer instance from a workspace
@@ -336,6 +343,9 @@ func (s *OpcuaServer) watchState(ctx context.Context, stateC <-chan opcua.ConnSt
 				s.prewarmedMu.Lock()
 				s.prewarmed = nil
 				s.prewarmedMu.Unlock()
+				s.browseNameMu.Lock()
+				s.browseNameCache = nil
+				s.browseNameMu.Unlock()
 			}
 
 			if state == opcua.Connected {

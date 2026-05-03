@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -20,9 +21,24 @@ import (
 	"github.com/loopzedev/loopze-edge/internal/ws"
 )
 
+const banner = `
+██╗      ██████╗  ██████╗ ██████╗ ███████╗███████╗
+██║     ██╔═══██╗██╔═══██╗██╔══██╗╚══███╔╝██╔════╝
+██║     ██║   ██║██║   ██║██████╔╝  ███╔╝ █████╗
+██║     ██║   ██║██║   ██║██╔═══╝  ███╔╝  ██╔══╝
+███████╗╚██████╔╝╚██████╔╝██║     ███████╗███████╗
+╚══════╝ ╚═════╝  ╚═════╝ ╚═╝     ╚══════╝╚══════╝
+   Industrial Flow Automation — %s (%s)
+
+`
+
 func main() {
 	// Load configuration from flags, environment variables, and defaults.
 	cfg := config.Load()
+
+	// Print the startup banner to stdout before slog is wired up so the
+	// multi-line ASCII art is not prefixed with time/level fields.
+	fmt.Fprintf(os.Stdout, banner, config.Version, config.Commit)
 
 	// Initialize structured logger with configured log level. The logbuffer
 	// handler wraps the stdout TextHandler so every record is also captured

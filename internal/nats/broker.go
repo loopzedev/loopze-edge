@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -81,7 +82,7 @@ func New(cfg Config) (*Broker, error) {
 		return nil, fmt.Errorf("nats: failed to connect internal client: %w", err)
 	}
 
-	slog.Info("embedded NATS started",
+	slog.Debug("embedded NATS started",
 		"in_process", cfg.Port == -1,
 		"store_dir", storeDir,
 	)
@@ -94,7 +95,7 @@ func New(cfg Config) (*Broker, error) {
 		return nil, fmt.Errorf("nats: failed to create jetstream context: %w", err)
 	}
 
-	slog.Info("NATS JetStream ready")
+	slog.Debug("NATS JetStream ready")
 
 	return &Broker{
 		server: ns,
@@ -112,7 +113,7 @@ func (b *Broker) Shutdown() {
 	if b.server != nil {
 		b.server.Shutdown()
 		b.server.WaitForShutdown()
-		slog.Info("embedded NATS stopped")
+		slog.Debug("embedded NATS stopped")
 	}
 }
 
@@ -156,7 +157,7 @@ func (b *Broker) SetupDebugStream(ctx context.Context) (jetstream.Stream, error)
 		return nil, fmt.Errorf("nats: failed to create debug stream: %w", err)
 	}
 
-	slog.Info("NATS debug stream ready", "name", "DEBUG", "max_msgs", 1000)
+	slog.Debug("NATS debug stream ready", "name", "DEBUG", "max_msgs", 1000)
 	return stream, nil
 }
 
@@ -259,7 +260,7 @@ func (b *Broker) SetupContextKV(ctx context.Context) (memory jetstream.KeyValue,
 		return nil, nil, fmt.Errorf("nats: failed to create global persistent context KV: %w", err)
 	}
 
-	slog.Info("NATS global context KV ready", "buckets", "memory + persistent")
+	slog.Debug("NATS global context KV ready", "buckets", "memory + persistent")
 	return memory, persistent, nil
 }
 
@@ -276,7 +277,7 @@ func (b *Broker) SetupSessionKV(ctx context.Context, ttl time.Duration) (jetstre
 	if err != nil {
 		return nil, fmt.Errorf("nats: failed to create session KV: %w", err)
 	}
-	slog.Info("NATS session KV ready", "bucket", "auth-sessions", "ttl", ttl)
+	slog.Debug("NATS session KV ready", "bucket", "auth-sessions", "ttl", ttl)
 	return kv, nil
 }
 
@@ -311,8 +312,32 @@ type slogAdapter struct{}
 
 func newSlogAdapter() *slogAdapter { return &slogAdapter{} }
 
+// isJetStreamBanner reports whether a Noticef message is part of the JetStream
+// ASCII banner that nats-server prints on startup. Such lines contain only
+// box-drawing characters or the docs URL and add no operational value.
+func isJetStreamBanner(msg string) bool {
+	trimmed := strings.TrimSpace(msg)
+	if strings.Contains(trimmed, "https://docs.nats.io/jetstream") {
+		return true
+	}
+	for _, r := range trimmed {
+		switch r {
+		case '_', '|', '/', '\\', ' ':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func (s *slogAdapter) Noticef(format string, v ...any) {
-	slog.Info(fmt.Sprintf(format, v...), "component", "nats")
+	msg := fmt.Sprintf(format, v...)
+	if isJetStreamBanner(msg) {
+		return
+	}
+	// NATS notices are operational chatter, not LOOPZE-level info — route them
+	// to debug so they only surface when the user runs with -log-level=debug.
+	slog.Debug(msg, "component", "nats")
 }
 
 func (s *slogAdapter) Warnf(format string, v ...any) {

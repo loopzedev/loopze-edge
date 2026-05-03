@@ -43,4 +43,4 @@ jobs:
         run: go build ./...
 
       - name: go test
-        run: go test ./... -timeout 5m
+        run: go test ./... -timeout 5m -race

@@ -336,10 +336,17 @@ func (n *DelayNode) scheduleAfter(d time.Duration, msg *flow.Message) {
 }
 
 // updateStatus reflects the current pending count to the editor UI.
+//
+// The read of pending and the status callback must happen under a lock so
+// concurrent goroutines (e.g. two timers firing near-simultaneously) cannot
+// interleave such that an earlier read writes its status after a later one,
+// leaving stale "pending: N" text after the queue has drained.
 func (n *DelayNode) updateStatus() {
 	if n.status == nil {
 		return
 	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	p := n.pending.Load()
 	if p == 0 {
 		n.status("", "")

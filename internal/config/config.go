@@ -69,6 +69,10 @@ type Config struct {
 	// LogBufferSize is the capacity of the in-memory log ring buffer that
 	// backs the Terminal Log panel in the editor.
 	LogBufferSize int
+
+	// ShowVersion, when true, instructs main to print version information
+	// and exit before any runtime initialisation.
+	ShowVersion bool
 }
 
 // Build-time variables injected via ldflags.
@@ -116,6 +120,8 @@ func Load() *Config {
 	flag.BoolVar(&cfg.AuthInsecureCookies, "auth-insecure-cookies", false, "disable Secure flag on session cookies (development only)")
 	flag.BoolVar(&cfg.AuthDisable, "auth-disable", false, "bypass authentication; inject a synthetic admin (development only)")
 	flag.DurationVar(&cfg.SessionTTL, "session-ttl", defaultSessionTTL, "lifetime of an authenticated session (sliding window)")
+	flag.BoolVar(&cfg.ShowVersion, "version", false, "print version information and exit")
+	flag.BoolVar(&cfg.ShowVersion, "v", false, "print version information and exit (shorthand)")
 
 	flag.Parse()
 

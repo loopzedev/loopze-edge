@@ -36,6 +36,12 @@ func main() {
 	// Load configuration from flags, environment variables, and defaults.
 	cfg := config.Load()
 
+	if cfg.ShowVersion {
+		fmt.Fprintf(os.Stdout, "loopze %s (commit %s, built %s)\n",
+			config.Version, config.Commit, config.BuildTime)
+		return
+	}
+
 	// Print the startup banner to stdout before slog is wired up so the
 	// multi-line ASCII art is not prefixed with time/level fields.
 	fmt.Fprintf(os.Stdout, banner, config.Version, config.Commit)

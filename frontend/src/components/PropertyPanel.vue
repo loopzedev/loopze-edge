@@ -239,7 +239,7 @@ function onResizeEnd() {
                   <FormLabel>Status</FormLabel>
                   <AppSwitch
                     :model-value="!(nodeData?.disabled ?? false)"
-                    label="Aktiviert"
+                    label="Enabled"
                     @update:model-value="flowStore.updateNodeData(selectedNode!.id, { disabled: !$event })"
                   />
                 </div>

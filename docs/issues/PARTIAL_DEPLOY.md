@@ -1,132 +1,132 @@
-# Issue: Partial Deploy – Drei Deployment-Modi
+# Issue: Partial Deploy – Three deployment modes
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem description
 
-Aktuell verwendet LOOPZE eine **Full-Restart-Strategie**: Bei jedem Deploy werden **alle** laufenden Nodes gestoppt und der gesamte Workspace neu instantiiert (`engine.go:204-205`). Das ist bei größeren Workspaces problematisch:
+LOOPZE currently uses a **full-restart strategy**: On every deploy **all** running nodes are stopped and the entire workspace is re-instantiated (`engine.go:204-205`). For larger workspaces this is problematic:
 
-- **Downtime**: Alle Flows werden kurzzeitig unterbrochen — auch solche, die sich nicht geändert haben
-- **Message-Verlust**: Messages in Node-Buffern (`inputCh`) gehen beim Stop verloren
-- **Zustandsverlust**: In-Memory Node-State (z.B. Zähler in Function-Nodes) wird bei jedem Deploy zurückgesetzt
-- **Config-Node Restart**: Shared Resources (MQTT-Verbindungen etc.) werden unnötig getrennt und neu aufgebaut
+- **Downtime**: All flows are briefly interrupted — even those that haven't changed
+- **Message loss**: Messages in node buffers (`inputCh`) are lost on stop
+- **State loss**: In-memory node state (e.g. counters in Function nodes) is reset on every deploy
+- **Config-node restart**: Shared resources (MQTT connections etc.) are unnecessarily disconnected and rebuilt
 
-Node-RED löst das mit drei Deploy-Modi, die der User per Dropdown neben dem Deploy-Button auswählen kann.
+Node-RED solves this with three deploy modes that the user can select via a dropdown next to the deploy button.
 
-## Die drei Deploy-Modi
+## The three deploy modes
 
-### 1. Modified Nodes (Standard)
-Nur Nodes/Flows die sich tatsächlich geändert haben werden neu deployed.
+### 1. Modified Nodes (default)
+Only nodes/flows that have actually changed are redeployed.
 
-**Logik:**
-- Diff zwischen aktuellem und neuem Workspace berechnen
-- Nur betroffene Nodes stoppen und neu starten
-- Unveränderte Nodes laufen unterbrechungsfrei weiter
-- Config-Nodes nur neu starten wenn sich deren Config geändert hat
+**Logic:**
+- Compute diff between current and new workspace
+- Only stop and restart affected nodes
+- Unchanged nodes keep running uninterrupted
+- Config nodes restart only if their config changed
 
 ### 2. Modified Flows
-Alle Flows die mindestens eine Änderung enthalten werden komplett neu deployed.
+All flows that contain at least one change are completely redeployed.
 
-**Logik:**
-- Flow-Level-Diff: Hat sich ein Flow geändert? (Nodes, Wires, Properties)
-- Betroffene Flows komplett stoppen und neu starten
-- Unveränderte Flows laufen weiter
+**Logic:**
+- Flow-level diff: Has a flow changed? (nodes, wires, properties)
+- Stop and restart affected flows completely
+- Unchanged flows keep running
 
 ### 3. Full (Restart All)
-Kompletter Workspace wird gestoppt und neu deployed. Alle Nodes werden gestoppt, neu instantiiert und gestartet. Entspricht dem aktuellen Verhalten.
+The entire workspace is stopped and redeployed. All nodes are stopped, re-instantiated and started. Matches the current behavior.
 
 ### 4. Restart
-Engine wird komplett heruntergefahren und neu gestartet (`Engine.Stop()` → `Engine.Start()` → `Engine.Deploy()`). Setzt **alles** zurück — inklusive Engine-State, Context-Stores (Memory), NATS-Verbindungen und Config-Node-Ressourcen. Nützlich wenn sich das System in einen inkonsistenten Zustand gebracht hat oder ein sauberer Neustart gewünscht ist.
+Engine is fully shut down and restarted (`Engine.Stop()` → `Engine.Start()` → `Engine.Deploy()`). Resets **everything** — including engine state, context stores (memory), NATS connections and config-node resources. Useful when the system has gotten into an inconsistent state or a clean restart is desired.
 
-## Technische Umsetzung
+## Technical implementation
 
-### Phase 1: Diff-Engine (Backend)
+### Phase 1: Diff engine (backend)
 
-Neues Paket/Datei `internal/flow/diff.go`:
+New package/file `internal/flow/diff.go`:
 
 ```go
 type DeployMode string
 
 const (
-    DeployModifiedNodes DeployMode = "nodes"    // nur geänderte Nodes
-    DeployModifiedFlows DeployMode = "flows"    // ganze Flows mit Änderungen
-    DeployFull          DeployMode = "full"     // alles neu (aktuelles Verhalten)
-    DeployRestart       DeployMode = "restart"  // Engine Stop → Start → Deploy
+    DeployModifiedNodes DeployMode = "nodes"    // only changed nodes
+    DeployModifiedFlows DeployMode = "flows"    // entire flows with changes
+    DeployFull          DeployMode = "full"     // everything new (current behavior)
+    DeployRestart       DeployMode = "restart"  // engine Stop → Start → Deploy
 )
 
 type WorkspaceDiff struct {
-    AddedFlows    []string   // neue Flow-IDs
-    RemovedFlows  []string   // gelöschte Flow-IDs
-    ModifiedFlows []string   // Flows mit Änderungen
+    AddedFlows    []string   // new flow IDs
+    RemovedFlows  []string   // deleted flow IDs
+    ModifiedFlows []string   // flows with changes
 
-    AddedNodes    []string   // neue Node-IDs
-    RemovedNodes  []string   // gelöschte Node-IDs
-    ModifiedNodes []string   // Nodes mit geänderter Config/Wires
+    AddedNodes    []string   // new node IDs
+    RemovedNodes  []string   // deleted node IDs
+    ModifiedNodes []string   // nodes with changed config/wires
 
-    AddedConfigs    []string // neue Config-Node-IDs
-    RemovedConfigs  []string // gelöschte Config-Nodes
-    ModifiedConfigs []string // Config-Nodes mit Änderungen
+    AddedConfigs    []string // new config-node IDs
+    RemovedConfigs  []string // deleted config nodes
+    ModifiedConfigs []string // config nodes with changes
 }
 
 func DiffWorkspaces(old, new Workspace) WorkspaceDiff { ... }
 ```
 
-**Diff-Kriterien für Nodes:**
-- Config-Map geändert (Deep-Equal)
-- Wires geändert (Verbindungen umgesteckt)
-- Disabled-Flag geändert
-- Position (X/Y) ist **kein** Diff-Kriterium (nur visuell)
+**Diff criteria for nodes:**
+- Config map changed (deep-equal)
+- Wires changed (connections re-plugged)
+- Disabled flag changed
+- Position (X/Y) is **not** a diff criterion (purely visual)
 
-**Diff-Kriterien für Flows:**
-- Nodes hinzugefügt/entfernt
-- Mindestens ein Node geändert (s.o.)
-- Flow Disabled-Flag geändert
-- Flow Env-Vars geändert
+**Diff criteria for flows:**
+- Nodes added/removed
+- At least one node changed (see above)
+- Flow disabled flag changed
+- Flow env vars changed
 
-### Phase 2: Selektiver Node-Lifecycle (Backend)
+### Phase 2: Selective node lifecycle (backend)
 
-`Engine.Deploy()` refactoren zu `Engine.Deploy(flows, configs, mode)`:
+Refactor `Engine.Deploy()` to `Engine.Deploy(flows, configs, mode)`:
 
 #### Mode: `DeployRestart`
 ```
-1. Engine.Stop() — alle Nodes stoppen, State clearen, configInstances nil
-2. Engine.Start() — Engine frisch initialisieren
-3. Engine.Deploy(flows, configs, DeployFull) — alles neu aufbauen
+1. Engine.Stop() — stop all nodes, clear state, configInstances nil
+2. Engine.Start() — initialize engine fresh
+3. Engine.Deploy(flows, configs, DeployFull) — rebuild everything
 ```
-Härtester Reset: Engine-Lifecycle wird komplett durchlaufen. Alle In-Memory-Zustände (Node-Context, Status-Cache) gehen verloren.
+Hardest reset: engine lifecycle is fully traversed. All in-memory state (node context, status cache) is lost.
 
 #### Mode: `DeployFull`
-Bisheriges Verhalten — `stopNodes()` → alles neu aufbauen. Engine bleibt running.
+Existing behavior — `stopNodes()` → rebuild everything. Engine stays running.
 
 #### Mode: `DeployModifiedFlows`
 ```
-1. Diff berechnen
-2. Nur Nodes in betroffenen Flows stoppen (stopNodesInFlows)
-3. Config-Nodes prüfen: geänderte Config-Nodes neu starten
-4. Betroffene Flows neu instantiieren + wiren
-5. Neue Node-Goroutines starten
-6. Unveränderte Flows bleiben running
+1. Compute diff
+2. Only stop nodes in affected flows (stopNodesInFlows)
+3. Check config nodes: restart changed config nodes
+4. Re-instantiate + wire affected flows
+5. Start new node goroutines
+6. Unchanged flows stay running
 ```
 
 #### Mode: `DeployModifiedNodes`
 ```
-1. Diff berechnen
-2. Removed Nodes stoppen + Channels schließen
-3. Modified Nodes stoppen (aber nicht aus maps entfernen)
-4. Config-Nodes prüfen: geänderte neu starten
-5. Added + Modified Nodes instantiieren + Init
-6. Wires für betroffene Nodes neu aufbauen
-7. Betroffene Nodes starten + Goroutines launchen
-8. Downstream-Nodes von geänderten Wires: SendFunc aktualisieren
+1. Compute diff
+2. Stop removed nodes + close channels
+3. Stop modified nodes (but don't remove from maps)
+4. Check config nodes: restart changed ones
+5. Instantiate + Init added + modified nodes
+6. Rebuild wires for affected nodes
+7. Start affected nodes + launch goroutines
+8. Downstream nodes from changed wires: update SendFunc
 ```
 
-**Herausforderungen beim selektiven Stop:**
-- `stopCh` wird aktuell für **alle** Nodes geteilt — muss pro Node/Flow werden
-- `wg.Wait()` wartet auf alle Goroutines — muss selektiv werden
-- Wires von unveränderten Nodes können auf geänderte Nodes zeigen → SendFunc muss aktualisiert werden
-- Link-Registry muss partiell aktualisiert werden
+**Challenges with selective stop:**
+- `stopCh` is currently shared by **all** nodes — must become per-node/flow
+- `wg.Wait()` waits for all goroutines — must become selective
+- Wires from unchanged nodes can point to changed nodes → SendFunc must be updated
+- Link registry must be partially updated
 
-#### Vorgeschlagene Änderungen an `runningNode`:
+#### Proposed changes to `runningNode`:
 
 ```go
 type runningNode struct {
@@ -134,30 +134,30 @@ type runningNode struct {
     config   NodeConfig
     flowID   string
     inputCh  chan *Message
-    stopCh   chan struct{}  // NEU: pro-Node stop channel (statt global)
-    done     chan struct{}  // NEU: signalisiert dass Goroutine beendet ist
+    stopCh   chan struct{}  // NEW: per-node stop channel (instead of global)
+    done     chan struct{}  // NEW: signals that goroutine has ended
 }
 ```
 
-#### Vorgeschlagene neue Engine-Methoden:
+#### Proposed new engine methods:
 
 ```go
-// stopNode stoppt einen einzelnen Node und seine Goroutine
+// stopNode stops a single node and its goroutine
 func (e *Engine) stopNode(nodeID string) error
 
-// stopFlow stoppt alle Nodes eines Flows
+// stopFlow stops all nodes of a flow
 func (e *Engine) stopFlow(flowID string) error
 
-// rewireNode aktualisiert die SendFunc eines Nodes mit neuen Wires
+// rewireNode updates a node's SendFunc with new wires
 func (e *Engine) rewireNode(nodeID string, wires [][]string)
 
-// startNode instantiiert, initialisiert und startet einen einzelnen Node
+// startNode instantiates, initializes and starts a single node
 func (e *Engine) startNode(nodeID string, node Node, flowID string) error
 ```
 
-### Phase 3: API-Erweiterung
+### Phase 3: API extension
 
-`deployRequest` erweitern:
+Extend `deployRequest`:
 
 ```go
 type deployRequest struct {
@@ -168,15 +168,15 @@ type deployRequest struct {
 }
 ```
 
-Default wenn `Mode` leer: `"nodes"` (Modified Nodes).
+Default when `Mode` is empty: `"nodes"` (Modified Nodes).
 
-Der Handler leitet den Mode an `Engine.Deploy()` weiter. Bei `"restart"` ruft der Handler `Engine.Stop()` → `Engine.Start()` vor dem Deploy auf:
+The handler forwards the mode to `Engine.Deploy()`. On `"restart"` the handler calls `Engine.Stop()` → `Engine.Start()` before the deploy:
 
 ```go
-// Engine-Signatur
+// Engine signature
 func (e *Engine) Deploy(flows []Flow, configs []ConfigNode, mode DeployMode) error
 
-// Handler-Logik für Restart
+// Handler logic for restart
 if req.Mode == "restart" {
     d.Engine.Stop()
     d.Engine.Start()
@@ -186,31 +186,31 @@ d.Engine.Deploy(req.Flows, req.Configs, flow.DeployFull)
 
 ### Phase 4: Frontend
 
-#### Deploy-Button mit Dropdown
-Der Deploy-Button bekommt einen Dropdown-Pfeil (Split-Button) wie in Node-RED:
+#### Deploy button with dropdown
+The deploy button gets a dropdown arrow (split button) like in Node-RED:
 
 ```
 ┌──────────┬───┐
 │  Deploy  │ ▾ │
 └──────────┴───┘
               │
-              ├─ ● Modified Nodes  (Standard)
+              ├─ ● Modified Nodes  (default)
               ├─ ○ Modified Flows
               ├─ ○ Full Deploy
               └─ ○ Restart
 ```
 
-- Klick auf "Deploy" → deployed mit dem aktuell gewähltem Modus
-- Klick auf ▾ → Dropdown öffnet sich, Modus kann gewechselt werden
-- Gewählter Modus wird in `localStorage` gespeichert
+- Click on "Deploy" → deploys with the currently selected mode
+- Click on ▾ → dropdown opens, mode can be changed
+- Selected mode is stored in `localStorage`
 
-#### flowStore Änderungen
+#### flowStore changes
 
 ```typescript
-// Neuer State
+// New state
 const deployMode = ref<'nodes' | 'flows' | 'full' | 'restart'>('nodes')
 
-// Deploy-Payload erweitern
+// Extend deploy payload
 const payload: DeployPayload = {
     flows: flows.value,
     configs: configs.value.length > 0 ? configs.value : undefined,
@@ -219,11 +219,11 @@ const payload: DeployPayload = {
 }
 ```
 
-Die vorhandenen `dirtyNodeIds` und `dirtyFlowIds` Sets werden bereits getrackt und können für visuelle Hinweise genutzt werden (z.B. geänderte Nodes/Flows markieren).
+The existing `dirtyNodeIds` and `dirtyFlowIds` sets are already tracked and can be used for visual hints (e.g. mark changed nodes/flows).
 
-### Phase 5: Deploy-Feedback
+### Phase 5: Deploy feedback
 
-WebSocket-Event erweitern um den Deploy-Modus und betroffene Flows/Nodes:
+Extend WebSocket event with the deploy mode and affected flows/nodes:
 
 ```json
 {
@@ -238,35 +238,35 @@ WebSocket-Event erweitern um den Deploy-Modus und betroffene Flows/Nodes:
 }
 ```
 
-## Implementierungsreihenfolge
+## Implementation order
 
-1. **Diff-Engine** (`diff.go` + Tests) — Grundlage für alles
-2. **Per-Node Stop-Channel** — `stopCh` von global auf pro-Node umbauen
-3. **`DeployModifiedFlows`** — einfacher als Node-Level, guter Zwischenschritt
-4. **`DeployModifiedNodes`** — der eigentliche Kern
-5. **API-Erweiterung** — `deployMode` Parameter
-6. **Frontend Dropdown** — Split-Button am Deploy-Button
-7. **Deploy-Feedback** — Erweiterte WebSocket-Events
+1. **Diff engine** (`diff.go` + tests) — foundation for everything
+2. **Per-node stop channel** — convert `stopCh` from global to per-node
+3. **`DeployModifiedFlows`** — simpler than node-level, good intermediate step
+4. **`DeployModifiedNodes`** — the actual core
+5. **API extension** — `deployMode` parameter
+6. **Frontend dropdown** — split button on the deploy button
+7. **Deploy feedback** — extended WebSocket events
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/flow/diff.go` — **NEU**: Workspace-Diff-Logik
-- `internal/flow/diff_test.go` — **NEU**: Tests für Diff
-- `internal/flow/engine.go` — Refactoring Deploy/Stop für selektiven Lifecycle
-- `internal/flow/types.go` — `DeployMode` Type
-- `internal/api/handlers.go` — `deployMode` aus Request lesen + weiterleiten
+- `internal/flow/diff.go` — **NEW**: workspace diff logic
+- `internal/flow/diff_test.go` — **NEW**: tests for diff
+- `internal/flow/engine.go` — refactor Deploy/Stop for selective lifecycle
+- `internal/flow/types.go` — `DeployMode` type
+- `internal/api/handlers.go` — read `deployMode` from request + forward
 
 ### Frontend
-- `frontend/src/stores/flowStore.ts` — `deployMode` State + Payload
-- `frontend/src/types/flow.ts` — `DeployPayload` Type erweitern
-- `frontend/src/components/HeaderBar.vue` — Split-Button mit Dropdown
+- `frontend/src/stores/flowStore.ts` — `deployMode` state + payload
+- `frontend/src/types/flow.ts` — extend `DeployPayload` type
+- `frontend/src/components/HeaderBar.vue` — split button with dropdown
 
-## Edge Cases
+## Edge cases
 
-- **Erster Deploy** (kein alter State): Immer Full Deploy
-- **Flow hinzugefügt/gelöscht**: Neuer Flow wird gestartet, gelöschter wird gestoppt, Rest bleibt
-- **Config-Node geändert**: Alle Nodes die diese Config referenzieren müssen ebenfalls neu gestartet werden (Cascading Restart)
-- **Wire auf gelöschten Node**: SendFunc muss graceful mit fehlenden Targets umgehen (tut sie bereits via `e.nodes[targetID]` Lookup)
-- **Link-Nodes**: Änderung an Link-In/Out betrifft Cross-Flow-Kommunikation → Link-Registry partiell updaten
-- **Disabled-Flag Toggle**: Node disablen = Node stoppen; Node enablen = Node starten
+- **First deploy** (no old state): always full deploy
+- **Flow added/deleted**: new flow is started, deleted one is stopped, rest stays
+- **Config node changed**: all nodes that reference this config must also be restarted (cascading restart)
+- **Wire to deleted node**: SendFunc must handle missing targets gracefully (already does via `e.nodes[targetID]` lookup)
+- **Link nodes**: change to Link-In/Out affects cross-flow communication → partially update link registry
+- **Disabled flag toggle**: disable node = stop node; enable node = start node

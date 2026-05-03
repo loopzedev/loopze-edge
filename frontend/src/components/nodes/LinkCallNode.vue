@@ -47,7 +47,7 @@ const targetInfo = computed(() => {
         <span>/</span>
         <span class="text-terminal-text">{{ targetInfo.nodeName }}</span>
       </div>
-      <span v-else class="italic">nicht verknüpft</span>
+      <span v-else class="italic">not linked</span>
     </template>
   </BaseNode>
 </template>

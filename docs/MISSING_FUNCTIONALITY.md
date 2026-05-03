@@ -1,179 +1,179 @@
-# Fehlende Funktionalität für Node-RED-Parität
+# Missing functionality for Node-RED parity
 
-Fokus auf Plattform-Features, nicht einzelne Node-Typen.
+Focus on platform features, not individual node types.
 
-## 1. Flow Editor (Frontend)
+## 1. Flow Editor (frontend)
 
 ### 1.1 Subflows
-- [ ] Subflow erstellen (Gruppe von Nodes als wiederverwendbaren Subflow kapseln)
-- [ ] Subflow-Instanzen in anderen Flows verwenden
-- [ ] Subflow-Properties (konfigurierbare Parameter pro Instanz)
-- [ ] Subflow-Environment-Variables
-- [ ] Subflow-Status-Anzeige
+- [ ] Create subflow (encapsulate a group of nodes as a reusable subflow)
+- [ ] Use subflow instances in other flows
+- [ ] Subflow properties (configurable parameters per instance)
+- [ ] Subflow environment variables
+- [ ] Subflow status display
 
-### 1.2 Node-Editing
-- [x] Node Enable/Disable (einzelne Nodes deaktivieren ohne Löschen) – siehe `docs/issues/NODE_ENABLE_DISABLE.md`
-- [ ] Node-Gruppen (visuelle Gruppierung mit Rahmen/Kommentar)
-- [ ] Comment-Nodes (reine Kommentar-Blöcke im Flow)
-- [ ] Wires: Bend-Points / Link-Routing
-- [ ] Multi-Select + Bulk-Operationen (Enable/Disable/Delete)
-- [ ] Node-Suche im Flow (Ctrl+F → Node finden und fokussieren)
+### 1.2 Node editing
+- [x] Node enable/disable (deactivate individual nodes without deleting) – see `docs/issues/NODE_ENABLE_DISABLE.md`
+- [ ] Node groups (visual grouping with frame/comment)
+- [ ] Comment nodes (pure comment blocks in the flow)
+- [ ] Wires: bend points / link routing
+- [ ] Multi-select + bulk operations (enable/disable/delete)
+- [ ] Node search in flow (Ctrl+F → find and focus node)
 
-### 1.3 Clipboard & Import/Export
-- [ ] Flow Export als JSON (einzelner Flow oder Workspace)
-- [ ] Flow Import aus JSON (Clipboard oder Datei)
-- [ ] Node/Flow-Snippets aus Zwischenablage einfügen
-- [ ] Export als Bild (PNG/SVG des Flows)
-- [ ] Library: Flows/Subflows in lokaler Bibliothek speichern & wiederverwenden
+### 1.3 Clipboard & import/export
+- [ ] Flow export as JSON (single flow or workspace)
+- [ ] Flow import from JSON (clipboard or file)
+- [ ] Paste node/flow snippets from clipboard
+- [ ] Export as image (PNG/SVG of the flow)
+- [ ] Library: save and reuse flows/subflows in a local library
 
 ### 1.4 Editor UX
 - [ ] Undo/Redo (Ctrl+Z / Ctrl+Y)
-- [ ] Minimap / Übersichtskarte des Flows
-- [ ] Keyboard-Shortcuts (komplett: Quick-Add, Wires, Navigation)
-- [ ] Info-Sidebar (Markdown-Dokumentation pro Node/Flow anzeigen)
-- [ ] Drag & Drop: Nodes auf bestehende Wires einfügen
-- [ ] Junction-Node (Wire-Splitter zum Aufräumen von Verbindungen)
-- [ ] Flow-Reihenfolge per Drag ändern (Tabs umsortieren)
-- [ ] Auto-Align / Grid-Snap für Nodes
-- [ ] Zoom-to-Fit
+- [ ] Minimap / overview map of the flow
+- [ ] Keyboard shortcuts (complete: quick-add, wires, navigation)
+- [ ] Info sidebar (show Markdown documentation per node/flow)
+- [ ] Drag & drop: insert nodes onto existing wires
+- [ ] Junction node (wire splitter for tidying up connections)
+- [ ] Reorder flows by drag (rearrange tabs)
+- [ ] Auto-align / grid snap for nodes
+- [ ] Zoom to fit
 
-### 1.5 Konfiguration im Editor
-- [ ] Config-Node Editor UI (MQTT-Broker etc. im Property-Panel bearbeiten)
-- [ ] Config-Node Übersicht (alle Config-Nodes auflisten, ungenutzte finden)
-- [ ] Environment-Variables Editor (Flow- und Global-Scope im UI setzen)
+### 1.5 Configuration in the editor
+- [ ] Config node editor UI (edit MQTT broker etc. in the property panel)
+- [ ] Config node overview (list all config nodes, find unused ones)
+- [ ] Environment variables editor (set flow and global scope in the UI)
 
-## 2. Runtime / Flow Engine
+## 2. Runtime / flow engine
 
-### 2.1 Deployment-Modi
-- [x] Partial Deploy (nur geänderte Flows/Nodes neu deployen, nicht alles)
-- [x] Modified Flows Deploy (nur Flows mit Änderungen neu starten)
-- [ ] Deploy-Diff anzeigen (was hat sich seit letztem Deploy geändert)
+### 2.1 Deployment modes
+- [x] Partial deploy (only redeploy changed flows/nodes, not everything)
+- [x] Modified flows deploy (only restart flows with changes)
+- [ ] Show deploy diff (what has changed since the last deploy)
 
-### 2.2 Error Handling
-- [ ] Catch-Node (Errors eines Flows abfangen und verarbeiten)
-- [ ] Status-Node (Status-Änderungen anderer Nodes als Messages empfangen)
-- [ ] Unhandled Error Reporting (Flows ohne Catch-Node warnen)
+### 2.2 Error handling
+- [ ] Catch node (catch errors of a flow and process them)
+- [ ] Status node (receive status changes of other nodes as messages)
+- [ ] Unhandled error reporting (warn for flows without a Catch node)
 
-### 2.3 Message Routing
-- [ ] Switch-Node (Routing basierend auf Bedingungen → verschiedene Outputs)
-- [ ] Split/Join (Messages aufteilen und wieder zusammenführen)
-- [x] Delay-Node (Verzögerung, Rate-Limiting, Queue) – siehe `docs/issues/NODE_DELAY.md`
-- [ ] Trigger-Node (Debounce, Throttle, Watchdog-Timer)
-- [ ] Filter/RBE-Node (Report by Exception – nur bei Änderung weiterleiten)
+### 2.3 Message routing
+- [ ] Switch node (routing based on conditions → different outputs)
+- [ ] Split/Join (split messages and merge them again)
+- [x] Delay node (delay, rate limiting, queue) – see `docs/issues/NODE_DELAY.md`
+- [ ] Trigger node (debounce, throttle, watchdog timer)
+- [ ] Filter/RBE node (report by exception – only forward on change)
 
-### 2.4 Subflow-Runtime
-- [ ] Subflow-Instanz-Isolation (eigener Kontext pro Instanz)
-- [ ] Subflow-Environment-Variable-Auflösung
-- [ ] Subflow In/Out Message-Routing
+### 2.4 Subflow runtime
+- [ ] Subflow instance isolation (own context per instance)
+- [ ] Subflow environment variable resolution
+- [ ] Subflow in/out message routing
 
-### 2.5 Context Storage
-- [x] Persistent Context (überlebt Neustart – aktuell nur Memory via NATS)
-- [x] Context Store Konfiguration (Memory vs. File vs. externe DB)
-- [ ] Context Viewer im Editor (aktuelle Werte inspizieren)
+### 2.5 Context storage
+- [x] Persistent context (survives restart – currently only memory via NATS)
+- [x] Context store configuration (memory vs. file vs. external DB)
+- [ ] Context viewer in the editor (inspect current values)
 
-## 3. Administration & Management
+## 3. Administration & management
 
-### 3.1 Authentifizierung & Autorisierung
-- [ ] User-Login (Username/Password)
-- [ ] Token-basierte API-Authentifizierung
-- [ ] Rollen/Berechtigungen (Admin vs. Read-Only vs. Editor)
-- [ ] Editor-Zugriffsschutz (UI nur nach Login)
-- [ ] Admin API absichern
+### 3.1 Authentication & authorization
+- [ ] User login (username/password)
+- [ ] Token-based API authentication
+- [ ] Roles/permissions (admin vs. read-only vs. editor)
+- [ ] Editor access protection (UI only after login)
+- [ ] Secure admin API
 
-### 3.2 Projekte (Projects Feature)
-- [ ] Git-Integration (Flow-Files in Git-Repo verwalten)
-- [ ] Projekt-Wechsel im Editor
-- [ ] Branch/Merge-Support
-- [ ] Projekt-Dependencies (npm-Pakete für Function-Nodes)
-- [ ] Versionshistorie im Editor anzeigen
+### 3.2 Projects (Projects feature)
+- [ ] Git integration (manage flow files in a Git repo)
+- [ ] Project switching in the editor
+- [ ] Branch/merge support
+- [ ] Project dependencies (npm packages for Function nodes)
+- [ ] Show version history in the editor
 
-### 3.3 Multi-User / Collaboration
-- [ ] Concurrent Editing Awareness (wer bearbeitet gerade was)
-- [ ] Konflikt-Erkennung bei gleichzeitigem Deploy
-- [ ] Audit-Log (wer hat wann was deployed)
+### 3.3 Multi-user / collaboration
+- [ ] Concurrent editing awareness (who is currently editing what)
+- [ ] Conflict detection on simultaneous deploy
+- [ ] Audit log (who deployed what when)
 
-## 4. Monitoring & Observability
+## 4. Monitoring & observability
 
 ### 4.2 Logging
-- [ ] Konfigurierbare Log-Level pro Node
-- [ ] Log-Rotation / Log-Archivierung
-- [ ] Strukturiertes Logging (JSON-Format für externe Tools)
-- [ ] Syslog/External-Logging-Integration
+- [ ] Configurable log level per node
+- [ ] Log rotation / log archiving
+- [ ] Structured logging (JSON format for external tools)
+- [ ] Syslog / external logging integration
 
-### 4.3 Health & Diagnostics
-- [ ] Health-Check Endpoint (`/health`, `/ready`)
-- [ ] Runtime-Info-Endpoint (Version, Uptime, Node-Count, Memory)
-- [ ] Metrics-Endpoint (Prometheus-kompatibel)
+### 4.3 Health & diagnostics
+- [ ] Health check endpoint (`/health`, `/ready`)
+- [ ] Runtime info endpoint (version, uptime, node count, memory)
+- [ ] Metrics endpoint (Prometheus-compatible)
 
-## 5. API & Integration
+## 5. API & integration
 
 ### 5.1 Admin API
-- [ ] Vollständige REST Admin API (Node-RED kompatibel oder eigene)
-  - [ ] GET/PUT/DELETE einzelne Flows
-  - [ ] GET/PUT Global Flow Config
-  - [ ] GET Node Catalog
-  - [ ] POST Inject Trigger ✅ (vorhanden)
-  - [ ] GET/POST Context Values
-- [ ] API-Dokumentation (Swagger/OpenAPI)
+- [ ] Complete REST admin API (Node-RED compatible or custom)
+  - [ ] GET/PUT/DELETE individual flows
+  - [ ] GET/PUT global flow config
+  - [ ] GET node catalog
+  - [ ] POST inject trigger ✅ (available)
+  - [ ] GET/POST context values
+- [ ] API documentation (Swagger/OpenAPI)
 
 ### 5.2 Runtime API
-- [ ] HTTP-In/Out Nodes (HTTP-Endpoints im Flow definieren)
-- [ ] WebSocket-In/Out Nodes (eigene WS-Endpoints im Flow)
-- [ ] TCP/UDP In/Out Nodes
-- [ ] Webhook-Support
+- [ ] HTTP In/Out nodes (define HTTP endpoints in the flow)
+- [ ] WebSocket In/Out nodes (own WS endpoints in the flow)
+- [ ] TCP/UDP In/Out nodes
+- [ ] Webhook support
 
-## 6. Konfiguration & Betrieb
+## 6. Configuration & operation
 
 ### 6.1 Settings
-- [ ] settings.js Äquivalent (Runtime-Konfiguration)
-- [ ] Theme-Konfiguration (Custom CSS, Logo)
-- [ ] Editor-Settings persistent speichern (Grid, Zoom, Panel-Layout)
-- [ ] Dashboard-Titel konfigurierbar
+- [ ] settings.js equivalent (runtime configuration)
+- [ ] Theme configuration (custom CSS, logo)
+- [ ] Persistently store editor settings (grid, zoom, panel layout)
+- [ ] Configurable dashboard title
 
-### 6.3 Internationalisierung
-- [ ] i18n für Editor-UI
-- [ ] Node-Beschreibungen in mehreren Sprachen
+### 6.3 Internationalization
+- [ ] i18n for editor UI
+- [ ] Node descriptions in multiple languages
 
-## 7. Sicherheit
+## 7. Security
 
-- [ ] HTTPS/TLS-Support (nativ, nicht nur via Reverse-Proxy)
-- [ ] Credential-Handling im Editor (Passwort-Felder maskiert)
-- [ ] Content-Security-Policy Headers
-- [ ] Rate-Limiting auf API-Endpoints
-- [ ] Input-Validation / Sanitization auf Admin-API
+- [ ] HTTPS/TLS support (native, not only via reverse proxy)
+- [ ] Credential handling in the editor (masked password fields)
+- [ ] Content-Security-Policy headers
+- [ ] Rate limiting on API endpoints
+- [ ] Input validation / sanitization on the admin API
 
-## 8. Skalierung & High Availability
-- [ ] Persistent Message Queues (Messages bei Restart nicht verlieren)
+## 8. Scaling & high availability
+- [ ] Persistent message queues (do not lose messages on restart)
 
 ---
 
-## Prioritäts-Einschätzung
+## Priority assessment
 
-### P0 – Kern-Features für Produktivbetrieb
-- Error Handling (Catch/Status/Complete Nodes)
-- Switch-Node (Message Routing)
+### P0 – Core features for production use
+- Error handling (Catch/Status/Complete nodes)
+- Switch node (message routing)
 - Subflows
 - Undo/Redo
 - Import/Export
-- HTTP-In/Out Nodes
-- Node Enable/Disable
-- Health-Check Endpoint
-- Authentifizierung (mindestens Basic Auth)
+- HTTP In/Out nodes
+- Node enable/disable
+- Health check endpoint
+- Authentication (at least basic auth)
 
-### P1 – Wichtig für ernsthafte Nutzung
-- Partial Deploy
-- Split/Join, Delay, Trigger Nodes
-- Context Viewer
-- Config-Node Editor UI
-- Keyboard-Shortcuts
-- Persistent Context Storage
-- Metrics/Monitoring
-- Plugin-System / Custom Node API
+### P1 – Important for serious use
+- Partial deploy
+- Split/Join, Delay, Trigger nodes
+- Context viewer
+- Config node editor UI
+- Keyboard shortcuts
+- Persistent context storage
+- Metrics/monitoring
+- Plugin system / custom node API
 
-### P2 – Nice-to-Have / Differenzierung
-- Projects/Git-Integration
-- Multi-User
-- Cluster-Modus
+### P2 – Nice-to-have / differentiation
+- Projects/Git integration
+- Multi-user
+- Cluster mode
 - i18n
-- Palette Manager
-- Flow-Export als Bild
+- Palette manager
+- Flow export as image

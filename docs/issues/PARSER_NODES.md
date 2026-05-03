@@ -1,114 +1,113 @@
-# Issue: Parser Nodes — Payload-Konvertierung zwischen Formaten
+# Issue: Parser Nodes — payload conversion between formats
 
 ## Status: Proposed
 
-## Problembeschreibung
+## Problem description
 
-LOOPZE-Flows tauschen Daten mit der Außenwelt aus: MQTT-Topics liefern
-Sensorwerte als JSON-Strings, HTTP-APIs antworten mit XML, Industrie-Tools
-exportieren CSV, Modbus liefert rohe Bytes. Damit nachgelagerte Nodes
-(Switch, Change, Function, Template …) sinnvoll arbeiten können, muss die
-Payload in ein **strukturiertes Format** überführt werden — und vor dem
-Senden wieder in den Wire-Form-String gepackt werden.
+LOOPZE flows exchange data with the outside world: MQTT topics deliver
+sensor values as JSON strings, HTTP APIs respond with XML, industrial tools
+export CSV, Modbus delivers raw bytes. So that downstream nodes
+(Switch, Change, Function, Template …) can work meaningfully, the
+payload must be converted into a **structured format** — and packed back
+into wire-form string before sending.
 
-Heute landet das im Function Node mit `JSON.parse(...)` /
-`JSON.stringify(...)`. Funktioniert, aber:
+Today this ends up in the Function Node with `JSON.parse(...)` /
+`JSON.stringify(...)`. Works, but:
 
-- Bediener-UX leidet: Code für eine 80%-Standardaufgabe.
-- XML/CSV gibt's in Goja gar nicht out-of-the-box.
-- Fehlerbehandlung muss jedes Mal manuell verdrahtet werden.
-- Kein einheitliches Verhalten zwischen Flows / Nodes.
+- Operator UX suffers: code for an 80% standard task.
+- XML/CSV are not available out-of-the-box in Goja.
+- Error handling has to be wired up manually each time.
+- No consistent behavior between flows / nodes.
 
-Lösung: drei dedizierte **Parser Nodes**, deklarativ konfigurierbar,
-mit einheitlicher API und Status/Catch-Anbindung.
+Solution: three dedicated **Parser Nodes**, declaratively configurable,
+with a unified API and status/catch hookup.
 
-## Sichtweise / Begründung
+## View / rationale
 
-- **Bediener-UX vor Designer-Power**: Ein Dropdown „String → Object" ist
-  zugänglicher als JS-Code. Die häufigsten Use Cases (MQTT-JSON-Payload
-  parsen) decken wir mit zwei Klicks ab.
-- **Ein gemeinsames Mental-Model** für alle drei Formate: gleiche Felder
-  (Property, Action), gleiche Fehlerwege, gleiches Status-Verhalten.
-- **Pendant zum Template Node**: Template baut Strings *aus* Daten —
-  Parser-Nodes ziehen Daten *aus* Strings. Beide sitzen im selben
-  "Function"-Bereich der Palette.
+- **Operator UX before designer power**: A "String → Object" dropdown is
+  more accessible than JS code. The most common use cases (parsing MQTT
+  JSON payloads) are covered with two clicks.
+- **One shared mental model** for all three formats: same fields
+  (Property, Action), same error paths, same status behavior.
+- **Counterpart to the Template Node**: Template builds strings *from*
+  data — Parser nodes pull data *out of* strings. Both sit in the same
+  "Function" area of the palette.
 
-## Geplante Nodes
+## Planned nodes
 
-| Node | Eingabe (Wire-Form) | Ausgabe (parsed) | Phase |
+| Node | Input (wire form) | Output (parsed) | Phase |
 |---|---|---|---|
-| **JSON** | `string` / `[]byte` (Buffer) | `map` / `[]any` / Skalar | **Phase 1 — siehe `PARSER_JSON_NODE.md`** |
-| **CSV** | `string` / `[]byte` | `[]map[string]any` (mit Header) oder `[][]any` | Phase 2 |
-| **XML** | `string` / `[]byte` | `map[string]any` (Element-Tree) | Phase 3 |
+| **JSON** | `string` / `[]byte` (Buffer) | `map` / `[]any` / scalar | **Phase 1 — see `PARSER_JSON_NODE.md`** |
+| **CSV** | `string` / `[]byte` | `[]map[string]any` (with header) or `[][]any` | Phase 2 |
+| **XML** | `string` / `[]byte` | `map[string]any` (element tree) | Phase 3 |
 
-Alle Parser können in beide Richtungen arbeiten (String/Buffer ⇄
-strukturiert), gesteuert über ein Action-Dropdown:
+All parsers can work in both directions (string/buffer ⇄
+structured), controlled via an Action dropdown:
 
-| Action | Verhalten |
+| Action | Behavior |
 |---|---|
-| `auto` | Heuristik: String/Buffer → parse; alles andere → stringify |
-| `parse` | Erzwingt Parsen — Fehler bei nicht-String/Buffer |
-| `stringify` | Erzwingt Serialisieren — Fehler bei String/Buffer |
+| `auto` | Heuristic: string/buffer → parse; everything else → stringify |
+| `parse` | Forces parsing — error on non-string/buffer |
+| `stringify` | Forces serialization — error on string/buffer |
 
-`auto` ist der Default und deckt 90% der Fälle ab.
+`auto` is the default and covers 90% of cases.
 
-## Gemeinsame Anforderungen
+## Common requirements
 
-### 1. Property-Auswahl
+### 1. Property selection
 
-| Feld | Beschreibung | Default |
+| Field | Description | Default |
 |---|---|---|
-| `property` | Property am `msg`-Objekt (Dot-Path) | `payload` |
+| `property` | Property on the `msg` object (dot-path) | `payload` |
 
-In Phase 1 wird **nur `msg.<property>`** unterstützt — kein flow/global
-Scope. Begründung: Parser laufen typischerweise direkt nach einem
-Eingangs-Node (MQTT-In, HTTP-In) und schreiben ins selbe Property
-zurück. Scope-Auswahl kann nachgezogen werden, sobald ein konkreter
-Use Case sie braucht.
+In phase 1 only **`msg.<property>`** is supported — no flow/global
+scope. Rationale: parsers typically run directly after an
+input node (MQTT-In, HTTP-In) and write back to the same property.
+Scope selection can be added later, once a concrete use case requires it.
 
-### 2. Buffer-Kompatibilität
+### 2. Buffer compatibility
 
-Eingabe darf ein **Buffer** sein (`[]byte` aus dem Go-Backend, künftig
-auch das `Buffer`-Objekt aus `BUFFER_API.md`). Parser konvertiert
-intern via `string(b)` bzw. `[]byte(s)` — UTF-8 wird vorausgesetzt.
+Input may be a **buffer** (`[]byte` from the Go backend, in the future
+also the `Buffer` object from `BUFFER_API.md`). The parser converts
+internally via `string(b)` or `[]byte(s)` — UTF-8 is assumed.
 
-### 3. Status / Fehlerbehandlung
+### 3. Status / error handling
 
-- Idle: kein Status-Text (analog Change/Template).
-- Bei Parse-/Stringify-Fehler: Status `red` / `"<format> parse error"`,
-  Message wird als **Catchable Error** an Catch Nodes geleitet
-  (gleiches Pattern wie Template Node bei `format: json`-Fehler).
-- Wenn Action `parse` ist und das Property kein String/Buffer ist →
-  Catchable Error.
-- Wenn Action `stringify` ist und das Property bereits ein String ist
-  → Catchable Error.
+- Idle: no status text (analogous to Change/Template).
+- On parse/stringify error: status `red` / `"<format> parse error"`,
+  message is routed as a **catchable error** to Catch nodes
+  (same pattern as Template node on `format: json` errors).
+- If action is `parse` and the property is not a string/buffer →
+  catchable error.
+- If action is `stringify` and the property is already a string
+  → catchable error.
 
-### 4. Inputs / Outputs
+### 4. Inputs / outputs
 
-- **1 Input**, **1 Output** — Parser routen nicht, sie konvertieren nur.
+- **1 input**, **1 output** — parsers don't route, they only convert.
 
-## Out of Scope für Phase 1
+## Out of scope for phase 1
 
-- **Schema-Validierung** (JSON-Schema, XSD) — separate Nodes, später.
-- **Streaming-Parser** für sehr große Payloads — bisher kein Use Case.
-- **Custom-Encodings** außer UTF-8.
-- **flow./global. Scopes** — siehe oben.
+- **Schema validation** (JSON Schema, XSD) — separate nodes, later.
+- **Streaming parsers** for very large payloads — no use case so far.
+- **Custom encodings** other than UTF-8.
+- **flow./global. scopes** — see above.
 
-## Reihenfolge / Roadmap
+## Order / roadmap
 
-1. **JSON Parser** (Phase 1) — siehe `PARSER_JSON_NODE.md`. Höchste
-   Priorität, weil jeder MQTT/HTTP-Flow ihn braucht.
-2. **CSV Parser** (Phase 2) — zweithäufigster Use Case (Industrie-
-   Exporte, Reports). Eigenes Issue, sobald JSON steht.
-3. **XML Parser** (Phase 3) — seltener, aber unverzichtbar für
-   SOAP-/Legacy-APIs. Eigenes Issue, sobald CSV steht.
+1. **JSON Parser** (phase 1) — see `PARSER_JSON_NODE.md`. Highest
+   priority because every MQTT/HTTP flow needs it.
+2. **CSV Parser** (phase 2) — second most common use case (industrial
+   exports, reports). Own issue once JSON is in place.
+3. **XML Parser** (phase 3) — rarer, but indispensable for
+   SOAP/legacy APIs. Own issue once CSV is in place.
 
-Jeder Parser bekommt sein eigenes Issue mit detaillierter Spezifikation.
-Dieses Dokument bleibt als gemeinsames Konzept-Papier.
+Each parser gets its own issue with a detailed specification.
+This document remains as the shared concept paper.
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.Message` mit `Get`/`Set` (existiert)
-- Catch Node für Fehlerweiterleitung (existiert)
-- `BUFFER_API.md` — wenn vorhanden, kann der Parser den `Buffer`-Typ
-  direkt akzeptieren; ohne ihn arbeiten wir auf rohen `[]byte`-Slices
+- `flow.Message` with `Get`/`Set` (exists)
+- Catch node for error forwarding (exists)
+- `BUFFER_API.md` — if available, the parser can accept the `Buffer`
+  type directly; without it we work on raw `[]byte` slices

@@ -1,92 +1,92 @@
-# Issue: Node Enable/Disable — einzelne Nodes deaktivieren ohne Löschen
+# Issue: Node Enable/Disable — disable individual nodes without deleting
 
 ## Status: Done
 
-## Problembeschreibung
+## Problem description
 
-Aktuell muss eine Node, die im Flow temporär nicht laufen soll, **gelöscht** werden — alternativ auch der ganze Flow deaktiviert werden (`Flow.Disabled` existiert auf Datenebene, aber nicht als UI-Toggle). Beides ist unangemessen für den häufigen Fall:
+Currently, a node that should temporarily not run in a flow has to be **deleted** — alternatively the entire flow can be disabled (`Flow.Disabled` exists at the data level, but not as a UI toggle). Both are inappropriate for the common case:
 
-- **Debugging**: einen problematischen MQTT-Out vorübergehend stilllegen, ohne die Konfiguration zu verlieren
-- **Selektives Testen**: in einem Flow mit mehreren parallelen Zweigen einen Zweig isolieren
-- **Wartung**: einen Inject-Trigger pausieren, während der Backend-Zielservice gerade neu gestartet wird
-- **Schrittweises Einschalten** beim Aufbau eines Flows: Nodes deaktiviert anlegen, später aktivieren
+- **Debugging**: temporarily silence a problematic MQTT-Out without losing the configuration
+- **Selective testing**: in a flow with several parallel branches, isolate one branch
+- **Maintenance**: pause an inject trigger while the backend target service is restarting
+- **Stepwise enabling** when building a flow: create nodes disabled, enable them later
 
-In Node-RED ist das `disable`/`enable` über Properties-Panel und Rechtsklick eine der meistgenutzten Editor-Operationen. Für LOOPZE fehlt sie komplett, obwohl die Datenstruktur und der Engine-Skip-Pfad bereits vorbereitet sind.
+In Node-RED, `disable`/`enable` via properties panel and right-click is one of the most-used editor operations. For LOOPZE it is completely missing, even though the data structure and the engine skip path are already prepared.
 
-## Sichtweise / Begründung
+## View / rationale
 
-Die Vorarbeit existiert bereits — sowohl Backend als auch Frontend tragen das Feld bereits, ohne dass es im UI bedienbar wäre:
+The groundwork already exists — both backend and frontend already carry the field, only it isn't operable in the UI:
 
-- `internal/flow/types.go:80` — `Node.Disabled bool` mit JSON-Tag, Teil der Persistenz
-- `internal/flow/engine.go:465-468` — `instantiateNode` überspringt disabled Nodes vor Init/Start
-- `frontend/src/types/flow.ts:84` — `disabled?: boolean` im Node-Typ
-- `frontend/src/components/nodes/BaseNode.vue:25,42` — Prop `disabled?: boolean` deklariert, aber visuell unbenutzt
-- `internal/flow/diff.go` + `Engine.Deploy(..., DeployModifiedNodes)` — Partial Deploy stoppt/startet einzelne Nodes ohne Flow-Restart
+- `internal/flow/types.go:80` — `Node.Disabled bool` with JSON tag, part of persistence
+- `internal/flow/engine.go:465-468` — `instantiateNode` skips disabled nodes before Init/Start
+- `frontend/src/types/flow.ts:84` — `disabled?: boolean` in the node type
+- `frontend/src/components/nodes/BaseNode.vue:25,42` — prop `disabled?: boolean` declared but visually unused
+- `internal/flow/diff.go` + `Engine.Deploy(..., DeployModifiedNodes)` — partial deploy stops/starts individual nodes without flow restart
 
-Damit ist der Engine-Pfad sauber: Toggle der `Disabled`-Flag macht die Node beim nächsten Partial Deploy zur "modified node", `stopAndRemoveNodes` stoppt sie, `instantiateNode` überspringt sie. Kein neuer Lifecycle-Zweig nötig.
+This makes the engine path clean: toggling the `Disabled` flag turns the node into a "modified node" on the next partial deploy, `stopAndRemoveNodes` stops it, `instantiateNode` skips it. No new lifecycle branch needed.
 
-Was fehlt, ist die **UI-Bedienung**, die **visuelle Darstellung**, und das **saubere Routing-Verhalten** (keine Wire-Warnings für vorhersehbar fehlende Targets).
+What is missing is the **UI operation**, the **visual representation**, and the **clean routing behavior** (no wire warnings for predictably missing targets).
 
-## Anforderungen
+## Requirements
 
-### 1. Toggle im Properties-Panel
+### 1. Toggle in the properties panel
 
-Im Properties-Panel der ausgewählten Node erscheint **oberhalb** der typ-spezifischen Config-Sektion ein allgemeiner Bereich „Node" mit einer Checkbox `Enabled` (default `true`, gespiegelt zu `disabled === false`).
+In the properties panel of the selected node, a general "Node" area appears **above** the type-specific config section with a checkbox `Enabled` (default `true`, mirrored to `disabled === false`).
 
-- Toggle persistiert direkt in `node.disabled` über den Flow-Store (`flowStore.updateNode`)
-- Setzt die Node als `dirty` (existierender Mechanismus `dirtyNodeIds`), damit sie beim nächsten Deploy berücksichtigt wird
-- Auch vorhandene Felder wie `name` und (perspektivisch) `info` gehören in dieses allgemeine Properties-Segment — ein einzelner Toggle rechtfertigt keine eigene Sektion, aber als Aufhänger für künftige allgemeine Node-Eigenschaften ist die Stelle die richtige
+- Toggle persists directly to `node.disabled` via the flow store (`flowStore.updateNode`)
+- Marks the node as `dirty` (existing mechanism `dirtyNodeIds`) so it is considered on the next deploy
+- Existing fields like `name` and (prospectively) `info` also belong in this general properties segment — a single toggle does not justify its own section, but it is the right place as a hook for future general node properties
 
-### 2. Visuelle Darstellung am Node
+### 2. Visual representation on the node
 
-Eine deaktivierte Node muss auf den ersten Blick als solche erkennbar sein:
+A disabled node must be recognizable as such at a glance:
 
-| Element | Aktiv | Deaktiviert |
+| Element | Active | Disabled |
 |---|---|---|
-| Body-Opacity | `1.0` | `0.4` |
-| Border-Style | `solid` | `dashed` |
-| Status-Punkt | wie bisher | **ausgeblendet** (eine deaktivierte Node hat keinen Live-Status) |
-| Action/Toggle-Buttons | aktiv | gerendert, aber `pointer-events: none` und ebenfalls `opacity: 0.4` |
+| Body opacity | `1.0` | `0.4` |
+| Border style | `solid` | `dashed` |
+| Status dot | as before | **hidden** (a disabled node has no live status) |
+| Action/toggle buttons | active | rendered, but `pointer-events: none` and also `opacity: 0.4` |
 
-Die Werte werden in `BaseNode.vue` über die bereits vorhandene `disabled`-Prop konsumiert. Selektion und Highlight bleiben sichtbar — eine deaktivierte Node muss anwählbar bleiben, sonst kann sie nicht reaktiviert werden.
+The values are consumed in `BaseNode.vue` via the already-existing `disabled` prop. Selection and highlight remain visible — a disabled node must remain selectable, otherwise it cannot be re-enabled.
 
-### 3. Wire-Verhalten
+### 3. Wire behavior
 
-Eingehende Wires zu einer deaktivierten Node:
-- Backend: Messages werden im Engine-Routing **stillschweigend** verworfen (kein `slog.Warn`). Aktuell warnt `makeSendFunc` bei unbekannten Targets — das ist für vom Bediener bewusst deaktivierte Nodes Lärm.
-- Frontend: Wire bleibt sichtbar, aber gestrichelt und mit reduzierter Opacity (analog zur Node), damit die Unterbrechung im Flow erkennbar ist.
+Incoming wires to a disabled node:
+- Backend: messages are dropped **silently** in the engine routing (no `slog.Warn`). Currently `makeSendFunc` warns on unknown targets — that is noise for nodes the operator deliberately disabled.
+- Frontend: wire stays visible, but dashed and with reduced opacity (analogous to the node), so the break in the flow is recognizable.
 
-Ausgehende Wires einer deaktivierten Node sind belanglos — die Node läuft nicht, sie produziert keine Messages. Kein zusätzlicher Code.
+Outgoing wires of a disabled node are irrelevant — the node does not run, it produces no messages. No additional code.
 
-### 4. Keyboard-Shortcut
+### 4. Keyboard shortcut
 
-`Ctrl+E` / `Cmd+E` toggelt den `disabled`-Zustand der aktuell selektierten Node(s).
+`Ctrl+E` / `Cmd+E` toggles the `disabled` state of the currently selected node(s).
 
-**Bulk-Semantik bei Multi-Select:**
-- Sind **alle** selektierten Nodes aktiv → alle deaktivieren
-- Sind **alle** selektierten Nodes deaktiviert → alle aktivieren
-- **Gemischt** → alle aktivieren (das ist die geringst-überraschende Wahl: man kommt aus dem Mischzustand zuverlässig wieder raus, indem man zweimal drückt)
+**Bulk semantics on multi-select:**
+- If **all** selected nodes are active → disable all
+- If **all** selected nodes are disabled → enable all
+- **Mixed** → enable all (the least-surprising choice: you reliably get out of the mixed state by pressing twice)
 
-Der Shortcut wird in `FlowEditor.vue` analog zu den vorhandenen Ctrl+C/V/X/D-Bindings registriert — gleiche Skip-Logik bei Input/Textarea-Fokus.
+The shortcut is registered in `FlowEditor.vue` analogously to the existing Ctrl+C/V/X/D bindings — same skip logic on input/textarea focus.
 
-### 5. Beim Deploy
+### 5. On deploy
 
-Kein Sonderfall:
-- Modus `nodes` (Default): geänderte `disabled`-Flag macht die Node zur modifizierten Node, der bestehende `deployModifiedNodes`-Pfad erledigt Stop bzw. Start.
-- Modus `flows` / `full`: ohnehin alles neu — disabled Nodes werden beim Re-Instantiation übersprungen.
+No special case:
+- Mode `nodes` (default): a changed `disabled` flag turns the node into a modified node, the existing `deployModifiedNodes` path handles stop or start.
+- Mode `flows` / `full`: everything is recreated anyway — disabled nodes are skipped on re-instantiation.
 
-Es gibt **keinen** "Live-Disable"-Pfad, der die Node ohne Deploy aushebelt — Konsistenz mit dem Rest des Systems: Änderungen werden erst nach Deploy wirksam, der `dirty`-Indikator zeigt das an.
+There is **no** "live disable" path that disables the node without a deploy — consistency with the rest of the system: changes only take effect after deploy, the `dirty` indicator shows this.
 
-### 6. Persistenz und Workspace-Diff
+### 6. Persistence and workspace diff
 
-- Toggle erzeugt einen `dirty`-State im Frontend (`flowStore.markNodeDirty`)
-- `WorkspaceDiff.ModifiedNodes` enthält die Node, sobald `disabled` zwischen letztem deployten und aktuellem Stand abweicht — das fällt automatisch durch den existierenden Diff-Mechanismus, da `Disabled` Teil des Node-Hash ist, sofern dieser auf der vollen Struktur arbeitet. Falls der Diff aktuell nur `Config` hasht, muss `Disabled` hier mit aufgenommen werden — siehe Technische Skizze.
+- Toggle creates a `dirty` state in the frontend (`flowStore.markNodeDirty`)
+- `WorkspaceDiff.ModifiedNodes` contains the node as soon as `disabled` differs between the last deployed and current state — this falls out automatically through the existing diff mechanism, since `Disabled` is part of the node hash, provided it works on the full structure. If the diff currently only hashes `Config`, `Disabled` must be added here — see Technical sketch.
 
-## Technische Skizze
+## Technical sketch
 
 ### Backend — `internal/flow/engine.go`
 
-`makeSendFunc` (Z. 855-876): die `slog.Warn`-Zeile bei `targetNode == nil` differenziert behandeln. Variante: vor dem Loggen prüfen, ob das Target zur Engine-Wires-Map gehört, dort aber als `disabled` bekannt ist. Sauberer: in `wireAllNodes` die `targets`-Map nur mit aktiv laufenden Nodes befüllen (das ist sie de-facto schon, da disabled Nodes nicht in `e.nodes` landen), und die **Warning auf Debug-Level** runtersetzen — denn das Fehlen eines Targets ist bei aktiviertem Disable-Feature ein Normalfall, nicht Warnung-würdig:
+`makeSendFunc` (l. 855-876): handle the `slog.Warn` line on `targetNode == nil` differently. Variant: before logging, check whether the target belongs to the engine wires map, but is known there as `disabled`. Cleaner: in `wireAllNodes`, populate the `targets` map only with actively running nodes (which it de-facto already is, since disabled nodes don't end up in `e.nodes`), and **lower the warning to debug level** — because the absence of a target is a normal case with the disable feature enabled, not warning-worthy:
 
 ```go
 for _, targetID := range wires[port] {
@@ -100,25 +100,25 @@ for _, targetID := range wires[port] {
 }
 ```
 
-Falls echte "Wire ins Leere" (Frontend-Bug, korrupter Flow) später noch separat geloggt werden sollen, kann ein zweites Set `e.knownNodeIDs` (alle IDs aus dem Flow, auch disabled) helfen — das ist aber out of scope.
+If actual "wire into nothingness" (frontend bug, corrupt flow) should be logged separately later, a second set `e.knownNodeIDs` (all IDs from the flow, including disabled) can help — but that is out of scope.
 
 ### Backend — `internal/flow/diff.go`
 
-Sicherstellen, dass `Disabled` Bestandteil der Node-Vergleichslogik ist. Falls der bisherige Diff Nodes über JSON-Roundtrip oder Struct-Equality vergleicht, ist `Disabled` automatisch dabei (es ist ein exportiertes Feld). Falls er ausschließlich `Config` vergleicht, ergänzen.
+Ensure that `Disabled` is part of the node comparison logic. If the existing diff compares nodes via JSON roundtrip or struct equality, `Disabled` is automatically included (it is an exported field). If it compares only `Config`, add it.
 
 ### Backend — Tests (`internal/flow/engine_test.go`)
 
-| Test | Prüft |
+| Test | Verifies |
 |---|---|
-| `TestDisabledNodeNotInstantiated` | Flow mit `Node.Disabled = true` → Node nicht in `e.nodes` (existiert vermutlich schon implizit) |
-| `TestWireToDisabledTargetDropsSilently` | Aktive Source → disabled Target: keine Panic, keine Warning, Message verworfen |
-| `TestPartialDeployDisableStopsRunningNode` | Node läuft → Deploy mit `Disabled: true` (`DeployModifiedNodes`) → Node-Goroutine beendet |
-| `TestPartialDeployEnableStartsNode` | Node ist disabled, Deploy mit `Disabled: false` → Node läuft, empfängt Messages |
-| `TestDisableMidFlowDoesNotKillUpstream` | Mittlere Node von 3-Hop-Flow disablen → erste Node läuft weiter, dritte erhält keine Messages |
+| `TestDisabledNodeNotInstantiated` | Flow with `Node.Disabled = true` → node not in `e.nodes` (probably already exists implicitly) |
+| `TestWireToDisabledTargetDropsSilently` | Active source → disabled target: no panic, no warning, message dropped |
+| `TestPartialDeployDisableStopsRunningNode` | Node runs → deploy with `Disabled: true` (`DeployModifiedNodes`) → node goroutine ends |
+| `TestPartialDeployEnableStartsNode` | Node is disabled, deploy with `Disabled: false` → node runs, receives messages |
+| `TestDisableMidFlowDoesNotKillUpstream` | Disable middle node of a 3-hop flow → first node still runs, third gets no messages |
 
 ### Frontend — `frontend/src/components/PropertyPanel.vue`
 
-Neue Sektion oberhalb des typ-spezifischen Editors:
+New section above the type-specific editor:
 
 ```
 ┌────────────────────────────────┐
@@ -128,11 +128,11 @@ Neue Sektion oberhalb des typ-spezifischen Editors:
 └────────────────────────────────┘
 ```
 
-`Name` existiert vermutlich schon als Edit-Feld irgendwo — wenn ja, bleibt er dort und nur die Checkbox kommt neu. Die Checkbox bindet auf `!nodeData.disabled` und ruft beim Toggle `flowStore.updateNode(nodeId, { disabled: <bool> })`.
+`Name` probably already exists as an edit field somewhere — if so, it stays there and only the checkbox is added. The checkbox binds to `!nodeData.disabled` and on toggle calls `flowStore.updateNode(nodeId, { disabled: <bool> })`.
 
 ### Frontend — `frontend/src/components/nodes/BaseNode.vue`
 
-Bestehende `disabled`-Prop (Z. 25, 42) wird visuell genutzt:
+Existing `disabled` prop (l. 25, 42) is used visually:
 
 ```vue
 <div
@@ -142,7 +142,7 @@ Bestehende `disabled`-Prop (Z. 25, 42) wird visuell genutzt:
 >
 ```
 
-Im Style-Block:
+In the style block:
 
 ```css
 .node-body--disabled {
@@ -154,15 +154,15 @@ Im Style-Block:
 .node-body--disabled .toggle-btn { pointer-events: none; }
 ```
 
-Die Prop wird in den konkreten Node-Komponenten (`MqttInNode.vue`, `InjectNode.vue`, etc.) durchgereicht — bei den meisten passiert das schon implizit über `v-bind="$props"` an `<BaseNode>`. Wo das fehlt, ergänzen.
+The prop is passed through in the concrete node components (`MqttInNode.vue`, `InjectNode.vue`, etc.) — for most this happens implicitly via `v-bind="$props"` to `<BaseNode>`. Where it is missing, add it.
 
-### Frontend — Wire-Styling
+### Frontend — wire styling
 
-In der Vue-Flow-Edge-Konfiguration (vermutlich `FlowEditor.vue` oder eine `customEdges`-Datei) Edges, deren Source **oder** Target eine disabled Node ist, mit `stroke-dasharray: 4 4` und reduzierter Opacity rendern. Computed über `flowStore.activeNodes` als Lookup.
+In the Vue Flow edge configuration (presumably `FlowEditor.vue` or a `customEdges` file), render edges whose source **or** target is a disabled node with `stroke-dasharray: 4 4` and reduced opacity. Computed via `flowStore.activeNodes` as a lookup.
 
-### Frontend — Keyboard-Shortcut (`frontend/src/views/FlowEditor.vue`)
+### Frontend — keyboard shortcut (`frontend/src/views/FlowEditor.vue`)
 
-Ergänzen im bestehenden `keydown`-Handler (Z. 134-172):
+Add to the existing `keydown` handler (l. 134-172):
 
 ```ts
 case 'e': {
@@ -172,7 +172,7 @@ case 'e': {
   const nodes = ids.map(id => flowStore.getNode(id)).filter(Boolean)
   const allDisabled = nodes.every(n => n.disabled)
   const target = !allDisabled ? true : false
-  // wenn alle gleich: kippen; wenn gemischt: auf "false" (alle aktivieren) — siehe Anforderung
+  // if all equal: flip; if mixed: to "false" (enable all) — see requirement
   const next = nodes.every(n => !!n.disabled === !!nodes[0].disabled)
     ? !nodes[0].disabled
     : false
@@ -181,9 +181,9 @@ case 'e': {
 }
 ```
 
-### Frontend — Store-Helper (`frontend/src/stores/flowStore.ts`)
+### Frontend — store helper (`frontend/src/stores/flowStore.ts`)
 
-Falls `updateNode` noch nicht existiert oder zu generisch ist, eine konkrete Methode:
+If `updateNode` doesn't exist yet or is too generic, a concrete method:
 
 ```ts
 function setNodeDisabled(nodeId: string, disabled: boolean) {
@@ -195,41 +195,41 @@ function setNodeDisabled(nodeId: string, disabled: boolean) {
 }
 ```
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/flow/engine.go` — `makeSendFunc`: Warning auf Debug-Level für nicht-aktive Targets
-- `internal/flow/diff.go` — sicherstellen, dass `Disabled` Bestandteil des Node-Diffs ist (ggf. Anpassung)
-- `internal/flow/engine_test.go` — neue Tests (siehe Tabelle oben)
+- `internal/flow/engine.go` — `makeSendFunc`: warning to debug level for non-active targets
+- `internal/flow/diff.go` — ensure `Disabled` is part of the node diff (adjust if needed)
+- `internal/flow/engine_test.go` — new tests (see table above)
 
 ### Frontend
-- `frontend/src/components/PropertyPanel.vue` — neue „Node"-Sektion mit Enabled-Checkbox
-- `frontend/src/components/nodes/BaseNode.vue` — visuelles Styling für `disabled`
-- `frontend/src/components/nodes/*.vue` — Sicherstellen, dass `disabled` an `BaseNode` durchgereicht wird (sofern nicht via `$props`)
-- `frontend/src/views/FlowEditor.vue` — Ctrl+E Shortcut, Edge-Styling für disabled Endpunkte
-- `frontend/src/stores/flowStore.ts` — `setNodeDisabled` Helper, falls nicht über generisches `updateNode` lösbar
-- `frontend/src/components/help/docs.ts` — kurzer Hinweis im allgemeinen Editor-Hilfeeintrag, dass `Ctrl+E` Nodes ein-/ausschaltet
+- `frontend/src/components/PropertyPanel.vue` — new "Node" section with Enabled checkbox
+- `frontend/src/components/nodes/BaseNode.vue` — visual styling for `disabled`
+- `frontend/src/components/nodes/*.vue` — ensure `disabled` is passed through to `BaseNode` (if not via `$props`)
+- `frontend/src/views/FlowEditor.vue` — Ctrl+E shortcut, edge styling for disabled endpoints
+- `frontend/src/stores/flowStore.ts` — `setNodeDisabled` helper, if not solvable via generic `updateNode`
+- `frontend/src/components/help/docs.ts` — short hint in the general editor help entry that `Ctrl+E` toggles nodes
 
-### Doku
-- `docs/MISSING_FUNCTIONALITY.md` — Eintrag „Node Enable/Disable" auf erledigt setzen, Link auf dieses Issue
+### Docs
+- `docs/MISSING_FUNCTIONALITY.md` — set "Node Enable/Disable" entry to done, link to this issue
 
-## Abhängigkeiten
+## Dependencies
 
-- **Partial Deploy** (`DeployModifiedNodes`) muss laufen — ist erledigt (`internal/flow/diff.go`, Z. 369ff.)
-- **Multi-Select** im Frontend — vorhanden (`flowStore.selectedNodeIds`)
-- **Dirty-Tracking** — vorhanden (`dirtyNodeIds`)
-- Keine neuen externen Abhängigkeiten
+- **Partial deploy** (`DeployModifiedNodes`) must work — done (`internal/flow/diff.go`, l. 369ff.)
+- **Multi-select** in the frontend — present (`flowStore.selectedNodeIds`)
+- **Dirty tracking** — present (`dirtyNodeIds`)
+- No new external dependencies
 
-## Out of Scope für Phase 1
+## Out of scope for phase 1
 
-- **Kontextmenü (Rechtsklick)** mit „Disable selected" / „Enable selected" — kein Kontextmenü-System im Editor existiert. Eigenes Issue, weil eigenes UX-Subsystem (Menü-Komponente, Positionierung, Schließverhalten, weitere Einträge wie Copy/Paste/Delete).
-- **Bypass-Mode** (Messages durch deaktivierte Node *durchreichen* statt droppen) — semantisch kontrovers (Output-Port-Mapping bei mehreren Inputs/Outputs?). Erst implementieren, wenn ein realer Use-Case kommt.
-- **Disabled für einzelne Wires** — Node-RED hat das nicht, wir auch nicht.
-- **Disabled-Status im Status-Cache** — eine deaktivierte Node hat keinen Live-Status; der letzte vor dem Disable bekannte Status wird beim Stop ohnehin verworfen, das ist konsistent.
-- **Flow-weiter Toggle in der Tab-Leiste** — `Flow.Disabled` existiert auf Datenebene; das UI dafür ist eigene Sache (Tab-Kontextmenü o.ä.).
-- **Per-Subflow-Instanz Toggle** — Subflows existieren noch nicht.
+- **Context menu (right-click)** with "Disable selected" / "Enable selected" — no context menu system exists in the editor. Own issue, because own UX subsystem (menu component, positioning, close behavior, additional entries like Copy/Paste/Delete).
+- **Bypass mode** (passing messages *through* a disabled node instead of dropping) — semantically controversial (output port mapping with multiple inputs/outputs?). Implement only when a real use case appears.
+- **Disabled for individual wires** — Node-RED doesn't have it, neither do we.
+- **Disabled status in the status cache** — a disabled node has no live status; the last status known before disable is discarded on stop anyway, that is consistent.
+- **Flow-wide toggle in the tab bar** — `Flow.Disabled` exists at the data level; the UI for it is its own thing (tab context menu etc.).
+- **Per-subflow-instance toggle** — subflows don't exist yet.
 
-## Offene Fragen
+## Open questions
 
-- **Soll der `dirty`-State beim Toggle auch optisch markiert werden** (z.B. blinkender Punkt), oder reicht der bestehende Indikator? → Bestehender Indikator reicht, keine Sonderbehandlung.
-- **Sollen disabled Nodes von den Status-Aggregationen** (Status Node, Catch Node) ignoriert werden? → Ja, automatisch — sie laufen nicht und erzeugen keine Status/Error-Events. Kein zusätzlicher Code nötig.
+- **Should the `dirty` state on toggle also be visually marked** (e.g. blinking dot), or is the existing indicator sufficient? → existing indicator is sufficient, no special handling.
+- **Should disabled nodes be ignored by status aggregations** (Status node, Catch node)? → yes, automatically — they don't run and produce no status/error events. No additional code needed.

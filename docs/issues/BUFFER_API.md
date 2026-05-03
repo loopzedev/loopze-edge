@@ -1,36 +1,36 @@
-# Issue: Buffer API — Byte-Manipulation fuer Function Node und Backend-Connectoren
+# Issue: Buffer API — Byte Manipulation for Function Node and Backend Connectors
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem Description
 
-In der industriellen Automatisierung kommunizieren SPSen, Modbus-Geraete und OPC-UA-Server ueber **Byte-Arrays**. Temperaturwerte stecken als Float32 in Register 0-1, Druckwerte als UInt16 in Register 2, Statusbits in einzelnen Bytes. Node.js bietet dafuer die `Buffer`-Klasse — in Node-RED ist sie allgegenwaertig.
+In industrial automation, PLCs, Modbus devices, and OPC UA servers communicate via **byte arrays**. Temperature values are stored as Float32 in registers 0-1, pressure values as UInt16 in register 2, status bits in individual bytes. Node.js provides the `Buffer` class for this purpose — in Node-RED it is ubiquitous.
 
-LOOPZE nutzt Goja (Go-native JS Engine) fuer den Function Node. Goja hat kein `Buffer`. Ohne Buffer-API koennen Anwender keine Byte-Daten aus Industrie-Connectoren (Modbus, S7, OPC-UA) im Function Node verarbeiten.
+LOOPZE uses Goja (Go-native JS engine) for the Function node. Goja has no `Buffer`. Without a Buffer API, users cannot process byte data from industrial connectors (Modbus, S7, OPC UA) in the Function node.
 
-## Architektur: Shared Go Package + JS Wrapper
+## Architecture: Shared Go Package + JS Wrapper
 
-Die Buffer-Implementierung lebt als **Go Package `internal/buffer`** und wird an zwei Stellen exponiert:
+The Buffer implementation lives as a **Go package `internal/buffer`** and is exposed in two places:
 
 ```
-internal/buffer/buffer.go              ← Go API (eine Implementation)
-         │
-         ├─→ internal/nodes/function.go    ← JS-Global "Buffer" via Goja Wrapper
-         │     var buf = Buffer.from(msg.payload);
-         │     msg.temp = buf.readFloatBE(0);
-         │
-         └─→ internal/nodes/modbus_read.go ← Go-Nodes nutzen buffer.Buffer direkt
+internal/buffer/buffer.go              <- Go API (single implementation)
+         |
+         +-> internal/nodes/function.go    <- JS global "Buffer" via Goja wrapper
+         |     var buf = Buffer.from(msg.payload);
+         |     msg.temp = buf.readFloatBE(0);
+         |
+         +-> internal/nodes/modbus_read.go <- Go nodes use buffer.Buffer directly
                buf := buffer.From(responseBytes)
                temp := buf.ReadFloatBE(0)
 ```
 
-**Vorteil**: Eine Implementation, zwei Zugangswege. Gleiche Methoden, gleiche Byte-Reihenfolge, gleiche Ergebnisse — egal ob Go oder JS. Verhindert subtile Endianness-Bugs zwischen Connector und Function Node.
+**Advantage**: One implementation, two access paths. Same methods, same byte order, same results — whether Go or JS. Prevents subtle endianness bugs between connector and Function node.
 
-## Anforderungen
+## Requirements
 
 ### 1. Go Package `internal/buffer`
 
-Struct `Buffer` mit `[]byte` als Backing Store. Alle Methoden arbeiten auf dem selben Slice (kein Kopieren bei Read).
+Struct `Buffer` with `[]byte` as backing store. All methods operate on the same slice (no copying on read).
 
 ```go
 package buffer
@@ -47,32 +47,32 @@ func FromBase64(b64 string) (*Buffer, error)
 func Concat(buffers ...*Buffer) *Buffer
 ```
 
-Intern nutzt das Package `encoding/binary` (BigEndian/LittleEndian) und `math` (Float32frombits, Float64frombits) — keine externen Dependencies.
+Internally the package uses `encoding/binary` (BigEndian/LittleEndian) and `math` (Float32frombits, Float64frombits) — no external dependencies.
 
-### 2. JS API im Function Node
+### 2. JS API in the Function Node
 
-Der Function Node registriert `Buffer` als Global in der Goja VM. Die API ist **kompatibel mit Node.js Buffer**, sodass bestehende Node-RED Snippets uebernommen werden koennen.
+The Function node registers `Buffer` as a global in the Goja VM. The API is **compatible with Node.js Buffer**, so existing Node-RED snippets can be reused.
 
-#### 2.1 Erstellen
+#### 2.1 Creating
 
 ```javascript
-var buf = Buffer.alloc(10);                    // 10 Bytes, mit 0 gefuellt
-var buf = Buffer.from([0x48, 0x65, 0x6C]);     // aus Byte-Array
-var buf = Buffer.from("Hello");                // aus String (UTF-8)
-var buf = Buffer.from("48656c6c6f", "hex");    // aus Hex-String
-var buf = Buffer.from("SGVsbG8=", "base64");   // aus Base64
-Buffer.concat([buf1, buf2]);                   // zusammenfuegen
+var buf = Buffer.alloc(10);                    // 10 bytes, filled with 0
+var buf = Buffer.from([0x48, 0x65, 0x6C]);     // from byte array
+var buf = Buffer.from("Hello");                // from string (UTF-8)
+var buf = Buffer.from("48656c6c6f", "hex");    // from hex string
+var buf = Buffer.from("SGVsbG8=", "base64");   // from base64
+Buffer.concat([buf1, buf2]);                   // concatenate
 ```
 
 #### 2.2 Properties
 
 ```javascript
-buf.length;    // Anzahl Bytes (read-only)
+buf.length;    // number of bytes (read-only)
 ```
 
-#### 2.3 Lesen — Integer
+#### 2.3 Read — Integer
 
-| Methode | Bytes | Vorzeichen | Endianness |
+| Method | Bytes | Sign | Endianness |
 |---|---|---|---|
 | `buf.readUInt8([offset])` | 1 | unsigned | — |
 | `buf.readInt8([offset])` | 1 | signed | — |
@@ -93,18 +93,18 @@ buf.length;    // Anzahl Bytes (read-only)
 | `buf.readIntBE(offset, byteLength)` | 1-6 | signed | Big Endian |
 | `buf.readIntLE(offset, byteLength)` | 1-6 | signed | Little Endian |
 
-#### 2.4 Lesen — Gleitkomma
+#### 2.4 Read — Floating Point
 
-| Methode | Bytes | Typ | Endianness |
+| Method | Bytes | Type | Endianness |
 |---|---|---|---|
 | `buf.readFloatBE([offset])` | 4 | IEEE 754 float32 | Big Endian |
 | `buf.readFloatLE([offset])` | 4 | IEEE 754 float32 | Little Endian |
 | `buf.readDoubleBE([offset])` | 8 | IEEE 754 float64 | Big Endian |
 | `buf.readDoubleLE([offset])` | 8 | IEEE 754 float64 | Little Endian |
 
-#### 2.5 Schreiben — Integer
+#### 2.5 Write — Integer
 
-| Methode | Bytes | Vorzeichen | Endianness |
+| Method | Bytes | Sign | Endianness |
 |---|---|---|---|
 | `buf.writeUInt8(value[, offset])` | 1 | unsigned | — |
 | `buf.writeInt8(value[, offset])` | 1 | signed | — |
@@ -125,83 +125,83 @@ buf.length;    // Anzahl Bytes (read-only)
 | `buf.writeIntBE(value, offset, byteLength)` | 1-6 | signed | Big Endian |
 | `buf.writeIntLE(value, offset, byteLength)` | 1-6 | signed | Little Endian |
 
-#### 2.6 Schreiben — Gleitkomma
+#### 2.6 Write — Floating Point
 
-| Methode | Bytes | Typ | Endianness |
+| Method | Bytes | Type | Endianness |
 |---|---|---|---|
 | `buf.writeFloatBE(value[, offset])` | 4 | IEEE 754 float32 | Big Endian |
 | `buf.writeFloatLE(value[, offset])` | 4 | IEEE 754 float32 | Little Endian |
 | `buf.writeDoubleBE(value[, offset])` | 8 | IEEE 754 float64 | Big Endian |
 | `buf.writeDoubleLE(value[, offset])` | 8 | IEEE 754 float64 | Little Endian |
 
-#### 2.7 Byte-Swap
+#### 2.7 Byte Swap
 
-| Methode | Beschreibung |
+| Method | Description |
 |---|---|
-| `buf.swap16()` | Tauscht Byte-Reihenfolge in 16-Bit Paaren (ABCD → BADC) |
-| `buf.swap32()` | Tauscht Byte-Reihenfolge in 32-Bit Gruppen (ABCD → DCBA) |
-| `buf.swap64()` | Tauscht Byte-Reihenfolge in 64-Bit Gruppen |
+| `buf.swap16()` | Swaps byte order in 16-bit pairs (ABCD -> BADC) |
+| `buf.swap32()` | Swaps byte order in 32-bit groups (ABCD -> DCBA) |
+| `buf.swap64()` | Swaps byte order in 64-bit groups |
 
-Swap-Methoden sind kritisch fuer Modbus-Geraete die "mid-endian" (CDAB) Byte-Reihenfolge verwenden — ein haeufiges Problem in der Praxis.
+Swap methods are critical for Modbus devices that use "mid-endian" (CDAB) byte order — a common real-world problem.
 
-#### 2.8 Konvertieren
+#### 2.8 Convert
 
 ```javascript
-buf.toString()            // → UTF-8 String
-buf.toString("hex")       // → "48656c6c6f"
-buf.toString("base64")    // → "SGVsbG8="
-buf.toJSON()              // → [72, 101, 108, 108, 111]
-buf.slice(start, end)     // → neuer Buffer (Kopie)
+buf.toString()            // -> UTF-8 string
+buf.toString("hex")       // -> "48656c6c6f"
+buf.toString("base64")    // -> "SGVsbG8="
+buf.toJSON()              // -> [72, 101, 108, 108, 111]
+buf.slice(start, end)     // -> new Buffer (copy)
 buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])
 ```
 
-### 3. Praxisbeispiel: Modbus Register parsen
+### 3. Real-World Example: Parse Modbus Registers
 
 ```javascript
-// SPS liefert 8 Bytes aus Holding Registers 0-3
+// PLC delivers 8 bytes from holding registers 0-3
 var buf = Buffer.from(msg.payload);
 
 msg.payload = {
-    temperature: buf.readFloatBE(0),     // Register 0-1: Temperatur (°C)
-    pressure:    buf.readUInt16BE(4),     // Register 2: Druck (mbar)
-    status:      buf.readUInt8(6),        // Register 3 high byte: Status
-    errorCode:   buf.readUInt8(7),        // Register 3 low byte: Fehlercode
+    temperature: buf.readFloatBE(0),     // register 0-1: temperature (degC)
+    pressure:    buf.readUInt16BE(4),     // register 2: pressure (mbar)
+    status:      buf.readUInt8(6),        // register 3 high byte: status
+    errorCode:   buf.readUInt8(7),        // register 3 low byte: error code
 };
 
 return msg;
 ```
 
-### 4. Praxisbeispiel: Steuerbefehl an SPS senden
+### 4. Real-World Example: Send Control Command to PLC
 
 ```javascript
-// 6 Bytes Steuerbefehl zusammenbauen
+// assemble 6-byte control command
 var buf = Buffer.alloc(6);
 
-buf.writeUInt16BE(msg.payload.setpoint, 0);  // Register 0: Sollwert
-buf.writeUInt16BE(msg.payload.speed, 2);     // Register 1: Drehzahl
-buf.writeUInt8(msg.payload.mode, 4);         // Register 2 high: Betriebsart
-buf.writeUInt8(msg.payload.command, 5);      // Register 2 low: Kommando
+buf.writeUInt16BE(msg.payload.setpoint, 0);  // register 0: setpoint
+buf.writeUInt16BE(msg.payload.speed, 2);     // register 1: speed
+buf.writeUInt8(msg.payload.mode, 4);         // register 2 high: operating mode
+buf.writeUInt8(msg.payload.command, 5);      // register 2 low: command
 
-msg.payload = buf.toJSON();  // als Byte-Array weiterleiten
+msg.payload = buf.toJSON();  // forward as byte array
 return msg;
 ```
 
-## Betroffene Dateien
+## Affected Files
 
-### Neue Dateien
+### New Files
 
-- `internal/buffer/buffer.go` — Go Buffer Implementation mit allen Read/Write/Swap/Convert Methoden
-- `internal/buffer/buffer_test.go` — Umfangreiche Tests inkl. Endianness-Verifikation
+- `internal/buffer/buffer.go` — Go Buffer implementation with all read/write/swap/convert methods
+- `internal/buffer/buffer_test.go` — Comprehensive tests including endianness verification
 
-### Geaenderte Dateien
+### Changed Files
 
-- `internal/nodes/function.go` — `registerGlobals()` erweitern: `Buffer` Objekt mit `alloc`, `from`, `concat` als Static Methods und alle Instanz-Methoden auf dem Goja-Prototype registrieren
+- `internal/nodes/function.go` — extend `registerGlobals()`: register `Buffer` object with `alloc`, `from`, `concat` as static methods and all instance methods on the Goja prototype
 
-## Technische Hinweise
+## Technical Notes
 
-### Go-Implementation
+### Go Implementation
 
-Alle Read/Write Methoden nutzen `encoding/binary`:
+All read/write methods use `encoding/binary`:
 
 ```go
 func (b *Buffer) ReadUInt16BE(offset int) uint16 {
@@ -245,14 +245,14 @@ func (n *FunctionNode) wrapBuffer(buf *buffer.Buffer) goja.Value {
     _ = obj.Set("length", buf.Length())
     _ = obj.Set("readUInt8", func(call goja.FunctionCall) goja.Value { ... })
     _ = obj.Set("readUInt16BE", func(call goja.FunctionCall) goja.Value { ... })
-    // ... alle Methoden
+    // ... all methods
     return obj
 }
 ```
 
 ### Bounds Checking
 
-Alle Read/Write Methoden muessen den Offset pruefen und einen JS-Error werfen wenn out-of-bounds:
+All read/write methods must check the offset and throw a JS error when out-of-bounds:
 
 ```go
 func (b *Buffer) ReadUInt16BE(offset int) (uint16, error) {
@@ -265,13 +265,13 @@ func (b *Buffer) ReadUInt16BE(offset int) (uint16, error) {
 
 ### BigInt64 Handling
 
-Goja unterstuetzt kein natives BigInt. Fuer `readBigInt64BE`/`readBigUInt64BE` gibt es zwei Optionen:
-- **Option A**: Als `float64` zurueckgeben (verliert Praezision bei Werten > 2^53)
-- **Option B**: Als String zurueckgeben ("`9223372036854775807`")
+Goja does not support native BigInt. For `readBigInt64BE`/`readBigUInt64BE` there are two options:
+- **Option A**: return as `float64` (loses precision for values > 2^53)
+- **Option B**: return as string ("`9223372036854775807`")
 
-**Empfehlung: Option A** fuer die meisten Faelle, da 64-Bit Zaehler in der SPS-Welt selten die float64-Grenze ueberschreiten. Dokumentieren dass Praezisionsverlust bei sehr grossen Werten moeglich ist.
+**Recommendation: Option A** for most cases, since 64-bit counters in the PLC world rarely exceed the float64 limit. Document that precision loss is possible for very large values.
 
-## Abhaengigkeiten
+## Dependencies
 
-- Keine externen Go-Dependencies (nur `encoding/binary`, `encoding/hex`, `encoding/base64`, `math`)
-- Wird von zukuenftigen Industrie-Connectoren (Modbus, S7, OPC-UA) direkt als Go-Package genutzt
+- No external Go dependencies (only `encoding/binary`, `encoding/hex`, `encoding/base64`, `math`)
+- Will be used directly as a Go package by future industrial connectors (Modbus, S7, OPC UA)

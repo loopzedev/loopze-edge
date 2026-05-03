@@ -2,77 +2,77 @@
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem description
 
-Der heutige Function-Node nutzt Goja (pure-Go JS-Interpreter, kein JIT). Für Logic-und-Glue ist das ideal — kompakt, sicher, single-binary. Für **datenbatch-orientierte Use-Cases** (10k+ Records aggregieren, binäres Parsen, Pipeline-Transforms) ist Goja aber spürbar langsam: gemessen ~100× langsamer als nativer Go-Code, mit ~11.000 Allokationen pro 1k-Record-Operation. Wenn jemand 10k Messages pro Sekunde durch komplexen Function-Code schiebt, wird der Function-Node zum Bottleneck.
+Today's Function node uses Goja (pure-Go JS interpreter, no JIT). For logic-and-glue this is ideal — compact, safe, single-binary. For **data-batch-oriented use cases** (aggregating 10k+ records, binary parsing, pipeline transforms), Goja is noticeably slow: measured at ~100x slower than native Go code, with ~11,000 allocations per 1k-record operation. If someone pushes 10k messages per second through complex Function code, the Function node becomes the bottleneck.
 
-Der Plan: **drei spezialisierte Function-Node-Typen** mit klar getrennten Zielgruppen, plus expr als inline-Tool im bestehenden Change-Node für einfache property-mutationen.
+The plan: **three specialized Function node types** with clearly separated target users, plus expr as an inline tool in the existing Change node for simple property mutations.
 
-**Scope**: Architektur, neue Nodes und Change-Node-Erweiterung. v3-MQTT-Style-Themen wie Sandboxing-Hardening, Resource-Limits oder Hot-Reload sind ausdrücklich nicht hier.
+**Scope**: architecture, new nodes, and the Change node extension. v3-MQTT-style topics like sandboxing hardening, resource limits, or hot reload are explicitly not in scope here.
 
-## Übersicht
+## Overview
 
-| Node | Type-ID | Engine | Use-Case | Performance ggü. nativem Go |
+| Node | Type ID | Engine | Use case | Performance vs. native Go |
 |---|---|---|---|---|
-| **Function** (existing) | `function` | Goja (JS) | Logik, Glue, allgemeiner Code | ~100× langsamer |
-| **Expr Function** (new) | `function-expr` | expr-lang/expr | Pipeline-Transforms, Aggregate, Filter | ~30-50× langsamer |
-| **Go Function** (new) | `function-go` | traefik/yaegi | Algorithmen, Batch-Code, binäres Parsen | ~3-25× langsamer |
-| **Change** (extended) | `change` | + expr-Resolver | Inline-Expressions in Property-Rules | n/a |
+| **Function** (existing) | `function` | Goja (JS) | Logic, glue, general code | ~100x slower |
+| **Expr Function** (new) | `function-expr` | expr-lang/expr | Pipeline transforms, aggregates, filters | ~30-50x slower |
+| **Go Function** (new) | `function-go` | traefik/yaegi | Algorithms, batch code, binary parsing | ~3-25x slower |
+| **Change** (extended) | `change` | + expr resolver | Inline expressions in property rules | n/a |
 
-Die Performance-Zahlen stammen aus dem Benchmark in `benchmark/bench_test.go` (1k–100k Records, map- und typed-Shapes, AMD Ryzen 7 5800H).
+The performance numbers come from the benchmark in `benchmark/bench_test.go` (1k–100k records, map and typed shapes, AMD Ryzen 7 5800H).
 
-## Anforderungen
+## Requirements
 
-### 1. Architektur — `internal/scripting` Package
+### 1. Architecture — `internal/scripting` package
 
-Drei verschiedene Engines mit ähnlichem Compile-Then-Run-Lifecycle, aber unterschiedlichen Idiomen (JS-Function vs Pipeline-Expression vs Go-Function). Statt einer großen abstrakten Engine-Schnittstelle, die auf den kleinsten gemeinsamen Nenner reduziert, nehmen wir den **pragmatischen Mittelweg**:
+Three different engines with a similar compile-then-run lifecycle, but different idioms (JS function vs pipeline expression vs Go function). Instead of one large abstract engine interface that reduces everything to the lowest common denominator, we take the **pragmatic middle ground**:
 
-- Geteilte **Utilities** in `internal/scripting`: Konvertierung von `flow.Message` ↔ Engine-Env, Buffer-`[]int` ↔ `[]byte` Bridges
-- **Pro Engine** ein eigenes Sub-Package mit einer Engine-spezifischen Implementierung — nicht hinter einem gemeinsamen Interface zusammengeklemmt
-- Jeder Function-Node hat seinen eigenen Code-Pfad und nutzt das Sub-Package seiner Engine
+- Shared **utilities** in `internal/scripting`: conversion of `flow.Message` <-> engine env, buffer `[]int` <-> `[]byte` bridges
+- **Per engine** a dedicated sub-package with an engine-specific implementation — not clamped together behind a common interface
+- Each Function node has its own code path and uses the sub-package of its engine
 
 ```
 internal/scripting/
   ├─ scripting.go          # MessageEnv, MessageFromEnv, BufferToInts, IntsToBuffer
   ├─ goja/
-  │  └─ engine.go          # Goja-Wrapper (extrahiert aus aktuellem function*.go)
+  │  └─ engine.go          # Goja wrapper (extracted from current function*.go)
   ├─ expr/
-  │  └─ engine.go          # expr-Wrapper, Compile-At-Deploy
+  │  └─ engine.go          # expr wrapper, compile-at-deploy
   └─ yaegi/
-     └─ engine.go          # Yaegi-Wrapper, Funktion-Reflection
+     └─ engine.go          # Yaegi wrapper, function reflection
 ```
 
-Begründung: die drei Engines unterscheiden sich semantisch zu sehr für ein gemeinsames Interface (Goja: Function mit Side-Effects via `node.send`; expr: Single-Expression mit Return-Value; Yaegi: Go-Function mit reflektierter Signatur). Eine gemeinsame Schnittstelle würde alle drei zwingen, sich auf den Goja-Kompromiss runterzuziehen.
+Rationale: the three engines differ semantically too much for a common interface (Goja: function with side effects via `node.send`; expr: single expression with return value; Yaegi: Go function with reflected signature). A common interface would force all three to be dragged down to the Goja compromise.
 
-### 2. Compile-At-Deploy für alle Engines
+### 2. Compile-at-deploy for all engines
 
-Heute compiled der Goja-Function-Node bereits in `Start()` (siehe `internal/nodes/function.go:108-124`). Das wird das Pattern für alle drei Engines:
+Today the Goja Function node already compiles in `Start()` (see `internal/nodes/function.go:108-124`). That becomes the pattern for all three engines:
 
-- **Init/Start des Nodes** → Engine-spezifischer Compile (`goja.Compile`, `expr.Compile`, `yaegi.Eval`)
-- **Compile-Errors werden Deploy-Errors** — der Node geht in Status "rot" mit der Fehlermeldung
-- **Pro Message** nur noch Run/Call — keine Parsing-/Compile-Kosten
+- **Init/Start of the node** -> engine-specific compile (`goja.Compile`, `expr.Compile`, `yaegi.Eval`)
+- **Compile errors become deploy errors** — the node goes into status "red" with the error message
+- **Per message** only run/call — no parsing/compile cost
 
-Wichtige UX-Konsequenz: Tippfehler im User-Code zeigen sich beim Deploy, nicht erst bei der ersten Message. Bei expr und Yaegi (statisch typisiert) gilt das auch für Type-Mismatches im deklarierten Env.
+Important UX consequence: typos in user code show up at deploy, not on the first message. With expr and Yaegi (statically typed), this also applies to type mismatches in the declared env.
 
 ### 3. Expr Function Node (`function-expr`)
 
-#### Zweck
+#### Purpose
 
-Pipeline-Style-Transformationen — `map`/`filter`/`reduce`/`sum` über Listen, conditional Object-Construction, simple Aggregate. Idiomatisch eine einzige Expression, kein Control-Flow, keine Mutationen.
+Pipeline-style transformations — `map`/`filter`/`reduce`/`sum` over lists, conditional object construction, simple aggregates. Idiomatically a single expression, no control flow, no mutations.
 
-#### Konfiguration
+#### Configuration
 
-- `expression` (string) — die expr-Expression. Operiert auf einem Env mit:
-  - `payload` — der `msg.payload` der eingehenden Message
-  - `topic` — der `msg.topic`
-  - `msg` — die komplette Message als Map (Escape-Hatch für Felder außerhalb von payload/topic)
-- `outputProperty` (string, default `"payload"`) — auf welches Message-Feld das Ergebnis geschrieben wird
-- `passThrough` (boolean, default `false`) — wenn `true`, bleibt die ursprüngliche Message erhalten und nur `outputProperty` wird überschrieben; wenn `false`, wird eine neue Message mit nur dem Result + `topic` ausgegeben
+- `expression` (string) — the expr expression. Operates on an env with:
+  - `payload` — the `msg.payload` of the incoming message
+  - `topic` — the `msg.topic`
+  - `msg` — the complete message as a map (escape hatch for fields outside payload/topic)
+- `outputProperty` (string, default `"payload"`) — which message field the result is written to
+- `passThrough` (boolean, default `false`) — if `true`, the original message is preserved and only `outputProperty` is overwritten; if `false`, a new message with only the result + `topic` is emitted
 
-#### Beispiele
+#### Examples
 
 ```javascript
-// Filter und Aggregate über Sensor-Readings
+// Filter and aggregate over sensor readings
 {
     avg: mean(map(payload, .temperature)),
     max: max(map(payload, .temperature)),
@@ -81,16 +81,16 @@ Pipeline-Style-Transformationen — `map`/`filter`/`reduce`/`sum` über Listen, 
 ```
 
 ```javascript
-// Konditionales Routing
+// Conditional routing
 filter(payload, .priority == "high")
 ```
 
 ```javascript
-// Topic-basierte Logik mit Pipe-Syntax
+// Topic-based logic with pipe syntax
 payload | map({ time: .timestamp, value: .temperature * 1.8 + 32 })
 ```
 
-#### Properties-Panel
+#### Properties panel
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -101,7 +101,7 @@ payload | map({ time: .timestamp, value: .temperature * 1.8 + 32 })
 │  ┌────────────────────────────────────────┐   │
 │  │ sum(filter(payload, .temp > 20))       │   │
 │  │                                        │   │
-│  │ // weitere Zeilen erlaubt              │   │
+│  │ // additional lines allowed            │   │
 │  └────────────────────────────────────────┘   │
 │                                               │
 │  Output Property                              │
@@ -114,25 +114,25 @@ payload | map({ time: .timestamp, value: .temperature * 1.8 + 32 })
 └──────────────────────────────────────────────┘
 ```
 
-Compile-Errors werden unter dem Editor inline angezeigt mit Zeilen-/Spalten-Marker.
+Compile errors are shown inline below the editor with line/column markers.
 
 ### 4. Go Function Node (`function-go`)
 
-#### Zweck
+#### Purpose
 
-Algorithmen mit echtem Control-Flow (`for`, `if/else`, mutable State, mehrstufige Logik), die als einzelne expr-Expression nicht ausdrückbar sind. Insbesondere für **batch-numerische** Use-Cases, die in Goja zu langsam wären.
+Algorithms with real control flow (`for`, `if/else`, mutable state, multi-stage logic) that cannot be expressed as a single expr expression. Especially for **batch numeric** use cases that would be too slow in Goja.
 
-#### Konfiguration
+#### Configuration
 
-- `code` (string) — Go-Code mit einer Funktion namens `handle`
-- `outputs` (number, default `1`) — Anzahl Output-Ports (analog zum JS Function-Node)
+- `code` (string) — Go code with a function named `handle`
+- `outputs` (number, default `1`) — number of output ports (analogous to the JS Function node)
 
-#### Code-Konvention
+#### Code convention
 
-Der User schreibt Go-Code mit einer Funktion `handle`, deren Signatur die Engine per Reflection liest:
+The user writes Go code with a function `handle` whose signature the engine reads via reflection:
 
 ```go
-// Einfachste Form — payload als generischer Wert
+// Simplest form — payload as a generic value
 func handle(payload any) any {
     // ...
     return payload
@@ -140,7 +140,7 @@ func handle(payload any) any {
 ```
 
 ```go
-// Mit typed Map-Access
+// With typed map access
 func handle(payload []map[string]any) []map[string]any {
     out := []map[string]any{}
     for _, r := range payload {
@@ -153,7 +153,7 @@ func handle(payload []map[string]any) []map[string]any {
 ```
 
 ```go
-// Mit user-defined Struct (typed-Pfad, schnellster)
+// With user-defined struct (typed path, fastest)
 type Reading struct {
     Temperature float64 `json:"temperature"`
     Humidity    float64 `json:"humidity"`
@@ -170,11 +170,11 @@ func handle(payload []Reading) float64 {
 }
 ```
 
-Wenn der User typed Structs nimmt, **konvertiert die Engine an der Boundary** zwischen `flow.Message` und der Yaegi-Function (via JSON-Marshal/Unmarshal mit den `json:`-Tags). Das kostet Reflection — aber ist immer noch schneller als Goja-Map-Zugriff bei großen Batches, weil der Hot-Loop drinnen typed bleibt.
+If the user picks typed structs, **the engine converts at the boundary** between `flow.Message` and the Yaegi function (via JSON marshal/unmarshal with the `json:` tags). That costs reflection — but is still faster than Goja map access on large batches, because the hot loop inside stays typed.
 
-#### Buffer-Interop
+#### Buffer interop
 
-Buffer-Payloads von mqtt-in kommen als `[]int`. Der Yaegi-Code arbeitet **direkt mit `[]byte`**:
+Buffer payloads from mqtt-in arrive as `[]int`. The Yaegi code works **directly with `[]byte`**:
 
 ```go
 import "encoding/binary"
@@ -184,11 +184,11 @@ func handle(payload []byte) int64 {
 }
 ```
 
-Die Engine konvertiert beim Eintritt `[]int` → `[]byte` und beim Austritt zurück. Über `internal/scripting.IntsToBuffer` und `BufferToInts`. Der User merkt davon nichts.
+The engine converts `[]int` -> `[]byte` on entry and back on exit. Via `internal/scripting.IntsToBuffer` and `BufferToInts`. The user notices nothing.
 
-#### Multi-Output via `node.send`
+#### Multi-output via `node.send`
 
-Analog zur JS-Function bekommt der Yaegi-Code ein `node`-Objekt:
+Analogous to the JS Function, the Yaegi code receives a `node` object:
 
 ```go
 func handle(payload any, node Node) {
@@ -200,23 +200,23 @@ func handle(payload any, node Node) {
 }
 ```
 
-`Node` wird als Interface ins Yaegi-Env exportiert, mit Methoden `Send(port int, msg any)`, `Log(args ...any)`, `Warn(args ...any)`, `Error(args ...any)`, `Status(fill, text string)`.
+`Node` is exported into the Yaegi env as an interface, with methods `Send(port int, msg any)`, `Log(args ...any)`, `Warn(args ...any)`, `Error(args ...any)`, `Status(fill, text string)`.
 
-#### Properties-Panel
+#### Properties panel
 
-Identisch zur JS-Function: ein großer Code-Editor (mit Go-Syntax-Highlighting) plus ein `outputs`-Feld. Inline-Compile-Errors mit Zeilen-Marker.
+Identical to the JS Function: a large code editor (with Go syntax highlighting) plus an `outputs` field. Inline compile errors with line markers.
 
-### 5. Change Node — Expr als Value-Type
+### 5. Change Node — expr as a value type
 
-Der Change-Node hat heute Rules mit folgenden Value-Types: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `date`, `env`. Wir fügen einen weiteren hinzu: **`expr`**.
+The Change node today has rules with the following value types: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `date`, `env`. We add another one: **`expr`**.
 
-#### Verhalten
+#### Behavior
 
-- Value-Type `expr` → der Value-Field-Inhalt ist eine expr-Expression
-- Beim Deploy werden alle expr-Rules eines Change-Nodes vor-compiled
-- Pro eingehender Message wird die Expression gegen ein Env mit `msg`/`flow`/`global` ausgewertet, das Ergebnis wird auf die Target-Property gesetzt
+- Value type `expr` -> the value field content is an expr expression
+- At deploy, all expr rules of a Change node are pre-compiled
+- Per incoming message, the expression is evaluated against an env with `msg`/`flow`/`global`, the result is set on the target property
 
-#### Beispiel
+#### Example
 
 | Property | Value Type | Value |
 |---|---|---|
@@ -226,23 +226,23 @@ Der Change-Node hat heute Rules mit folgenden Value-Types: `msg`, `flow`, `globa
 
 #### UX
 
-Im Change-Node-Properties-Panel taucht `expr` neben den existierenden Value-Types im Dropdown auf. Bei Auswahl wird das Value-Field zu einem kleineren Code-Editor (Single-Line oder kleines Textarea) mit Syntax-Hint.
+In the Change node properties panel, `expr` appears next to the existing value types in the dropdown. When selected, the value field becomes a smaller code editor (single-line or small textarea) with a syntax hint.
 
-### 6. Naming und Palette
+### 6. Naming and palette
 
-Alle drei Function-Nodes erscheinen in der Palette **getrennt**, mit klar unterscheidbaren Beschreibungen:
+All three Function nodes appear in the palette **separately**, with clearly distinguishable descriptions:
 
-| Type-ID | Label (Palette) | Description |
+| Type ID | Label (palette) | Description |
 |---|---|---|
 | `function` | Function | JavaScript — logic and glue |
 | `function-expr` | Expr Function | Single expression — fast pipelines, transforms |
 | `function-go` | Go Function | Go code — fast batch processing |
 
-**Bewusst kein "default"**: User wählt nach Use-Case, kein impliziter "fast" / "slow" Pfad.
+**Deliberately no "default"**: the user picks by use case, no implicit "fast" / "slow" path.
 
-## Datenstruktur
+## Data structure
 
-### workspace.json — Function-Expr Beispiel
+### workspace.json — Function-Expr example
 
 ```json
 {
@@ -257,7 +257,7 @@ Alle drei Function-Nodes erscheinen in der Palette **getrennt**, mit klar unters
 }
 ```
 
-### workspace.json — Function-Go Beispiel
+### workspace.json — Function-Go example
 
 ```json
 {
@@ -271,7 +271,7 @@ Alle drei Function-Nodes erscheinen in der Palette **getrennt**, mit klar unters
 }
 ```
 
-### workspace.json — Change-Node mit expr-Rule
+### workspace.json — Change node with expr rule
 
 ```json
 {
@@ -290,48 +290,48 @@ Alle drei Function-Nodes erscheinen in der Palette **getrennt**, mit klar unters
 }
 ```
 
-## Betroffene Dateien
+## Affected files
 
-### Backend — Neu
+### Backend — new
 
-- `internal/scripting/scripting.go` — gemeinsame Utilities (`MessageEnv`, `MessageFromEnv`, `BufferToInts`, `IntsToBuffer`)
-- `internal/scripting/goja/engine.go` — extrahierter Goja-Code (Refactor von `internal/nodes/function*.go`)
-- `internal/scripting/expr/engine.go` — expr-Wrapper mit `Compile`/`Run`-Methoden
-- `internal/scripting/yaegi/engine.go` — Yaegi-Wrapper mit Reflection-basierter Signatur-Erkennung und Boundary-Konvertierung
-- `internal/nodes/function_expr.go` — Expr Function Node
-- `internal/nodes/function_go.go` — Go Function Node
-- `internal/nodes/function_expr_test.go` + `function_go_test.go` — Tests pro Node
+- `internal/scripting/scripting.go` — shared utilities (`MessageEnv`, `MessageFromEnv`, `BufferToInts`, `IntsToBuffer`)
+- `internal/scripting/goja/engine.go` — extracted Goja code (refactor of `internal/nodes/function*.go`)
+- `internal/scripting/expr/engine.go` — expr wrapper with `Compile`/`Run` methods
+- `internal/scripting/yaegi/engine.go` — Yaegi wrapper with reflection-based signature detection and boundary conversion
+- `internal/nodes/function_expr.go` — Expr Function node
+- `internal/nodes/function_go.go` — Go Function node
+- `internal/nodes/function_expr_test.go` + `function_go_test.go` — tests per node
 - `frontend/src/components/config/ExprFunctionConfig.vue`
 - `frontend/src/components/config/GoFunctionConfig.vue`
 
-### Backend — Anpassungen
+### Backend — changes
 
-- `internal/nodes/function.go` und `function_buffer.go` — refactored um `internal/scripting/goja` zu nutzen, kein UX-Change
-- `internal/nodes/change.go` — neuer Value-Type `expr`, Compile-Loop in `Init()` für alle expr-Rules
-- `internal/server/server.go` — Registrierung von `function-expr` und `function-go`
+- `internal/nodes/function.go` and `function_buffer.go` — refactored to use `internal/scripting/goja`, no UX change
+- `internal/nodes/change.go` — new value type `expr`, compile loop in `Init()` for all expr rules
+- `internal/server/server.go` — registration of `function-expr` and `function-go`
 
-### Frontend — Anpassungen
+### Frontend — changes
 
-- `frontend/src/components/config/ChangeNodeConfig.vue` (oder wie sie heißt) — `expr` als Value-Type-Option im Dropdown, Code-Editor-Variante für das Value-Field bei `expr`
-- `frontend/src/components/PropertyPanel.vue` — Dispatch für die zwei neuen Node-Types
-- `frontend/src/components/nodes/tokens.ts` — Palette-Tokens für `function-expr` (z.B. blaue Pipeline-Ikone) und `function-go` (Go-Gopher oder fast-forward)
+- `frontend/src/components/config/ChangeNodeConfig.vue` (or whatever it is called) — `expr` as a value type option in the dropdown, code editor variant for the value field on `expr`
+- `frontend/src/components/PropertyPanel.vue` — dispatch for the two new node types
+- `frontend/src/components/nodes/tokens.ts` — palette tokens for `function-expr` (e.g. blue pipeline icon) and `function-go` (Go gopher or fast-forward)
 
-### Go Dependencies
+### Go dependencies
 
-- `github.com/expr-lang/expr` — bereits validiert im Benchmark
-- `github.com/traefik/yaegi` — bereits validiert im Benchmark
+- `github.com/expr-lang/expr` — already validated in the benchmark
+- `github.com/traefik/yaegi` — already validated in the benchmark
 
-## Technische Hinweise
+## Technical notes
 
-### Engine-Lifecycle pro Node
+### Engine lifecycle per node
 
-Beide neuen Engines folgen dem gleichen Pattern wie der existierende Goja-Function-Node:
+Both new engines follow the same pattern as the existing Goja Function node:
 
 ```go
-// In Init(): nur Properties parsen
+// In Init(): only parse properties
 func (n *ExprFunctionNode) Init() error {
     n.expression, _ = n.config.Properties["expression"].(string)
-    // ... weitere Felder
+    // ... additional fields
     return nil
 }
 
@@ -346,7 +346,7 @@ func (n *ExprFunctionNode) Start() error {
     return nil
 }
 
-// Pro Message: nur run
+// Per message: just run
 func (n *ExprFunctionNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
     env := scripting.MessageEnv(msg)
     result, err := n.program.Run(env)
@@ -358,61 +358,61 @@ func (n *ExprFunctionNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 }
 ```
 
-### Yaegi — Boundary-Conversion bei typed Structs
+### Yaegi — boundary conversion with typed structs
 
-Wenn die User-Function `[]Reading` als Input erwartet aber `flow.Message.Payload()` ein `[]map[string]any` liefert, brauchen wir eine Conversion. Drei Optionen:
+If the user function expects `[]Reading` as input but `flow.Message.Payload()` delivers a `[]map[string]any`, we need a conversion. Three options:
 
-1. **JSON-Marshal/Unmarshal** — pragmatisch, ~100% Reflection-Cost, aber idiomatisch via `json:`-Tags
-2. **Reflection direkt** — würden uns vor jedes Field-Mapping setzen, schneller aber komplex
-3. **Codegen** — Buildtime-Generation eines Convertierers, schnellst, aber riesiger UX-Aufwand
+1. **JSON marshal/unmarshal** — pragmatic, ~100% reflection cost, but idiomatic via `json:` tags
+2. **Reflection directly** — would put us in front of every field mapping, faster but complex
+3. **Codegen** — build-time generation of a converter, fastest, but huge UX effort
 
-Wir nehmen (1) — JSON-Marshal/Unmarshal. Über `json:`-Tags hat der User volle Kontrolle, der Code ist klein. Performance: für 10k Records mit 3 Feldern liegt die Conversion bei ~1-2ms. Das ist relevant aber nicht prohibitiv — der Yaegi-Hot-Loop im typed-Pfad ist immer noch schneller als Goja im map-Pfad.
+We pick (1) — JSON marshal/unmarshal. Via `json:` tags the user has full control, the code is small. Performance: for 10k records with 3 fields, the conversion comes in at ~1-2ms. That is relevant but not prohibitive — the Yaegi hot loop in the typed path is still faster than Goja in the map path.
 
 ```go
-// Engine-seitig:
+// Engine side:
 payload := msg.Payload()
-inputType := reflect.TypeOf(handle).In(0)        // z.B. []Reading
+inputType := reflect.TypeOf(handle).In(0)        // e.g. []Reading
 typed := reflect.New(inputType).Interface()
 data, _ := json.Marshal(payload)                 // []byte
 json.Unmarshal(data, typed)                      // populated []Reading
-result := callHandle(typed)                      // schnell, typed
+result := callHandle(typed)                      // fast, typed
 ```
 
-### Yaegi — Code-Sandbox
+### Yaegi — code sandbox
 
-Yaegi exposed by default die Go-Standardlibrary via `i.Use(stdlib.Symbols)`. Das gibt User-Code Zugriff auf `os.Open`, `net.Dial` etc. — was wir **nicht wollen**.
+Yaegi by default exposes the Go standard library via `i.Use(stdlib.Symbols)`. That gives user code access to `os.Open`, `net.Dial`, etc. — which we **do not want**.
 
-Wir registrieren explizit nur ein **gefiltertes Subset**:
-- `encoding/binary` — binäres Parsen
-- `encoding/json` — JSON-Parsen
-- `fmt` (nur `Sprintf`, `Sprint`, kein `Println`)
+We explicitly register only a **filtered subset**:
+- `encoding/binary` — binary parsing
+- `encoding/json` — JSON parsing
+- `fmt` (only `Sprintf`, `Sprint`, no `Println`)
 - `math`, `math/big`
 - `strings`, `strconv`, `bytes`
 - `sort`
-- `time` (nur Parsing/Formatting, kein `Sleep` etc.)
+- `time` (only parsing/formatting, no `Sleep` etc.)
 
-Verboten: `os`, `io/ioutil`, `net`, `net/http`, `runtime`, `unsafe`, `syscall`. Wenn der User-Code das importiert, schlägt der Compile fehl.
+Forbidden: `os`, `io/ioutil`, `net`, `net/http`, `runtime`, `unsafe`, `syscall`. If the user code imports those, the compile fails.
 
-Liste wird in `internal/scripting/yaegi/symbols.go` als kuratiertes Map gepflegt.
+The list is maintained as a curated map in `internal/scripting/yaegi/symbols.go`.
 
-### Expr — Env-Shape und Type-Validation
+### Expr — env shape and type validation
 
-`expr.Compile` akzeptiert eine Env-Shape:
+`expr.Compile` accepts an env shape:
 
 ```go
 env := map[string]any{
-    "payload": []any{},          // generisch — "payload ist eine Liste"
+    "payload": []any{},          // generic — "payload is a list"
     "topic":   "",
     "msg":     map[string]any{},
 }
 program, err := expr.Compile(userExpression, expr.Env(env))
 ```
 
-Das gibt dem Compiler genug Info um Field-Access (`payload[0].x`) zu validieren, aber lässt den User flexibel. Wenn der User typed-Strenge will, kann er per Doc-Comment oben in der Expression eine Hint geben — aktuelle Version: einfache `any`-basierte Env, später erweiterbar mit explicit-typed-shape-Property im Node.
+That gives the compiler enough info to validate field access (`payload[0].x`), but leaves the user flexible. If the user wants typed strictness, they can give a hint via doc comment at the top of the expression — current version: simple `any`-based env, later extensible with an explicit-typed-shape property in the node.
 
-### Change-Node — expr-Compile-Lifecycle
+### Change node — expr compile lifecycle
 
-Alle Rules mit `valueType: "expr"` werden in `Init()` des Change-Nodes vor-compiled. Compile-Fehler einer einzelnen Rule machen den ganzen Node zu einem Deploy-Error (mit klarer Lokalisierung welche Rule).
+All rules with `valueType: "expr"` are pre-compiled in the Change node's `Init()`. Compile errors of a single rule turn the whole node into a deploy error (with clear localization which rule).
 
 ```go
 func (n *ChangeNode) Init() error {
@@ -429,42 +429,42 @@ func (n *ChangeNode) Init() error {
 }
 ```
 
-### Frontend — geteilter Code-Editor
+### Frontend — shared code editor
 
-Alle drei Function-Nodes (JS, expr, Go) plus die expr-Rules im Change-Node nutzen **denselben Code-Editor-Wrapper** (`SimpleEditor.vue` aktuell, auf Monaco-Basis). Unterschied: die Sprachen-Konfiguration:
-- JS Function → `language: 'javascript'`
-- Go Function → `language: 'go'`
-- Expr Function → `language: 'expr'` (custom Monaco-Tokenizer, simpel — Keywords + Operatoren, kein Linter)
+All three Function nodes (JS, expr, Go) plus the expr rules in the Change node use **the same code editor wrapper** (`SimpleEditor.vue` currently, on a Monaco basis). Difference: the language configuration:
+- JS Function -> `language: 'javascript'`
+- Go Function -> `language: 'go'`
+- Expr Function -> `language: 'expr'` (custom Monaco tokenizer, simple — keywords + operators, no linter)
 
-Compile-Errors werden als Inline-Decorations am betroffenen Zeilen-Marker angezeigt. Die Engine liefert beim Compile-Fehler Position-Infos, die Vue-Komponente reicht das an Monaco weiter.
+Compile errors are shown as inline decorations on the affected line marker. The engine returns position info on compile error; the Vue component passes that through to Monaco.
 
-## Performance — was wir versprechen
+## Performance — what we promise
 
-Aus dem Benchmark (`benchmark/bench_test.go`, AMD Ryzen 7 5800H, 1k bis 100k Records):
+From the benchmark (`benchmark/bench_test.go`, AMD Ryzen 7 5800H, 1k to 100k records):
 
 | Operation | Native Go | Goja (JS) | Expr | Yaegi (map) | Yaegi (typed) |
 |---|---:|---:|---:|---:|---:|
-| 1k Records | 7.7 µs | 752 µs | 321 µs | 192 µs | 77 µs |
-| 10k Records | 80 µs | 6.87 ms | 3.16 ms | 1.77 ms | 773 µs |
-| 100k Records | 1.5 ms | 64.7 ms | 29.5 ms | 20.5 ms | 7.83 ms |
-| **Speedup ggü Goja @10k** | 86× | 1× | **2.2×** | **3.9×** | **8.9×** |
+| 1k records | 7.7 µs | 752 µs | 321 µs | 192 µs | 77 µs |
+| 10k records | 80 µs | 6.87 ms | 3.16 ms | 1.77 ms | 773 µs |
+| 100k records | 1.5 ms | 64.7 ms | 29.5 ms | 20.5 ms | 7.83 ms |
+| **Speedup vs Goja @10k** | 86x | 1x | **2.2x** | **3.9x** | **8.9x** |
 
-**Realismus**: das sind Pure-Computation-Zahlen. In der Praxis kommen IO-Latenzen, MQTT-Roundtrips, Workspace-Sync etc. dazu. Die Engine-Wahl macht im IO-bound Hot-Path 0% Unterschied, im CPU-bound Hot-Path ist der Faktor wie oben.
+**Realism**: these are pure-computation numbers. In practice IO latencies, MQTT round-trips, workspace sync, etc. add up. The engine choice makes 0% difference in the IO-bound hot path; in the CPU-bound hot path the factor is as above.
 
-## Abhängigkeiten
+## Dependencies
 
-- Keine harte Abhängigkeit zu anderen Issues
-- Profitiert vom v5-MQTT-Setup (`buffer`-Output-Mode liefert `[]int`, das Yaegi und Goja als `[]byte` interpretieren können — siehe Buffer-Interop)
-- Setzt das Config-Node-Konzept aus dem MQTT-Issue voraus (für eventuelle künftige Engines die selbst Config-Nodes brauchen — nicht hier, aber gut zu wissen)
+- No hard dependency on other issues
+- Benefits from the v5 MQTT setup (`buffer` output mode delivers `[]int`, which Yaegi and Goja can interpret as `[]byte` — see Buffer interop)
+- Assumes the config node concept from the MQTT issue (for any future engines that need config nodes themselves — not here, but good to know)
 
-## Abgrenzung / Nicht im Scope
+## Out of scope
 
-- **WASM-Function-Node** — eine vierte Engine via wazero für maximale Performance bei Compute-Heavy-Workloads. Sinnvoll, aber separater Issue mit eigener UX (Upload `.wasm`, kein Editor)
-- **V8-Bindings (cgo)** — widerspricht dem Single-Binary-Charakter von LOOPZE
-- **Node.js Subprocess** — gibt Self-Contained-Deployment auf
-- **Reactive Expressions** — expr-Programs, die bei Änderung einer Source-Variable neu evaluiert werden ohne Trigger-Message. Interessant für Live-UI-Bindungen, aber nicht das Function-Node-Modell
-- **Hot-Reload von User-Code ohne Re-Deploy** — wäre ein editor-experience-Boost, ist aber technisch komplex (engine-Lifecycle, Subscription-Re-Wiring, State-Migration)
-- **Multi-Tenancy / strenges Sandboxing** — Resource-Limits (CPU-Time, Memory), Secrets-Hiding etc. werden im Credential-System adressiert, nicht hier
-- **Code-Sharing zwischen Function-Nodes** — keine `import` von einem Function-Node in einen anderen. Wenn nötig: zukünftiges "Library-Node"-Konzept
-- **Auto-Engine-Wahl** — kein "Magic Function-Node, der je nach Input Goja/expr/Yaegi auswählt". User wählt explizit
-- **Type-Inference für Yaegi-Schema aus Sample-Messages** — wäre nett aber separater UX-Wurf
+- **WASM Function node** — a fourth engine via wazero for maximum performance on compute-heavy workloads. Useful, but a separate issue with its own UX (upload `.wasm`, no editor)
+- **V8 bindings (cgo)** — contradicts the single-binary character of LOOPZE
+- **Node.js subprocess** — gives up self-contained deployment
+- **Reactive expressions** — expr programs that are re-evaluated on change of a source variable without a trigger message. Interesting for live UI bindings, but not the Function node model
+- **Hot reload of user code without re-deploy** — would be an editor-experience boost but is technically complex (engine lifecycle, subscription re-wiring, state migration)
+- **Multi-tenancy / strict sandboxing** — resource limits (CPU time, memory), secrets hiding etc. are addressed in the credential system, not here
+- **Code sharing between Function nodes** — no `import` from one Function node into another. If needed: future "library node" concept
+- **Auto engine choice** — no "magic Function node that picks Goja/expr/Yaegi based on input". The user picks explicitly
+- **Type inference for Yaegi schema from sample messages** — would be nice but a separate UX effort

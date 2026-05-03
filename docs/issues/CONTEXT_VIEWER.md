@@ -1,74 +1,74 @@
-# Context Viewer: Werte anzeigen und manuell löschen
+# Context Viewer: display values and delete manually
 
-## Kontext
+## Context
 
-LOOPZE speichert Context-Daten in vier NATS JetStream KV-Buckets (siehe `internal/nats/context_store.go` und `internal/nats/broker.go`):
+LOOPZE stores context data in four NATS JetStream KV buckets (see `internal/nats/context_store.go` and `internal/nats/broker.go`):
 
-- **Global Memory** — `context-global-memory` (volatil)
-- **Global Persistent** — `context-global-persistent` (datei-backed)
-- **Flow Memory** — `context-flow-{flowID}-memory` (volatil, pro Flow)
-- **Flow Persistent** — `context-flow-{flowID}-persistent` (datei-backed, pro Flow)
+- **Global Memory** — `context-global-memory` (volatile)
+- **Global Persistent** — `context-global-persistent` (file-backed)
+- **Flow Memory** — `context-flow-{flowID}-memory` (volatile, per flow)
+- **Flow Persistent** — `context-flow-{flowID}-persistent` (file-backed, per flow)
 
-Function Nodes lesen/schreiben über `node.*`, `global.*` und `flow.*` (`internal/nodes/function.go`). Der Context-Watch Node beobachtet Änderungen.
+Function nodes read/write via `node.*`, `global.*` and `flow.*` (`internal/nodes/function.go`). The Context Watch node observes changes.
 
-**Problem:** Aktuell gibt es weder eine REST/WS-Schnittstelle noch eine UI, um die gespeicherten Context-Werte einzusehen oder gezielt zu löschen. Beim Debuggen von Flows ist man auf Watch-Nodes und Debug-Output angewiesen, was umständlich ist.
+**Problem:** Currently there is neither a REST/WS interface nor a UI to inspect the stored context values or delete them selectively. When debugging flows, you have to rely on watch nodes and debug output, which is cumbersome.
 
-## Anforderung
+## Requirement
 
-Ein neuer Tab **"Context"** im Information Panel (rechte Sidebar), der die Context-Stores anzeigt und das gezielte Löschen einzelner Keys (sowie aller Keys eines Stores) erlaubt.
+A new tab **"Context"** in the Information Panel (right sidebar) that displays the context stores and allows targeted deletion of individual keys (as well as all keys of a store).
 
-### Funktionalität
+### Functionality
 
-- **Browse**: Alle vier Store-Varianten anzeigen (Global Memory, Global Persistent, Flow Memory, Flow Persistent)
-- **Flow-Auswahl**: Bei Flow-Stores wird der aktuell aktive Flow (oder eine Auswahl aus `flowStore.flows`) als Scope verwendet
-- **Key-Liste**: Pro Store alle Keys mit aktuellem Wert (JSON-formatiert) anzeigen
-- **Delete Single**: Einzelnen Key per Klick löschen (mit Bestätigung)
-- **Delete All**: Alle Keys eines Stores löschen (mit Bestätigung — destruktiv)
-- **Auto-Refresh-Toggle**: User kann das Sekundentakt-Polling an/aus schalten (Default: **aus** — User aktiviert bewusst, Zustand persistiert in `uiStore`)
-- **Manuelles Refresh (gesamt)**: Button lädt alle Keys+Werte des aktuell gewählten Stores neu — funktioniert immer, unabhängig vom Auto-Refresh
-- **Manuelles Refresh (einzeln)**: Pro Key-Zeile ein Refresh-Icon, das nur diesen einen Key neu lädt
+- **Browse**: display all four store variants (Global Memory, Global Persistent, Flow Memory, Flow Persistent)
+- **Flow selection**: for flow stores, the currently active flow (or a selection from `flowStore.flows`) is used as scope
+- **Key list**: for each store, display all keys with their current value (JSON-formatted)
+- **Delete single**: delete a single key with one click (with confirmation)
+- **Delete all**: delete all keys of a store (with confirmation — destructive)
+- **Auto-refresh toggle**: user can turn the per-second polling on/off (default: **off** — user activates deliberately, state persisted in `uiStore`)
+- **Manual refresh (full)**: button reloads all keys+values of the currently selected store — always works, regardless of auto-refresh
+- **Manual refresh (single)**: a refresh icon per key row that reloads only that single key
 
-### Update-Strategie
+### Update strategy
 
-**Frontend-Polling statt WebSocket-Push** — im Sekundentakt (`setInterval(load, 1000)`), nur aktiv wenn alle Bedingungen erfüllt sind:
+**Frontend polling instead of WebSocket push** — at one-second intervals (`setInterval(load, 1000)`), only active when all conditions are met:
 
-- Auto-Refresh-Toggle ist aktiv (`ui.contextAutoRefresh === true`)
-- der Context-Tab im Information Panel offen ist (`ui.activeInfoTab === 'context'`)
-- das Information Panel nicht geschlossen ist (`ui.infoPanelOpen`)
+- auto-refresh toggle is on (`ui.contextAutoRefresh === true`)
+- the Context tab in the Information Panel is open (`ui.activeInfoTab === 'context'`)
+- the Information Panel is not closed (`ui.infoPanelOpen`)
 
-Ist Auto-Refresh deaktiviert, hat der User nur die manuellen Refresh-Buttons (gesamter Store / einzelner Key) zur Aktualisierung.
+If auto-refresh is disabled, the user only has the manual refresh buttons (entire store / single key) for updates.
 
-**Begründung:**
+**Rationale:**
 
-- Ein WebSocket-Watch (Backend pushed jede KV-Änderung) kann bei "heißen" Counter-Keys leicht hunderte Updates/Sekunde erzeugen — das wollen wir nicht durch den WS leiten
-- Polling ist trivial, hat keinen Backend-State, stoppt automatisch beim Tab-Wechsel oder Schließen des Panels
-- 1× HTTP GET/Sekunde pro offenem Panel ist vernachlässigbar; bei n offenen Browser-Tabs maximal n Requests/Sekunde
-- Beim Verlassen des Tabs / Schließen des Panels wird das Intervall geclearht
+- A WebSocket watch (backend pushes every KV change) can easily produce hundreds of updates per second on "hot" counter keys — we don't want to route that through the WS
+- Polling is trivial, has no backend state, stops automatically on tab change or panel close
+- 1× HTTP GET/second per open panel is negligible; with n open browser tabs, at most n requests/second
+- When leaving the tab / closing the panel, the interval is cleared
 
-**Optional (später):**
+**Optional (later):**
 
-- Werte direkt im UI editieren (set)
-- Filter / Suche über Keys
-- Wenn Polling-Last doch zum Problem wird: WS-Push mit serverseitigem Throttling (max 1 Frame/Sekunde, aggregiert)
+- Edit values directly in the UI (set)
+- Filter / search across keys
+- If polling load does become a problem: WS push with server-side throttling (max 1 frame/second, aggregated)
 
 ## Backend
 
-### Neue REST Endpoints
+### New REST endpoints
 
-Mount unter `/api/v1/context` (in `internal/api/routes.go`):
+Mounted under `/api/v1/context` (in `internal/api/routes.go`):
 
-| Methode | Pfad | Zweck |
+| Method | Path | Purpose |
 |---------|------|-------|
-| `GET` | `/context/global/{storage}` | Alle Keys+Werte eines globalen Stores (`storage` ∈ `memory`, `persistent`) |
-| `GET` | `/context/global/{storage}/{key}` | Einzelnen Key im globalen Store laden (für Single-Key-Refresh) |
-| `GET` | `/context/flow/{flowID}/{storage}` | Alle Keys+Werte eines Flow-Stores |
-| `GET` | `/context/flow/{flowID}/{storage}/{key}` | Einzelnen Key im Flow-Store laden |
-| `DELETE` | `/context/global/{storage}/{key}` | Einzelnen Key im globalen Store löschen |
-| `DELETE` | `/context/flow/{flowID}/{storage}/{key}` | Einzelnen Key im Flow-Store löschen |
-| `DELETE` | `/context/global/{storage}` | Alle Keys im globalen Store löschen |
-| `DELETE` | `/context/flow/{flowID}/{storage}` | Alle Keys im Flow-Store löschen |
+| `GET` | `/context/global/{storage}` | All keys+values of a global store (`storage` ∈ `memory`, `persistent`) |
+| `GET` | `/context/global/{storage}/{key}` | Load single key in global store (for single-key refresh) |
+| `GET` | `/context/flow/{flowID}/{storage}` | All keys+values of a flow store |
+| `GET` | `/context/flow/{flowID}/{storage}/{key}` | Load single key in flow store |
+| `DELETE` | `/context/global/{storage}/{key}` | Delete single key in global store |
+| `DELETE` | `/context/flow/{flowID}/{storage}/{key}` | Delete single key in flow store |
+| `DELETE` | `/context/global/{storage}` | Delete all keys in global store |
+| `DELETE` | `/context/flow/{flowID}/{storage}` | Delete all keys in flow store |
 
-**Response-Format GET:**
+**GET response format:**
 
 ```json
 {
@@ -81,34 +81,34 @@ Mount unter `/api/v1/context` (in `internal/api/routes.go`):
 }
 ```
 
-### Implementierung
+### Implementation
 
-- Neuer Handler in `internal/api/handlers.go` (z.B. `handleGetContext`, `handleDeleteContextKey`, `handleClearContext`)
-- Zugriff auf die KV-Stores über den existierenden `ContextProvider` aus `internal/flow/context.go`
-- `KVContextStore` hat bereits `Keys()`, `Get(key)`, `Delete(key)` — keine Backend-Änderung an der Storage-Schicht nötig
-- "Delete All" iteriert über `Keys()` und ruft pro Key `Delete()` auf (alternativ KV-Bucket purgen, falls JetStream das einfach hergibt)
-- Fehlerbehandlung: Unbekannter Flow → 404, unbekannter Storage-Name → 400
+- New handler in `internal/api/handlers.go` (e.g. `handleGetContext`, `handleDeleteContextKey`, `handleClearContext`)
+- Access to the KV stores via the existing `ContextProvider` from `internal/flow/context.go`
+- `KVContextStore` already has `Keys()`, `Get(key)`, `Delete(key)` — no backend change to the storage layer needed
+- "Delete All" iterates over `Keys()` and calls `Delete()` per key (alternatively purge the KV bucket if JetStream provides this easily)
+- Error handling: unknown flow → 404, unknown storage name → 400
 
 ## Frontend
 
-### Betroffene Dateien
+### Affected files
 
-| Datei | Änderung |
+| File | Change |
 |-------|----------|
-| `frontend/src/components/InformationSidebar.vue` | Neuen Tab "Context" zur Tab-Liste hinzufügen |
-| `frontend/src/stores/uiStore.ts` | `InfoTab` um `'context'` erweitern |
-| `frontend/src/components/ContextPanel.vue` | **Neu** — Tab-Inhalt |
-| `frontend/src/stores/contextStore.ts` | **Neu** — Pinia-Store für Context-Daten |
+| `frontend/src/components/InformationSidebar.vue` | Add new "Context" tab to tab list |
+| `frontend/src/stores/uiStore.ts` | Extend `InfoTab` with `'context'` |
+| `frontend/src/components/ContextPanel.vue` | **New** — tab content |
+| `frontend/src/stores/contextStore.ts` | **New** — Pinia store for context data |
 
-### UI-Struktur
+### UI structure
 
 ```
 ┌─ Information ────────────────────────────────┐
 │  [Help] [Config] [Context] [Debug]           │
 ├──────────────────────────────────────────────┤
 │ [Global Mem][Global Pers][Flow Mem][Flow Pers]│
-│ Flow: [Aktueller Flow ▼]   (nur bei Flow-*)  │
-│ [↻ Refresh]    Auto-Refresh 1s: [ ☐ ]        │
+│ Flow: [Current flow ▼]   (only for Flow-*)   │
+│ [↻ Refresh]    Auto-refresh 1s: [ ☐ ]        │
 ├──────────────────────────────────────────────┤
 │ ▸ counter      42              [↻] [✕]      │
 │ ▸ lastRun      "2026-04-25..." [↻] [✕]      │
@@ -118,17 +118,17 @@ Mount unter `/api/v1/context` (in `internal/api/routes.go`):
 └──────────────────────────────────────────────┘
 ```
 
-- **4-Knopf-Toggle** für Store-Auswahl (Global Mem / Global Pers / Flow Mem / Flow Pers) — ein einziger State, weniger Klicks als zwei Dropdowns
-- Flow-Dropdown erscheint nur bei Flow-Scope
-- Header-Refresh-Button (`↻ Refresh`) lädt den ganzen Store neu
-- Pro Zeile ein kleines Refresh-Icon (`↻`) das nur diesen Key neu lädt — nützlich wenn Auto-Refresh aus ist
-- Auto-Refresh-Checkbox toggelt das Sekundentakt-Polling (**Default: aus**), Zustand wird in `uiStore.contextAutoRefresh` persistiert
+- **4-button toggle** for store selection (Global Mem / Global Pers / Flow Mem / Flow Pers) — single state, fewer clicks than two dropdowns
+- Flow dropdown only appears for flow scope
+- Header refresh button (`↻ Refresh`) reloads the entire store
+- A small refresh icon (`↻`) per row reloads only that key — useful when auto-refresh is off
+- Auto-refresh checkbox toggles the per-second polling (**default: off**), state persisted in `uiStore.contextAutoRefresh`
 
-- Werte werden als kollabierte Zeile gerendert (kurze Vorschau), per Klick als JSON-Tree (vorhandene `JsonTreeView.vue` wiederverwenden)
-- Delete-Button mit Bestätigungs-Dialog (existierende UI-Konvention beachten)
-- "Clear All" rot/destruktiv markiert, mit zusätzlicher Bestätigung
+- Values are rendered as a collapsed row (short preview), expandable on click as a JSON tree (reuse existing `JsonTreeView.vue`)
+- Delete button with confirmation dialog (follow existing UI convention)
+- "Clear All" marked red/destructive, with additional confirmation
 
-### Pinia Store (Skizze)
+### Pinia store (sketch)
 
 ```typescript
 // contextStore.ts
@@ -138,11 +138,11 @@ const storage = ref<'memory' | 'persistent'>('memory')
 const flowId = ref<string | null>(null)
 
 async function loadAll() { /* GET /context/.../{storage} */ }
-async function loadKey(key: string) { /* GET /context/.../{storage}/{key} → entries[key] aktualisieren */ }
+async function loadKey(key: string) { /* GET /context/.../{storage}/{key} → update entries[key] */ }
 async function deleteKey(key: string) { /* DELETE … */ }
 async function clearAll() { /* DELETE … */ }
 
-// in ContextPanel.vue: Polling nur wenn Auto-Refresh + Tab + Panel offen
+// in ContextPanel.vue: poll only when auto-refresh + tab + panel open
 let timer: ReturnType<typeof setInterval> | null = null
 watchEffect(() => {
   const active =
@@ -154,30 +154,30 @@ watchEffect(() => {
 })
 ```
 
-**uiStore-Erweiterung:**
+**uiStore extension:**
 
 ```typescript
-const activeInfoTab = ref<InfoTab>('debug')   // erweitert um 'context'
-const contextAutoRefresh = ref<boolean>(true) // Toggle, persistiert (localStorage)
+const activeInfoTab = ref<InfoTab>('debug')   // extended with 'context'
+const contextAutoRefresh = ref<boolean>(true) // toggle, persisted (localStorage)
 ```
 
 ## Acceptance Criteria
 
-- [ ] Backend liefert für alle vier Store-Varianten Keys + Werte über `GET /api/v1/context/...`
-- [ ] Backend löscht einzelne Keys und ganze Stores über `DELETE /api/v1/context/...`
-- [ ] Neuer Tab "Context" im Information Panel sichtbar
-- [ ] Scope/Storage/Flow im Panel umschaltbar
-- [ ] Keys werden mit JSON-Wert angezeigt, einzelne Keys per Button löschbar
-- [ ] "Clear All" mit Bestätigungs-Dialog funktioniert
-- [ ] Auto-Refresh-Toggle aktualisiert die Werte im Sekundentakt, solange Context-Tab+Panel offen sind
-- [ ] Auto-Refresh kann jederzeit deaktiviert werden, danach läuft kein Polling mehr
-- [ ] Manueller Refresh-Button lädt den gesamten Store neu (auch wenn Auto-Refresh aus ist)
-- [ ] Pro Key-Zeile lädt der Single-Key-Refresh nur diesen einen Key neu
-- [ ] Polling stoppt beim Tab-Wechsel oder Schließen des Information Panels
+- [ ] Backend returns keys + values for all four store variants via `GET /api/v1/context/...`
+- [ ] Backend deletes individual keys and entire stores via `DELETE /api/v1/context/...`
+- [ ] New "Context" tab visible in the Information Panel
+- [ ] Scope/storage/flow switchable in the panel
+- [ ] Keys are displayed with JSON value, individual keys deletable per button
+- [ ] "Clear All" with confirmation dialog works
+- [ ] Auto-refresh toggle updates values per second as long as Context tab+panel are open
+- [ ] Auto-refresh can be disabled at any time, after which polling stops
+- [ ] Manual refresh button reloads the entire store (even when auto-refresh is off)
+- [ ] Per key row, the single-key refresh reloads only that one key
+- [ ] Polling stops on tab change or closing the Information Panel
 
-## Abgrenzung
+## Out of scope
 
-- **Kein Live-Update** — initial reicht manuelles Refresh
-- **Kein Editieren** der Werte (nur lesen + löschen)
-- **Kein `node.*`-Scope** — der ist im Function Node nur In-Memory pro Node und nicht über die KV-Stores erreichbar
-- **Keine Filter/Suche** — kommt bei Bedarf später
+- **No live update** — manual refresh is sufficient initially
+- **No editing** of values (read + delete only)
+- **No `node.*` scope** — that one is in-memory per node in the Function Node and not reachable via the KV stores
+- **No filter/search** — added later if needed

@@ -1,118 +1,117 @@
-# Issue: JSON Parser Node — Payload zwischen JSON-String und Struktur konvertieren
+# Issue: JSON Parser Node — Convert payload between JSON string and structure
 
 ## Status: Proposed
 
-## Kontext
+## Context
 
-Erster konkreter Parser aus dem Konzept in `PARSER_NODES.md`. Wer
-MQTT-Topics, HTTP-APIs oder NATS-Subjects mit JSON-Payloads anbindet,
-braucht heute einen Function Node mit `JSON.parse` / `JSON.stringify` —
-ein klarer Fall für eine deklarative Lösung.
+First concrete parser from the concept in `PARSER_NODES.md`. Anyone who
+wires up MQTT topics, HTTP APIs, or NATS subjects with JSON payloads
+today needs a Function node with `JSON.parse` / `JSON.stringify` —
+a clear case for a declarative solution.
 
-## Problembeschreibung
+## Problem description
 
-`msg.payload` kommt aus MQTT-In oder HTTP-In typischerweise als
-**String** oder **`[]byte` (Buffer)** an. Damit Switch/Change/Template
-auf einzelne Felder zugreifen können, muss der Payload zu einem
-strukturierten Wert (`map`, `[]any`, Skalar) geparst werden. Beim
-Versenden in die andere Richtung muss er wieder zu einem String
-serialisiert werden.
+`msg.payload` arrives from MQTT-In or HTTP-In typically as a
+**string** or **`[]byte` (buffer)**. For Switch/Change/Template to
+access individual fields, the payload must be parsed to a structured
+value (`map`, `[]any`, scalar). When sending in the other direction,
+it must be serialized back to a string.
 
-Der **JSON Parser Node** macht genau das — bidirektional, mit
-Fehlerbehandlung und ohne Code.
+The **JSON Parser node** does exactly that — bidirectional, with
+error handling and without code.
 
-## Sichtweise / Begründung
+## View / rationale
 
-- **Bediener-UX**: zwei Klicks (Drop-In, Property prüfen) statt
-  Function-Node + JS-Code.
-- **Häufigste Aufgabe in jedem Flow**: jede MQTT-Verbindung mit
-  strukturiertem Payload braucht das.
-- **Konsistent mit Template Node** — der hat bereits `format: json`
-  als Output-Postprocessing; der JSON-Parser ist das Pendant für die
-  Eingangsseite.
+- **Operator UX**: two clicks (drop-in, check property) instead of
+  Function node + JS code.
+- **Most common task in any flow**: every MQTT connection with a
+  structured payload needs it.
+- **Consistent with the Template node** — it already has `format: json`
+  as output post-processing; the JSON parser is the counterpart for the
+  input side.
 
-## Anforderungen
+## Requirements
 
 ### 1. Property
 
-| Feld | Beschreibung | Default |
+| Field | Description | Default |
 |---|---|---|
-| `property` | Property am `msg`-Objekt (Dot-Path) | `payload` |
+| `property` | Property on the `msg` object (dot-path) | `payload` |
 
-Phase 1: nur `msg.<property>`. Scope-Auswahl (`flow`/`global`) bewusst
-weggelassen — siehe `PARSER_NODES.md`.
+Phase 1: only `msg.<property>`. Scope selection (`flow`/`global`) deliberately
+omitted — see `PARSER_NODES.md`.
 
 ### 2. Action
 
-Dropdown bestimmt die Konvertierungs-Richtung:
+Dropdown determines the conversion direction:
 
-| Wert | Verhalten |
+| Value | Behavior |
 |---|---|
-| `auto` | **Default.** Wenn Wert `string` oder `[]byte` → parse zu Struktur. Sonst → stringify zu String. |
-| `parse` | Erzwingt Parsen. Fehler, wenn Wert kein String/Buffer ist. |
-| `stringify` | Erzwingt Serialisieren. Fehler, wenn Wert bereits ein String ist. |
+| `auto` | **Default.** If value is `string` or `[]byte` → parse to structure. Otherwise → stringify to string. |
+| `parse` | Force parsing. Error if value is not a string/buffer. |
+| `stringify` | Force serializing. Error if value is already a string. |
 
-`auto` ist bewusst der Default: in der Praxis ist die Richtung durch
-den vorhergehenden Node klar (MQTT-In → parse, MQTT-Out davor →
-stringify). Wer Strenge braucht, schaltet auf `parse` / `stringify`.
+`auto` is deliberately the default: in practice the direction is clear
+from the preceding node (MQTT-In → parse, before MQTT-Out → stringify).
+Whoever needs strictness switches to `parse` / `stringify`.
 
-### 3. Pretty-Print (nur bei stringify)
+### 3. Pretty-print (only for stringify)
 
-| Feld | Beschreibung | Default |
+| Field | Description | Default |
 |---|---|---|
-| `indent` | Anzahl Spaces für `json.MarshalIndent`. `0` = kompakt (kein Indent). | `0` |
+| `indent` | Number of spaces for `json.MarshalIndent`. `0` = compact (no indent). | `0` |
 
-UI: Number-Input (0–8), nur sichtbar bei Action `stringify` oder `auto`.
+UI: number input (0–8), only visible for action `stringify` or `auto`.
 
-### 4. Status / Fehlerbehandlung
+### 4. Status / error handling
 
-- Idle: kein Status.
-- Parse-Fehler (`json.Unmarshal` schlägt fehl) →
-  Status `red` / `"json parse error"`, Catchable Error.
-- Wert hat falschen Typ für die gewählte Action →
-  Status `red` / `"json type error"`, Catchable Error.
-- Erfolgreich: Status bleibt unverändert (kein „green" für jede
-  Message — vermeidet Status-Geflacker bei hoher Frequenz, analog
+- Idle: no status.
+- Parse error (`json.Unmarshal` fails) →
+  status `red` / `"json parse error"`, catchable error.
+- Value has wrong type for the chosen action →
+  status `red` / `"json type error"`, catchable error.
+- Success: status stays unchanged (no "green" for every
+  message — avoids status flicker at high frequency, analogous to
   Change/Template).
 
-### 5. Inputs / Outputs
+### 5. Inputs / outputs
 
-- **1 Input**, **1 Output**.
-- Property wird **am selben Property-Pfad** überschrieben — also
-  `msg.payload` rein, `msg.payload` raus (in der jeweils anderen Form).
+- **1 input**, **1 output**.
+- Property is overwritten **at the same property path** — i.e.
+  `msg.payload` in, `msg.payload` out (in the respective other form).
 
-## Beispiele
+## Examples
 
-### Beispiel 1 — MQTT-JSON parsen
+### Example 1 — Parse MQTT JSON
 
 ```
 [MQTT-In: sensor/temp]  →  [JSON: action=auto]  →  [Switch: msg.payload.value > 30]
 ```
 
-Eingang: `msg.payload = '{"value": 25.4, "unit": "C"}'` (String)
-Ausgang: `msg.payload = {value: 25.4, unit: "C"}` (Object)
+Input: `msg.payload = '{"value": 25.4, "unit": "C"}'` (string)
+Output: `msg.payload = {value: 25.4, unit: "C"}` (object)
 
-### Beispiel 2 — HTTP-Body serialisieren
+### Example 2 — Serialize HTTP body
 
 ```
 [Function: msg.payload = {ok:true}]  →  [JSON: action=stringify, indent=2]  →  [HTTP-Out]
 ```
 
-Eingang: `msg.payload = {ok: true}` (Object)
-Ausgang: `msg.payload = "{\n  \"ok\": true\n}"` (String, Pretty)
+Input: `msg.payload = {ok: true}` (object)
+Output: `msg.payload = "{\n  \"ok\": true\n}"` (string, pretty)
 
-### Beispiel 3 — Buffer aus Modbus parsen
+### Example 3 — Parse buffer from Modbus
 
 ```
 [Modbus-In: 0/0..63]  →  [JSON: action=parse]  →  [Debug]
 ```
 
-Eingang: `msg.payload = []byte('{"reg0": 1234}')`
-Ausgang: `msg.payload = {reg0: 1234}`
+Input: `msg.payload = []byte('{"reg0": 1234}')`
+Output: `msg.payload = {reg0: 1234}`
 
-## Technische Skizze
+## Technical sketch
 
-### Backend — `internal/nodes/parser_json.go` (neu)
+### Backend — `internal/nodes/parser_json.go` (new)
 
 ```go
 type JSONParserNode struct {
@@ -127,15 +126,15 @@ type JSONParserNode struct {
 ```
 
 - **Inputs:** 1, **Outputs:** 1
-- Implementiert `flow.NodeInstance`.
-- Kein `ContextProvider` nötig (kein flow/global Scope in Phase 1).
+- Implements `flow.NodeInstance`.
+- No `ContextProvider` needed (no flow/global scope in Phase 1).
 - In `HandleMessage`:
-  1. Wert via `msg.Get(n.property)` lesen.
-  2. Action-Logik (siehe unten).
-  3. Ergebnis via `msg.Set(n.property, …)` zurückschreiben.
+  1. Read value via `msg.Get(n.property)`.
+  2. Action logic (see below).
+  3. Write result back via `msg.Set(n.property, …)`.
   4. `send(0, msg)`.
 
-### Action-Logik (Pseudocode)
+### Action logic (pseudocode)
 
 ```go
 func (n *JSONParserNode) convert(value any) (any, error) {
@@ -182,7 +181,7 @@ func stringify(v any, indent int) (string, error) {
 }
 ```
 
-### Node-Registrierung — `internal/server/server.go`
+### Node registration — `internal/server/server.go`
 
 ```go
 registry.Register("json", nodes.NewJSONParserNode, nodes.JSONParserTypeInfo())
@@ -207,64 +206,64 @@ func JSONParserTypeInfo() flow.NodeTypeInfo {
 }
 ```
 
-> **Offen — Kategorie:** Neue Palette-Kategorie `parser` einführen,
-> oder bei `function` mitlaufen lassen? Vorschlag: neue Kategorie,
-> damit XML/CSV später visuell zusammen sitzen. Abstimmen mit
-> `PROPERTIES_PANEL.md` / Palette-Konvention.
+> **Open — category:** Introduce a new palette category `parser`,
+> or run alongside `function`? Suggestion: new category,
+> so XML/CSV later sit visually together. Align with
+> `PROPERTIES_PANEL.md` / palette convention.
 
-### Frontend — `frontend/src/components/nodes/JSONParserNode.vue` (neu)
+### Frontend — `frontend/src/components/nodes/JSONParserNode.vue` (new)
 
-- BaseNode mit Kategorie `parser` (oder `function`, siehe oben).
-- Body zeigt z.B. `payload · auto` oder `payload → string`.
+- BaseNode with category `parser` (or `function`, see above).
+- Body shows e.g. `payload · auto` or `payload → string`.
 
-### Frontend — `frontend/src/components/config/JSONParserConfig.vue` (neu)
+### Frontend — `frontend/src/components/config/JSONParserConfig.vue` (new)
 
-- Property-Input (Dot-Path).
-- Action-Dropdown (`auto` / `parse` / `stringify`).
-- Indent-Number-Input (0–8), nur sichtbar bei `stringify` oder `auto`.
-- Alle Felder via `useNodeProperty`.
+- Property input (dot-path).
+- Action dropdown (`auto` / `parse` / `stringify`).
+- Indent number input (0–8), only visible for `stringify` or `auto`.
+- All fields via `useNodeProperty`.
 
-### Frontend — Verdrahtung
+### Frontend — Wiring
 
-- `frontend/src/views/FlowEditor.vue`: `<template #node-json>` + Import.
-- `frontend/src/components/PropertyPanel.vue`: `<JSONParserConfig>` für `type === 'json'`.
-- `frontend/src/components/NodeIcon.vue`: Icon-Eintrag für `json`.
+- `frontend/src/views/FlowEditor.vue`: `<template #node-json>` + import.
+- `frontend/src/components/PropertyPanel.vue`: `<JSONParserConfig>` for `type === 'json'`.
+- `frontend/src/components/NodeIcon.vue`: icon entry for `json`.
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/nodes/parser_json.go` (neu)
-- `internal/nodes/parser_json_test.go` (neu) — auto/parse/stringify
-  Branches, String und `[]byte` Eingaben, Pretty-Print, Fehlerfälle
-  (ungültiges JSON, falscher Typ).
-- `internal/server/server.go` — Registrierung.
+- `internal/nodes/parser_json.go` (new)
+- `internal/nodes/parser_json_test.go` (new) — auto/parse/stringify
+  branches, string and `[]byte` inputs, pretty-print, error cases
+  (invalid JSON, wrong type).
+- `internal/server/server.go` — registration.
 
 ### Frontend
-- `frontend/src/components/nodes/JSONParserNode.vue` (neu)
-- `frontend/src/components/config/JSONParserConfig.vue` (neu)
-- `frontend/src/views/FlowEditor.vue` — Slot + Import.
-- `frontend/src/components/PropertyPanel.vue` — Config-Mapping.
-- `frontend/src/components/NodeIcon.vue` — Icon-Eintrag.
+- `frontend/src/components/nodes/JSONParserNode.vue` (new)
+- `frontend/src/components/config/JSONParserConfig.vue` (new)
+- `frontend/src/views/FlowEditor.vue` — slot + import.
+- `frontend/src/components/PropertyPanel.vue` — config mapping.
+- `frontend/src/components/NodeIcon.vue` — icon entry.
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.Message` mit `Get`/`Set` (existiert)
-- Catch Node für Fehlerweiterleitung (existiert)
-- Standard-Library: `encoding/json` (kein neues Modul)
+- `flow.Message` with `Get`/`Set` (exists)
+- Catch node for error forwarding (exists)
+- Standard library: `encoding/json` (no new module)
 
-## Out of Scope für Phase 1
+## Out of scope for Phase 1
 
-- **flow./global. Scopes** — siehe `PARSER_NODES.md`.
-- **JSON-Schema-Validierung** — eigener Node später.
-- **JSONPath / Sub-Pfad-Extraktion** — Change Node deckt das nach
-  dem Parsen ab.
-- **Streaming für sehr große Payloads** — kein Use Case.
+- **flow./global. scopes** — see `PARSER_NODES.md`.
+- **JSON schema validation** — separate node later.
+- **JSONPath / sub-path extraction** — Change node covers that after
+  parsing.
+- **Streaming for very large payloads** — no use case.
 
-## Offene Fragen
+## Open questions
 
-- **Palette-Kategorie**: neue Gruppe `parser` oder bei `function`
-  einsortieren? (siehe oben)
-- **Type-Name**: `json` (kurz, klar) oder `parser-json` (explizit
-  Namespace)? Vorschlag `json` — analog zu Node-RED, kürzer.
-- **Indent-Range**: hartes Cap bei 8 oder weiter offen lassen?
-  Vorschlag: 0–8 reicht praktisch.
+- **Palette category**: new group `parser` or sort into `function`?
+  (see above)
+- **Type name**: `json` (short, clear) or `parser-json` (explicit
+  namespace)? Suggestion `json` — analogous to Node-RED, shorter.
+- **Indent range**: hard cap at 8 or leave more open?
+  Suggestion: 0–8 is practically enough.

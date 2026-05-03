@@ -1,151 +1,151 @@
 # Change Node
 
-## Beschreibung
+## Description
 
-Der Change Node manipuliert Message-Properties, Flow-Context und Global-Context ohne Code schreiben zu müssen. Er ist das Hauptwerkzeug für einfache Datenmanipulationen und ersetzt in vielen Fällen einen Function Node.
+The Change node manipulates message properties, flow context, and global context without having to write code. It is the main tool for simple data manipulations and replaces a Function node in many cases.
 
-## Operationen
+## Operations
 
-Jede Regel besteht aus einer **Operation**, einem **Ziel** und (je nach Operation) einem **Wert**.
+Each rule consists of an **operation**, a **target**, and (depending on the operation) a **value**.
 
-### Operationen (Dropdown links)
+### Operations (left dropdown)
 
-| Operation | Beschreibung |
+| Operation | Description |
 |---|---|
-| **Setze** | Setzt ein Property auf einen Wert. Erstellt es wenn es nicht existiert. |
-| **Ändere** | Sucht und ersetzt Text innerhalb eines String-Properties (Regex oder String-Match). |
-| **Lösche** | Entfernt ein Property komplett aus dem Objekt. |
-| **Verschiebe** | Verschiebt ein Property an eine andere Stelle (Quelle wird gelöscht). |
+| **Set** | Sets a property to a value. Creates it if it does not exist. |
+| **Change** | Searches and replaces text within a string property (regex or string match). |
+| **Delete** | Removes a property completely from the object. |
+| **Move** | Moves a property to another location (source is deleted). |
 
-### Ziel-Scope (Dropdown im Property-Feld)
+### Target Scope (dropdown in the property field)
 
-| Scope | Beschreibung |
+| Scope | Description |
 |---|---|
-| **msg.** | Message-Property (z.B. `msg.payload`, `msg.topic`, `msg.myField`) |
-| **flow.** | Flow-Context (Key-Value Store, geteilt innerhalb des Flows) |
-| **global.** | Global-Context (Key-Value Store, geteilt über alle Flows) |
+| **msg.** | Message property (e.g. `msg.payload`, `msg.topic`, `msg.myField`) |
+| **flow.** | Flow context (key-value store, shared within the flow) |
+| **global.** | Global context (key-value store, shared across all flows) |
 
-### Wert-Typen (Dropdown im Value-Feld)
+### Value Types (dropdown in the value field)
 
-Beim **Setze**-Operator kann der Wert aus verschiedenen Quellen kommen:
+For the **Set** operator, the value can come from various sources:
 
-| Typ | Icon | Beschreibung |
+| Type | Icon | Description |
 |---|---|---|
-| **msg.** | — | Wert aus einem anderen Message-Property lesen |
-| **flow.** | — | Wert aus dem Flow-Context lesen |
-| **global.** | — | Wert aus dem Global-Context lesen |
-| **string** | `a/z` | Statischer String-Wert |
-| **number** | `0/9` | Statischer Zahlenwert |
-| **boolean** | `◉` | `true` oder `false` |
-| **JSON** | `{}` | JSON-Objekt oder Array (wird geparst) |
-| **buffer** | `01/10` | Buffer/Byte-Array |
-| **timestamp** | `⏱` | Aktueller Unix-Timestamp in Millisekunden |
-| **Umgebungsvariable** | `$` | Wert aus einer Umgebungsvariable lesen |
+| **msg.** | — | Read value from another message property |
+| **flow.** | — | Read value from the flow context |
+| **global.** | — | Read value from the global context |
+| **string** | `a/z` | Static string value |
+| **number** | `0/9` | Static numeric value |
+| **boolean** | `(o)` | `true` or `false` |
+| **JSON** | `{}` | JSON object or array (parsed) |
+| **buffer** | `01/10` | Buffer/byte array |
+| **timestamp** | `clock` | Current Unix timestamp in milliseconds |
+| **environment variable** | `$` | Read value from an environment variable |
 
-## Storage-Auswahl bei flow/global Context
+## Storage Selection for Flow/Global Context
 
-Sobald als Scope oder Wert-Typ **flow.** oder **global.** gewählt wird, erscheint **hinter dem Textfeld** ein zusätzliches Dropdown zur Auswahl des Storage-Typs:
+As soon as **flow.** or **global.** is chosen as scope or value type, an additional dropdown appears **after the text field** to select the storage type:
 
-| Option | Beschreibung |
+| Option | Description |
 |---|---|
-| **memory** | Volatile In-Memory Store (schnell, Daten gehen bei Neustart verloren) — **Default** |
-| **persistent** | File-backed persistent Store (überlebt Neustarts) |
+| **memory** | Volatile in-memory store (fast, data lost on restart) — **default** |
+| **persistent** | File-backed persistent store (survives restarts) |
 
-Dies gilt für **alle Stellen** an denen flow/global als Scope oder Wert-Typ auftaucht:
-- **Ziel-Scope** (Property-Feld): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
-- **Wert-Typ** (Value-Feld bei "Setze"): Wenn `flow.` oder `global.` als Quelle → Storage-Dropdown erscheint
-- **Suche-Typ** (bei "Ändere"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
-- **Ersetze-Typ** (bei "Ändere"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
-- **Ziel** (bei "Verschiebe"): Wenn `flow.` oder `global.` → Storage-Dropdown erscheint
+This applies to **all places** where flow/global appears as scope or value type:
+- **Target scope** (property field): when `flow.` or `global.` -> storage dropdown appears
+- **Value type** (value field for "Set"): when `flow.` or `global.` as source -> storage dropdown appears
+- **Search type** (for "Change"): when `flow.` or `global.` -> storage dropdown appears
+- **Replace type** (for "Change"): when `flow.` or `global.` -> storage dropdown appears
+- **Target** (for "Move"): when `flow.` or `global.` -> storage dropdown appears
 
-### UI-Layout
+### UI Layout
 
 ```
-Setze ▼ | ▼ flow. [key         ] [memory ▼]
-         to value | ▼ global. [source_key  ] [persistent ▼]
+Set v | v flow. [key         ] [memory v]
+       to value | v global. [source_key  ] [persistent v]
 ```
 
-### Backend Config-Felder
+### Backend Config Fields
 
-Neue Felder pro Regel für Storage-Auswahl:
+New fields per rule for storage selection:
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
-| `ps` | Property-Storage: `memory` oder `persistent` (nur wenn `pt` = flow/global) |
-| `tos` | Value-Storage: `memory` oder `persistent` (nur wenn `tot` = flow/global) |
-| `froms` | Search-Storage: `memory` oder `persistent` (nur wenn `fromt` = flow/global) |
+| `ps` | Property storage: `memory` or `persistent` (only when `pt` = flow/global) |
+| `tos` | Value storage: `memory` or `persistent` (only when `tot` = flow/global) |
+| `froms` | Search storage: `memory` or `persistent` (only when `fromt` = flow/global) |
 
-## Regeln-UI
+## Rules UI
 
-- Regeln werden als **sortierbare Liste** dargestellt (Drag-Handle `≡` links)
-- Jede Regel hat einen **Löschen-Button** (`✕`) rechts
-- Unten ein **"+ hinzufügen"** Button für neue Regeln
-- Regeln werden **sequenziell** von oben nach unten ausgeführt
-- Änderungen einer Regel sind für nachfolgende Regeln sichtbar
+- Rules are presented as a **sortable list** (drag handle `=` on the left)
+- Each rule has a **delete button** (`x`) on the right
+- Below an **"+ add"** button for new rules
+- Rules are executed **sequentially** from top to bottom
+- Changes made by one rule are visible to subsequent rules
 
-## Beispiele
+## Examples
 
-### Setze msg.payload auf einen String
+### Set msg.payload to a String
 ```
-Setze | msg.payload | to the value | string: "Hello World"
-```
-
-### Kopiere msg.topic nach msg.payload
-```
-Setze | msg.payload | to the value | msg.topic
+Set | msg.payload | to the value | string: "Hello World"
 ```
 
-### Lösche ein Property
+### Copy msg.topic to msg.payload
 ```
-Lösche | msg.temp
-```
-
-### Verschiebe Property
-```
-Verschiebe | msg.payload | to | msg.data.original
+Set | msg.payload | to the value | msg.topic
 ```
 
-### Suchen & Ersetzen (Ändere)
-
-Die Ändere-Operation hat ein **eigenes Layout** mit zwei Wert-Feldern:
-
+### Delete a Property
 ```
-Ändere | ▼ msg. [property]
-          Suche nach:    | ▼ [typ] [wert]
-          Ersetze durch: | ▼ [typ] [wert]
+Delete | msg.temp
 ```
 
-**"Suche nach"-Typen** (eingeschränkt):
+### Move Property
+```
+Move | msg.payload | to | msg.data.original
+```
 
-| Typ | Beschreibung |
+### Search & Replace (Change)
+
+The Change operation has its **own layout** with two value fields:
+
+```
+Change | v msg. [property]
+         Search for:    | v [type] [value]
+         Replace with:  | v [type] [value]
+```
+
+**"Search for" types** (restricted):
+
+| Type | Description |
 |---|---|
-| **msg.** | Suchstring aus Message-Property |
-| **flow.** | Suchstring aus Flow-Context |
-| **global.** | Suchstring aus Global-Context |
-| **string** | Statischer Suchstring |
-| **Regulärer Ausdruck** | Regex-Pattern (z.B. `foo\d+`) |
-| **number** | Zahlenwert |
+| **msg.** | Search string from message property |
+| **flow.** | Search string from flow context |
+| **global.** | Search string from global context |
+| **string** | Static search string |
+| **regular expression** | Regex pattern (e.g. `foo\d+`) |
+| **number** | Numeric value |
 | **boolean** | true/false |
-| **Umgebungsvariable** | Suchstring aus ENV |
+| **environment variable** | Search string from ENV |
 
-**"Ersetze durch"-Typen**: identisch, aber ohne "Regulärer Ausdruck".
+**"Replace with" types**: identical, but without "regular expression".
 
-Beispiel:
+Example:
 ```
-Ändere | msg.payload | Suche nach: string "foo" | Ersetze durch: string "bar"
-```
-
-### Timestamp setzen
-```
-Setze | msg.timestamp | to the value | timestamp
+Change | msg.payload | Search for: string "foo" | Replace with: string "bar"
 ```
 
-### Flow-Context schreiben
+### Set Timestamp
 ```
-Setze | flow.lastValue | to the value | msg.payload
+Set | msg.timestamp | to the value | timestamp
 ```
 
-## Konfiguration (Backend)
+### Write Flow Context
+```
+Set | flow.lastValue | to the value | msg.payload
+```
+
+## Configuration (Backend)
 
 ```json
 {
@@ -183,50 +183,50 @@ Setze | flow.lastValue | to the value | msg.payload
 }
 ```
 
-### Regel-Felder
+### Rule Fields
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
 | `t` | Operation: `set`, `change`, `delete`, `move` |
-| `p` | Property-Name (ohne Scope-Prefix) |
-| `pt` | Property-Scope: `msg`, `flow`, `global` |
-| `ps` | Property-Storage: `memory` oder `persistent` (nur wenn `pt` = flow/global) |
-| `to` | Zielwert oder Ziel-Property |
-| `tot` | Wert-Typ: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `buf`, `date`, `env` |
-| `tos` | Value-Storage: `memory` oder `persistent` (nur wenn `tot` = flow/global) |
-| `from` | Suchstring (nur bei `change`) |
-| `fromt` | Such-Typ: `str`, `re` (Regex) |
-| `froms` | Search-Storage: `memory` oder `persistent` (nur wenn `fromt` = flow/global) |
-| `fromRE` | Regex-Flag (nur bei `change`) |
+| `p` | Property name (without scope prefix) |
+| `pt` | Property scope: `msg`, `flow`, `global` |
+| `ps` | Property storage: `memory` or `persistent` (only when `pt` = flow/global) |
+| `to` | Target value or target property |
+| `tot` | Value type: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `buf`, `date`, `env` |
+| `tos` | Value storage: `memory` or `persistent` (only when `tot` = flow/global) |
+| `from` | Search string (only for `change`) |
+| `fromt` | Search type: `str`, `re` (regex) |
+| `froms` | Search storage: `memory` or `persistent` (only when `fromt` = flow/global) |
+| `fromRE` | Regex flag (only for `change`) |
 
-## Implementierung
+## Implementation
 
 ### Backend (`internal/nodes/change.go`)
 
 - **Inputs:** 1, **Outputs:** 1
-- Parst `rules` Array aus `config.Properties`
-- Führt Regeln sequenziell auf der Message aus
-- Für `msg.*`: Nutzt `msg.Get()` / `msg.Set()` / `msg.Delete()`
-- Für `flow.*` / `global.*`: Nutzt `ContextStore.Get()` / `ContextStore.Set()`
-- Implementiert `ContextProvider` (wie FunctionNode) für Flow/Global Context Zugriff
-- Bei `change` (Suche/Ersetze): `strings.Replace()` oder `regexp.ReplaceAllString()`
-- Bei `move`: Get → Set am Ziel → Delete an der Quelle
-- Bei `date` (timestamp): `time.Now().UnixMilli()`
-- Bei `env`: `os.Getenv()`
+- Parses `rules` array from `config.Properties`
+- Executes rules sequentially on the message
+- For `msg.*`: uses `msg.Get()` / `msg.Set()` / `msg.Delete()`
+- For `flow.*` / `global.*`: uses `ContextStore.Get()` / `ContextStore.Set()`
+- Implements `ContextProvider` (like FunctionNode) for flow/global context access
+- For `change` (search/replace): `strings.Replace()` or `regexp.ReplaceAllString()`
+- For `move`: get -> set at target -> delete at source
+- For `date` (timestamp): `time.Now().UnixMilli()`
+- For `env`: `os.Getenv()`
 
 ### Frontend
 
 #### `ChangeConfig.vue`
-- Sortierbare Regelliste (Drag & Drop Reihenfolge)
-- Pro Regel: Operation-Dropdown, Scope-Dropdown, Property-Input, Value-Type-Dropdown, Value-Input
-- "+" Button unten zum Hinzufügen neuer Regeln
-- "✕" Button rechts zum Löschen einer Regel
+- Sortable rule list (drag & drop ordering)
+- Per rule: operation dropdown, scope dropdown, property input, value-type dropdown, value input
+- "+" button at the bottom to add new rules
+- "x" button on the right to delete a rule
 
 #### `ChangeNode.vue`
-- Nutzt BaseNode mit Category `process` (blaue Farben)
-- Body zeigt kompakte Zusammenfassung der Regeln (z.B. "3 rules")
+- Uses BaseNode with category `process` (blue colors)
+- Body shows compact summary of the rules (e.g. "3 rules")
 
-### Node-Registrierung
+### Node Registration
 
 ```go
 registry.Register("change", nodes.NewChangeNode, nodes.ChangeTypeInfo())
@@ -254,9 +254,9 @@ func ChangeTypeInfo() flow.NodeTypeInfo {
 }
 ```
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.ContextStore` Interface (existiert bereits)
-- `flow.ContextProvider` Interface (existiert bereits)
-- `msg.Get()` / `msg.Set()` / `msg.Delete()` (existiert bereits)
-- Dot-Path Navigation in `msg.Get/Set` (existiert bereits)
+- `flow.ContextStore` interface (already exists)
+- `flow.ContextProvider` interface (already exists)
+- `msg.Get()` / `msg.Set()` / `msg.Delete()` (already exist)
+- Dot-path navigation in `msg.Get/Set` (already exists)

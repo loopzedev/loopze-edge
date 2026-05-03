@@ -1,25 +1,25 @@
-# Issue: Function Node – Multi-Output Skalierung und Wire-Positionierung fehlerhaft
+# Issue: Function Node – Multi-Output Scaling and Wire Positioning Broken
 
-## Beschreibung
+## Description
 
-Beim Hinzufügen weiterer Ausgänge am Function Node treten mehrere visuelle Probleme auf:
+When adding additional outputs to the Function node, several visual problems occur:
 
-1. **Ungleichmäßiger Abstand der Outputs**: Neue Ausgänge werden nicht mit konstantem Abstand zueinander positioniert. Der Abstand zwischen den Output-Ports variiert statt gleichmäßig verteilt zu sein.
+1. **Uneven output spacing**: New outputs are not positioned with constant spacing relative to each other. The spacing between output ports varies instead of being evenly distributed.
 
-2. **Node-Höhe skaliert nicht korrekt**: Die Höhe des Nodes passt sich beim Hinzufügen neuer Outputs nicht proportional an. Der Node sollte in der Höhe dynamisch wachsen, sodass alle Outputs mit gleichem Abstand dargestellt werden.
+2. **Node height does not scale correctly**: The node height does not adjust proportionally when new outputs are added. The node should grow dynamically in height so that all outputs are displayed with equal spacing.
 
-3. **Output-Positionen verschieben sich**: Beim Hinzufügen neuer Outputs verändern sich die Positionen bereits vorhandener Ausgänge, ohne dass bestehende Wire-Verbindungen mitgeführt werden. Bereits verschaltete Wires wandern nicht mit den Ports mit, was zu visuell fehlerhaften Verbindungen führt.
+3. **Output positions shift**: When new outputs are added, the positions of already existing outputs change without existing wire connections being moved along. Already wired connections do not move with the ports, leading to visually broken connections.
 
-## Erwartetes Verhalten
+## Expected Behavior
 
-- Outputs haben immer einen **konstanten, gleichmäßigen Abstand** zueinander.
-- Die **Node-Höhe wächst dynamisch** entsprechend der Anzahl der Outputs.
-- Beim Hinzufügen/Entfernen von Outputs werden **bestehende Wire-Verbindungen** korrekt an die neuen Port-Positionen angepasst.
+- Outputs always have a **constant, even spacing** to each other.
+- The **node height grows dynamically** according to the number of outputs.
+- When adding/removing outputs, **existing wire connections** are correctly adjusted to the new port positions.
 
-## Schritte zur Reproduktion
+## Steps to Reproduce
 
-1. Function Node erstellen
-2. Einen oder mehrere zusätzliche Outputs hinzufügen
-3. Beobachten: Abstände ungleichmäßig, Node-Höhe passt sich nicht an
-4. Wire an einen Output anschließen, dann weiteren Output hinzufügen
-5. Beobachten: Wire-Position stimmt nicht mehr mit Port-Position überein
+1. Create a Function node
+2. Add one or more additional outputs
+3. Observe: spacing uneven, node height does not adapt
+4. Connect a wire to an output, then add another output
+5. Observe: wire position no longer matches port position

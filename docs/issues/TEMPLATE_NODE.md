@@ -1,98 +1,97 @@
-# Issue: Template Node — Texte aus Vorlagen zusammenbauen
+# Issue: Template Node — build texts from templates
 
 ## Status: Proposed
 
-## Problembeschreibung
+## Problem description
 
-Aktuell gibt es keinen einfachen Weg, mehrzeilige Texte mit Variablen aus
-`msg`, `flow.` oder `global.` zu erzeugen. Wer z.B. eine MQTT-Payload, eine
-Benachrichtigung oder ein JSON-Objekt aus mehreren Quellen zusammenbauen will,
-muss heute auf den Function Node ausweichen — Code für eine Aufgabe, die
-deklarativ schöner ist.
+Currently there is no easy way to produce multi-line texts with variables from
+`msg`, `flow.` or `global.`. Anyone who wants to assemble e.g. an MQTT payload, a
+notification, or a JSON object from multiple sources today has to fall back on
+the Function Node — code for a task that is more elegant when declarative.
 
-In Node-RED erledigt das der **Template Node**: ein Textfeld mit
-Mustache-Platzhaltern, das Ergebnis landet als String in `msg.payload`
-(oder einem anderen Property).
+In Node-RED, the **Template Node** does this: a text field with
+Mustache placeholders, the result lands as a string in `msg.payload`
+(or another property).
 
-## Sichtweise / Begründung
+## View / rationale
 
-- **Bediener-UX**: Eine Textarea mit `{{payload}}`-Platzhaltern ist für
-  Nicht-Programmierer deutlich zugänglicher als JS-Code im Function Node.
-- **Niedrige Komplexität**: Mustache als Template-Sprache ist klein, etabliert,
-  hat Go-Libs (`github.com/cbroglie/mustache` o.ä.).
-- **Pattern bereits da**: Scope-Auswahl (`msg`/`flow`/`global`) inkl.
-  Storage-Schalter (`memory`/`persistent`) existiert beim Change Node — Template
-  Node nutzt dasselbe Mental-Model.
-- **Häufige Use Cases**:
-  - Notification-Texte: `"Sensor {{topic}} meldet {{payload}}°C"`
-  - JSON-Bodies für HTTP/MQTT: `{"id": "{{flow.deviceId}}", "v": {{payload}}}`
-  - Log-Zeilen, Statusmeldungen, Dashboard-Texte
+- **Operator UX**: a textarea with `{{payload}}` placeholders is much more
+  accessible to non-programmers than JS code in the Function Node.
+- **Low complexity**: Mustache as a template language is small, well-established,
+  has Go libs (`github.com/cbroglie/mustache` etc.).
+- **Pattern already there**: scope selection (`msg`/`flow`/`global`) including
+  storage switch (`memory`/`persistent`) exists in the Change Node — Template
+  Node uses the same mental model.
+- **Common use cases**:
+  - Notification texts: `"Sensor {{topic}} reports {{payload}}°C"`
+  - JSON bodies for HTTP/MQTT: `{"id": "{{flow.deviceId}}", "v": {{payload}}}`
+  - Log lines, status messages, dashboard texts
 
-## Anforderungen
+## Requirements
 
-### 1. Template-Quelle
+### 1. Template source
 
-Eine **Textarea** im Properties-Panel mit Mustache-Syntax.
+A **textarea** in the properties panel with Mustache syntax.
 
-| Platzhalter | Bedeutung |
+| Placeholder | Meaning |
 |---|---|
 | `{{payload}}` | `msg.payload` |
 | `{{topic}}` | `msg.topic` |
-| `{{<dot.path>}}` | beliebiges `msg.<dot.path>` |
-| `{{flow.<key>}}` | Wert aus Flow-Context |
-| `{{global.<key>}}` | Wert aus Global-Context |
-| `{{{value}}}` | unescaped (bei Output-Format `html` relevant) |
+| `{{<dot.path>}}` | arbitrary `msg.<dot.path>` |
+| `{{flow.<key>}}` | value from flow context |
+| `{{global.<key>}}` | value from global context |
+| `{{{value}}}` | unescaped (relevant with output format `html`) |
 
-Mustache-Sections (`{{#list}}…{{/list}}`, `{{^missing}}…{{/missing}}`) werden
-unterstützt — Standard-Mustache-Verhalten, keine Sondersemantik.
+Mustache sections (`{{#list}}…{{/list}}`, `{{^missing}}…{{/missing}}`) are
+supported — standard Mustache behavior, no special semantics.
 
-### 2. Output-Ziel
+### 2. Output target
 
-| Feld | Beschreibung | Default |
+| Field | Description | Default |
 |---|---|---|
-| `field` | Property-Name am Output (Dot-Path) | `payload` |
+| `field` | Property name on the output (dot-path) | `payload` |
 | `fieldType` | Scope: `msg`, `flow`, `global` | `msg` |
 
-Bei `flow`/`global` erscheint **hinter dem Property-Feld** ein
-Storage-Dropdown (`memory` / `persistent`) — analog Change Node.
+For `flow`/`global`, a storage dropdown (`memory` / `persistent`) appears
+**behind the property field** — analogous to Change Node.
 
-### 3. Output-Format
+### 3. Output format
 
-Dropdown bestimmt die Nachbearbeitung des gerenderten Strings:
+A dropdown determines post-processing of the rendered string:
 
-| Wert | Verhalten |
+| Value | Behavior |
 |---|---|
-| `plain` | String wird unverändert als String ausgegeben (Default) |
-| `json` | Ergebnis wird mit `json.Unmarshal` geparst — bei Fehler: Catchable Error |
-| `yaml` | Ergebnis wird mit YAML-Parser geparst — bei Fehler: Catchable Error |
+| `plain` | String is output as-is (default) |
+| `json` | Result is parsed with `json.Unmarshal` — on error: catchable error |
+| `yaml` | Result is parsed with YAML parser — on error: catchable error |
 
-Phase 1 implementiert nur `plain` und `json`. `yaml` ist nice-to-have, kann
-nachgezogen werden, sobald Bedarf besteht.
+Phase 1 implements only `plain` and `json`. `yaml` is nice-to-have, can be
+added once needed.
 
-### 4. Syntax-Modus
+### 4. Syntax mode
 
 Dropdown:
 
-| Wert | Beschreibung |
+| Value | Description |
 |---|---|
-| `mustache` | Template wird gerendert (Default) |
-| `plain` | Template wird 1:1 durchgereicht — nützlich für statische Texte mit `{{`/`}}` |
+| `mustache` | Template is rendered (default) |
+| `plain` | Template is passed through 1:1 — useful for static texts with `{{`/`}}` |
 
-### 5. Fehlerbehandlung
+### 5. Error handling
 
-- Ungültige Mustache-Syntax → Node geht auf `red` / `"template error"`,
-  Message wird als Catchable Error dem Catch Node zugeführt.
-- Unbekannter Platzhalter → leer (Mustache-Standard), kein Fehler.
-- JSON-/YAML-Parse-Fehler bei entsprechendem Output-Format → Catchable Error.
+- Invalid Mustache syntax → node goes to `red` / `"template error"`,
+  message is fed to the Catch node as a catchable error.
+- Unknown placeholder → empty (Mustache standard), no error.
+- JSON/YAML parse errors with corresponding output format → catchable error.
 
 ### 6. Status
 
-- Idle: kein Status (wie Change Node).
-- Bei Render-Fehler: `red` / `"template error"`.
+- Idle: no status (like Change Node).
+- On render error: `red` / `"template error"`.
 
-## Technische Skizze
+## Technical sketch
 
-### Backend — `internal/nodes/template.go` (neu)
+### Backend — `internal/nodes/template.go` (new)
 
 ```go
 type TemplateNode struct {
@@ -113,22 +112,22 @@ type TemplateNode struct {
 ```
 
 - **Inputs:** 1, **Outputs:** 1
-- Implementiert `ContextProvider`-Konsum analog Function/Change Node
-- Pre-Parse des Templates in `Init` (Fail-fast bei Syntaxfehler beim Deploy)
-- Bei `syntax == "plain"`: kein Parsing, Template-String direkt als Output
+- Implements `ContextProvider` consumption analogous to Function/Change Node
+- Pre-parse of the template in `Init` (fail-fast on syntax error at deploy)
+- For `syntax == "plain"`: no parsing, template string output directly
 - In `HandleMessage`:
-  - Build View-Map: `{payload, topic, ...msg-fields, flow: lookup(...), global: lookup(...)}`
-  - Render → String
-  - Format-Postprocess (`json.Unmarshal` falls `format == "json"`)
-  - Schreibe Ergebnis nach `field` im jeweiligen Scope
+  - Build view map: `{payload, topic, ...msg-fields, flow: lookup(...), global: lookup(...)}`
+  - Render → string
+  - Format post-process (`json.Unmarshal` if `format == "json"`)
+  - Write result to `field` in the respective scope
   - `send(0, msg)`
 
-### Mustache-Lib
+### Mustache lib
 
-`github.com/cbroglie/mustache` — kleine, abhängigkeitsfreie Go-Implementation,
-unterstützt Sections und Lambdas-light. Einbindung über `go.mod`.
+`github.com/cbroglie/mustache` — small, dependency-free Go implementation,
+supports sections and lambdas-light. Integration via `go.mod`.
 
-### Node-Registrierung — `internal/server/server.go`
+### Node registration — `internal/server/server.go`
 
 ```go
 registry.Register("template", nodes.NewTemplateNode, nodes.TemplateTypeInfo())
@@ -156,58 +155,58 @@ func TemplateTypeInfo() flow.NodeTypeInfo {
 }
 ```
 
-### Frontend — `frontend/src/components/nodes/TemplateNode.vue` (neu)
+### Frontend — `frontend/src/components/nodes/TemplateNode.vue` (new)
 
-- BaseNode mit Kategorie `function`
-- Body zeigt z.B. die ersten ~24 Zeichen des Templates: `"Sensor {{topic}} ..."`
+- BaseNode with category `function`
+- Body shows e.g. the first ~24 characters of the template: `"Sensor {{topic}} ..."`
 
-### Frontend — `frontend/src/components/config/TemplateConfig.vue` (neu)
+### Frontend — `frontend/src/components/config/TemplateConfig.vue` (new)
 
-- Mehrzeilige Textarea (monospace) für das Template
-- Property-Feld (Dot-Path) + Scope-Dropdown (`msg`/`flow`/`global`)
-- Storage-Dropdown bei `flow`/`global` (DRY: gleiche Komponente wie Change/Function)
-- Output-Format-Dropdown (`plain`/`json`)
-- Syntax-Dropdown (`mustache`/`plain`)
-- Alle Felder via `useNodeProperty`
+- Multi-line textarea (monospace) for the template
+- Property field (dot-path) + scope dropdown (`msg`/`flow`/`global`)
+- Storage dropdown for `flow`/`global` (DRY: same component as Change/Function)
+- Output format dropdown (`plain`/`json`)
+- Syntax dropdown (`mustache`/`plain`)
+- All fields via `useNodeProperty`
 
-### Frontend — Verdrahtung
+### Frontend — wiring
 
-- `frontend/src/views/FlowEditor.vue`: `<template #node-template>` + Import
-- `frontend/src/components/PropertyPanel.vue`: `<TemplateConfig>` für `type === 'template'`
-- `frontend/src/components/NodeIcon.vue`: Icon-Eintrag für `template`
+- `frontend/src/views/FlowEditor.vue`: `<template #node-template>` + import
+- `frontend/src/components/PropertyPanel.vue`: `<TemplateConfig>` for `type === 'template'`
+- `frontend/src/components/NodeIcon.vue`: icon entry for `template`
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `go.mod` — Dependency `github.com/cbroglie/mustache`
-- `internal/nodes/template.go` (neu)
-- `internal/nodes/template_test.go` (neu) — Pre-Parse-Fehler, Render mit
-  msg/flow/global, Output-Formate, Syntax-Modus `plain`
-- `internal/server/server.go` — Registrierung
+- `go.mod` — dependency `github.com/cbroglie/mustache`
+- `internal/nodes/template.go` (new)
+- `internal/nodes/template_test.go` (new) — pre-parse error, render with
+  msg/flow/global, output formats, syntax mode `plain`
+- `internal/server/server.go` — registration
 
 ### Frontend
-- `frontend/src/components/nodes/TemplateNode.vue` (neu)
-- `frontend/src/components/config/TemplateConfig.vue` (neu)
-- `frontend/src/views/FlowEditor.vue` — Slot + Import
-- `frontend/src/components/PropertyPanel.vue` — Config-Mapping
-- `frontend/src/components/NodeIcon.vue` — Icon-Eintrag
+- `frontend/src/components/nodes/TemplateNode.vue` (new)
+- `frontend/src/components/config/TemplateConfig.vue` (new)
+- `frontend/src/views/FlowEditor.vue` — slot + import
+- `frontend/src/components/PropertyPanel.vue` — config mapping
+- `frontend/src/components/NodeIcon.vue` — icon entry
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.ContextProvider` (existiert)
-- `flow.ContextStore` mit Storage-Auswahl (existiert, vom Change Node genutzt)
-- Catch Node für Fehlerweiterleitung (existiert)
+- `flow.ContextProvider` (exists)
+- `flow.ContextStore` with storage selection (exists, used by Change Node)
+- Catch node for error forwarding (exists)
 
-## Out of Scope für Phase 1
+## Out of scope for phase 1
 
-- **YAML-Output** — wird nachgezogen, sobald nötig
-- **Custom Delimiters** (`{{=<% %>=}}`) — Mustache kann das, im UI aber selten
-  gewünscht; wenn Bedarf entsteht, als optionales Feld nachreichbar
-- **Partials/Includes** über mehrere Nodes — kein Use Case in Sicht
-- **Live-Preview im Properties-Panel** — nett, aber kein MVP
+- **YAML output** — added when needed
+- **Custom delimiters** (`{{=<% %>=}}`) — Mustache supports this, but rarely
+  desired in the UI; if a need arises, can be added as an optional field
+- **Partials/includes** across multiple nodes — no use case in sight
+- **Live preview in the properties panel** — nice, but not MVP
 
-## Offene Fragen
+## Open questions
 
-- Soll der Output-Wert bei `format: json` und Parse-Fehler stattdessen den
-  rohen String belassen (statt Catchable Error)? — Vorschlag: nein, klarer
-  Fehler ist konsistenter mit den anderen Nodes.
+- Should the output value with `format: json` and a parse error instead leave
+  the raw string in place (instead of catchable error)? — Suggestion: no, a clear
+  error is more consistent with the other nodes.

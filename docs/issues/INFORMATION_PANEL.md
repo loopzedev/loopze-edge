@@ -1,50 +1,50 @@
-# Information Panel: Tab-System mit Help, Config und Debug
+# Information Panel: Tab System with Help, Config, and Debug
 
-## Kontext
+## Context
 
-Das Information Panel (rechte Sidebar, `InformationSidebar.vue`) zeigt aktuell nur das Debug Panel als einzigen Inhalt. Es fehlt eine Tab-Navigation und weitere wichtige Panels fuer den taeglichen Workflow.
+The information panel (right sidebar, `InformationSidebar.vue`) currently shows only the debug panel as its sole content. A tab navigation and additional important panels for the daily workflow are missing.
 
-## Anforderung
+## Requirement
 
-Das Information Panel wird um ein **Tab-System** erweitert mit drei Tabs:
+The information panel is extended with a **tab system** containing three tabs:
 
 ### Tab 1: Help
 
-- Zeigt die **Hilfe/Dokumentation** fuer den aktuell selektierten Node-Typ
-- Reagiert auf Node-Klick im Editor (`flowStore.selectedNode`)
-- Wenn kein Node selektiert ist: Platzhalter-Text ("Klicke einen Node um die Hilfe anzuzeigen")
-- Inhalt pro Node-Typ:
-  - Beschreibung / Zweck des Nodes
-  - Erklaerung der Input/Output Ports
-  - Beschreibung der konfigurierbaren Properties
-  - Beispiele / Hinweise zur Verwendung
-- Die Hilfetexte koennen initial aus der `NodeTypeInfo` (Backend: `Description` Feld) kommen und spaeter um ausfuehrlichere Markdown-Dokumentation erweitert werden
+- Shows the **help/documentation** for the currently selected node type
+- Reacts to node clicks in the editor (`flowStore.selectedNode`)
+- If no node is selected: placeholder text ("Click a node to view its help")
+- Content per node type:
+  - Description / purpose of the node
+  - Explanation of input/output ports
+  - Description of configurable properties
+  - Examples / usage notes
+- Help texts can initially come from `NodeTypeInfo` (backend: `Description` field) and later be extended with more detailed Markdown documentation
 
 ### Tab 2: Config
 
-- Listet alle **Config Nodes** des Workspace auf (z.B. MQTT Broker Verbindungen, DB Connections)
-- Datenquelle: `flowStore.configs` (Array von `ConfigNode`)
-- Jeder Eintrag zeigt: Name, Typ, Status (verbunden/getrennt falls verfuegbar)
-- Klick auf einen Config-Eintrag oeffnet den Config-Editor im Property Panel (`ui.openConfigEditor(type, id)`)
-- Button zum Anlegen neuer Config Nodes
+- Lists all **config nodes** of the workspace (e.g. MQTT broker connections, DB connections)
+- Data source: `flowStore.configs` (array of `ConfigNode`)
+- Each entry shows: name, type, status (connected/disconnected if available)
+- Clicking a config entry opens the config editor in the property panel (`ui.openConfigEditor(type, id)`)
+- Button to create new config nodes
 
-### Tab 3: Debug (bestehend)
+### Tab 3: Debug (existing)
 
-- Bereits implementiert als `DebugPanel.vue`
-- Wird 1:1 in den Tab uebernommen
-- Bestehendes Verhalten bleibt unveraendert (Filter, ON/OFF, CLR, Auto-Scroll, Message-Anzeige)
+- Already implemented as `DebugPanel.vue`
+- Adopted 1:1 into the tab
+- Existing behavior remains unchanged (filter, ON/OFF, CLR, auto-scroll, message display)
 
-## Technische Details
+## Technical Details
 
-### Betroffene Dateien
+### Affected Files
 
-| Datei | Aenderung |
+| File | Change |
 |-------|-----------|
-| `frontend/src/components/InformationSidebar.vue` | Tab-Navigation hinzufuegen, Tabs rendern |
-| `frontend/src/components/HelpPanel.vue` | **Neu** — Hilfe-Anzeige fuer selektierten Node |
-| `frontend/src/components/ConfigPanel.vue` | **Neu** — Config Node Liste |
-| `frontend/src/components/DebugPanel.vue` | Keine Aenderung, wird als Tab eingebunden |
-| `frontend/src/stores/uiStore.ts` | `activeInfoTab` State hinzufuegen |
+| `frontend/src/components/InformationSidebar.vue` | Add tab navigation, render tabs |
+| `frontend/src/components/HelpPanel.vue` | **New** — help display for selected node |
+| `frontend/src/components/ConfigPanel.vue` | **New** — config node list |
+| `frontend/src/components/DebugPanel.vue` | No change, embedded as a tab |
+| `frontend/src/stores/uiStore.ts` | Add `activeInfoTab` state |
 
 ### State
 
@@ -53,27 +53,27 @@ Das Information Panel wird um ein **Tab-System** erweitert mit drei Tabs:
 const activeInfoTab = ref<'help' | 'config' | 'debug'>('debug')
 ```
 
-### Vorhandene Infrastruktur
+### Existing Infrastructure
 
-- **Node Selection**: `flowStore.selectedNode` — reaktiv, bereits implementiert
-- **Config Nodes**: `flowStore.configs` — bereits geladen und verfuegbar
-- **Config Editor**: `ui.openConfigEditor(type, id)` — bereits implementiert
-- **Node Type Info**: Kommt vom Backend via Registry, enthaelt `Description`, `Category`, `Inputs`, `Outputs`
+- **Node selection**: `flowStore.selectedNode` — reactive, already implemented
+- **Config nodes**: `flowStore.configs` — already loaded and available
+- **Config editor**: `ui.openConfigEditor(type, id)` — already implemented
+- **Node type info**: comes from the backend via registry, contains `Description`, `Category`, `Inputs`, `Outputs`
 
 ## UI Mockup
 
 ```
-┌─ Information ──────────────────┐
-│  [Help]  [Config]  [Debug]     │  ← Tab-Leiste
-├────────────────────────────────┤
-│                                │
-│  Tab-Inhalt                    │
-│                                │
-│                                │
-└────────────────────────────────┘
++- Information --------------------+
+|  [Help]  [Config]  [Debug]       |  <- Tab bar
++----------------------------------+
+|                                  |
+|  Tab content                     |
+|                                  |
+|                                  |
++----------------------------------+
 ```
 
-## Abgrenzung
+## Out of Scope
 
-- Die ausfuehrliche Markdown-Hilfe pro Node-Typ ist NICHT Teil dieses Issues — initial reicht die `Description` aus der `NodeTypeInfo`
-- Config Node Status-Anzeige (verbunden/getrennt) ist optional und kann spaeter ergaenzt werden
+- The detailed Markdown help per node type is NOT part of this issue — initially the `Description` from `NodeTypeInfo` is sufficient
+- Config node status display (connected/disconnected) is optional and can be added later

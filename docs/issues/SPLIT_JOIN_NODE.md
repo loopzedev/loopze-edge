@@ -1,55 +1,55 @@
 # Split & Join Nodes
 
-## Beschreibung
+## Description
 
-Zwei komplementäre Nodes für **Sequenzverarbeitung** — der eine zerlegt eine Message in viele, der andere fügt viele Messages wieder zu einer zusammen. Sie sind das Standard-Pattern, um Listen/Streams/Batches in einem Flow zu verarbeiten:
+Two complementary nodes for **sequence processing** — one splits a message into many, the other reassembles many messages into one. They are the standard pattern for processing lists/streams/batches in a flow:
 
 ```
-[ Source ] → [ Split ] → [ N Verarbeitungs-Schritte ] → [ Join ] → [ Sink ]
+[ Source ] -> [ Split ] -> [ N processing steps ] -> [ Join ] -> [ Sink ]
 ```
 
-Beide Nodes basieren auf einem neuen Message-Konzept **`msg.parts`**, das die Zugehörigkeit einer Message zu einer Sequenz beschreibt.
+Both nodes are based on a new message concept **`msg.parts`** that describes a message's membership in a sequence.
 
-> Voraussetzung für das Konzept: Switch-/Filter-Operatoren wie `head`/`tail` (siehe `SWITCH_NODE.md` — dort bewusst weggelassen) können erst sinnvoll umgesetzt werden, wenn `msg.parts` existiert.
+> Prerequisite for the concept: switch/filter operators like `head`/`tail` (see `SWITCH_NODE.md` — deliberately omitted there) can only be sensibly implemented once `msg.parts` exists.
 
-## Das `msg.parts`-Konzept
+## The `msg.parts` Concept
 
-Wenn Split eine Message in N Teile zerlegt, hängt es an jede ausgehende Message ein `parts`-Objekt:
+When Split divides a message into N parts, it attaches a `parts` object to each outgoing message:
 
-| Feld | Typ | Beschreibung |
+| Field | Type | Description |
 |---|---|---|
-| `id` | string | Gemeinsame Sequenz-ID (alle Messages der gleichen Zerlegung teilen diese ID) |
-| `index` | number | 0-basierte Position in der Sequenz |
-| `count` | number | Gesamtanzahl der Messages in der Sequenz (kann fehlen bei Streams) |
-| `type` | string | `array`, `string`, `object`, `buffer` — wie wurde zerlegt |
-| `ch` | string | Trennzeichen (nur bei `type=string`, für Rückbau) |
-| `key` | string | Original-Key (nur bei `type=object`, für Rückbau) |
-| `len` | number | Länge des Original-Datenfelds (für Buffer-Rückbau) |
+| `id` | string | Common sequence ID (all messages of the same split share this ID) |
+| `index` | number | 0-based position in the sequence |
+| `count` | number | Total number of messages in the sequence (may be missing for streams) |
+| `type` | string | `array`, `string`, `object`, `buffer` — how it was split |
+| `ch` | string | Separator (only for `type=string`, for reconstruction) |
+| `key` | string | Original key (only for `type=object`, for reconstruction) |
+| `len` | number | Length of the original data field (for buffer reconstruction) |
 
-`parts` reist mit der Message durch den Flow — zwischenliegende Nodes (Function, Change, ...) lassen es unberührt, sodass Join die Sequenz später rekonstruieren kann.
+`parts` travels with the message through the flow — intermediate nodes (Function, Change, ...) leave it untouched, so Join can reconstruct the sequence later.
 
 ## Split Node
 
-### Verhalten
+### Behavior
 
-- **1 Input**, **1 Output**
-- Pro eingehender Message: zerlegt `msg.payload` (oder ein konfigurierbares Property) und sendet pro Element eine eigene Message
-- Original-Message-Felder werden **kopiert**, nur `payload` (bzw. das gesplittete Feld) ersetzt
-- `msg.parts` wird auf jeder Output-Message gesetzt
-- Bestehendes `msg.parts` einer eingehenden Message wird in `msg.parts.parts` verschachtelt (für nested Splits) — siehe Node-RED-Verhalten
+- **1 input**, **1 output**
+- Per incoming message: splits `msg.payload` (or a configurable property) and sends one separate message per element
+- Original message fields are **copied**, only `payload` (or the split field) is replaced
+- `msg.parts` is set on every output message
+- Existing `msg.parts` of an incoming message is nested into `msg.parts.parts` (for nested splits) — see Node-RED behavior
 
-### Split-Modi (je nach Payload-Typ)
+### Split Modes (depending on payload type)
 
-| Payload-Typ | Aufteilung | Konfiguration |
+| Payload type | Splitting | Configuration |
 |---|---|---|
-| **Array** | Pro Element eine Message | Optional: Chunks à N Elemente |
-| **String** | An Trennzeichen aufteilen | Trennzeichen (Default: `\n`), optional Regex |
-| **Object** | Pro Key eine Message, Key landet in `msg.parts.key` (oder konfigurierbar in einem Feld) | Key-Property-Name |
-| **Buffer** | In Chunks à N Bytes oder an Byte-Sequenz | Chunk-Größe oder Trenn-Byte-Sequenz |
+| **Array** | One message per element | Optional: chunks of N elements |
+| **String** | Split at separator | Separator (default: `\n`), optional regex |
+| **Object** | One message per key, key lands in `msg.parts.key` (or configurable in a field) | Key property name |
+| **Buffer** | In chunks of N bytes or at a byte sequence | Chunk size or separator byte sequence |
 
-Bei nicht passendem Typ: Message wird unverändert weitergegeben + Warning geloggt.
+For unsupported types: message is passed through unchanged + warning logged.
 
-### Konfiguration (Backend)
+### Configuration (Backend)
 
 ```json
 {
@@ -63,81 +63,81 @@ Bei nicht passendem Typ: Message wird unverändert weitergegeben + Warning gelog
 }
 ```
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
-| `property` | Welches Property zerlegen (Default `payload`) |
-| `splt` | Trennzeichen (String) oder Chunk-Größe (Buffer) |
-| `spltType` | `str`, `bin` (Buffer-Pattern), `len` (Anzahl Bytes) |
-| `arraySplt` | Bei Arrays: Größe der Sub-Arrays (1 = ein Element pro Message) |
-| `arraySpltType` | `len` (fixe Größe) |
-| `stream` | `true` = `msg.parts.count` wird nicht gesetzt (Stream-Modus), `false` = abgeschlossene Sequenz |
-| `addname` | Bei Object-Split: in welches Property der Original-Key geschrieben wird (z.B. `topic`). Leer = nur in `msg.parts.key` |
+| `property` | Which property to split (default `payload`) |
+| `splt` | Separator (string) or chunk size (buffer) |
+| `spltType` | `str`, `bin` (buffer pattern), `len` (number of bytes) |
+| `arraySplt` | For arrays: size of sub-arrays (1 = one element per message) |
+| `arraySpltType` | `len` (fixed size) |
+| `stream` | `true` = `msg.parts.count` is not set (stream mode), `false` = completed sequence |
+| `addname` | For object split: which property the original key is written to (e.g. `topic`). Empty = only in `msg.parts.key` |
 
-### Beispiele
+### Examples
 
-**Array zerlegen:**
+**Split array:**
 ```
 Input:  msg.payload = [1, 2, 3]
-Output: 3 Messages mit payload=1/2/3 und parts.{id, index, count=3, type:"array"}
+Output: 3 messages with payload=1/2/3 and parts.{id, index, count=3, type:"array"}
 ```
 
-**String zerlegen (Zeilen):**
+**Split string (lines):**
 ```
 Input:  msg.payload = "a\nb\nc"
-Output: 3 Messages mit payload="a"/"b"/"c" und parts.{..., type:"string", ch:"\n"}
+Output: 3 messages with payload="a"/"b"/"c" and parts.{..., type:"string", ch:"\n"}
 ```
 
-**Object zerlegen mit Key in topic:**
+**Split object with key in topic:**
 ```
 Input:  msg.payload = {a:1, b:2}
 Config: addname = "topic"
-Output: 2 Messages mit payload=1/2, topic="a"/"b", parts.{..., type:"object", key:"a"/"b"}
+Output: 2 messages with payload=1/2, topic="a"/"b", parts.{..., type:"object", key:"a"/"b"}
 ```
 
 ## Join Node
 
-### Verhalten
+### Behavior
 
-- **1 Input**, **1 Output**
-- Sammelt eingehende Messages, kombiniert sie zu einer einzigen Output-Message
-- Hat **internen Zustand** (Per-Node-Buffer pro Sequenz-ID bzw. pro Topic)
-- Sendet die kombinierte Message wenn ein **Trigger** auslöst (Count, Timeout, parts-Complete, ...)
+- **1 input**, **1 output**
+- Collects incoming messages, combines them into a single output message
+- Has **internal state** (per-node buffer per sequence ID or per topic)
+- Sends the combined message when a **trigger** fires (count, timeout, parts-complete, ...)
 
-### Modi
+### Modes
 
-| Modus | Beschreibung |
+| Mode | Description |
 |---|---|
-| **automatic** | Nutzt `msg.parts` aus einem vorherigen Split. Sequenz-ID gruppiert, `count` triggert Send. Keine weitere Konfiguration nötig — exaktes Gegenstück zum Split. |
-| **manual** | Ignoriert `msg.parts`. Nutzer konfiguriert Output-Typ und Trigger explizit. Auch für Messages, die nie durch einen Split liefen (z.B. Sensor-Aggregation pro Zeitfenster). |
-| **reduce sequence** | Wendet eine Reduktions-Funktion auf die Sequenz an (z.B. Summe, Min/Max, Concat). Inspiriert von Node-RED, aber im MVP optional — siehe Offene Fragen. |
+| **automatic** | Uses `msg.parts` from a previous Split. Sequence ID groups, `count` triggers send. No further configuration needed — exact counterpart to Split. |
+| **manual** | Ignores `msg.parts`. User configures output type and trigger explicitly. Also for messages that never went through a Split (e.g. sensor aggregation per time window). |
+| **reduce sequence** | Applies a reduction function to the sequence (e.g. sum, min/max, concat). Inspired by Node-RED, but optional in MVP — see Open Questions. |
 
-### Manual-Modus: Output-Typen
+### Manual Mode: Output Types
 
-| Typ | Beschreibung |
+| Type | Description |
 |---|---|
-| **string** | Mit Trennzeichen verbinden (z.B. `\n`) |
-| **array** | Werte als Array zusammenfassen |
-| **object** | Key/Value-Object — Key kommt aus konfigurierbarer Property (z.B. `msg.topic`) oder aus `msg.parts.key` |
-| **buffer** | Mit optionaler Trenn-Byte-Sequenz verbinden |
-| **merged object** | Wie object, aber Werte werden bei gleichem Key tief gemergt |
+| **string** | Concatenate with separator (e.g. `\n`) |
+| **array** | Combine values into an array |
+| **object** | Key/value object — key comes from a configurable property (e.g. `msg.topic`) or from `msg.parts.key` |
+| **buffer** | Concatenate with optional separator byte sequence |
+| **merged object** | Like object, but values are deep-merged when keys match |
 
-### Trigger (wann wird die kombinierte Message gesendet?)
+### Triggers (when is the combined message sent?)
 
-| Trigger | Beschreibung |
+| Trigger | Description |
 |---|---|
-| **automatic** | Sobald `count` aus `msg.parts` erreicht ist (nur im automatic-Modus) |
-| **count N** | Nach genau N empfangenen Messages |
-| **after timeout** | Nach X Sekunden Inaktivität (kein neues Message für die Sequenz) |
-| **after specific message** | Wenn eine Message mit einem bestimmten Property-Wert eintrifft (z.B. `msg.complete = true`) |
-| **manual reset** | Erst wenn eine Reset-Message kommt (z.B. mit `msg.reset = true`) |
+| **automatic** | As soon as `count` from `msg.parts` is reached (only in automatic mode) |
+| **count N** | After exactly N received messages |
+| **after timeout** | After X seconds of inactivity (no new message for the sequence) |
+| **after specific message** | When a message arrives with a particular property value (e.g. `msg.complete = true`) |
+| **manual reset** | Only when a reset message arrives (e.g. with `msg.reset = true`) |
 
-Mehrere Trigger können kombiniert werden (whichever fires first).
+Multiple triggers can be combined (whichever fires first).
 
-### Per-Topic-Gruppierung (optional)
+### Per-Topic Grouping (optional)
 
-Wenn aktiv, hält Join **pro `msg.topic`** einen separaten Puffer und triggert unabhängig. Praktisch z.B. um Sensor-Werte pro Sensor-Topic zu aggregieren.
+When enabled, Join keeps a separate buffer **per `msg.topic`** and triggers independently. Useful for example to aggregate sensor values per sensor topic.
 
-### Konfiguration (Backend)
+### Configuration (Backend)
 
 ```json
 {
@@ -155,123 +155,123 @@ Wenn aktiv, hält Join **pro `msg.topic`** einen separaten Puffer und triggert u
 }
 ```
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
 | `mode` | `auto`, `custom` (= manual), `reduce` |
-| `build` | Output-Typ: `string`, `array`, `object`, `merged`, `buffer` (nur bei `custom`) |
-| `property` | Welches Property aus jeder Message kombiniert wird (Default `payload`) |
-| `propertyType` | `msg` (immer für Source) |
-| `key` | Property-Name für Object-Keys (Default `topic`, fällt zurück auf `parts.key`) |
-| `joiner` | Trennzeichen (String/Buffer) |
+| `build` | Output type: `string`, `array`, `object`, `merged`, `buffer` (only with `custom`) |
+| `property` | Which property from each message is combined (default `payload`) |
+| `propertyType` | `msg` (always for source) |
+| `key` | Property name for object keys (default `topic`, falls back to `parts.key`) |
+| `joiner` | Separator (string/buffer) |
 | `joinerType` | `str`, `bin` |
-| `accumulate` | `true` = Sequenz wird nach jedem Send nicht geleert, sondern behalten (Sliding-Window-artig) |
-| `timeout` | Timeout in Sekunden (0 = aus) |
-| `count` | Trigger-Count (0 = aus) |
-| `reduceRight` | Nur `reduce`-Modus: Reduktion von rechts |
+| `accumulate` | `true` = sequence is not cleared after each send but kept (sliding-window-like) |
+| `timeout` | Timeout in seconds (0 = off) |
+| `count` | Trigger count (0 = off) |
+| `reduceRight` | Only `reduce` mode: reduction from the right |
 
-### Beispiele
+### Examples
 
-**Automatisches Join nach Split:**
+**Automatic join after split:**
 ```
-Source → Split → Function (verarbeitet jedes Element) → Join (auto) → Sink
+Source -> Split -> Function (processes each element) -> Join (auto) -> Sink
 ```
-Join rekonstruiert das Original-Array/String/Object 1:1 aus `msg.parts`.
+Join reconstructs the original array/string/object 1:1 from `msg.parts`.
 
-**Sensor-Aggregation pro Topic mit Timeout:**
+**Sensor aggregation per topic with timeout:**
 ```
 mode: custom
 build: array
 key: topic
 timeout: 5
 ```
-→ Pro Topic werden die Messages 5s lang gesammelt, dann als Array gesendet.
+-> Per topic, messages are collected for 5 seconds, then sent as an array.
 
-**Bis Sentinel-Message:**
+**Until sentinel message:**
 ```
 mode: custom
 build: array
-trigger: after specific message → msg.eof === true
+trigger: after specific message -> msg.eof === true
 ```
 
-## Implementierung
+## Implementation
 
 ### Backend
 
 #### `internal/nodes/split.go`
 - `flow.NodeInstance`, **Inputs:** 1, **Outputs:** 1
 - `OnMessage`:
-  1. Property-Wert holen
-  2. Typ erkennen (Array/String/Object/Buffer)
-  3. In Teile zerlegen, pro Teil neue Message via `msg.Clone()` + Property setzen
-  4. `parts`-Feld setzen (verschachtelt falls vorher schon vorhanden)
-  5. Sequenz-ID via `generateID()` (gleiche Funktion wie Message-IDs)
-  6. Sequenziell senden
+  1. Get property value
+  2. Detect type (array/string/object/buffer)
+  3. Split into parts, per part new message via `msg.Clone()` + set property
+  4. Set `parts` field (nested if already present)
+  5. Sequence ID via `generateID()` (same function as message IDs)
+  6. Send sequentially
 
 #### `internal/nodes/join.go`
 - `flow.NodeInstance`, **Inputs:** 1, **Outputs:** 1
-- Hält `map[string]*sequenceBuffer` (Key = Sequenz-ID oder Topic)
-- Per Sequenz: Messages sammeln, Trigger prüfen
-- Bei Trigger: Kombinieren, senden, Buffer leeren (außer `accumulate=true`)
-- Timeout: `time.AfterFunc` pro Sequenz, beim Trigger canceln
-- Thread-Safety: `sync.Mutex` um die Buffer-Map
+- Holds `map[string]*sequenceBuffer` (key = sequence ID or topic)
+- Per sequence: collect messages, check trigger
+- On trigger: combine, send, clear buffer (unless `accumulate=true`)
+- Timeout: `time.AfterFunc` per sequence, cancel on trigger
+- Thread safety: `sync.Mutex` around the buffer map
 
-#### Erweiterung von `flow.Message`
-Aktuell ist `Message.data` ein flaches `map[string]any` — `parts` kann darin als regulärer Key liegen. Kein API-Change nötig, nur Konvention dokumentieren:
-- `msg.Get("parts.id")`, `msg.Get("parts.index")`, ... funktioniert dank Dot-Path bereits
-- Helper-Funktion in `flow` package vorschlagen: `msg.Parts() *Parts` für typsicheren Zugriff
+#### Extension of `flow.Message`
+Currently `Message.data` is a flat `map[string]any` — `parts` can live in there as a regular key. No API change needed, only document the convention:
+- `msg.Get("parts.id")`, `msg.Get("parts.index")`, ... already works thanks to dot path
+- Suggested helper function in `flow` package: `msg.Parts() *Parts` for type-safe access
 
-Bei `Clone()` darauf achten, dass `parts` mitkopiert wird (passiert automatisch, weil Teil von `data`).
+For `Clone()`, ensure `parts` is copied along (happens automatically because it is part of `data`).
 
 ### Frontend
 
 #### `SplitConfig.vue`
-- Property-Wahl (`MsgFieldEditor`)
-- Auto-Erkennung des Payload-Typs in der UI mit Hinweistext
-- Felder dynamisch je nach erwartetem Typ:
-  - String → Trennzeichen-Input + Regex-Toggle
-  - Array → Chunk-Size-Input
-  - Object → "Key in Property" Input
-  - Buffer → Chunk-Size oder Byte-Pattern
-- Stream-Toggle (Checkbox)
+- Property selection (`MsgFieldEditor`)
+- Auto-detection of payload type in the UI with hint text
+- Fields shown dynamically based on expected type:
+  - String -> separator input + regex toggle
+  - Array -> chunk size input
+  - Object -> "key in property" input
+  - Buffer -> chunk size or byte pattern
+- Stream toggle (checkbox)
 
 #### `JoinConfig.vue`
-- Modus-Tabs (Auto / Manual / Reduce)
-- Im Manual-Modus: Output-Typ-Dropdown, je nach Typ unterschiedliche Felder
-- Trigger-Sektion: Count, Timeout, "complete on property", Reset
-- Per-Topic-Gruppierung als Checkbox
+- Mode tabs (Auto / Manual / Reduce)
+- In manual mode: output type dropdown, different fields depending on type
+- Trigger section: count, timeout, "complete on property", reset
+- Per-topic grouping as checkbox
 
-#### Node-Komponenten
-- BaseNode mit Category `function` (oder neue Kategorie `sequence`)
-- Split-Body: zeigt Trennzeichen/Chunk-Größe kompakt
-- Join-Body: zeigt Modus + Trigger kompakt
+#### Node Components
+- BaseNode with category `function` (or new category `sequence`)
+- Split body: shows separator/chunk size compactly
+- Join body: shows mode + trigger compactly
 
-### Node-Registrierung
+### Node Registration
 
 ```go
 registry.Register("split", nodes.NewSplitNode, nodes.SplitTypeInfo())
 registry.Register("join",  nodes.NewJoinNode,  nodes.JoinTypeInfo())
 ```
 
-## Zusammenspiel mit anderen Nodes
+## Interaction With Other Nodes
 
-- **Switch Node**: Sobald `msg.parts` existiert, können dort Operatoren wie `head N`, `tail N`, `index between` ergänzt werden (siehe `SWITCH_NODE.md` Offene Fragen).
-- **Function Node**: Kann `parts` bewusst manipulieren (z.B. eigene Sequenzen synthetisieren) — keine Sonderbehandlung nötig.
-- **Change Node**: Kann `parts` löschen, falls eine Sequenz absichtlich "abgeschnitten" werden soll.
-- **Debug Node**: Sollte `parts` im Tree-View sichtbar machen (passiert automatisch, da reguläres Property).
+- **Switch node**: as soon as `msg.parts` exists, operators like `head N`, `tail N`, `index between` can be added there (see `SWITCH_NODE.md` Open Questions).
+- **Function node**: can deliberately manipulate `parts` (e.g. synthesize its own sequences) — no special handling needed.
+- **Change node**: can delete `parts` if a sequence should be intentionally "cut off".
+- **Debug node**: should make `parts` visible in the tree view (happens automatically since it is a regular property).
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.Message.Clone()` — vorhanden
-- `flow.Message.Get/Set` mit Dot-Path — vorhanden
-- `generateID()` für Sequenz-IDs — vorhanden
-- Per-Node-State im Join: Engine erlaubt das bereits (Function Node hat State)
-- Frontend: `MsgFieldEditor`, `FormSelect` aus `components/config/`
+- `flow.Message.Clone()` — present
+- `flow.Message.Get/Set` with dot path — present
+- `generateID()` for sequence IDs — present
+- Per-node state in Join: engine already allows this (Function node has state)
+- Frontend: `MsgFieldEditor`, `FormSelect` from `components/config/`
 
-## Offene Fragen
+## Open Questions
 
-1. **`reduce sequence`-Modus** im Join — MVP oder später? Erfordert eingebettete Expression-Engine (JSONata in Node-RED). Vorschlag: **später**, MVP nur `auto` + `custom`.
-2. **Verschachtelte Splits** — soll `parts.parts`-Verschachtelung explizit unterstützt werden, oder beim ersten MVP nur eine Ebene?
-3. **Buffer-Support** — wie wichtig? MQTT-Payloads kommen oft als Buffer rein. Vorschlag: **MVP ja**, da geringer Mehraufwand.
-4. **Per-Topic-Gruppierung** — eigenständiger Modus oder Option in `custom`-Modus? Aktuell als Option modelliert.
-5. **Helper `msg.Parts()`** in `flow`-Package — typsicher gut, aber bricht das "alles ist gleich"-Prinzip der flachen Map. Alternative: nur Konvention + Konstanten für Key-Namen.
-6. **Memory-Schutz im Join**: Was passiert bei nie auslösenden Triggern (Sequenz-ID kommt nie auf `count`)? Vorschlag: konfigurierbares Max-Buffer-Alter (Default: 10min) → verworfen + Warning.
+1. **`reduce sequence` mode** in Join — MVP or later? Requires an embedded expression engine (JSONata in Node-RED). Suggestion: **later**, MVP only `auto` + `custom`.
+2. **Nested splits** — should `parts.parts` nesting be explicitly supported, or only one level in the first MVP?
+3. **Buffer support** — how important? MQTT payloads often arrive as buffers. Suggestion: **MVP yes**, since the additional effort is small.
+4. **Per-topic grouping** — standalone mode or option in `custom` mode? Currently modeled as an option.
+5. **Helper `msg.Parts()`** in `flow` package — type-safe is good, but breaks the "everything is the same" principle of the flat map. Alternative: only convention + constants for key names.
+6. **Memory protection in Join**: what happens for triggers that never fire (sequence ID never reaches `count`)? Suggestion: configurable max buffer age (default: 10 min) -> discarded + warning.

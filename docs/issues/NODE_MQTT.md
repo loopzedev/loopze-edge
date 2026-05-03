@@ -1,24 +1,24 @@
-# Issue: MQTT Nodes – Subscribe & Publish mit Broker-Konfiguration
+# Issue: MQTT Nodes – Subscribe & Publish with Broker Configuration
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem Description
 
-LOOPZE benötigt seinen ersten **Data Connector** — MQTT. Zwei neue Node-Typen (`mqtt-in` und `mqtt-out`) ermöglichen das Empfangen und Senden von MQTT-Nachrichten. Zentral dabei ist das Konzept einer **Broker-Konfiguration**, die als eigenständige, wiederverwendbare Entität verwaltet wird. Jeder MQTT-Node referenziert genau einen Broker, aber über mehrere Nodes hinweg können unterschiedliche Broker konfiguriert werden.
+LOOPZE needs its first **Data Connector** — MQTT. Two new node types (`mqtt-in` and `mqtt-out`) enable receiving and sending MQTT messages. Central to this is the concept of a **broker configuration**, managed as a standalone, reusable entity. Each MQTT node references exactly one broker, but different brokers can be configured across multiple nodes.
 
-Dieses Issue führt gleichzeitig das neue Konzept der **Config Nodes** ein — konfigurierbare Entitäten, die nicht auf dem Canvas erscheinen, aber von mehreren Nodes referenziert werden können (z.B. Server-Verbindungen, Authentifizierung). Der MQTT-Broker ist der erste Config Node in LOOPZE.
+This issue simultaneously introduces the new concept of **Config Nodes** — configurable entities that do not appear on the canvas but can be referenced by multiple nodes (e.g., server connections, authentication). The MQTT broker is the first config node in LOOPZE.
 
-**Scope**: **MQTT v5 ist Pflicht.** Der Broker-Client muss v5 sprechen. v3.1.1 bleibt als alternativ wählbare Protokoll-Version verfügbar — die Auswahl trifft der Anwender pro Broker-Config bewusst, es gibt keinen automatischen Fallback. Fokus liegt auf funktionierender Broker-Konfiguration und -Instanziierung. Die Subscribe/Publish-Konfiguration ist bewusst minimal gehalten — v5-spezifische Features (User Properties, Message Expiry, Shared Subscriptions) werden in einer schlanken ersten Stufe unterstützt.
+**Scope**: **MQTT v5 is mandatory.** The broker client must speak v5. v3.1.1 remains available as an alternatively selectable protocol version — the user picks it deliberately per broker config, there is no automatic fallback. Focus is on a working broker configuration and instantiation. The subscribe/publish configuration is intentionally minimal — v5-specific features (User Properties, Message Expiry, Shared Subscriptions) are supported in a lean first tier.
 
-## Übersicht
+## Overview
 
-| Node-Typ | Typ-ID | Canvas Inputs | Canvas Outputs | Beschreibung |
+| Node Type | Type ID | Canvas Inputs | Canvas Outputs | Description |
 |---|---|---|---|---|
-| **MQTT Subscribe** | `mqtt-in` | 0 | 1 | Empfängt Nachrichten von einem MQTT-Broker via Subscription |
-| **MQTT Publish** | `mqtt-out` | 1 | 0 | Sendet Nachrichten an einen MQTT-Broker |
+| **MQTT Subscribe** | `mqtt-in` | 0 | 1 | Receives messages from an MQTT broker via subscription |
+| **MQTT Publish** | `mqtt-out` | 1 | 0 | Sends messages to an MQTT broker |
 
 ```
-                          MQTT Broker (extern)
+                          MQTT Broker (external)
                           ┌──────────────┐
 Flow A                    │              │
 ┌─────────────────────┐   │  topic/data  │
@@ -41,49 +41,49 @@ Flow B                            │       │
 └─────────────────────┘   └──────────────┘
 ```
 
-## Anforderungen
+## Requirements
 
 ### 1. Config Node: MQTT Broker (`mqtt-broker`)
 
-Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, sondern wird als eigenständige Konfiguration im Workspace verwaltet und von `mqtt-in`/`mqtt-out` Nodes referenziert.
+The MQTT broker is a **config node** — it does not appear on the canvas but is managed as a standalone configuration in the workspace and referenced by `mqtt-in`/`mqtt-out` nodes.
 
-- **Typ-ID**: `mqtt-broker`
-- **Kein Canvas-Element** — rein konfigurativ
-- **Konfigurationsfelder**:
-  - `name` (string) — Anzeigename im Dropdown, z.B. "Produktion Broker"
-  - `host` (string) — Hostname oder IP, z.B. "mqtt.example.com"
-  - `port` (number) — Standard: 1883
-  - `clientId` (string) — Client-ID, Standard: auto-generiert (`loopze-<random>`)
-  - `protocolVersion` (string) — `5` (Default) oder `3.1.1`. Muss vom Anwender bewusst gewählt werden — kein automatischer Fallback
-  - `username` (string, optional) — Benutzername
-  - `password` (string, optional) — Passwort
-  - `keepalive` (number) — Keep-Alive Intervall in Sekunden, Standard: 60
-  - `cleanStart` (boolean) — Clean Start (v5) bzw. Clean Session (v3.1.1) Flag, Standard: true
-  - `sessionExpiry` (number, v5) — Session Expiry Interval in Sekunden, Standard: 0 (Session endet beim Disconnect). Wird im v3.1.1-Fallback ignoriert
-  - `useTLS` (boolean) — TLS aktivieren, Standard: false
-  - **onConnect Message** — Client-seitige Konvention: wird vom LOOPZE-Client unmittelbar nach erfolgreichem CONNACK als regulärer PUBLISH gesendet (typischer "online"-Status). Optional, alle Felder leer = keine Nachricht:
+- **Type ID**: `mqtt-broker`
+- **No canvas element** — purely configurational
+- **Configuration fields**:
+  - `name` (string) — display name in the dropdown, e.g., "Production Broker"
+  - `host` (string) — hostname or IP, e.g., "mqtt.example.com"
+  - `port` (number) — default: 1883
+  - `clientId` (string) — client ID, default: auto-generated (`loopze-<random>`)
+  - `protocolVersion` (string) — `5` (default) or `3.1.1`. Must be deliberately chosen by the user — no automatic fallback
+  - `username` (string, optional) — username
+  - `password` (string, optional) — password
+  - `keepalive` (number) — keep-alive interval in seconds, default: 60
+  - `cleanStart` (boolean) — Clean Start (v5) or Clean Session (v3.1.1) flag, default: true
+  - `sessionExpiry` (number, v5) — Session Expiry Interval in seconds, default: 0 (session ends on disconnect). Ignored in v3.1.1 fallback
+  - `useTLS` (boolean) — enable TLS, default: false
+  - **onConnect Message** — client-side convention: sent by the LOOPZE client immediately after a successful CONNACK as a regular PUBLISH (typical "online" status). Optional, all fields empty = no message:
     - `onConnectTopic` (string)
     - `onConnectPayload` (string)
-    - `onConnectQoS` (number) — 0, 1 oder 2. Standard: 0
-    - `onConnectRetain` (boolean) — Standard: false
-  - **onDisconnect Message** — Client-seitige Konvention: wird vom LOOPZE-Client vor einem **regulären** Disconnect (Stop / Re-Deploy) als regulärer PUBLISH gesendet, bevor das DISCONNECT-Paket geht. Optional:
+    - `onConnectQoS` (number) — 0, 1, or 2. Default: 0
+    - `onConnectRetain` (boolean) — default: false
+  - **onDisconnect Message** — client-side convention: sent by the LOOPZE client before a **regular** disconnect (Stop / Re-Deploy) as a regular PUBLISH, before the DISCONNECT packet goes out. Optional:
     - `onDisconnectTopic` (string)
     - `onDisconnectPayload` (string)
-    - `onDisconnectQoS` (number) — Standard: 0
-    - `onDisconnectRetain` (boolean) — Standard: false
-  - **LastWill** — MQTT-Protokoll-Feature: wird im CONNECT-Paket an den Broker übergeben und vom **Broker** publiziert, wenn der Client **unsauber** abreißt (Keep-Alive-Timeout, Verbindungsverlust ohne sauberes DISCONNECT). Optional:
+    - `onDisconnectQoS` (number) — default: 0
+    - `onDisconnectRetain` (boolean) — default: false
+  - **LastWill** — MQTT protocol feature: passed in the CONNECT packet to the broker and published by the **broker** when the client **uncleanly** drops (keep-alive timeout, connection loss without a clean DISCONNECT). Optional:
     - `lastWillTopic` (string)
     - `lastWillPayload` (string)
-    - `lastWillQoS` (number) — 0, 1 oder 2. Standard: 0
-    - `lastWillRetain` (boolean) — Standard: false
-    - `lastWillDelayInterval` (number, v5) — Verzögerung in Sekunden, bevor der Broker den LastWill publiziert. Standard: 0. Im v3.1.1-Modus ignoriert
+    - `lastWillQoS` (number) — 0, 1, or 2. Default: 0
+    - `lastWillRetain` (boolean) — default: false
+    - `lastWillDelayInterval` (number, v5) — delay in seconds before the broker publishes the LastWill. Default: 0. Ignored in v3.1.1 mode
 
-  onConnect, onDisconnect und LastWill sind drei separate Messages mit klar getrennten Triggern: **onConnect** nach erfolgreicher Verbindung, **onDisconnect** beim sauberen Disconnect (vom Client gesendet), **LastWill** beim unsauberen Disconnect (vom Broker gesendet).
+  onConnect, onDisconnect, and LastWill are three separate messages with clearly separated triggers: **onConnect** after a successful connection, **onDisconnect** on a clean disconnect (sent by the client), **LastWill** on an unclean disconnect (sent by the broker).
 
-- **Zugriff auf den Properties-Dialog**:
-  - **Neuer Broker**: Über den "+" Button neben dem Broker-Dropdown in MQTT Nodes
-  - **Bestehenden Broker editieren**: Über den "Edit broker config" Link unterhalb des Broker-Dropdowns (nur sichtbar wenn ein Broker ausgewählt ist). Öffnet den gleichen Dialog vorausgefüllt mit den bestehenden Einstellungen
-- **Properties-Dialog**:
+- **Access to the properties dialog**:
+  - **New broker**: Via the "+" button next to the broker dropdown in MQTT nodes
+  - **Edit existing broker**: Via the "Edit broker config" link below the broker dropdown (only visible when a broker is selected). Opens the same dialog prefilled with the existing settings
+- **Properties dialog**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -92,7 +92,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │                                               │
 │  Name                                         │
 │  ┌────────────────────────────────────────┐   │
-│  │ Produktion Broker                      │   │
+│  │ Production Broker                      │   │
 │  └────────────────────────────────────────┘   │
 │                                               │
 │  Server                                       │
@@ -141,7 +141,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  QoS: [0 ▼]   ☐ Retain   Delay: [0]s (v5)     │
 │                                               │
 │  ┌────────────┐  ┌────────────┐              │
-│  │  Speichern  │  │ Abbrechen  │              │
+│  │    Save     │  │   Cancel   │              │
 │  └────────────┘  └────────────┘              │
 └──────────────────────────────────────────────┘
 ```
@@ -149,36 +149,36 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 ### 2. MQTT Subscribe Node (`mqtt-in`)
 
 - **Canvas**:
-  - Static Mode: 0 Inputs, 1 Output (Source Node)
-  - Dynamic Mode: 1 Input, 1 Output — der Input dient nur der Steuerung (subscribe / clear), nicht der Datenweitergabe
-- **Funktion**: Verbindet sich über den konfigurierten Broker und leitet empfangene MQTT-Nachrichten als Flow-Messages weiter. Die Subscription kann entweder fest in der Config hinterlegt oder zur Laufzeit per Eingangs-Message gesteuert werden.
-- **Basis-Konfiguration**:
-  - `broker` (string) — ID des referenzierten `mqtt-broker` Config Nodes
-  - `mode` (string) — `static` (Default) oder `dynamic`
-  - `topic` (string) — MQTT Topic zum Abonnieren, z.B. `sensor/temperature` (nur im Static-Modus relevant)
-  - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
-  - `outputFormat` (string) — Format, in dem `msg.payload` an den Output geliefert wird:
-    - `string` (Default) — der MQTT-Payload wird als Go-String weitergegeben (rohe Bytes als UTF-8 interpretiert; Nicht-UTF-8-Bytes bleiben byte-identisch erhalten, sind aber als Strings möglicherweise nicht druckbar)
-    - `json` — der Payload wird als JSON geparst; das Ergebnis ist ein strukturierter Wert (Map/Array/Number/Bool/null). Schlägt das Parsen fehl, wird auf `string` zurückgefallen und ein `msg.parseError` mit der Fehlermeldung gesetzt (die Nachricht geht trotzdem raus)
-    - `buffer` — der Payload wird als Zahlen-Array (`[]int`) durchgereicht, z.B. `[222, 173, 190, 239]` für die Bytes `0xDE 0xAD 0xBE 0xEF`. Sinnvoll für binäre Daten (Bilder, Protobuf, MessagePack etc.). Hinweis: bewusst kein `[]byte`, weil Go's `encoding/json` `[]byte` als Base64-String serialisiert, was im Debug-Viewer unleserlich ist und bei JSON-Round-Trips Typ-Info verliert. Der mqtt-out-Node erkennt das Zahlen-Array beim Publishen wieder und baut die Original-Bytes zurück.
+  - Static Mode: 0 inputs, 1 output (source node)
+  - Dynamic Mode: 1 input, 1 output — the input only serves control (subscribe / clear), not data forwarding
+- **Function**: Connects via the configured broker and forwards received MQTT messages as flow messages. The subscription can be either fixed in the config or controlled at runtime via input message.
+- **Base configuration**:
+  - `broker` (string) — ID of the referenced `mqtt-broker` config node
+  - `mode` (string) — `static` (default) or `dynamic`
+  - `topic` (string) — MQTT topic to subscribe to, e.g., `sensor/temperature` (only relevant in static mode)
+  - `qos` (number) — Quality of Service: 0, 1, or 2. Default: 0
+  - `outputFormat` (string) — format in which `msg.payload` is delivered to the output:
+    - `string` (default) — the MQTT payload is passed through as a Go string (raw bytes interpreted as UTF-8; non-UTF-8 bytes are preserved byte-identical but may not be printable as strings)
+    - `json` — the payload is parsed as JSON; the result is a structured value (map/array/number/bool/null). If parsing fails, falls back to `string` and a `msg.parseError` with the error message is set (the message still goes out)
+    - `buffer` — the payload is passed through as a number array (`[]int`), e.g., `[222, 173, 190, 239]` for the bytes `0xDE 0xAD 0xBE 0xEF`. Useful for binary data (images, Protobuf, MessagePack, etc.). Note: deliberately not `[]byte`, because Go's `encoding/json` serializes `[]byte` as a base64 string, which is unreadable in the debug viewer and loses type info on JSON round-trips. The mqtt-out node recognizes the number array on publish and reconstructs the original bytes.
 
-- **MQTT v5 Subscription Options** (alle optional, gelten pro Subscription; im v3.1.1-Modus ignoriert):
-  - `noLocal` (boolean, default `false`) — verhindert, dass der Broker dem Client seine eigenen Publishes auf demselben Topic zustellt. Nützlich gegen Echo-Schleifen, wenn ein LOOPZE-Flow auf ein Topic published, das er auch subscribed
-  - `retainAsPublished` (boolean, default `false`) — wenn `true`, wird das Retain-Flag der Original-Publish unverändert weitergereicht. Wenn `false` (Default), setzt der Broker das Flag bei Auslieferung auf `0` — Konsumenten können also nicht mehr unterscheiden, ob die Nachricht retained war
-  - `retainHandling` (number, default `0`) — Steuert, wann retained Messages beim Subscribe gesendet werden:
-    - `0`: bei jedem Subscribe alle retained Messages senden (Default-Verhalten)
-    - `1`: retained Messages nur senden, wenn die Subscription neu ist (kein Re-Send beim Re-Subscribe nach Reconnect mit Session)
-    - `2`: niemals retained Messages beim Subscribe senden
-  - `subscriptionIdentifier` (number, optional) — numerische ID, die der Broker bei jedem Publish, der diese Subscription matcht, zurückliefert. Nützlich bei Dynamic-Mode mit mehreren parallelen Subscriptions, um die Quelle einer Nachricht zu identifizieren
+- **MQTT v5 Subscription Options** (all optional, apply per subscription; ignored in v3.1.1 mode):
+  - `noLocal` (boolean, default `false`) — prevents the broker from delivering the client's own publishes on the same topic back to it. Useful against echo loops when a LOOPZE flow publishes to a topic it also subscribes to
+  - `retainAsPublished` (boolean, default `false`) — when `true`, the retain flag of the original publish is forwarded unchanged. When `false` (default), the broker sets the flag to `0` on delivery — consumers can then no longer distinguish whether the message was retained
+  - `retainHandling` (number, default `0`) — controls when retained messages are sent on subscribe:
+    - `0`: send all retained messages on every subscribe (default behavior)
+    - `1`: only send retained messages if the subscription is new (no re-send on re-subscribe after reconnect with session)
+    - `2`: never send retained messages on subscribe
+  - `subscriptionIdentifier` (number, optional) — numeric ID returned by the broker on every publish that matches this subscription. Useful in dynamic mode with multiple parallel subscriptions to identify the source of a message
 
-- **MQTT v5 SUBSCRIBE Properties** (alle optional, einmal pro SUBSCRIBE-Paket):
-  - `subscribeUserProperties` (object) — String-zu-String-Map, wird als User Properties am SUBSCRIBE-Paket mitgesendet. Selten genutzt; manche Broker werten sie für Authorization-Hooks aus
+- **MQTT v5 SUBSCRIBE Properties** (all optional, once per SUBSCRIBE packet):
+  - `subscribeUserProperties` (object) — string-to-string map, sent as User Properties on the SUBSCRIBE packet. Rarely used; some brokers evaluate them for authorization hooks
 
-- **Ausgehende Message** (für jede empfangene MQTT-Nachricht):
+- **Outgoing message** (for each received MQTT message):
   ```json
   {
     "topic": "sensor/temperature",
-    "payload": "<empfangene Daten>",
+    "payload": "<received data>",
     "qos": 0,
     "retain": false,
     "userProperties": { "source": "sensor-42" },
@@ -190,44 +190,44 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
     "subscriptionIdentifier": 42
   }
   ```
-  Die v5-Felder werden nur gesetzt, wenn sie in der eingehenden MQTT-Nachricht vorhanden sind. Im v3.1.1-Modus fehlen sie immer.
-  - `userProperties` (object) — String-zu-String-Map mit den User Properties aus dem PUBLISH-Paket
-  - `contentType` (string) — z.B. `application/json`, `text/plain`
-  - `responseTopic` (string) — Topic, auf das eine Antwort publiziert werden soll (Request/Response-Pattern)
-  - `correlationData` (bytes) — opake Bytes zur Korrelation von Request und Response
-  - `messageExpiry` (number, Sekunden) — verbleibende Lebensdauer der Nachricht; bei Empfang nach Ablauf hätte der Broker sie ohnehin verworfen
-  - `payloadFormat` (number, 0 oder 1) — `0` = unspezifiziert/Bytes, `1` = UTF-8 Text. Hint für Konsumenten zur Decodierung
-  - `subscriptionIdentifier` (number) — die ID, die beim Subscribe gesetzt wurde. Bei Shared Subscriptions oder mehreren überlappenden Subscriptions kann der Broker mehrere zurückgeben — wir liefern dann ein `[]number`-Array
+  The v5 fields are only set when present in the incoming MQTT message. In v3.1.1 mode they are always missing.
+  - `userProperties` (object) — string-to-string map with the User Properties from the PUBLISH packet
+  - `contentType` (string) — e.g., `application/json`, `text/plain`
+  - `responseTopic` (string) — topic to which a reply should be published (request/response pattern)
+  - `correlationData` (bytes) — opaque bytes for correlating request and response
+  - `messageExpiry` (number, seconds) — remaining lifetime of the message; on receipt after expiry the broker would have discarded it anyway
+  - `payloadFormat` (number, 0 or 1) — `0` = unspecified/bytes, `1` = UTF-8 text. Hint to consumers for decoding
+  - `subscriptionIdentifier` (number) — the ID set on subscribe. With Shared Subscriptions or multiple overlapping subscriptions the broker may return multiple — we then deliver a `[]number` array
 
-- **Shared Subscriptions (v5)**: Topic-Pattern `$share/<group>/<topic>` werden transparent unterstützt — die MQTT-Bibliothek leitet diese als gewöhnliche Subscription an den Broker weiter, der die Lastverteilung übernimmt. Im v3.1.1-Fallback würde ein solches Topic literal subscribed, daher ist die Verwendung an v5 gebunden.
+- **Shared Subscriptions (v5)**: Topic patterns `$share/<group>/<topic>` are supported transparently — the MQTT library forwards them as a regular subscription to the broker, which handles load distribution. In v3.1.1 fallback such a topic would be subscribed literally, so usage is bound to v5.
 
 #### Static Mode (Default)
 
-- Beim Deploy / Start subscribed der Node das in `topic` konfigurierte Pattern.
-- Subscription bleibt für die gesamte Lebensdauer des Nodes bestehen.
-- Eingangs-Port ist nicht vorhanden.
+- On deploy / start the node subscribes to the pattern configured in `topic`.
+- Subscription stays active for the entire lifetime of the node.
+- Input port is not present.
 
 #### Dynamic Mode
 
-- Beim Deploy / Start hat der Node **keine** aktiven Subscriptions — er wartet auf Steuer-Messages.
-- Steuerung über `msg.action`:
-  - `msg.action = "subscribe"` → die in `msg.payload` angegebenen Topics werden subscribed:
-    - `msg.payload` als **string** → ein einzelnes Topic
-    - `msg.payload` als **string-array** → mehrere Topics
-  - **Bei jedem `subscribe` werden zuerst alle bestehenden Subscriptions des Nodes unsubscribed**, danach werden die neuen Topics subscribed. Es gibt also stets nur den jüngsten Stand.
-- Eingehende Steuer-Messages werden **nicht** am Output durchgereicht — der Output liefert ausschließlich empfangene MQTT-Nachrichten.
-- Topics, die im selben `subscribe`-Aufruf bereits aktiv sind, dürfen ohne Aussetzer weitergehen (Implementation: Diff `alt → neu`, nur Differenzen un-/subscriben — Optimierung, nicht zwingend für v1).
-- Ein leeres Array bzw. ein leerer String wirkt als „alle Subscriptions löschen“.
-- **QoS-Override per Message:** `msg.qos` (number, gültige Werte 0/1/2) überschreibt für diesen `subscribe`-Aufruf den in der Config hinterlegten QoS. Fehlt `msg.qos` oder liegt der Wert außerhalb 0–2, wird der konfigurierte Default verwendet. Der QoS gilt einheitlich für alle Topics, die mit der Steuer-Message subscribed werden.
+- On deploy / start the node has **no** active subscriptions — it waits for control messages.
+- Control via `msg.action`:
+  - `msg.action = "subscribe"` → the topics specified in `msg.payload` are subscribed:
+    - `msg.payload` as **string** → a single topic
+    - `msg.payload` as **string array** → multiple topics
+  - **On every `subscribe` all existing subscriptions of the node are unsubscribed first**, then the new topics are subscribed. So there is always only the latest state.
+- Incoming control messages are **not** passed through on the output — the output delivers exclusively received MQTT messages.
+- Topics that are already active in the same `subscribe` call may continue without interruption (implementation: diff `old → new`, only un-/subscribe differences — optimization, not required for v1).
+- An empty array or empty string acts as "delete all subscriptions".
+- **QoS override per message:** `msg.qos` (number, valid values 0/1/2) overrides the QoS configured in the config for this `subscribe` call. If `msg.qos` is missing or out of range 0–2, the configured default is used. The QoS applies uniformly to all topics subscribed with the control message.
 
-- **Status-Anzeige** (via `SetStatus`):
-  - Grün: "verbunden" — Broker-Verbindung steht
-    - Static: Format `verbunden · <topic>`
-    - Dynamic: Format `verbunden · <n> Topic(s)` (oder "verbunden · idle" wenn keine aktiv)
-  - Gelb: "verbinde..." — Verbindungsaufbau läuft
-  - Rot: "getrennt" / Fehlermeldung — Verbindung fehlgeschlagen
+- **Status display** (via `SetStatus`):
+  - Green: "connected" — broker connection is up
+    - Static: format `connected · <topic>`
+    - Dynamic: format `connected · <n> topic(s)` (or "connected · idle" when none active)
+  - Yellow: "connecting..." — connection establishment in progress
+  - Red: "disconnected" / error message — connection failed
 
-- **Properties-Panel**:
+- **Properties panel**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -236,7 +236,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │                                               │
 │  Broker                                       │
 │  ┌────────────────────────────────┐ ┌───┐    │
-│  │ Produktion Broker          ▼  │ │ + │    │
+│  │ Production Broker          ▼  │ │ + │    │
 │  └────────────────────────────────┘ └───┘    │
 │  Edit broker config                           │
 │                                               │
@@ -269,7 +269,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 └──────────────────────────────────────────────┘
 ```
 
-Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selectors ein Hinweis-Block gezeigt:
+In dynamic mode the topic field is hidden and a hint block is shown below the mode selector:
 
 ```
 ℹ Send msg.action = "subscribe" with msg.payload as
@@ -277,45 +277,45 @@ Im Dynamic-Modus wird das Topic-Feld ausgeblendet und unterhalb des Mode-Selecto
    subscriptions are replaced on each call.
 ```
 
-Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` überschrieben werden:
+In dynamic mode the v5 subscription options can additionally be overridden per `msg`:
 - `msg.noLocal` (boolean), `msg.retainAsPublished` (boolean), `msg.retainHandling` (number 0/1/2), `msg.subscriptionIdentifier` (number)
-- Fehlt das Feld in der Steuer-Message, gilt der Config-Wert.
+- If the field is missing in the control message, the config value applies.
 
 ### 3. MQTT Publish Node (`mqtt-out`)
 
-- **Canvas**: 1 Input, 0 Outputs (Sink Node)
-- **Funktion**: Publiziert eingehende Messages über den konfigurierten Broker auf ein MQTT-Topic
-- **Basis-Konfiguration**:
-  - `broker` (string) — ID des referenzierten `mqtt-broker` Config Nodes
-  - `topic` (string, optional) — MQTT Topic zum Publizieren. Wenn leer, wird `msg.topic` verwendet
-  - `qos` (number) — Quality of Service: 0, 1 oder 2. Standard: 0
-  - `retain` (boolean) — Retain Flag. Standard: false
+- **Canvas**: 1 input, 0 outputs (sink node)
+- **Function**: Publishes incoming messages via the configured broker to an MQTT topic
+- **Base configuration**:
+  - `broker` (string) — ID of the referenced `mqtt-broker` config node
+  - `topic` (string, optional) — MQTT topic to publish to. If empty, `msg.topic` is used
+  - `qos` (number) — Quality of Service: 0, 1, or 2. Default: 0
+  - `retain` (boolean) — retain flag. Default: false
 
-- **MQTT v5 Default Properties** (alle optional, gelten als Defaults für jeden Publish; können per `msg` überschrieben werden — siehe unten):
-  - `defaultUserProperties` (object) — String-zu-String-Map; wird mit `msg.userProperties` zusammengeführt (msg-Keys gewinnen bei Konflikt)
-  - `defaultContentType` (string) — z.B. `application/json`
-  - `defaultResponseTopic` (string) — Topic für Antworten (Request/Response-Pattern)
-  - `defaultMessageExpiry` (number, Sekunden) — Default-Ablauf für jede gesendete Nachricht
-  - `defaultPayloadFormat` (number, 0 oder 1) — `0` = Bytes (Default), `1` = UTF-8 Text. Wenn `1` gesetzt ist und der Payload kein gültiger UTF-8-String ist, wird er trotzdem gesendet (der Broker kann ggf. ablehnen)
+- **MQTT v5 Default Properties** (all optional, apply as defaults for every publish; can be overridden per `msg` — see below):
+  - `defaultUserProperties` (object) — string-to-string map; merged with `msg.userProperties` (msg keys win on conflict)
+  - `defaultContentType` (string) — e.g., `application/json`
+  - `defaultResponseTopic` (string) — topic for replies (request/response pattern)
+  - `defaultMessageExpiry` (number, seconds) — default expiry for every sent message
+  - `defaultPayloadFormat` (number, 0 or 1) — `0` = bytes (default), `1` = UTF-8 text. If set to `1` and the payload is not a valid UTF-8 string, it is sent anyway (the broker may reject)
 
-  **Bewusst nicht in der Static-Config**:
-  - `correlationData` ist per Definition pro-Message (Request/Response-Korrelation) — nur via `msg.correlationData`
-  - `topicAlias` wird vom Client transparent verwaltet (Optimierung im Broker-Manager) — nicht user-konfigurierbar
-  - `subscriptionIdentifier` ist nur im PUBLISH **vom Broker** an den Subscriber relevant, nie im Outbound-Publish
+  **Deliberately not in the static config**:
+  - `correlationData` is by definition per-message (request/response correlation) — only via `msg.correlationData`
+  - `topicAlias` is managed transparently by the client (optimization in the broker manager) — not user-configurable
+  - `subscriptionIdentifier` is only relevant in the PUBLISH **from the broker** to the subscriber, never in the outbound publish
 
-- **Eingehende Message**:
-  - `msg.payload` wird als MQTT-Payload gesendet
-  - `msg.topic` wird als Fallback-Topic verwendet wenn keins konfiguriert ist
-  - **MQTT v5 (optional)** — folgende Felder überschreiben die Default-Properties aus der Config (im v3.1.1-Modus ignoriert):
-    - `msg.userProperties` (object) — wird mit `defaultUserProperties` zusammengeführt; bei gleichem Key gewinnt msg
-    - `msg.contentType` (string) — überschreibt `defaultContentType`
-    - `msg.responseTopic` (string) — überschreibt `defaultResponseTopic`
-    - `msg.correlationData` (string/bytes) — kein Config-Default, nur per Message
-    - `msg.messageExpiry` (number, Sekunden) — überschreibt `defaultMessageExpiry`
-    - `msg.payloadFormat` (number, 0 oder 1) — überschreibt `defaultPayloadFormat`
-- **Status-Anzeige**: Analog zu `mqtt-in`
+- **Incoming message**:
+  - `msg.payload` is sent as the MQTT payload
+  - `msg.topic` is used as fallback topic when none is configured
+  - **MQTT v5 (optional)** — the following fields override the default properties from the config (ignored in v3.1.1 mode):
+    - `msg.userProperties` (object) — merged with `defaultUserProperties`; on the same key msg wins
+    - `msg.contentType` (string) — overrides `defaultContentType`
+    - `msg.responseTopic` (string) — overrides `defaultResponseTopic`
+    - `msg.correlationData` (string/bytes) — no config default, message-only
+    - `msg.messageExpiry` (number, seconds) — overrides `defaultMessageExpiry`
+    - `msg.payloadFormat` (number, 0 or 1) — overrides `defaultPayloadFormat`
+- **Status display**: Analogous to `mqtt-in`
 
-- **Properties-Panel**:
+- **Properties panel**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -324,7 +324,7 @@ Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` über
 │                                               │
 │  Broker                                       │
 │  ┌────────────────────────────────────┐ ┌───┐│
-│  │ Produktion Broker              ▼  │ │ + ││
+│  │ Production Broker              ▼  │ │ + ││
 │  └────────────────────────────────────┘ └───┘│
 │  Edit broker config                           │
 │                                               │
@@ -354,40 +354,40 @@ Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` über
 │                                               │
 │  ℹ  msg.userProperties / msg.contentType /    │
 │     msg.responseTopic / msg.messageExpiry /   │
-│     msg.payloadFormat überschreiben die       │
-│     Defaults pro Message.                     │
-│     msg.correlationData ist nur per Message.  │
+│     msg.payloadFormat override the            │
+│     defaults per message.                     │
+│     msg.correlationData is message-only.      │
 │                                               │
 └──────────────────────────────────────────────┘
 ```
 
-### 4. Config Node Konzept (neu in LOOPZE)
+### 4. Config Node Concept (new in LOOPZE)
 
-Config Nodes sind ein neues architektonisches Konzept, das mit diesem Issue eingeführt wird:
+Config nodes are a new architectural concept introduced with this issue:
 
-- **Kein Canvas-Element**: Config Nodes haben keine visuelle Darstellung im Flow-Editor
-- **Eigenständige Persistenz**: Config Nodes werden in `workspace.json` als eigener Abschnitt gespeichert (nicht innerhalb eines Flows)
-- **Referenzierung**: Normale Nodes referenzieren Config Nodes über deren ID
-- **Shared Instanz**: Mehrere Nodes können denselben Config Node referenzieren — die Engine erstellt pro Config Node nur **eine** Instanz (z.B. eine MQTT-Verbindung) und teilt sie zwischen allen referenzierenden Nodes
-- **Lifecycle**: Config Node Instanzen werden beim Deploy erstellt und beim Re-Deploy/Stop gestoppt
+- **No canvas element**: Config nodes have no visual representation in the flow editor
+- **Standalone persistence**: Config nodes are stored in `workspace.json` as their own section (not within a flow)
+- **Referencing**: Regular nodes reference config nodes via their ID
+- **Shared instance**: Multiple nodes can reference the same config node — the engine creates only **one** instance per config node (e.g., one MQTT connection) and shares it among all referencing nodes
+- **Lifecycle**: Config node instances are created on deploy and stopped on re-deploy/stop
 
 ### 5. Broker Connection Sharing
 
-Wenn mehrere MQTT-Nodes denselben Broker referenzieren, wird **eine einzige MQTT-Verbindung** geteilt:
+When multiple MQTT nodes reference the same broker, **a single MQTT connection** is shared:
 
 ```
 [mqtt-in  topic=a] ──┐
-[mqtt-in  topic=b] ──┤── Broker "Produktion" ── 1 TCP-Verbindung
+[mqtt-in  topic=b] ──┤── Broker "Production" ── 1 TCP connection
 [mqtt-out topic=c] ──┘
 ```
 
-Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
-1. Beim Deploy alle referenzierten Broker-Configs sammelt
-2. Pro Broker-ID eine MQTT-Client-Verbindung aufbaut
-3. Den MQTT-Nodes Zugriff auf den geteilten Client gibt
-4. Beim Stop/Re-Deploy alle Verbindungen sauber trennt
+The engine must provide a **broker manager** that:
+1. Collects all referenced broker configs on deploy
+2. Establishes one MQTT client connection per broker ID
+3. Gives the MQTT nodes access to the shared client
+4. Cleanly disconnects all connections on stop/re-deploy
 
-## Datenstruktur
+## Data Structure
 
 ### workspace.json
 
@@ -397,12 +397,12 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
     {
       "id": "flow-1",
       "type": "tab",
-      "label": "Sensoren",
+      "label": "Sensors",
       "nodes": [
         {
           "id": "node-mqtt-in-1",
           "type": "mqtt-in",
-          "name": "Temperatur",
+          "name": "Temperature",
           "x": 200,
           "y": 150,
           "z": "flow-1",
@@ -419,7 +419,7 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
         {
           "id": "node-mqtt-in-2",
           "type": "mqtt-in",
-          "name": "Dynamische Subscription",
+          "name": "Dynamic Subscription",
           "x": 200,
           "y": 250,
           "z": "flow-1",
@@ -435,7 +435,7 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
         {
           "id": "node-mqtt-out-1",
           "type": "mqtt-out",
-          "name": "Steuerung",
+          "name": "Control",
           "x": 600,
           "y": 300,
           "z": "flow-1",
@@ -456,7 +456,7 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
     {
       "id": "broker-1",
       "type": "mqtt-broker",
-      "name": "Produktion Broker",
+      "name": "Production Broker",
       "config": {
         "host": "mqtt.example.com",
         "port": 1883,
@@ -487,30 +487,30 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
 }
 ```
 
-**Hinweis**: Das `configs`-Array ist ein neuer Top-Level-Abschnitt in `workspace.json` neben `flows`. Alle Config Nodes (jetzt MQTT-Broker, zukünftig auch HTTP-Auth, Datenbank-Verbindungen etc.) werden hier abgelegt.
+**Note**: The `configs` array is a new top-level section in `workspace.json` alongside `flows`. All config nodes (now MQTT broker, in the future also HTTP auth, database connections, etc.) are stored here.
 
-## Betroffene Dateien
+## Affected Files
 
-### Backend – Neue Dateien
+### Backend – New Files
 
-- `internal/nodes/mqtt_broker.go` — MQTT Broker Config Node: Verbindungsaufbau, Reconnect-Logik, Subscription-Management. Kapselt den `paho.mqtt.golang` Client
-- `internal/nodes/mqtt_in.go` — MQTT Subscribe Node: Registriert Subscription beim geteilten Broker-Client, empfängt Nachrichten und sendet sie via `SendFunc` in den Flow
-- `internal/nodes/mqtt_out.go` — MQTT Publish Node: Publiziert eingehende Flow-Messages über den geteilten Broker-Client
+- `internal/nodes/mqtt_broker.go` — MQTT Broker config node: connection setup, reconnect logic, subscription management. Encapsulates the `paho.mqtt.golang` client
+- `internal/nodes/mqtt_in.go` — MQTT Subscribe node: registers subscription with the shared broker client, receives messages, and sends them via `SendFunc` into the flow
+- `internal/nodes/mqtt_out.go` — MQTT Publish node: publishes incoming flow messages via the shared broker client
 
-### Backend – Anpassungen
+### Backend – Adjustments
 
-- `internal/server/server.go` — Registrierung von `mqtt-in` und `mqtt-out` im `registerNodes()`
-- `internal/flow/engine.go` — Config Node Lifecycle:
-  - Neuer Abschnitt in `Deploy()`: Config Nodes vor den regulären Nodes instanziieren
-  - Config Node Instanzen den referenzierenden Nodes über ein neues Provider-Interface bereitstellen
-  - `Stop()` erweitern: Config Node Instanzen sauber herunterfahren
-- `internal/flow/registry.go` — Optionale Erweiterung: `ConfigProvider` Interface analog zu `ContextProvider` und `LinkProvider`
+- `internal/server/server.go` — registration of `mqtt-in` and `mqtt-out` in `registerNodes()`
+- `internal/flow/engine.go` — config node lifecycle:
+  - New section in `Deploy()`: instantiate config nodes before the regular nodes
+  - Provide config node instances to the referencing nodes via a new provider interface
+  - Extend `Stop()`: cleanly shut down config node instances
+- `internal/flow/registry.go` — optional extension: `ConfigProvider` interface analogous to `ContextProvider` and `LinkProvider`
   ```go
   type ConfigProvider interface {
       SetConfigNode(configType string, configID string, instance any)
   }
   ```
-- `internal/flow/types.go` — Config Node Datentyp für workspace.json Deserialisierung:
+- `internal/flow/types.go` — config node data type for workspace.json deserialization:
   ```go
   type ConfigNode struct {
       ID     string         `json:"id"`
@@ -519,63 +519,63 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
       Config map[string]any `json:"config"`
   }
   ```
-- `internal/storage/` — Workspace Load/Save erweitern um `configs`-Abschnitt
+- `internal/storage/` — extend workspace load/save with `configs` section
 
-### Frontend – Neue Dateien
+### Frontend – New Files
 
-- `frontend/src/components/config/MqttNodeConfig.vue` — Gemeinsame Config-Komponente für `mqtt-in` und `mqtt-out` mit Broker-Dropdown + "+" Button, Topic-Eingabe, QoS-Dropdown, Retain-Toggle (nur mqtt-out)
-- `frontend/src/components/config/MqttBrokerConfig.vue` — Broker Config Dialog: Formular für Host, Port, Client-ID, Credentials, TLS, Keep-Alive. Öffnet sich als eigenständiges Properties-Panel über den "+" Button
+- `frontend/src/components/config/MqttNodeConfig.vue` — shared config component for `mqtt-in` and `mqtt-out` with broker dropdown + "+" button, topic input, QoS dropdown, retain toggle (mqtt-out only)
+- `frontend/src/components/config/MqttBrokerConfig.vue` — Broker config dialog: form for host, port, client ID, credentials, TLS, keep-alive. Opens as a standalone properties panel via the "+" button
 
-### Frontend – Anpassungen
+### Frontend – Adjustments
 
-- `frontend/src/components/PropertyPanel.vue` — Dispatch für `mqtt-in` und `mqtt-out` auf `MqttNodeConfig`. Zusätzlich: Unterstützung für Config Node Dialoge (Broker-Konfiguration als verschachteltes Panel)
-- `frontend/src/components/nodes/tokens.ts` — Bereits vorhanden: `mqtt-in` → input (grün), `mqtt-out` → output (orange). Keine Änderung nötig
-- `frontend/src/stores/flowStore.ts` — Config Nodes verwalten: CRUD-Operationen für `configs[]` im Workspace, API-Calls für Persistenz
-- `frontend/src/types/flow.ts` — TypeScript-Typen für Config Nodes und MQTT-Broker-Config
+- `frontend/src/components/PropertyPanel.vue` — dispatch for `mqtt-in` and `mqtt-out` to `MqttNodeConfig`. Additionally: support for config node dialogs (broker configuration as a nested panel)
+- `frontend/src/components/nodes/tokens.ts` — already present: `mqtt-in` → input (green), `mqtt-out` → output (orange). No change needed
+- `frontend/src/stores/flowStore.ts` — manage config nodes: CRUD operations for `configs[]` in the workspace, API calls for persistence
+- `frontend/src/types/flow.ts` — TypeScript types for config nodes and MQTT broker config
 
 ### Go Dependencies
 
-- `github.com/eclipse/paho.golang/paho` — MQTT v5 Client Library (Eclipse Paho v5)
-- `github.com/eclipse/paho.golang/autopaho` — Connection-Manager mit Auto-Reconnect-Logik um den v5-Client herum
-- **Hinweis**: Die ältere `github.com/eclipse/paho.mqtt.golang` Library spricht nur v3.1.1 und ist daher nicht ausreichend. Der v5-Fallback auf v3.1.1 wird über die Protocol-Negotiation des Brokers abgewickelt — die `paho.golang` Library kann das für unsere Zwecke ausreichend abbilden, ggf. muss bei `protocolVersion=3.1.1` explizit gegen die alte Library oder einen separaten v3-Pfad gefahren werden.
+- `github.com/eclipse/paho.golang/paho` — MQTT v5 client library (Eclipse Paho v5)
+- `github.com/eclipse/paho.golang/autopaho` — connection manager with auto-reconnect logic around the v5 client
+- **Note**: The older `github.com/eclipse/paho.mqtt.golang` library only speaks v3.1.1 and is therefore not sufficient. The v5 fallback to v3.1.1 is handled via the broker's protocol negotiation — the `paho.golang` library can cover this sufficiently for our purposes; if needed, with `protocolVersion=3.1.1` an explicit run against the old library or a separate v3 path may be required.
 
-## Technische Hinweise
+## Technical Notes
 
-### Config Node Lifecycle in der Engine
+### Config Node Lifecycle in the Engine
 
-Config Nodes haben einen eigenen Lifecycle, der **vor** den regulären Nodes ausgeführt wird:
+Config nodes have their own lifecycle that runs **before** the regular nodes:
 
-1. **Beim Deploy**: Engine liest `configs[]` aus dem Workspace, instanziiert Config Nodes und baut Verbindungen auf
-2. **Injection**: Reguläre Nodes, die `ConfigProvider` implementieren, erhalten Referenzen auf ihre Config Node Instanzen
-3. **Beim Stop/Re-Deploy**: Config Node Instanzen werden **nach** den regulären Nodes gestoppt (umgekehrte Reihenfolge)
+1. **On deploy**: Engine reads `configs[]` from the workspace, instantiates config nodes, and establishes connections
+2. **Injection**: Regular nodes that implement `ConfigProvider` receive references to their config node instances
+3. **On stop/re-deploy**: Config node instances are stopped **after** the regular nodes (reverse order)
 
 ```
-Deploy:   Config Nodes starten → Reguläre Nodes starten
-Stop:     Reguläre Nodes stoppen → Config Nodes stoppen
+Deploy:   Start config nodes → Start regular nodes
+Stop:     Stop regular nodes → Stop config nodes
 ```
 
-### MQTT Broker – Reconnect-Strategie
+### MQTT Broker – Reconnect Strategy
 
-Der MQTT-Client implementiert automatisches Reconnect über `paho.golang/autopaho`:
+The MQTT client implements automatic reconnect via `paho.golang/autopaho`:
 
-- `autopaho.NewConnection` übernimmt Verbindungsaufbau und Reconnect mit konfigurierbarem Backoff
-- Bei v5-Sessions mit `sessionExpiry > 0` reaktiviert der Broker bestehende Subscriptions; bei `cleanStart=true` muss LOOPZE nach Reconnect alle Subscriptions selbst wiederherstellen
-- Bei Verbindungsverlust: Status auf Gelb ("reconnecting...")
-- Bei erfolgreicher Wiederverbindung: Subscriptions automatisch erneuern (sofern nicht durch Session bereits aktiv), Status auf Grün
-- Bei dauerhaftem Fehler: Status auf Rot mit Fehlermeldung
-- Lehnt der Broker die gewählte Protokoll-Version ab, schlägt der CONNECT mit Status Rot und Reason-Code in der Fehlermeldung fehl — der Anwender muss in der Broker-Config explizit auf v3.1.1 umstellen
+- `autopaho.NewConnection` handles connection setup and reconnect with configurable backoff
+- For v5 sessions with `sessionExpiry > 0` the broker reactivates existing subscriptions; with `cleanStart=true` LOOPZE must restore all subscriptions itself after reconnect
+- On connection loss: status to yellow ("reconnecting...")
+- On successful reconnect: refresh subscriptions automatically (unless already active via session), status to green
+- On permanent error: status to red with error message
+- If the broker rejects the chosen protocol version, CONNECT fails with status red and reason code in the error message — the user must explicitly switch the broker config to v3.1.1
 
 ### onConnect / onDisconnect / LastWill – Lifecycle
 
-- **onConnect**: nach jedem erfolgreichen CONNACK (auch nach Reconnect) feuert der Broker-Manager als erste Aktion den onConnect-Publish, bevor irgendein anderer Node Subscriptions registrieren oder publizieren darf. Dadurch sehen Konsumenten konsistent erst „online", dann den eigentlichen Datenstrom
-- **onDisconnect**: beim regulären Stop / Re-Deploy publiziert der Broker-Manager zuerst die onDisconnect-Message, wartet auf das ACK (bei QoS > 0) bzw. den Flush (bei QoS 0) und schickt erst dann das DISCONNECT-Paket
-- **LastWill**: wird im CONNECT-Paket an den Broker übergeben und ausschließlich vom Broker selbst publiziert, wenn die Verbindung unsauber abreißt. Bei einem regulären DISCONNECT verwirft der Broker den LastWill (so spezifiziert) — daher braucht es die separate onDisconnect-Message
-- onConnect und onDisconnect sind **Client-seitige Konvention** (reguläre PUBLISH-Pakete), LastWill ist das **MQTT-Protokoll-Feature**
-- Wenn onConnect und onDisconnect auf dasselbe Topic mit `retain=true` publizieren, ist LastWill mit `retain=true` empfehlenswert, damit der retained-Status bei jeder Disconnect-Variante konsistent bleibt
+- **onConnect**: after every successful CONNACK (including after reconnect) the broker manager fires the onConnect publish as the first action, before any other node may register subscriptions or publish. This way consumers see "online" first consistently, then the actual data stream
+- **onDisconnect**: on regular stop / re-deploy the broker manager first publishes the onDisconnect message, waits for the ACK (with QoS > 0) or the flush (with QoS 0), and only then sends the DISCONNECT packet
+- **LastWill**: passed in the CONNECT packet to the broker and published exclusively by the broker itself when the connection drops uncleanly. On a regular DISCONNECT the broker discards the LastWill (as specified) — that is why the separate onDisconnect message is needed
+- onConnect and onDisconnect are **client-side convention** (regular PUBLISH packets), LastWill is the **MQTT protocol feature**
+- If onConnect and onDisconnect publish to the same topic with `retain=true`, LastWill with `retain=true` is recommended so that the retained status remains consistent across every disconnect variant
 
-### Broker-Dropdown im Frontend
+### Broker Dropdown in the Frontend
 
-Das Broker-Dropdown im MQTT Node Config Panel zeigt alle `mqtt-broker` Config Nodes aus `flowStore.configs`:
+The broker dropdown in the MQTT node config panel shows all `mqtt-broker` config nodes from `flowStore.configs`:
 
 ```typescript
 const mqttBrokers = computed(() =>
@@ -583,11 +583,11 @@ const mqttBrokers = computed(() =>
 )
 ```
 
-Der "+" Button neben dem Dropdown öffnet den `MqttBrokerConfig.vue` Dialog. Nach dem Speichern wird der neue Broker automatisch im Dropdown ausgewählt.
+The "+" button next to the dropdown opens the `MqttBrokerConfig.vue` dialog. After saving, the new broker is automatically selected in the dropdown.
 
-### Message-Mapping (mqtt-in)
+### Message Mapping (mqtt-in)
 
-Empfangene MQTT-Nachrichten werden in das LOOPZE Message-Format übersetzt. v5-Properties werden, falls vom Broker mitgeliefert, in die ausgehende Message übernommen:
+Received MQTT messages are translated into the LOOPZE message format. v5 properties, when delivered by the broker, are carried over into the outgoing message:
 
 ```go
 func (n *MqttInNode) onPublish(p *paho.Publish) {
@@ -625,32 +625,32 @@ func (n *MqttInNode) onPublish(p *paho.Publish) {
 
 ### Dynamic Subscription (mqtt-in, Dynamic Mode)
 
-Im Dynamic-Modus implementiert der Node `OnInput`, hält die Liste der aktuell aktiven
-Topics intern und reagiert auf Steuer-Messages:
+In dynamic mode the node implements `OnInput`, keeps the list of currently active
+topics internally, and reacts to control messages:
 
 ```go
 type MqttInNode struct {
     // … broker, qos, …
-    activeTopics []string // nur im Dynamic-Modus belegt
+    activeTopics []string // only populated in dynamic mode
     mu           sync.Mutex
 }
 
 func (n *MqttInNode) OnInput(msg Message) {
     if action, _ := msg.GetString("action"); action != "subscribe" {
-        return // nur "subscribe" wird akzeptiert; alles andere wird verworfen
+        return // only "subscribe" is accepted; everything else is discarded
     }
 
-    next := toTopicSlice(msg.Get("payload")) // string → [s], []string → s, leer → []
-    qos  := extractQoS(msg.Get("qos"), n.qos) // msg.qos überschreibt config-qos (0/1/2), sonst Fallback
+    next := toTopicSlice(msg.Get("payload")) // string → [s], []string → s, empty → []
+    qos  := extractQoS(msg.Get("qos"), n.qos) // msg.qos overrides config-qos (0/1/2), else fallback
 
     n.mu.Lock()
     defer n.mu.Unlock()
 
-    // Alle bisherigen Topics dieses Nodes unsubscriben
+    // Unsubscribe all previous topics of this node
     for _, t := range n.activeTopics {
         n.broker.Unsubscribe(n.id, t)
     }
-    // Neue Topics subscriben
+    // Subscribe new topics
     for _, t := range next {
         n.broker.Subscribe(n.id, t, qos, n.onMessage)
     }
@@ -659,36 +659,36 @@ func (n *MqttInNode) OnInput(msg Message) {
 }
 ```
 
-Wichtig:
-- Steuer-Messages werden **nicht** weitergeleitet (`return` statt `n.send(0, msg)`).
-- Beim Stop / Redeploy müssen alle `activeTopics` sauber unsubscribed werden.
-- Der MQTT Broker (Config Node) muss `Subscribe` und `Unsubscribe` per Subscriber-ID anbieten, damit beim Redeploy oder Re-Subscribe gezielt aufgeräumt werden kann.
+Important:
+- Control messages are **not** forwarded (`return` instead of `n.send(0, msg)`).
+- On stop / redeploy all `activeTopics` must be cleanly unsubscribed.
+- The MQTT broker (config node) must offer `Subscribe` and `Unsubscribe` per subscriber ID so that on redeploy or re-subscribe targeted cleanup is possible.
 
-### Payload-Handling (mqtt-out)
+### Payload Handling (mqtt-out)
 
-Der Publish Node liest `msg.payload` und konvertiert es für den MQTT-Publish:
+The publish node reads `msg.payload` and converts it for the MQTT publish:
 
-- `string` → direkt als Payload
-- `map`/`slice` → JSON-serialisiert
-- `number`/`bool` → String-Konvertierung
+- `string` → directly as payload
+- `map`/`slice` → JSON-serialized
+- `number`/`bool` → string conversion
 
-## Abhängigkeiten
+## Dependencies
 
-- **Keine Abhängigkeiten** zu bestehenden Issues — dies ist ein eigenständiges Feature
-- Führt das **Config Node Konzept** ein, das von zukünftigen Connector-Nodes wiederverwendet wird (HTTP, TCP, Modbus, OPC-UA, Datenbanken etc.)
-- Frontend-Tokens für `mqtt-in` und `mqtt-out` sind bereits in `tokens.ts` definiert — sie erscheinen automatisch in der Palette sobald das Backend sie registriert
+- **No dependencies** on existing issues — this is a standalone feature
+- Introduces the **config node concept** that will be reused by future connector nodes (HTTP, TCP, Modbus, OPC UA, databases, etc.)
+- Frontend tokens for `mqtt-in` and `mqtt-out` are already defined in `tokens.ts` — they appear in the palette automatically once the backend registers them
 
-## Abgrenzung / Nicht im Scope
+## Out of Scope / Not in Scope
 
-- **MQTT v5 Feature-Umfang**:
-  - **Drin**: User Properties (CONNECT, PUBLISH, SUBSCRIBE — outbound + inbound), Message Expiry Interval, Content Type, Response Topic, Correlation Data, Payload Format Indicator, Shared Subscriptions, Subscription Identifiers (set + receive), Subscription Options (No Local, Retain As Published, Retain Handling), LastWill mit Will Delay Interval, Session Expiry Interval, Clean Start
-  - **Bewusst nicht in v1**:
-    - **Topic Aliases**: werden vom Client-Manager transparent verwaltet, sind aber nicht user-konfigurierbar (z.B. `Topic Alias Maximum` im CONNECT). Default 0 = aus
-    - **Reason-Code-Routing** auf Catch-Outputs: ACK-Reason-Codes (PUBACK, SUBACK, UNSUBACK, DISCONNECT) werden geloggt, aber nicht als separater Flow-Output bereitgestellt
-    - **Enhanced Authentication** (Auth-Properties, AUTH-Paket, SASL-Style-Flows): nicht in v1
-    - **Flow Control**: `Receive Maximum`, `Maximum Packet Size`, `Server Keep Alive`, `Server Reference` — Default-Werte des Clients werden verwendet, keine UI-Konfiguration
-    - **Request/Response-Information** im CONNECT (`Request Response Information`, `Request Problem Information`): default true für Problem Information, ansonsten nicht konfigurierbar
-    - **CONNECT User Properties**: aktuell nicht im UI; können über Library-API gesetzt werden, falls jemand sie brauchen sollte (Erweiterung später)
-- **Wildcard-Topics**: `+` und `#` Wildcards in Topics werden für den ersten Wurf nicht explizit validiert, funktionieren aber transparent über den MQTT-Client
-- **Erweiterte TLS-Konfiguration**: Client-Zertifikate, CA-Bundle etc. — nicht in v1
-- **Credential Encryption**: Passwörter werden vorerst im Klartext in der Config gespeichert. Verschlüsselung wird separat über ein Credential-System adressiert
+- **MQTT v5 feature scope**:
+  - **In**: User Properties (CONNECT, PUBLISH, SUBSCRIBE — outbound + inbound), Message Expiry Interval, Content Type, Response Topic, Correlation Data, Payload Format Indicator, Shared Subscriptions, Subscription Identifiers (set + receive), Subscription Options (No Local, Retain As Published, Retain Handling), LastWill with Will Delay Interval, Session Expiry Interval, Clean Start
+  - **Deliberately not in v1**:
+    - **Topic Aliases**: managed transparently by the client manager but not user-configurable (e.g., `Topic Alias Maximum` in CONNECT). Default 0 = off
+    - **Reason code routing** to catch outputs: ACK reason codes (PUBACK, SUBACK, UNSUBACK, DISCONNECT) are logged but not exposed as a separate flow output
+    - **Enhanced Authentication** (auth properties, AUTH packet, SASL-style flows): not in v1
+    - **Flow Control**: `Receive Maximum`, `Maximum Packet Size`, `Server Keep Alive`, `Server Reference` — client defaults are used, no UI configuration
+    - **Request/Response Information** in CONNECT (`Request Response Information`, `Request Problem Information`): default true for Problem Information, otherwise not configurable
+    - **CONNECT User Properties**: not in the UI currently; can be set via library API if anyone needs them (extension later)
+- **Wildcard topics**: `+` and `#` wildcards in topics are not explicitly validated for the first cut, but they work transparently via the MQTT client
+- **Extended TLS configuration**: client certificates, CA bundle, etc. — not in v1
+- **Credential encryption**: passwords are stored in plaintext in the config for now. Encryption is addressed separately via a credential system

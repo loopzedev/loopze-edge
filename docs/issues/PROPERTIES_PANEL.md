@@ -1,61 +1,61 @@
-# Properties Panel: Cancel / Revert fuer Node-Aenderungen
+# Properties Panel: Cancel / Revert for Node Changes
 
-## Kontext
+## Context
 
-Wenn ein Node im Properties Panel bearbeitet wird, gehen alle Aenderungen **sofort direkt in den Pinia Store** (`flowStore.updateNodeData()`). Es gibt keinen Zwischenpuffer, keine Transaktion und kein Undo. Das Panel schliesst ohne Rueckgaengig-Option — einmal geaenderte Werte bleiben bis zum naechsten Deploy oder Page-Reload bestehen.
+When a node is edited in the properties panel, all changes go **directly into the Pinia store** immediately (`flowStore.updateNodeData()`). There is no intermediate buffer, no transaction, and no undo. The panel closes without a revert option — once changed, values remain until the next deploy or page reload.
 
-Der Nutzer braucht einen **Abbrechen-Button**, um Aenderungen an einem Node rueckgaengig zu machen, bevor sie deployed werden.
+The user needs a **Cancel button** to undo changes to a node before they are deployed.
 
-## Anforderung
+## Requirement
 
-### Cancel-Button im Properties Panel
+### Cancel Button in the Properties Panel
 
-- Wird im Properties Panel angezeigt, wenn der selektierte Node **dirty** ist (`flowStore.isNodeDirty(nodeId)`)
-- Klick auf "Cancel" setzt den Node auf den **zuletzt deployed-en Zustand** zurueck
-- Nach Cancel: Node wird aus `dirtyNodeIds` entfernt
-- Button verschwindet wenn der Node nicht mehr dirty ist
+- Shown in the properties panel when the selected node is **dirty** (`flowStore.isNodeDirty(nodeId)`)
+- Clicking "Cancel" resets the node to its **last deployed state**
+- After cancel: node is removed from `dirtyNodeIds`
+- Button disappears when the node is no longer dirty
 
-### Snapshot-Mechanismus
+### Snapshot Mechanism
 
-Beim **Deploy** wird ein Snapshot der Node-Daten gespeichert. Dieser Snapshot ist die Referenz fuer den Cancel/Revert.
+On **deploy**, a snapshot of the node data is saved. This snapshot is the reference for cancel/revert.
 
-- Neuer State im flowStore: `deployedNodeData: Map<string, Record<string, any>>` — speichert den letzten deployed-en Zustand jedes Nodes
-- Wird in `deploy()` nach erfolgreichem Deploy befuellt
-- Wird in `loadFlows()` beim initialen Laden befuellt
-- `revertNode(nodeId)` stellt den Snapshot wieder her
+- New state in the flowStore: `deployedNodeData: Map<string, Record<string, any>>` — stores the last deployed state of each node
+- Populated in `deploy()` after a successful deploy
+- Populated in `loadFlows()` on initial load
+- `revertNode(nodeId)` restores the snapshot
 
-### Datenfluss
+### Dataflow
 
 ```
-Deploy erfolgreich
-  → deployedNodeData.set(nodeId, deepCopy(node.data))  // Snapshot speichern
+Deploy successful
+  -> deployedNodeData.set(nodeId, deepCopy(node.data))  // save snapshot
 
-User bearbeitet Node
-  → flowStore.updateNodeData()  // wie bisher, aendert Store direkt
-  → markNodeDirty(nodeId)       // wie bisher
+User edits node
+  -> flowStore.updateNodeData()  // as before, changes the store directly
+  -> markNodeDirty(nodeId)       // as before
 
-User klickt "Cancel"
-  → flowStore.revertNode(nodeId)
-  → node.data = deepCopy(deployedNodeData.get(nodeId))
-  → dirtyNodeIds.delete(nodeId)
+User clicks "Cancel"
+  -> flowStore.revertNode(nodeId)
+  -> node.data = deepCopy(deployedNodeData.get(nodeId))
+  -> dirtyNodeIds.delete(nodeId)
 ```
 
-## Technische Details
+## Technical Details
 
-### Betroffene Dateien
+### Affected Files
 
-| Datei | Aenderung |
+| File | Change |
 |-------|-----------|
-| `frontend/src/stores/flowStore.ts` | `deployedNodeData` Map, `revertNode()`, Snapshot in `deploy()` und `loadFlows()` |
-| `frontend/src/components/PropertyPanel.vue` | Cancel-Button (sichtbar wenn Node dirty) |
+| `frontend/src/stores/flowStore.ts` | `deployedNodeData` map, `revertNode()`, snapshot in `deploy()` and `loadFlows()` |
+| `frontend/src/components/PropertyPanel.vue` | Cancel button (visible when node is dirty) |
 
-### flowStore Aenderungen
+### flowStore Changes
 
 ```typescript
-// Neuer State
+// New state
 const deployedNodeData = ref<Map<string, Record<string, any>>>(new Map())
 
-// Nach erfolgreichem Deploy: Snapshot aller Nodes speichern
+// After successful deploy: store snapshot of all nodes
 function snapshotDeployedState() {
   const map = new Map<string, Record<string, any>>()
   for (const node of nodes.value) {
@@ -64,7 +64,7 @@ function snapshotDeployedState() {
   deployedNodeData.value = map
 }
 
-// Node auf letzten Deploy-Stand zuruecksetzen
+// Reset node to last deployed state
 function revertNode(nodeId: string) {
   const snapshot = deployedNodeData.value.get(nodeId)
   if (!snapshot) return
@@ -75,7 +75,7 @@ function revertNode(nodeId: string) {
 }
 ```
 
-### PropertyPanel Cancel-Button
+### PropertyPanel Cancel Button
 
 ```html
 <button
@@ -86,11 +86,11 @@ function revertNode(nodeId: string) {
 </button>
 ```
 
-Platzierung: Im Header-Bereich des Properties Panel, neben dem Node-Namen oder als Footer-Action.
+Placement: in the header area of the properties panel, next to the node name or as a footer action.
 
-## Abgrenzung
+## Out of Scope
 
-- Kein allgemeines Undo/Redo-System — nur Cancel fuer den aktuell selektierten Node
-- Kein Cancel fuer Flow-Properties oder Config-Nodes (kann spaeter ergaenzt werden)
-- Cancel bezieht sich immer auf den letzten Deploy-Stand, nicht auf einen vorherigen Edit-Schritt
-- Neu hinzugefuegte Nodes (die noch nie deployed wurden) haben keinen Snapshot — Cancel entfernt den Node NICHT, sondern setzt nur auf Defaults zurueck
+- No general undo/redo system — only cancel for the currently selected node
+- No cancel for flow properties or config nodes (can be added later)
+- Cancel always refers to the last deployed state, not to a previous edit step
+- Newly added nodes (that have never been deployed) have no snapshot — cancel does NOT remove the node, but only resets to defaults

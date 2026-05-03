@@ -1,49 +1,49 @@
-# Issue: Link Nodes – Cross-Flow Messaging (Input, Output, Request)
+# Issue: Link Nodes — Cross-Flow Messaging (Input, Output, Request)
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem Description
 
-Mit der Einführung mehrerer Flows pro Workspace fehlt die Möglichkeit, **Nachrichten über Flow-Grenzen hinweg** zu verschicken. Aktuell können Nodes nur innerhalb eines Flows miteinander verdrahtet werden. Für modulare Flow-Architekturen werden drei neue Node-Typen benötigt, die als virtuelle Brücken zwischen Flows fungieren.
+With the introduction of multiple flows per workspace, the ability to send **messages across flow boundaries** is missing. Currently nodes can only be wired together within a single flow. For modular flow architectures, three new node types are needed that act as virtual bridges between flows.
 
-## Übersicht der drei Node-Typen
+## Overview of the Three Node Types
 
-| Node-Typ | Typ-ID | Canvas Inputs | Canvas Outputs | Beschreibung |
+| Node type | Type ID | Canvas inputs | Canvas outputs | Description |
 |---|---|---|---|---|
-| **Link Input** | `link-in` | 0 | 1 | Empfängt Nachrichten von Link Output Nodes aus anderen Flows |
-| **Link Output** | `link-out` | 1 | 0 | Sendet Nachrichten an Link Input Nodes in anderen Flows |
-| **Link Request** | `link-call` | 1 | 1 | Sendet eine Anfrage an einen Link Input Node und wartet auf die Antwort |
+| **Link Input** | `link-in` | 0 | 1 | Receives messages from Link Output nodes in other flows |
+| **Link Output** | `link-out` | 1 | 0 | Sends messages to Link Input nodes in other flows |
+| **Link Request** | `link-call` | 1 | 1 | Sends a request to a Link Input node and waits for the response |
 
 ```
 Flow A                              Flow B
-┌─────────────────────┐             ┌─────────────────────┐
-│                      │             │                      │
-│  [Inject] → [Link Output] ──────→ [Link Input] → [Debug] │
-│                      │             │                      │
-└─────────────────────┘             └─────────────────────┘
++---------------------+             +---------------------+
+|                      |             |                      |
+|  [Inject] -> [Link Output] ------> [Link Input] -> [Debug] |
+|                      |             |                      |
++---------------------+             +---------------------+
 
 Flow C (Request/Response)           Flow D (Service)
-┌──────────────────────────┐        ┌──────────────────────────┐
-│                           │        │                           │
-│  [Inject] → [Link Request] ─────→ [Link Input]               │
-│              ↑ (Response)  │        │      ↓                   │
-│              │             │        │  [Function]              │
-│              └─────────────│────── [Link Output] ← ┘          │
-│          [Debug] ←─┘       │        │                           │
-└──────────────────────────┘        └──────────────────────────┘
++--------------------------+        +--------------------------+
+|                           |        |                           |
+|  [Inject] -> [Link Request] -----> [Link Input]               |
+|              ^ (Response)  |        |      v                   |
+|              |             |        |  [Function]              |
+|              +-------------+------ [Link Output] <- +          |
+|          [Debug] <-+       |        |                           |
++--------------------------+        +--------------------------+
 ```
 
-## Anforderungen
+## Requirements
 
 ### 1. Link Output Node (`link-out`)
 
-- **Canvas**: 1 Input, 0 Outputs
-- **Funktion**: Nimmt Nachrichten entgegen und leitet sie an konfigurierte Link Input Nodes weiter
-- **Properties** (Doppelklick): Tabellarische Ansicht aller verfügbaren **Link Input** Nodes im gesamten Workspace
-  - Spalten: Checkbox, Flow-Name, Node-Name
-  - **Mehrfachauswahl** möglich — ein Link Output kann an mehrere Link Inputs senden
-  - Nur Link Input Nodes werden angezeigt (keine anderen Node-Typen)
-- **Konfiguration**:
+- **Canvas**: 1 input, 0 outputs
+- **Function**: receives messages and forwards them to configured Link Input nodes
+- **Properties** (double-click): tabular view of all available **Link Input** nodes in the entire workspace
+  - Columns: checkbox, flow name, node name
+  - **Multi-selection** possible — one Link Output can send to multiple Link Inputs
+  - Only Link Input nodes are shown (no other node types)
+- **Configuration**:
   ```json
   {
     "links": ["link-in-node-id-1", "link-in-node-id-2"]
@@ -52,89 +52,89 @@ Flow C (Request/Response)           Flow D (Service)
 
 ### 2. Link Input Node (`link-in`)
 
-- **Canvas**: 0 Inputs, 1 Output
-- **Funktion**: Empfängt Nachrichten von Link Output Nodes und leitet sie an den verbundenen Output-Port weiter
-- **Properties** (Doppelklick): Tabellarische Ansicht aller verfügbaren **Link Output** Nodes im gesamten Workspace
-  - Spalten: Checkbox, Flow-Name, Node-Name
-  - **Mehrfachauswahl** möglich — ein Link Input kann von mehreren Link Outputs empfangen
-  - Nur Link Output Nodes werden angezeigt (keine anderen Node-Typen)
-- **Konfiguration**:
+- **Canvas**: 0 inputs, 1 output
+- **Function**: receives messages from Link Output nodes and forwards them to the connected output port
+- **Properties** (double-click): tabular view of all available **Link Output** nodes in the entire workspace
+  - Columns: checkbox, flow name, node name
+  - **Multi-selection** possible — one Link Input can receive from multiple Link Outputs
+  - Only Link Output nodes are shown (no other node types)
+- **Configuration**:
   ```json
   {
     "links": ["link-out-node-id-1", "link-out-node-id-2"]
   }
   ```
-- **Hinweis**: Die Link-Konfiguration ist **bidirektional gespiegelt** — wenn ein Link Output den Link Input `A` auswählt, erscheint der Link Output automatisch in der Properties-Tabelle von `A` als ausgewählt (und umgekehrt). Die Zuordnung wird von beiden Seiten aus gepflegt.
+- **Note**: the link configuration is **bidirectionally mirrored** — when a Link Output selects Link Input `A`, the Link Output automatically appears as selected in the properties table of `A` (and vice versa). The mapping is maintained from both sides.
 
 ### 3. Link Request Node (`link-call`)
 
-- **Canvas**: 1 Input, 1 Output
-- **Funktion**: Sendet eine Nachricht an einen Link Input Node, wartet auf die Antwort des zugehörigen Link Output Nodes, und gibt die Antwort am eigenen Output-Port aus
-- **Properties** (Doppelklick): Tabellarische Ansicht aller verfügbaren **Link Input** Nodes
-  - Spalten: Radio-Button, Flow-Name, Node-Name
-  - **Nur eine Auswahl** möglich (Radio statt Checkbox)
-  - Nur Link Input Nodes werden angezeigt
-- **Konfiguration**:
+- **Canvas**: 1 input, 1 output
+- **Function**: sends a message to a Link Input node, waits for the response from the corresponding Link Output node, and emits the response on its own output port
+- **Properties** (double-click): tabular view of all available **Link Input** nodes
+  - Columns: radio button, flow name, node name
+  - **Only one selection** possible (radio instead of checkbox)
+  - Only Link Input nodes are shown
+- **Configuration**:
   ```json
   {
     "linkTarget": "link-in-node-id"
   }
   ```
 
-### 4. Request/Response Mechanismus
+### 4. Request/Response Mechanism
 
-Der Link Request Node implementiert ein **synchrones Request/Response-Pattern** über Flow-Grenzen hinweg:
+The Link Request node implements a **synchronous request/response pattern** across flow boundaries:
 
-1. **Request**: Der Link Request Node sendet die Nachricht an den konfigurierten Link Input Node. Dabei wird die **Requestor-ID** (Node-ID des Link Request Nodes) in die Nachricht eingebettet
-2. **Verarbeitung**: Der Ziel-Flow verarbeitet die Nachricht normal über seine Nodes
-3. **Response**: Wenn die verarbeitete Nachricht einen Link Output Node erreicht, prüft dieser ob eine Requestor-ID vorhanden ist:
-   - **Ja**: Die Nachricht wird direkt an den aufrufenden Link Request Node zurückgeschickt (nicht an die regulären Link-Ziele)
-   - **Nein**: Normale Weiterleitung an die konfigurierten Link Input Nodes
-4. **Ausgabe**: Der Link Request Node empfängt die Antwort und gibt sie an seinem Output-Port aus
+1. **Request**: the Link Request node sends the message to the configured Link Input node. The **requestor ID** (node ID of the Link Request node) is embedded in the message
+2. **Processing**: the target flow processes the message normally through its nodes
+3. **Response**: when the processed message reaches a Link Output node, that node checks whether a requestor ID is present:
+   - **Yes**: the message is sent directly back to the calling Link Request node (not to the regular link targets)
+   - **No**: normal forwarding to the configured Link Input nodes
+4. **Output**: the Link Request node receives the response and emits it on its output port
 
-**Nachrichtenstruktur für Requestor-Tracking**:
+**Message structure for requestor tracking**:
 ```go
-// Im Message-Objekt wird ein internes Feld mitgeführt:
-msg.Set("_linkSource", requestNodeID)  // Vom Link Request gesetzt
-msg.Get("_linkSource")                 // Vom Link Output gelesen
+// An internal field is carried along in the message object:
+msg.Set("_linkSource", requestNodeID)  // set by Link Request
+msg.Get("_linkSource")                 // read by Link Output
 ```
 
-Das `_linkSource`-Feld wird nach der Zustellung vom Link Request Node wieder entfernt, damit es nicht in nachfolgende Nodes leakt.
+The `_linkSource` field is removed by the Link Request node after delivery so it does not leak into subsequent nodes.
 
-### 5. Properties – Tabellarische Link-Ansicht
+### 5. Properties — Tabular Link View
 
-Die Properties-Tabelle ist für alle drei Node-Typen identisch aufgebaut (nur Selektionstyp und angezeigte Nodes unterscheiden sich):
+The properties table is structured identically for all three node types (only the selection type and displayed nodes differ):
 
 ```
-┌──────────────────────────────────────────────┐
-│  Link Output                                  │
-├──────────────────────────────────────────────┤
-│  Name                                         │
-│  ┌────────────────────────────────────────┐   │
-│  │ my-link-out                            │   │
-│  └────────────────────────────────────────┘   │
-│                                               │
-│  Verfügbare Link Inputs                       │
-│  ┌────┬──────────────┬────────────────────┐   │
-│  │ ✓  │ Flow         │ Node               │   │
-│  ├────┼──────────────┼────────────────────┤   │
-│  │ [x]│ Flow 1       │ api-input          │   │
-│  │ [ ]│ Flow 2       │ data-receiver      │   │
-│  │ [x]│ Flow 3       │ event-handler      │   │
-│  └────┴──────────────┴────────────────────┘   │
-└──────────────────────────────────────────────┘
++----------------------------------------------+
+|  Link Output                                  |
++----------------------------------------------+
+|  Name                                         |
+|  +----------------------------------------+   |
+|  | my-link-out                            |   |
+|  +----------------------------------------+   |
+|                                               |
+|  Available Link Inputs                        |
+|  +----+--------------+--------------------+   |
+|  | v  | Flow         | Node               |   |
+|  +----+--------------+--------------------+   |
+|  | [x]| Flow 1       | api-input          |   |
+|  | [ ]| Flow 2       | data-receiver      |   |
+|  | [x]| Flow 3       | event-handler      |   |
+|  +----+--------------+--------------------+   |
++----------------------------------------------+
 ```
 
-Für den Link Request Node wird statt Checkboxen ein **Radio-Button** verwendet (nur Einfachauswahl).
+For the Link Request node, a **radio button** is used instead of checkboxes (single selection only).
 
-**Ermittlung der verfügbaren Link-Nodes**:
-- Die Tabelle durchsucht **alle Flows** im `flowStore.flows` nach Nodes mit dem passenden Typ
-- Für Link Output → zeigt alle `link-in` Nodes
-- Für Link Input → zeigt alle `link-out` Nodes
-- Für Link Request → zeigt alle `link-in` Nodes
-- Der eigene Flow wird einbezogen (Links innerhalb des gleichen Flows sind erlaubt)
+**Determining available link nodes**:
+- The table searches **all flows** in `flowStore.flows` for nodes of the matching type
+- For Link Output -> shows all `link-in` nodes
+- For Link Input -> shows all `link-out` nodes
+- For Link Request -> shows all `link-in` nodes
+- The own flow is included (links within the same flow are allowed)
 
-## Datenstruktur
+## Data Structure
 
 ### workspace.json
 
@@ -185,49 +185,49 @@ Für den Link Request Node wird statt Checkboxen ein **Radio-Button** verwendet 
 ]
 ```
 
-## Betroffene Dateien
+## Affected Files
 
-### Backend – Neue Dateien
+### Backend — New Files
 
-- `internal/nodes/link_in.go` — Link Input Node: Registriert sich bei der Engine, empfängt Nachrichten und sendet sie an den Canvas-Output
-- `internal/nodes/link_out.go` — Link Output Node: Leitet Nachrichten an konfigurierte Link Input Nodes weiter, prüft `_linkSource` für Request/Response
-- `internal/nodes/link_call.go` — Link Request Node: Sendet mit `_linkSource`, empfängt Response und gibt sie am Output aus
+- `internal/nodes/link_in.go` — Link Input node: registers with the engine, receives messages and sends them to the canvas output
+- `internal/nodes/link_out.go` — Link Output node: forwards messages to configured Link Input nodes, checks `_linkSource` for request/response
+- `internal/nodes/link_call.go` — Link Request node: sends with `_linkSource`, receives response and emits it on the output
 
-### Backend – Anpassungen
+### Backend — Changes
 
-- `internal/server/server.go` — Registrierung der drei neuen Node-Typen im `registerNodes()`
-- `internal/flow/engine.go` — Cross-Flow Routing: Die Engine muss Link Output Nodes ermöglichen, Nachrichten direkt an Nodes in anderen Flows zu senden. Dazu benötigt die Engine eine **Link-Registry** die beim Deploy aufgebaut wird:
+- `internal/server/server.go` — registration of the three new node types in `registerNodes()`
+- `internal/flow/engine.go` — cross-flow routing: the engine must allow Link Output nodes to send messages directly to nodes in other flows. To do this, the engine needs a **link registry** built at deploy time:
   ```go
   type linkRegistry struct {
-      inputs  map[string]*runningNode   // nodeID → running link-in node
-      outputs map[string]*runningNode   // nodeID → running link-out node
+      inputs  map[string]*runningNode   // nodeID -> running link-in node
+      outputs map[string]*runningNode   // nodeID -> running link-out node
   }
   ```
-  Die Link Nodes erhalten über einen neuen Callback (`SetLinkSend`) Zugriff auf diese Registry, um Nachrichten direkt an andere Nodes zu senden — unabhängig von der normalen Wire-Verdrahtung.
+  Link nodes get access to this registry via a new callback (`SetLinkSend`) to send messages directly to other nodes — independent of the normal wire wiring.
 
-### Frontend – Neue Dateien
+### Frontend — New Files
 
-- `frontend/src/components/config/LinkConfig.vue` — Gemeinsame Config-Komponente für alle drei Link-Node-Typen mit tabellarischer Ansicht. Kapselt die Logik zur Ermittlung verfügbarer Link-Nodes aus allen Flows und unterscheidet per Prop zwischen Checkbox (Multi) und Radio (Single) Selektion.
+- `frontend/src/components/config/LinkConfig.vue` — common config component for all three Link node types with tabular view. Encapsulates the logic for determining available link nodes from all flows and distinguishes via prop between checkbox (multi) and radio (single) selection.
 
-### Frontend – Anpassungen
+### Frontend — Changes
 
-- `frontend/src/components/PropertyPanel.vue` — Dispatch für `link-in`, `link-out` und `link-call` auf die neue `LinkConfig` Komponente
-- `frontend/src/components/nodes/tokens.ts` — Bereits vorhanden: `link-in` → input-Kategorie (grün), `link-out` → output-Kategorie (orange). Ergänzen: `link-call` → process-Kategorie
-- `frontend/src/types/flow.ts` — `link-call` zum `NodeType` Union hinzufügen (link-in und link-out sind bereits definiert)
+- `frontend/src/components/PropertyPanel.vue` — dispatch for `link-in`, `link-out`, and `link-call` to the new `LinkConfig` component
+- `frontend/src/components/nodes/tokens.ts` — already present: `link-in` -> input category (green), `link-out` -> output category (orange). Add: `link-call` -> process category
+- `frontend/src/types/flow.ts` — add `link-call` to the `NodeType` union (link-in and link-out are already defined)
 
-## Technische Hinweise
+## Technical Notes
 
-### Cross-Flow Routing in der Engine
+### Cross-Flow Routing in the Engine
 
-Die normale Wire-Verdrahtung (`makeSendFunc`) funktioniert nur innerhalb eines Flows. Für Link Nodes wird ein paralleler Routing-Pfad benötigt:
+The normal wire wiring (`makeSendFunc`) only works within a single flow. For Link nodes, a parallel routing path is needed:
 
-1. **Beim Deploy**: Engine iteriert über alle Nodes, identifiziert Link Nodes und baut die `linkRegistry` auf
-2. **Link Output → Link Input**: Der Link Output Node liest `config.links[]`, holt die entsprechenden `runningNode`-Referenzen aus der Registry, und sendet die Nachricht direkt in deren `inputCh`
-3. **Link Request → Link Input → Link Output → Link Request**: Der Request Node setzt `_linkSource`, der Output Node liest es und routet die Antwort zurück
+1. **At deploy time**: engine iterates over all nodes, identifies Link nodes, and builds the `linkRegistry`
+2. **Link Output -> Link Input**: the Link Output node reads `config.links[]`, fetches the corresponding `runningNode` references from the registry, and sends the message directly into their `inputCh`
+3. **Link Request -> Link Input -> Link Output -> Link Request**: the Request node sets `_linkSource`, the Output node reads it and routes the response back
 
-### Bidirektionale Link-Spiegelung (Frontend)
+### Bidirectional Link Mirroring (Frontend)
 
-Wenn der Bediener in einem Link Output Node den Link Input `A` auswählt, muss auch der Link Input `A` den Link Output in seiner `config.links[]` Liste führen. Dies wird im Frontend beim Speichern synchronisiert:
+When the operator selects Link Input `A` in a Link Output node, Link Input `A` must also list the Link Output in its `config.links[]`. This is synchronized in the frontend on save:
 
 ```typescript
 function toggleLink(targetNodeId: string, selected: boolean) {
@@ -238,13 +238,13 @@ function toggleLink(targetNodeId: string, selected: boolean) {
 }
 ```
 
-Beide Nodes werden als dirty markiert.
+Both nodes are marked dirty.
 
-### Engine – Link-Nodes brauchen Zugriff auf andere Nodes
+### Engine — Link Nodes Need Access to Other Nodes
 
-Die bestehende `NodeInstance`-Schnittstelle bietet keinen Mechanismus für Cross-Node-Kommunikation. Optionen:
+The existing `NodeInstance` interface offers no mechanism for cross-node communication. Options:
 
-**Option A: Neuer Callback `SetLinkSend`**
+**Option A: New callback `SetLinkSend`**
 ```go
 type LinkSendFunc func(targetNodeID string, msg *Message)
 
@@ -252,14 +252,14 @@ type LinkProvider interface {
     SetLinkSend(fn LinkSendFunc)
 }
 ```
-Die Engine prüft beim Deploy ob ein Node `LinkProvider` implementiert und setzt den Callback. Analog zu `ContextProvider`.
+The engine checks at deploy time whether a node implements `LinkProvider` and sets the callback. Analogous to `ContextProvider`.
 
-**Option B: Engine-Level Routing**
-Die Engine übernimmt das Routing komplett: Nach `HandleMessage` prüft sie ob der Node ein Link Node ist und routet entsprechend. Die Link Nodes selbst sind dann "dumm" und geben die Nachricht einfach zurück.
+**Option B: Engine-level routing**
+The engine takes over routing entirely: after `HandleMessage` it checks whether the node is a Link node and routes accordingly. The Link nodes themselves are then "dumb" and simply return the message.
 
-**Empfehlung: Option A** — konsistent mit dem bestehenden Provider-Pattern (`ContextProvider`), hält die Routing-Logik in den Nodes.
+**Recommendation: Option A** — consistent with the existing provider pattern (`ContextProvider`), keeps the routing logic in the nodes.
 
-## Abhängigkeiten
+## Dependencies
 
-- **Flow-Management (FLOWS.md)**: Muss implementiert sein, damit mehrere Flows existieren und Link Nodes sinnvoll eingesetzt werden können
-- Die Node-Typen `link-in` und `link-out` sind im Frontend bereits als Typen und in den Styling-Tokens definiert — sie erscheinen automatisch in der Palette sobald das Backend sie registriert
+- **Flow management (FLOWS.md)**: must be implemented so that multiple flows exist and Link nodes can be sensibly used
+- The node types `link-in` and `link-out` are already defined in the frontend as types and in the styling tokens — they appear automatically in the palette as soon as the backend registers them

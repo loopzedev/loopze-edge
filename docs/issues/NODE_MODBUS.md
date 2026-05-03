@@ -1,24 +1,24 @@
-# Issue: Modbus Nodes – Read & Write mit Server-Konfiguration
+# Issue: Modbus Nodes – Read & Write with Server Configuration
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem Description
 
-Nach MQTT folgt der zweitwichtigste Industrie-Connector: **Modbus**. Zwei neue Node-Typen (`modbus-read` und `modbus-write`) ermöglichen das Lesen und Schreiben von Modbus-Geräten. Analog zum MQTT-Pattern führt ein **Modbus-Server Config Node** (`modbus-server`) die Verbindung als wiederverwendbare Entität ein — mehrere Nodes können denselben Server referenzieren und teilen sich eine Verbindung.
+After MQTT, the second-most-important industrial connector follows: **Modbus**. Two new node types (`modbus-read` and `modbus-write`) enable reading from and writing to Modbus devices. Analogous to the MQTT pattern, a **Modbus Server config node** (`modbus-server`) introduces the connection as a reusable entity — multiple nodes can reference the same server and share a single connection.
 
-**Leitprinzip dieses Issues**: Alle Funktionen — Function Code, Adresse, Anzahl, Datentyp, Unit-ID — können sowohl **statisch in der Node-Config** als auch **dynamisch per Message** gesteuert werden. **Einzig die Server-Vorgabe (Host/Port bzw. Serial-Parameter) ist ausschließlich statisch** und wird einmalig im Config Node gepflegt.
+**Guiding principle of this issue**: All functions — function code, address, quantity, data type, unit ID — can be controlled both **statically in the node config** and **dynamically per message**. **Only the server target (host/port or serial parameters) is exclusively static** and is maintained once in the config node.
 
-**Scope**: Modbus TCP und Modbus RTU (Serial). ASCII bleibt außen vor. Unterstützt werden die gängigen Function Codes (FC1–FC6, FC15, FC16). Multi-Register-Datentypen (INT32, FLOAT32, …) werden mit konfigurierbarer Byte- und Word-Order ausgelesen, da die Reihenfolge in der Praxis nicht standardisiert ist.
+**Scope**: Modbus TCP and Modbus RTU (serial). ASCII is out of scope. The common function codes (FC1–FC6, FC15, FC16) are supported. Multi-register data types (INT32, FLOAT32, …) are read with configurable byte and word order, since the order is not standardized in practice.
 
-## Übersicht
+## Overview
 
-| Node-Typ | Typ-ID | Canvas Inputs | Canvas Outputs | Beschreibung |
+| Node type | Type ID | Canvas inputs | Canvas outputs | Description |
 |---|---|---|---|---|
-| **Modbus Read** | `modbus-read` | 0 oder 1 | 1 | Liest Coils / Discrete Inputs / Holding Registers / Input Registers |
-| **Modbus Write** | `modbus-write` | 1 | 0 oder 1 | Schreibt Coils oder Holding Registers |
+| **Modbus Read** | `modbus-read` | 0 or 1 | 1 | Reads coils / discrete inputs / holding registers / input registers |
+| **Modbus Write** | `modbus-write` | 1 | 0 or 1 | Writes coils or holding registers |
 
 ```
-                        Modbus-Gerät (z.B. SPS, Energiezähler)
+                        Modbus device (e.g. PLC, energy meter)
                         ┌─────────────────────────┐
 Flow A                  │  Holding Reg 40001..n   │
 ┌────────────────────┐  │  Coil       00001..n    │
@@ -37,37 +37,37 @@ Flow B                                   │
 └────────────────────┘
 ```
 
-## Anforderungen
+## Requirements
 
 ### 1. Config Node: Modbus Server (`modbus-server`)
 
-Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wird hier wiederverwendet) — er erscheint nicht auf dem Canvas und wird von `modbus-read` / `modbus-write` Nodes referenziert.
+The Modbus Server is a **config node** (see NODE_MQTT.md – the concept is reused here) — it does not appear on the canvas and is referenced by `modbus-read` / `modbus-write` nodes.
 
-- **Typ-ID**: `modbus-server`
-- **Kein Canvas-Element** — rein konfigurativ
-- **Konfigurationsfelder**:
-  - `name` (string) — Anzeigename, z.B. "SPS Halle 1"
-  - `transport` (string) — `tcp` (Default) oder `rtu`
-  - **TCP-Felder** (gültig wenn `transport=tcp`):
-    - `host` (string) — Hostname oder IP
-    - `port` (number) — Standard: 502
-  - **RTU-Felder** (gültig wenn `transport=rtu`):
-    - `serialPort` (string) — z.B. `/dev/ttyUSB0`, `COM3`
-    - `baudRate` (number) — 9600, 19200, 38400, 57600, 115200; Standard: 9600
-    - `dataBits` (number) — 7 oder 8; Standard: 8
-    - `parity` (string) — `none`, `even`, `odd`; Standard: `none`
-    - `stopBits` (number) — 1 oder 2; Standard: 1
-  - **Gemeinsame Felder**:
-    - `timeout` (number) — Request-Timeout in Millisekunden; Standard: 1000
-    - `idleTimeout` (number, nur TCP) — Sekunden, nach denen eine ungenutzte TCP-Verbindung geschlossen wird; Standard: 60. `0` = nie schließen
-    - `defaultUnitId` (number) — Default Unit/Slave ID, wenn ein Node keinen eigenen Wert setzt; Standard: 1
-    - `reconnectBackoff` (number) — Sekunden zwischen Reconnect-Versuchen nach Verbindungsverlust; Standard: 5
+- **Type ID**: `modbus-server`
+- **No canvas element** — purely configurative
+- **Configuration fields**:
+  - `name` (string) — display name, e.g. "PLC Hall 1"
+  - `transport` (string) — `tcp` (default) or `rtu`
+  - **TCP fields** (valid when `transport=tcp`):
+    - `host` (string) — hostname or IP
+    - `port` (number) — default: 502
+  - **RTU fields** (valid when `transport=rtu`):
+    - `serialPort` (string) — e.g. `/dev/ttyUSB0`, `COM3`
+    - `baudRate` (number) — 9600, 19200, 38400, 57600, 115200; default: 9600
+    - `dataBits` (number) — 7 or 8; default: 8
+    - `parity` (string) — `none`, `even`, `odd`; default: `none`
+    - `stopBits` (number) — 1 or 2; default: 1
+  - **Common fields**:
+    - `timeout` (number) — request timeout in milliseconds; default: 1000
+    - `idleTimeout` (number, TCP only) — seconds after which an unused TCP connection is closed; default: 60. `0` = never close
+    - `defaultUnitId` (number) — default unit/slave ID when a node does not set its own value; default: 1
+    - `reconnectBackoff` (number) — seconds between reconnect attempts after a connection loss; default: 5
 
-- **Zugriff auf den Properties-Dialog**:
-  - **Neuer Server**: Über den "+" Button neben dem Server-Dropdown in Modbus Nodes
-  - **Bestehenden Server editieren**: Über den "Edit server config" Link unterhalb des Dropdowns
+- **Access to the properties dialog**:
+  - **New server**: via the "+" button next to the server dropdown in Modbus nodes
+  - **Edit existing server**: via the "Edit server config" link below the dropdown
 
-- **Properties-Dialog**:
+- **Properties dialog**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -76,7 +76,7 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 │                                               │
 │  Name                                         │
 │  ┌────────────────────────────────────────┐   │
-│  │ SPS Halle 1                            │   │
+│  │ PLC Hall 1                             │   │
 │  └────────────────────────────────────────┘   │
 │                                               │
 │  Transport                                    │
@@ -88,7 +88,7 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 │  │ 192.168.1.50             │ │ 502      │   │
 │  └──────────────────────────┘ └──────────┘   │
 │                                               │
-│  ── RTU (greyed out im TCP-Modus) ───────────│
+│  ── RTU (greyed out in TCP mode) ────────────│
 │  Serial Port                                  │
 │  ┌────────────────────────────────────────┐   │
 │  │ /dev/ttyUSB0                           │   │
@@ -96,14 +96,14 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 │  Baud   [9600 ▼]   Data Bits [8 ▼]            │
 │  Parity [none ▼]   Stop Bits [1 ▼]            │
 │                                               │
-│  ── Gemeinsam ───────────────────────────────│
+│  ── Common ──────────────────────────────────│
 │  Timeout (ms):       [1000]                   │
 │  Idle Timeout (s):   [60] (TCP only)          │
 │  Default Unit ID:    [1]                      │
 │  Reconnect (s):      [5]                      │
 │                                               │
 │  ┌────────────┐  ┌────────────┐              │
-│  │  Speichern  │  │ Abbrechen  │              │
+│  │   Save     │  │  Cancel    │              │
 │  └────────────┘  └────────────┘              │
 └──────────────────────────────────────────────┘
 ```
@@ -111,39 +111,39 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 ### 2. Modbus Read Node (`modbus-read`)
 
 - **Canvas**:
-  - Static Mode (cyclic poll): 0 Inputs, 1 Output
-  - Dynamic Mode (on demand): 1 Input, 1 Output — der Input löst den Read aus
-- **Funktion**: Liest den konfigurierten Adressbereich von einem Modbus-Gerät und gibt das Ergebnis als Flow-Message aus. Im Dynamic-Modus können sämtliche Parameter per `msg` überschrieben werden.
+  - Static mode (cyclic poll): 0 inputs, 1 output
+  - Dynamic mode (on demand): 1 input, 1 output — the input triggers the read
+- **Function**: Reads the configured address range from a Modbus device and emits the result as a flow message. In dynamic mode all parameters can be overridden via `msg`.
 
-- **Basis-Konfiguration**:
-  - `server` (string) — ID des referenzierten `modbus-server` Config Nodes
-  - `mode` (string) — `static` (Default) oder `dynamic`
-  - `unitId` (number) — Modbus Unit/Slave ID. Wenn leer, wird `defaultUnitId` aus dem Server verwendet
-  - `fc` (number) — Function Code:
+- **Base configuration**:
+  - `server` (string) — ID of the referenced `modbus-server` config node
+  - `mode` (string) — `static` (default) or `dynamic`
+  - `unitId` (number) — Modbus unit/slave ID. If empty, `defaultUnitId` from the server is used
+  - `fc` (number) — function code:
     - `1` — Read Coils (1 bit, RW)
     - `2` — Read Discrete Inputs (1 bit, RO)
-    - `3` — Read Holding Registers (16 bit, RW) — **Default**
+    - `3` — Read Holding Registers (16 bit, RW) — **default**
     - `4` — Read Input Registers (16 bit, RO)
-  - `address` (number) — Start-Adresse, **0-basiert** (40001 → 0). Per UI-Toggle kann auf 1-basierte Eingabe umgeschaltet werden, intern wird stets 0-basiert gespeichert
-  - `quantity` (number) — Anzahl Coils bzw. Register, die gelesen werden. Standard: 1
-  - `dataType` (string) — wie der Roh-Block interpretiert wird:
-    - `raw` (Default) — `[]uint16` für FC3/FC4, `[]bool` für FC1/FC2
-    - `bool` — einzelnes `bool` (nur FC1/FC2, `quantity` muss 1 sein)
-    - `int16` / `uint16` — ein einzelnes Register als signed/unsigned
-    - `int32` / `uint32` / `float32` — zwei Register (siehe Byte/Word-Order)
-    - `int64` / `uint64` / `float64` — vier Register
-    - `string` — `quantity` Register als ASCII/UTF-8 String (2 Zeichen pro Register, Null-Terminator wird abgeschnitten)
-  - `byteOrder` (string) — `bigEndian` (Default) oder `littleEndian` — Byte-Reihenfolge **innerhalb** eines Registers
-  - `wordOrder` (string) — `bigEndian` (Default, "ABCD") oder `littleEndian` ("CDAB") — Reihenfolge **mehrerer** Register bei 32/64-bit-Typen. In der Praxis gibt es Geräte aller vier Kombinationen
-  - `scale` (number, optional) — multiplikativer Skalierungsfaktor; nützlich z.B. wenn ein Energiezähler Watt als Hundertstel (`/100`) liefert
-  - `offset` (number, optional) — additiver Offset; wird **nach** der Skalierung addiert
+  - `address` (number) — start address, **0-based** (40001 → 0). A UI toggle allows switching to 1-based input; internally the value is always stored 0-based
+  - `quantity` (number) — number of coils or registers to read. Default: 1
+  - `dataType` (string) — how the raw block is interpreted:
+    - `raw` (default) — `[]uint16` for FC3/FC4, `[]bool` for FC1/FC2
+    - `bool` — single `bool` (FC1/FC2 only, `quantity` must be 1)
+    - `int16` / `uint16` — a single register as signed/unsigned
+    - `int32` / `uint32` / `float32` — two registers (see byte/word order)
+    - `int64` / `uint64` / `float64` — four registers
+    - `string` — `quantity` registers as ASCII/UTF-8 string (2 chars per register, null terminator is trimmed)
+  - `byteOrder` (string) — `bigEndian` (default) or `littleEndian` — byte order **within** a register
+  - `wordOrder` (string) — `bigEndian` (default, "ABCD") or `littleEndian` ("CDAB") — order **of multiple** registers for 32/64-bit types. In practice there are devices using all four combinations
+  - `scale` (number, optional) — multiplicative scaling factor; useful e.g. when an energy meter delivers watts in hundredths (`/100`)
+  - `offset` (number, optional) — additive offset; applied **after** scaling
 
-- **Polling (Static Mode)**:
-  - `pollInterval` (number) — Intervall in Millisekunden zwischen Reads. Standard: 1000
-  - `emitOnChange` (boolean) — wenn `true`, wird nur bei Änderung des Werts emittiert (sinnvoll bei langsam wechselnden Größen). Standard: `false`
-  - `emitOnError` (boolean) — wenn `true`, wird bei Read-Fehler eine Fehler-Message ausgegeben (`msg.error` gesetzt, `msg.payload` leer). Wenn `false` (Default), wird nur intern geloggt und der Status auf Rot gesetzt — kein Fehler-Output
+- **Polling (static mode)**:
+  - `pollInterval` (number) — interval in milliseconds between reads. Default: 1000
+  - `emitOnChange` (boolean) — if `true`, only emits when the value changes (useful for slowly changing values). Default: `false`
+  - `emitOnError` (boolean) — if `true`, emits an error message on a read failure (`msg.error` set, `msg.payload` empty). If `false` (default), only logs internally and sets the status to red — no error output
 
-- **Dynamic Mode** — alle Felder können per `msg` überschrieben werden (fehlt das Feld → Config-Default):
+- **Dynamic mode** — all fields can be overridden via `msg` (missing field → config default):
   - `msg.unitId` (number)
   - `msg.fc` (number 1–4)
   - `msg.address` (number)
@@ -151,13 +151,13 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
   - `msg.dataType` (string)
   - `msg.byteOrder` (string)
   - `msg.wordOrder` (string)
-  - Eine Eingangs-Message ohne `msg.action` löst einen Read mit den effektiven Parametern aus. Eingehende Messages werden **nicht** am Output durchgereicht — der Output enthält ausschließlich das Read-Ergebnis (oder den Fehler bei `emitOnError`)
+  - An input message without `msg.action` triggers a read with the effective parameters. Incoming messages are **not** passed through to the output — the output contains only the read result (or the error when `emitOnError`)
 
-- **Ausgehende Message** (bei erfolgreichem Read):
+- **Outgoing message** (on successful read):
   ```json
   {
     "payload": 23.7,
-    "topic": "modbus/sps-halle-1/40001",
+    "topic": "modbus/plc-hall-1/40001",
     "bytes": [66, 49, 153, 154],
     "modbus": {
       "fc": 3,
@@ -169,17 +169,17 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
     }
   }
   ```
-  - `msg.payload` — der dekodierte Wert (Skalar, Array, String, Bool — abhängig von `dataType`)
-  - `msg.topic` — Default `modbus/<server-name>/<address>`; vom Anwender überschreibbar
-  - `msg.bytes` — bei FC3/FC4 immer gesetzt: `[]int` der wire-bytes (uint8, 0..255), passend für `Buffer.from(msg.bytes)` im Function Node. Doppelt mit `msg.modbus.raw` (uint16-Wörter) — der Anwender wählt je nach Use-Case. Bei FC1/FC2 nicht gesetzt (Coils kommen schon als `[]bool`)
-  - `msg.modbus` — Metadaten-Block mit den effektiven Read-Parametern und den Roh-Registerwerten (für Debugging und Round-Trip-Szenarien)
+  - `msg.payload` — the decoded value (scalar, array, string, bool — depending on `dataType`)
+  - `msg.topic` — default `modbus/<server-name>/<address>`; user-overridable
+  - `msg.bytes` — always set for FC3/FC4: `[]int` of wire bytes (uint8, 0..255), suitable for `Buffer.from(msg.bytes)` in the Function node. Redundant with `msg.modbus.raw` (uint16 words) — the user picks based on the use case. Not set for FC1/FC2 (coils already arrive as `[]bool`)
+  - `msg.modbus` — metadata block with the effective read parameters and the raw register values (for debugging and round-trip scenarios)
 
-- **Status-Anzeige**:
-  - Grün: `verbunden · <intervall>` (Static) bzw. `verbunden · idle` (Dynamic)
-  - Gelb: `verbinde…` / `reconnecting…`
-  - Rot: Fehlermeldung mit Modbus Exception Code (z.B. `Illegal Data Address (0x02)`)
+- **Status display**:
+  - Green: `connected · <interval>` (static) or `connected · idle` (dynamic)
+  - Yellow: `connecting…` / `reconnecting…`
+  - Red: error message with Modbus exception code (e.g. `Illegal Data Address (0x02)`)
 
-- **Properties-Panel**:
+- **Properties panel**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -188,14 +188,14 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 │                                               │
 │  Server                                       │
 │  ┌────────────────────────────────┐ ┌───┐    │
-│  │ SPS Halle 1                ▼  │ │ + │    │
+│  │ PLC Hall 1                 ▼  │ │ + │    │
 │  └────────────────────────────────┘ └───┘    │
 │  Edit server config                           │
 │                                               │
 │  Mode                                         │
 │  ( • ) Static (poll)   ( ) Dynamic (on input) │
 │                                               │
-│  Unit ID:  [1]   (leer = Server-Default)      │
+│  Unit ID:  [1]   (empty = server default)     │
 │                                               │
 │  Function Code                                │
 │  ┌────────────────────────────────────────┐   │
@@ -219,7 +219,7 @@ Der Modbus Server ist ein **Config Node** (siehe NODE_MQTT.md – das Konzept wi
 └──────────────────────────────────────────────┘
 ```
 
-Im Dynamic-Modus werden Polling-Felder ausgeblendet und ein Hinweis-Block gezeigt:
+In dynamic mode the polling fields are hidden and a hint block is shown:
 
 ```
 ℹ Send any message to trigger a read. Override
@@ -230,40 +230,40 @@ Im Dynamic-Modus werden Polling-Felder ausgeblendet und ein Hinweis-Block gezeig
 ### 3. Modbus Write Node (`modbus-write`)
 
 - **Canvas**:
-  - 1 Input
-  - 0 Outputs (Default — Sink)
-  - **Optional**: 1 Output, wenn `emitAck=true` — gibt nach erfolgreichem Write eine ACK-Message aus (für nachgelagerte Confirm-Logik)
-- **Funktion**: Schreibt eingehende Messages auf das Modbus-Gerät. Sämtliche Parameter (FC, Adresse, Datentyp, Unit-ID) sind sowohl statisch konfigurierbar als auch per `msg` überschreibbar.
+  - 1 input
+  - 0 outputs (default — sink)
+  - **Optional**: 1 output when `emitAck=true` — emits an ACK message after a successful write (for downstream confirm logic)
+- **Function**: Writes incoming messages to the Modbus device. All parameters (FC, address, data type, unit ID) are configurable both statically and overridable per `msg`.
 
-- **Basis-Konfiguration**:
-  - `server` (string) — ID des referenzierten `modbus-server` Config Nodes
-  - `unitId` (number, optional) — Default Unit/Slave ID
-  - `fc` (number) — Function Code:
+- **Base configuration**:
+  - `server` (string) — ID of the referenced `modbus-server` config node
+  - `unitId` (number, optional) — default unit/slave ID
+  - `fc` (number) — function code:
     - `5` — Write Single Coil
     - `6` — Write Single Register
     - `15` — Write Multiple Coils
-    - `16` — Write Multiple Holding Registers — **Default**
-  - `address` (number) — Start-Adresse, 0-basiert
-  - `dataType` (string) — analog zu `modbus-read`. Bestimmt, wie `msg.payload` vor dem Schreiben in Register/Coils kodiert wird
-  - `byteOrder` (string), `wordOrder` (string) — analog
-  - `scale` (number, optional), `offset` (number, optional) — wird **invers** zum Read-Pfad angewendet: `register = (payload - offset) / scale`
-  - `emitAck` (boolean) — Wenn `true`, schaltet der Node einen Output frei und gibt nach erfolgreichem Write eine Bestätigung aus. Standard: `false`
+    - `16` — Write Multiple Holding Registers — **default**
+  - `address` (number) — start address, 0-based
+  - `dataType` (string) — analogous to `modbus-read`. Determines how `msg.payload` is encoded into registers/coils before writing
+  - `byteOrder` (string), `wordOrder` (string) — analogous
+  - `scale` (number, optional), `offset` (number, optional) — applied **inversely** to the read path: `register = (payload - offset) / scale`
+  - `emitAck` (boolean) — if `true`, the node enables an output and emits a confirmation after a successful write. Default: `false`
 
-- **Eingehende Message**:
-  - `msg.payload` — der zu schreibende Wert. Der Typ muss zum konfigurierten/`msg`-übergebenen `dataType` passen:
-    - `bool` für FC5 / `dataType=bool`
-    - `number` für `int16/uint16/int32/uint32/int64/uint64/float32/float64`
-    - `[]bool` für FC15 (Multiple Coils)
-    - `[]number` für FC16 mit `dataType=raw` oder bei mehreren Werten desselben Typs
-    - `string` für `dataType=string`
-  - **Override-Felder** (analog zu Read):
+- **Incoming message**:
+  - `msg.payload` — the value to be written. The type must match the configured / `msg`-passed `dataType`:
+    - `bool` for FC5 / `dataType=bool`
+    - `number` for `int16/uint16/int32/uint32/int64/uint64/float32/float64`
+    - `[]bool` for FC15 (Multiple Coils)
+    - `[]number` for FC16 with `dataType=raw` or for multiple values of the same type
+    - `string` for `dataType=string`
+  - **Override fields** (analogous to read):
     - `msg.unitId` (number)
     - `msg.fc` (number 5/6/15/16)
     - `msg.address` (number)
     - `msg.dataType` (string)
     - `msg.byteOrder`, `msg.wordOrder` (string)
 
-- **Ausgehende Message** (nur bei `emitAck=true`):
+- **Outgoing message** (only when `emitAck=true`):
   ```json
   {
     "payload": true,
@@ -277,14 +277,14 @@ Im Dynamic-Modus werden Polling-Felder ausgeblendet und ein Hinweis-Block gezeig
     }
   }
   ```
-  - `msg.payload` ist `true` bei Erfolg
-  - `msg.modbus.written` enthält die tatsächlich auf den Bus geschickten Roh-Register
+  - `msg.payload` is `true` on success
+  - `msg.modbus.written` contains the raw registers actually sent on the bus
 
-- **Fehlerverhalten**:
-  - Bei Modbus-Exception (z.B. `Illegal Function`, `Illegal Data Address`, `Slave Device Failure`): Status auf Rot, Fehlermeldung enthält Exception Code. Wenn ein **Catch Node** im Flow vorhanden ist, geht der Fehler über den Catch-Pfad (analog zu anderen Nodes — siehe `CATCH_NODE.md`)
-  - Bei TCP-Verbindungsverlust: Reconnect läuft, Write wird mit `Server unavailable` quittiert
+- **Error behavior**:
+  - On Modbus exception (e.g. `Illegal Function`, `Illegal Data Address`, `Slave Device Failure`): status set to red, error message contains the exception code. If a **Catch node** is present in the flow, the error is routed via the catch path (analogous to other nodes — see `CATCH_NODE.md`)
+  - On TCP connection loss: reconnect runs, write is acknowledged with `Server unavailable`
 
-- **Properties-Panel**:
+- **Properties panel**:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -293,11 +293,11 @@ Im Dynamic-Modus werden Polling-Felder ausgeblendet und ein Hinweis-Block gezeig
 │                                               │
 │  Server                                       │
 │  ┌────────────────────────────────┐ ┌───┐    │
-│  │ SPS Halle 1                ▼  │ │ + │    │
+│  │ PLC Hall 1                 ▼  │ │ + │    │
 │  └────────────────────────────────┘ └───┘    │
 │  Edit server config                           │
 │                                               │
-│  Unit ID:  [1]   (leer = Server-Default)      │
+│  Unit ID:  [1]   (empty = server default)     │
 │                                               │
 │  Function Code                                │
 │  ┌────────────────────────────────────────┐   │
@@ -315,33 +315,33 @@ Im Dynamic-Modus werden Polling-Felder ausgeblendet und ein Hinweis-Block gezeig
 │  ☐ Emit ACK on success                        │
 │                                               │
 │  ℹ  msg.fc / msg.address / msg.dataType /     │
-│     msg.unitId überschreiben die Config       │
-│     pro Message. msg.payload trägt den Wert.  │
+│     msg.unitId override the config            │
+│     per message. msg.payload carries the val. │
 │                                               │
 └──────────────────────────────────────────────┘
 ```
 
 ### 4. Server Connection Sharing
 
-Wenn mehrere Modbus-Nodes denselben Server referenzieren, wird **eine Verbindung** geteilt:
+When multiple Modbus nodes reference the same server, **one connection** is shared:
 
 ```
 [modbus-read  fc=3 addr=0]   ──┐
-[modbus-read  fc=3 addr=10]  ──┤── Server "SPS Halle 1" ── 1 TCP / 1 Serial
+[modbus-read  fc=3 addr=10]  ──┤── Server "PLC Hall 1" ── 1 TCP / 1 Serial
 [modbus-write fc=16 addr=100]──┘
 ```
 
-Die Engine stellt einen **Server-Manager** bereit, der:
-1. Pro `modbus-server` ID eine Verbindung verwaltet (TCP-Socket bzw. geöffneter Serial-Port)
-2. Read- und Write-Anfragen der Nodes serialisiert (Modbus ist halbduplex — gleichzeitige Requests auf einer Verbindung sind nicht erlaubt; der Manager queuet Anfragen)
-3. Bei Verbindungsverlust automatisch reconnected mit dem konfigurierten Backoff
-4. Beim Stop / Re-Deploy alle Verbindungen sauber schließt
+The engine provides a **server manager** that:
+1. Manages one connection per `modbus-server` ID (TCP socket or open serial port)
+2. Serializes read and write requests from the nodes (Modbus is half-duplex — concurrent requests on a single connection are not allowed; the manager queues requests)
+3. Automatically reconnects on connection loss with the configured backoff
+4. Cleanly closes all connections on stop / re-deploy
 
-**Serialisierung pro Server**: Im Modbus-Protokoll darf auf einer Verbindung immer nur eine Transaktion gleichzeitig laufen. Mehrere parallele Read-Polls auf demselben Server werden vom Manager seriell abgearbeitet — entweder via Mutex oder Request-Queue. Der Server-Manager ist **pro Server-Config**, nicht pro Node — die Serialisierung greift also über alle Nodes hinweg, die diesen Server teilen.
+**Per-server serialization**: In the Modbus protocol only one transaction at a time may run on a connection. Multiple parallel read polls on the same server are processed serially by the manager — either via mutex or request queue. The server manager is **per server config**, not per node — so serialization spans across all nodes that share this server.
 
-**Polling-Stagger**: Wenn mehrere Read-Nodes mit gleichem `pollInterval` denselben Server polleln, sollten ihre Tick-Zeitpunkte versetzt werden (Round-Robin), damit die Last gleichmäßig verteilt ist und sich keine Spitzen aufbauen. Optimierung — nicht zwingend für v1.
+**Polling stagger**: When multiple read nodes with the same `pollInterval` poll the same server, their tick times should be offset (round-robin) so the load is distributed evenly and no spikes build up. Optimization — not required for v1.
 
-## Datenstruktur
+## Data Structure
 
 ### workspace.json
 
@@ -351,12 +351,12 @@ Die Engine stellt einen **Server-Manager** bereit, der:
     {
       "id": "flow-1",
       "type": "tab",
-      "label": "SPS Halle 1",
+      "label": "PLC Hall 1",
       "nodes": [
         {
           "id": "node-modbus-read-1",
           "type": "modbus-read",
-          "name": "Temperatur Kessel",
+          "name": "Boiler Temperature",
           "x": 200,
           "y": 150,
           "z": "flow-1",
@@ -383,7 +383,7 @@ Die Engine stellt einen **Server-Manager** bereit, der:
         {
           "id": "node-modbus-write-1",
           "type": "modbus-write",
-          "name": "Sollwert setzen",
+          "name": "Set Setpoint",
           "x": 600,
           "y": 300,
           "z": "flow-1",
@@ -410,7 +410,7 @@ Die Engine stellt einen **Server-Manager** bereit, der:
     {
       "id": "server-1",
       "type": "modbus-server",
-      "name": "SPS Halle 1",
+      "name": "PLC Hall 1",
       "config": {
         "transport": "tcp",
         "host": "192.168.1.50",
@@ -425,72 +425,72 @@ Die Engine stellt einen **Server-Manager** bereit, der:
 }
 ```
 
-## Betroffene Dateien
+## Affected Files
 
-### Backend – Neue Dateien
+### Backend – New Files
 
-- `internal/nodes/modbus_server.go` — Modbus Server Config Node: kapselt den Modbus-Client (TCP oder RTU), Reconnect-Logik, Request-Serialisierung
-- `internal/nodes/modbus_read.go` — Read Node: Polling-Loop (Static) oder Input-Trigger (Dynamic), Dekodierung in den Ziel-Datentyp
-- `internal/nodes/modbus_write.go` — Write Node: Kodierung von `msg.payload` in Register/Coils, Modbus-Request über den geteilten Server
-- `internal/nodes/modbus_codec.go` — Hilfsfunktionen: Byte/Word-Order-Handling, Skalar-Encoding/-Decoding, String ↔ Register-Konvertierung. Eigenständig testbar (Table-driven Tests)
+- `internal/nodes/modbus_server.go` — Modbus Server config node: encapsulates the Modbus client (TCP or RTU), reconnect logic, request serialization
+- `internal/nodes/modbus_read.go` — Read node: polling loop (static) or input trigger (dynamic), decoding into the target data type
+- `internal/nodes/modbus_write.go` — Write node: encoding `msg.payload` into registers/coils, Modbus request via the shared server
+- `internal/nodes/modbus_codec.go` — helper functions: byte/word order handling, scalar encoding/decoding, string ↔ register conversion. Independently testable (table-driven tests)
 
-### Backend – Anpassungen
+### Backend – Changes
 
-- `internal/server/server.go` — Registrierung von `modbus-read` und `modbus-write` in `registerNodes()`
-- `internal/flow/engine.go` — Erweiterung des Config Node Lifecycle (eingeführt mit MQTT) um `modbus-server`. Der Config-Node-Typ wird automatisch erkannt; wenn die Generalisierung dort sauber sitzt, sind keine Modbus-spezifischen Anpassungen nötig
-- `internal/flow/registry.go` — Wenn `ConfigProvider` aus dem MQTT-Issue bereits existiert, wird er hier wiederverwendet
-- `internal/storage/` — Keine Änderung nötig (sofern MQTT-Issue den `configs`-Abschnitt bereits eingeführt hat)
+- `internal/server/server.go` — registration of `modbus-read` and `modbus-write` in `registerNodes()`
+- `internal/flow/engine.go` — extension of the config node lifecycle (introduced with MQTT) for `modbus-server`. The config node type is detected automatically; if the generalization there is solid, no Modbus-specific changes are required
+- `internal/flow/registry.go` — if `ConfigProvider` from the MQTT issue already exists, it is reused here
+- `internal/storage/` — no changes needed (provided the MQTT issue already introduced the `configs` section)
 
-### Frontend – Neue Dateien
+### Frontend – New Files
 
-- `frontend/src/components/config/ModbusNodeConfig.vue` — Gemeinsame Config-Komponente für `modbus-read` und `modbus-write`: Server-Dropdown + "+", Mode-Selector, FC, Address, DataType, Byte/Word Order, Scale/Offset; per Conditional Rendering die Read- bzw. Write-spezifischen Felder
-- `frontend/src/components/config/ModbusServerConfig.vue` — Server Config Dialog: Transport-Switch (TCP/RTU), zugehörige Felder, Timeout, Default Unit ID
+- `frontend/src/components/config/ModbusNodeConfig.vue` — shared config component for `modbus-read` and `modbus-write`: server dropdown + "+", mode selector, FC, address, dataType, byte/word order, scale/offset; the read- vs. write-specific fields via conditional rendering
+- `frontend/src/components/config/ModbusServerConfig.vue` — server config dialog: transport switch (TCP/RTU), associated fields, timeout, default unit ID
 
-### Frontend – Anpassungen
+### Frontend – Changes
 
-- `frontend/src/components/PropertyPanel.vue` — Dispatch für `modbus-read` und `modbus-write` auf `ModbusNodeConfig`
-- `frontend/src/components/nodes/tokens.ts` — Bereits vorhanden: `modbus-read` → input (grün), `modbus-write` → output (orange). Keine Änderung nötig
-- `frontend/src/stores/flowStore.ts` — Falls bereits durch MQTT-Issue um Config-Node-CRUD erweitert: nichts. Sonst dort generalisieren
-- `frontend/src/types/flow.ts` — TypeScript-Typen für `ModbusServerConfig`, `ModbusReadConfig`, `ModbusWriteConfig`
+- `frontend/src/components/PropertyPanel.vue` — dispatch for `modbus-read` and `modbus-write` to `ModbusNodeConfig`
+- `frontend/src/components/nodes/tokens.ts` — already present: `modbus-read` → input (green), `modbus-write` → output (orange). No change needed
+- `frontend/src/stores/flowStore.ts` — if already extended by the MQTT issue with config-node CRUD: nothing. Otherwise generalize there
+- `frontend/src/types/flow.ts` — TypeScript types for `ModbusServerConfig`, `ModbusReadConfig`, `ModbusWriteConfig`
 
 ### Go Dependencies
 
-- `github.com/goburrow/modbus` — etablierte Go-Bibliothek mit Support für TCP, RTU und ASCII. Aktiv gepflegt, von vielen Industrieprojekten verwendet
-- `go.bug.st/serial` (transitiv via `goburrow/modbus`) — Cross-Platform Serial-Support für RTU
+- `github.com/goburrow/modbus` — established Go library with support for TCP, RTU, and ASCII. Actively maintained, used by many industrial projects
+- `go.bug.st/serial` (transitively via `goburrow/modbus`) — cross-platform serial support for RTU
 
-## Technische Hinweise
+## Technical Notes
 
-### Function Codes – Übersicht
+### Function Codes – Overview
 
-| FC | Operation | Adressraum | Datentyp | Lese/Schreib |
+| FC | Operation | Address space | Data type | Read/Write |
 |----|-----------|-----------|----------|--------------|
-| 1  | Read Coils | 00001..0xxxx | bit | RW (lesen) |
+| 1  | Read Coils | 00001..0xxxx | bit | RW (read) |
 | 2  | Read Discrete Inputs | 10001..1xxxx | bit | RO |
-| 3  | Read Holding Registers | 40001..4xxxx | 16-bit | RW (lesen) |
+| 3  | Read Holding Registers | 40001..4xxxx | 16-bit | RW (read) |
 | 4  | Read Input Registers | 30001..3xxxx | 16-bit | RO |
 | 5  | Write Single Coil | 00001..0xxxx | bit | WO |
 | 6  | Write Single Register | 40001..4xxxx | 16-bit | WO |
 | 15 | Write Multiple Coils | 00001..0xxxx | bit | WO |
 | 16 | Write Multiple Registers | 40001..4xxxx | 16-bit | WO |
 
-Die **0-basierte Adresse** entspricht der herstellerspezifischen Notation minus 1 (40001 → 0). Per UI-Toggle (`1-based input`) kann der Anwender die in Datenblättern üblichen 1-basierten Adressen direkt eingeben — intern wird stets 0-basiert gespeichert.
+The **0-based address** equals the vendor-specific notation minus 1 (40001 → 0). Via the UI toggle (`1-based input`) the user can directly enter the 1-based addresses commonly found in datasheets — internally the value is always stored 0-based.
 
-### Byte- und Word-Order
+### Byte and Word Order
 
-Modbus überträgt 16-bit-Register grundsätzlich in **Big Endian** (high byte first). Bei Multi-Register-Werten (32/64 bit) ist die Reihenfolge der Register **nicht standardisiert** — vier Kombinationen sind in der Praxis anzutreffen:
+Modbus generally transmits 16-bit registers in **big endian** (high byte first). For multi-register values (32/64 bit) the order of the registers is **not standardized** — four combinations are encountered in practice:
 
 ```
-Float32 = 0x12345678 wird je nach Gerät übertragen als:
+Float32 = 0x12345678 is transmitted depending on the device as:
 
-ABCD (Big BE / Big WO, Default):     [0x1234, 0x5678]
+ABCD (Big BE / Big WO, default):     [0x1234, 0x5678]
 CDAB (Big BE / Little WO):           [0x5678, 0x1234]
 BADC (Little BE / Big WO):           [0x3412, 0x7856]
 DCBA (Little BE / Little WO):        [0x7856, 0x3412]
 ```
 
-Der Codec im Read- und Write-Pfad muss alle vier Kombinationen unterstützen. Beim Datentyp `raw` werden die Register **unverändert** durchgereicht — Byte/Word-Order spielt nur bei den getypten Varianten eine Rolle.
+The codec in the read and write path must support all four combinations. With data type `raw` the registers are passed through **unchanged** — byte/word order only matters for the typed variants.
 
-### Polling-Loop (Static Mode)
+### Polling Loop (Static Mode)
 
 ```go
 func (n *ModbusReadNode) startPolling(ctx context.Context) {
@@ -517,7 +517,7 @@ func (n *ModbusReadNode) startPolling(ctx context.Context) {
             }
             lastPayload = decoded
             n.send(0, n.buildMessage(decoded, raw))
-            n.SetStatus(StatusOk, fmt.Sprintf("verbunden · %dms", n.pollInterval))
+            n.SetStatus(StatusOk, fmt.Sprintf("connected · %dms", n.pollInterval))
         }
     }
 }
@@ -546,14 +546,14 @@ func (n *ModbusReadNode) OnInput(msg Message) {
 }
 ```
 
-Eingehende Messages werden **nicht** weitergeleitet — der Output enthält ausschließlich das Read-Ergebnis. Steuer-Felder werden geprüft; `msg.payload` wird ignoriert (Read braucht keinen Eingangs-Payload).
+Incoming messages are **not** forwarded — the output contains only the read result. Control fields are checked; `msg.payload` is ignored (a read does not need an input payload).
 
-### Request-Serialisierung im Server-Manager
+### Request Serialization in the Server Manager
 
 ```go
 type ModbusServer struct {
     client modbus.Client       // goburrow/modbus
-    mu     sync.Mutex          // serialisiert alle Requests dieses Servers
+    mu     sync.Mutex          // serializes all requests of this server
     // …
 }
 
@@ -561,7 +561,7 @@ func (s *ModbusServer) Read(unitId byte, fc, addr, qty int) ([]byte, error) {
     s.mu.Lock()
     defer s.mu.Unlock()
 
-    s.handler.SlaveId = unitId   // goburrow setzt SlaveId pro Request am Handler
+    s.handler.SlaveId = unitId   // goburrow sets SlaveId per request on the handler
     switch fc {
     case 1:  return s.client.ReadCoils(uint16(addr), uint16(qty))
     case 2:  return s.client.ReadDiscreteInputs(uint16(addr), uint16(qty))
@@ -572,45 +572,45 @@ func (s *ModbusServer) Read(unitId byte, fc, addr, qty int) ([]byte, error) {
 }
 ```
 
-Der Mutex sorgt dafür, dass auf dem Bus immer nur eine Modbus-Transaktion läuft — auch über mehrere Nodes hinweg, die denselben Server teilen.
+The mutex ensures that only one Modbus transaction at a time runs on the bus — across multiple nodes that share the same server.
 
-### Reconnect-Strategie
+### Reconnect Strategy
 
-- Bei TCP-Verbindungsverlust schließt `goburrow/modbus` den Socket. Der Server-Manager erkennt das beim nächsten Request über den Fehler-Return und versucht reconnect mit `reconnectBackoff` Sekunden Wartezeit
-- Während des Reconnect-Versuchs sind alle wartenden Read/Write-Requests blockiert oder schlagen mit `Server unavailable` fehl (konfigurierbar — vorerst: blockieren bis zum Timeout)
-- Status auf Gelb (`reconnecting…`) während des Versuchs, auf Rot wenn der Reconnect dauerhaft fehlschlägt
+- On TCP connection loss `goburrow/modbus` closes the socket. The server manager detects this on the next request via the error return and attempts a reconnect after `reconnectBackoff` seconds
+- During the reconnect attempt all pending read/write requests are blocked or fail with `Server unavailable` (configurable — for now: block until timeout)
+- Status set to yellow (`reconnecting…`) during the attempt, red when the reconnect fails permanently
 
 ### Modbus Exception Codes
 
-Das Modbus-Protokoll definiert eigene Exception Codes, die vom Slave als Fehler-Response geliefert werden:
+The Modbus protocol defines its own exception codes that the slave returns as an error response:
 
-| Code | Bedeutung | Typische Ursache |
+| Code | Meaning | Typical cause |
 |------|-----------|------------------|
-| 0x01 | Illegal Function | Slave unterstützt diesen FC nicht |
-| 0x02 | Illegal Data Address | Adresse außerhalb des gültigen Bereichs |
-| 0x03 | Illegal Data Value | Wert außerhalb des Bereichs (z.B. zu großer Quantity) |
-| 0x04 | Slave Device Failure | Slave hat einen internen Fehler |
-| 0x05 | Acknowledge | Long-Running Operation, später nochmal anfragen |
-| 0x06 | Slave Device Busy | Slave gerade nicht ansprechbar |
+| 0x01 | Illegal Function | Slave does not support this FC |
+| 0x02 | Illegal Data Address | Address outside the valid range |
+| 0x03 | Illegal Data Value | Value outside the range (e.g. quantity too large) |
+| 0x04 | Slave Device Failure | Slave has an internal error |
+| 0x05 | Acknowledge | Long-running operation, retry later |
+| 0x06 | Slave Device Busy | Slave currently not addressable |
 
-Diese Exceptions werden in der Status-Anzeige und im Catch-Output mit Code und Bedeutung sichtbar gemacht — das ist für die Inbetriebnahme essentiell.
+These exceptions are surfaced in the status display and the catch output with code and meaning — essential for commissioning.
 
-## Abhängigkeiten
+## Dependencies
 
-- **MQTT-Issue (`NODE_MQTT.md`)** führt das Config-Node-Konzept in der Engine ein. Modbus baut darauf auf und wiederverwendet:
-  - `configs[]`-Abschnitt in `workspace.json`
-  - `ConfigProvider`-Interface
-  - Lifecycle-Reihenfolge (Config Nodes vor regulären Nodes starten / nach ihnen stoppen)
-- Wenn das MQTT-Issue noch nicht gemerged ist, müssen die generischen Teile aus diesem Issue im Modbus-PR mit eingeführt werden — sollten aber strukturell identisch sein
-- Frontend-Tokens für `modbus-read` / `modbus-write` sind bereits in `tokens.ts` definiert
+- **MQTT issue (`NODE_MQTT.md`)** introduces the config node concept in the engine. Modbus builds on this and reuses:
+  - `configs[]` section in `workspace.json`
+  - `ConfigProvider` interface
+  - lifecycle order (start config nodes before regular nodes / stop them after)
+- If the MQTT issue is not yet merged, the generic parts from this issue must be introduced together in the Modbus PR — should be structurally identical
+- Frontend tokens for `modbus-read` / `modbus-write` are already defined in `tokens.ts`
 
-## Abgrenzung / Nicht im Scope
+## Out of Scope
 
-- **Modbus ASCII**: nicht in v1 (kaum noch in produktiver Verwendung)
-- **Modbus-Mapping-Datei** (z.B. CSV mit Tags wie `temperatur=40001:float32`): kann später als separates Feature kommen, vorerst bleibt jeder Read-Node ein eigenständiger Adressblock
-- **Adress-Discovery / Browse**: Modbus kennt kein Discovery-Protokoll wie OPC-UA — der Anwender muss Adressen aus dem Geräte-Datenblatt entnehmen
-- **Multi-Slave-Routing über RTU-Gateway**: ein Modbus-TCP-Gateway kann mehrere RTU-Slaves bündeln; jeder Slave wird über `unitId` adressiert. Das funktioniert mit dem aktuellen Design transparent — separate Server-Configs pro Gateway, Unit-ID pro Node
-- **Encryption (Modbus Secure)**: nicht im Scope — Modbus ist historisch unverschlüsselt; in geschützten OT-Netzen oder hinter VPN
-- **Function Codes außerhalb 1–6, 15, 16** (z.B. FC20/21 File Record, FC23 Read/Write Multiple): nicht in v1 — werden in der Industrie selten benötigt
-- **Bit-Felder in Holding Registers** (z.B. Bit 3 von Register 40005): nicht in v1; lässt sich aktuell mit `dataType=uint16` und einem nachgelagerten Function-Node lösen — wird durch den geplanten **Modbus Parser Node** (`PARSER_MODBUS_NODE.md`) deklarativ adressiert
-- **Deklarative Register-Layouts** (Mehrfeld-Mapping „Adresse → Typ → Name" pro Gerät): wird durch den separaten **Modbus Parser Node** abgedeckt, siehe [`PARSER_MODBUS_NODE.md`](./PARSER_MODBUS_NODE.md). Der Parser sitzt zwischen `modbus-read` (`raw`-Output) und Verbraucher bzw. zwischen Erzeuger und `modbus-write` (`raw`-Input) — keine Änderungen an Read/Write nötig
+- **Modbus ASCII**: not in v1 (rarely used in production anymore)
+- **Modbus mapping file** (e.g. CSV with tags such as `temperature=40001:float32`): may come later as a separate feature; for now each read node is a standalone address block
+- **Address discovery / browse**: Modbus has no discovery protocol like OPC UA — the user must take addresses from the device datasheet
+- **Multi-slave routing via RTU gateway**: a Modbus TCP gateway can bundle multiple RTU slaves; each slave is addressed via `unitId`. This works transparently with the current design — separate server configs per gateway, unit ID per node
+- **Encryption (Modbus Secure)**: out of scope — Modbus is historically unencrypted; in protected OT networks or behind VPN
+- **Function codes outside 1–6, 15, 16** (e.g. FC20/21 File Record, FC23 Read/Write Multiple): not in v1 — rarely needed in industry
+- **Bit fields in holding registers** (e.g. bit 3 of register 40005): not in v1; can currently be solved with `dataType=uint16` and a downstream Function node — addressed declaratively by the planned **Modbus Parser node** (`PARSER_MODBUS_NODE.md`)
+- **Declarative register layouts** (multi-field mapping "address → type → name" per device): covered by the separate **Modbus Parser node**, see [`PARSER_MODBUS_NODE.md`](./PARSER_MODBUS_NODE.md). The parser sits between `modbus-read` (`raw` output) and consumer or between producer and `modbus-write` (`raw` input) — no changes to read/write required

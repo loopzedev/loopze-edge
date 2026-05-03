@@ -1,19 +1,19 @@
 # LOOPZE Demo Servers
 
-Sammlung externer Demo-Server zum Testen der LOOPZE-Nodes gegen reale Protokolle.
+Collection of external demo servers for testing the LOOPZE nodes against real protocols.
 
-## Verfügbar
+## Available
 
-| Folder            | Zweck                                                        |
-| ----------------- | ------------------------------------------------------------ |
-| `opcua-server/`   | Node.js OPC UA Server: Security, ExtensionObjects, Sim-Daten |
-| `modbus-server/`  | Go Modbus TCP Slave: alle FCs, animierte Demo-Werte          |
+| Folder            | Purpose                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| `opcua-server/`   | Node.js OPC UA server: security, ExtensionObjects, sim data   |
+| `modbus-server/`  | Go Modbus TCP slave: all FCs, animated demo values            |
 
-## Geplant
+## Planned
 
-- `mqtt-broker/`   – Mosquitto + Demo-Topics
-- `http-mock/`     – REST-Mock für HTTP-Nodes
+- `mqtt-broker/`   – Mosquitto + demo topics
+- `http-mock/`     – REST mock for HTTP nodes
 
-Jeder Demo-Server lebt in einem eigenen Subfolder mit eigener `README.md`,
-eigenem Build/Tooling und – wo sinnvoll – einem `Dockerfile`. Sie sind
-**nicht** Teil des LOOPZE-Hauptbinaries und werden separat gestartet.
+Each demo server lives in its own subfolder with its own `README.md`,
+its own build/tooling and – where it makes sense – a `Dockerfile`. They are
+**not** part of the main LOOPZE binary and are started separately.

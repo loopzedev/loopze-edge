@@ -1,28 +1,28 @@
-# Change Node — Implementierungsplan
+# Change Node — implementation plan
 
 ## Context
 
-Der Change Node ist der zweite Core-Processing-Node nach dem Function Node. Er ermöglicht Datenmanipulation ohne Code — Properties setzen, ändern, löschen, verschieben. Spezifikation: `issues/CHANGENODE.md`.
+The Change Node is the second core processing node after the Function Node. It enables data manipulation without code — set, change, delete, move properties. Specification: `issues/CHANGENODE.md`.
 
-Viel Infrastruktur existiert bereits: Icon, Token-Kategorie, FlowEditor-Slot, ContextProvider-Interface, Message dot-path API.
+A lot of infrastructure already exists: icon, token category, FlowEditor slot, ContextProvider interface, message dot-path API.
 
 ---
 
-## Neue Dateien
+## New files
 
-### 1. `internal/nodes/change.go` (~400 Zeilen)
+### 1. `internal/nodes/change.go` (~400 lines)
 
 **Struct:**
 ```go
 type Rule struct {
     Type     string // "set", "change", "delete", "move"
-    Property string // Ziel-Property (ohne Scope)
+    Property string // target property (without scope)
     PropType string // "msg", "flow", "global"
-    To       string // Wert oder Ziel-Property
+    To       string // value or target property
     ToType   string // "msg", "flow", "global", "str", "num", "bool", "json", "date", "env"
-    From     string // Suchstring (nur bei "change")
+    From     string // search string (only for "change")
     FromType string // "str", "re", "num", "bool", "env"
-    FromRE   bool   // Regex-Flag
+    FromRE   bool   // regex flag
 }
 
 type ChangeNode struct {
@@ -36,7 +36,7 @@ type ChangeNode struct {
 }
 ```
 
-**Init():** Parst `rules` Array aus `config.Properties`. Jede Rule wird aus `map[string]any` gemappt. Bei `fromRE: true` wird der Regex vorkompiliert (`regexp.Compile`).
+**Init():** Parses `rules` array from `config.Properties`. Each rule is mapped from `map[string]any`. With `fromRE: true`, the regex is precompiled (`regexp.Compile`).
 
 **HandleMessage():**
 ```
@@ -72,7 +72,7 @@ for each rule:
 Return message on port 0.
 ```
 
-**SetContext():** Implementiert `flow.ContextProvider` (identisch zu FunctionNode).
+**SetContext():** Implements `flow.ContextProvider` (identical to FunctionNode).
 
 **ChangeTypeInfo():**
 ```go
@@ -81,70 +81,70 @@ Inputs: 1, Outputs: 1
 Defaults: { rules: [{ t:"set", p:"payload", pt:"msg", to:"", tot:"str" }] }
 ```
 
-Existierende APIs die wiederverwendet werden:
+Existing APIs that are reused:
 - `msg.Get/Set/Delete` (`internal/flow/types.go:145-218`)
 - `ContextStore.Get/Set/Delete` (`internal/flow/context.go:8-20`)
-- `ContextProvider` Interface (`internal/flow/context.go:31-33`)
+- `ContextProvider` interface (`internal/flow/context.go:31-33`)
 
-### 2. `internal/nodes/change_test.go` (~300 Zeilen)
+### 2. `internal/nodes/change_test.go` (~300 lines)
 
-Tests für jede Operation:
-- `TestChangeNode_SetMsgProperty` — Setze msg.payload auf String
-- `TestChangeNode_SetNested` — Setze msg.data.nested.field
-- `TestChangeNode_SetFromMsg` — Kopiere msg.topic → msg.payload
-- `TestChangeNode_SetTimestamp` — Setze auf aktuellen Timestamp
-- `TestChangeNode_SetJSON` — Setze auf JSON-Objekt
-- `TestChangeNode_SetNumber` — Setze auf Zahl
-- `TestChangeNode_SetBoolean` — Setze auf Boolean
-- `TestChangeNode_Delete` — Lösche Property
-- `TestChangeNode_Move` — Verschiebe Property
-- `TestChangeNode_ChangeString` — Suche/Ersetze String
-- `TestChangeNode_ChangeRegex` — Suche/Ersetze Regex
-- `TestChangeNode_MultipleRules` — Mehrere Regeln sequenziell
-- `TestChangeNode_FlowContext` — Setze/Lese flow.* Context
-- `TestChangeNode_GlobalContext` — Setze/Lese global.* Context
+Tests for each operation:
+- `TestChangeNode_SetMsgProperty` — set msg.payload to string
+- `TestChangeNode_SetNested` — set msg.data.nested.field
+- `TestChangeNode_SetFromMsg` — copy msg.topic → msg.payload
+- `TestChangeNode_SetTimestamp` — set to current timestamp
+- `TestChangeNode_SetJSON` — set to JSON object
+- `TestChangeNode_SetNumber` — set to number
+- `TestChangeNode_SetBoolean` — set to boolean
+- `TestChangeNode_Delete` — delete property
+- `TestChangeNode_Move` — move property
+- `TestChangeNode_ChangeString` — search/replace string
+- `TestChangeNode_ChangeRegex` — search/replace regex
+- `TestChangeNode_MultipleRules` — multiple rules sequentially
+- `TestChangeNode_FlowContext` — set/read flow.* context
+- `TestChangeNode_GlobalContext` — set/read global.* context
 
-### 3. `frontend/src/components/config/ChangeConfig.vue` (~400 Zeilen)
+### 3. `frontend/src/components/config/ChangeConfig.vue` (~400 lines)
 
-Komplexeste Config-Komponente — Regelliste mit dynamischem Layout je nach Operation.
+Most complex config component — rule list with dynamic layout per operation.
 
-**Struktur pro Regel:**
+**Structure per rule:**
 ```
 ┌─────────────────────────────────────────────────┐
 │ ≡  [Operation ▼]  [▼ scope] [property    ]  ✕  │
 │                                                  │
-│    (bei "set":)                                  │
-│    to the value   [▼ typ] [value         ]      │
+│    (for "set":)                                  │
+│    to the value   [▼ type] [value        ]      │
 │                                                  │
-│    (bei "change":)                               │
-│    Suche nach     [▼ typ] [search        ]      │
-│    Ersetze durch  [▼ typ] [replace       ]      │
+│    (for "change":)                               │
+│    Search for     [▼ type] [search       ]      │
+│    Replace with   [▼ type] [replace      ]      │
 │                                                  │
-│    (bei "move":)                                 │
+│    (for "move":)                                 │
 │    to              [▼ scope] [property   ]      │
 │                                                  │
-│    (bei "delete": keine Zusatzfelder)            │
+│    (for "delete": no extra fields)               │
 └─────────────────────────────────────────────────┘
 ```
 
-**Komponenten-Design:**
-- `rules` als computed Array aus `config.rules`
-- `updateRule(index, field, value)` — aktualisiert einzelnes Feld
-- `addRule()` — fügt Default-Regel hinzu
-- `removeRule(index)` — entfernt Regel
-- `moveRule(from, to)` — verschiebt Regel (Drag & Drop oder Up/Down Buttons)
+**Component design:**
+- `rules` as computed array from `config.rules`
+- `updateRule(index, field, value)` — updates a single field
+- `addRule()` — adds default rule
+- `removeRule(index)` — removes rule
+- `moveRule(from, to)` — moves rule (drag & drop or up/down buttons)
 
 **Dropdowns:**
 - Operation: `set | change | delete | move`
 - Scope: `msg. | flow. | global.`
-- Value-Typ (set): `msg. | flow. | global. | string | number | boolean | JSON | buffer | timestamp | Umgebungsvariable`
-- Search-Typ (change): `msg. | flow. | global. | string | Regulärer Ausdruck | number | boolean | Umgebungsvariable`
+- Value type (set): `msg. | flow. | global. | string | number | boolean | JSON | buffer | timestamp | environment variable`
+- Search type (change): `msg. | flow. | global. | string | regular expression | number | boolean | environment variable`
 
-**Styling:** Konsistent mit InjectConfig.vue — `terminal-input`, `terminal-border`, `text-terminal-text-dim`, Button-Toggles wie in ContextWatchConfig.
+**Styling:** Consistent with InjectConfig.vue — `terminal-input`, `terminal-border`, `text-terminal-text-dim`, button toggles like in ContextWatchConfig.
 
-### 4. `frontend/src/components/nodes/ChangeNode.vue` (~30 Zeilen)
+### 4. `frontend/src/components/nodes/ChangeNode.vue` (~30 lines)
 
-Einfacher Wrapper um BaseNode:
+Simple wrapper around BaseNode:
 ```vue
 <BaseNode node-type="change" :inputs="1" :outputs="1">
   <template #body>
@@ -155,28 +155,28 @@ Einfacher Wrapper um BaseNode:
 
 ---
 
-## Bestehende Dateien — Änderungen
+## Existing files — changes
 
-### 5. `internal/server/server.go` (1 Zeile)
+### 5. `internal/server/server.go` (1 line)
 
 ```go
-// In registerNodes(), nach context-watch:
+// In registerNodes(), after context-watch:
 registry.Register("change", nodes.NewChangeNode, nodes.ChangeTypeInfo())
 ```
 
-### 6. `frontend/src/components/PropertyPanel.vue` (2 Zeilen)
+### 6. `frontend/src/components/PropertyPanel.vue` (2 lines)
 
 ```vue
-// Import hinzufügen:
+// Add import:
 import ChangeConfig from '@/components/config/ChangeConfig.vue'
 
-// Condition hinzufügen nach ContextWatchConfig:
+// Add condition after ContextWatchConfig:
 <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
 ```
 
-### 7. `frontend/src/views/FlowEditor.vue` (3 Zeilen)
+### 7. `frontend/src/views/FlowEditor.vue` (3 lines)
 
-Existierender Slot (`<BaseNode v-bind="nodeProps as any" />`) ersetzen durch:
+Replace existing slot (`<BaseNode v-bind="nodeProps as any" />`) with:
 ```vue
 import ChangeNode from "@/components/nodes/ChangeNode.vue";
 
@@ -185,39 +185,39 @@ import ChangeNode from "@/components/nodes/ChangeNode.vue";
 </template>
 ```
 
-### 8. `frontend/src/components/nodes/BaseNode.vue` (1 Zeile)
+### 8. `frontend/src/components/nodes/BaseNode.vue` (1 line)
 
-TypeLabel-Map erweitern (falls nicht schon vorhanden — prüfen):
+Extend TypeLabel map (if not already present — check):
 ```typescript
 'change': 'Change',
 ```
 
 ---
 
-## Bereits vorhanden (kein Handlungsbedarf)
+## Already present (no action needed)
 
-- `tokens.ts`: `change: 'process'` → blaue Farben ✅
-- `NodeIcon.vue`: `change` Icon (bidirektionale Pfeile) ✅
-- `FlowEditor.vue`: `#node-change` Template-Slot ✅
-- `ContextProvider` Interface ✅
-- `msg.Get/Set/Delete` mit dot-path Navigation ✅
-
----
-
-## Implementierungsreihenfolge
-
-1. **Backend: `change.go`** — Rule-Struct, Init, HandleMessage mit allen 4 Operationen
-2. **Backend: `change_test.go`** — Tests für alle Operationen
-3. **Backend: `server.go`** — Registrierung
-4. **`go build && go test`** — Backend verifizieren
-5. **Frontend: `ChangeNode.vue`** — Node-Komponente
-6. **Frontend: `ChangeConfig.vue`** — Config-Panel mit Regelliste
-7. **Frontend: `PropertyPanel.vue` + `FlowEditor.vue`** — Verdrahtung
-8. **`npm run type-check`** — Frontend verifizieren
+- `tokens.ts`: `change: 'process'` → blue colors ✅
+- `NodeIcon.vue`: `change` icon (bidirectional arrows) ✅
+- `FlowEditor.vue`: `#node-change` template slot ✅
+- `ContextProvider` interface ✅
+- `msg.Get/Set/Delete` with dot-path navigation ✅
 
 ---
 
-## Verifikation
+## Implementation order
+
+1. **Backend: `change.go`** — Rule struct, Init, HandleMessage with all 4 operations
+2. **Backend: `change_test.go`** — tests for all operations
+3. **Backend: `server.go`** — registration
+4. **`go build && go test`** — verify backend
+5. **Frontend: `ChangeNode.vue`** — node component
+6. **Frontend: `ChangeConfig.vue`** — config panel with rule list
+7. **Frontend: `PropertyPanel.vue` + `FlowEditor.vue`** — wiring
+8. **`npm run type-check`** — verify frontend
+
+---
+
+## Verification
 
 ### Backend
 ```bash
@@ -230,12 +230,12 @@ go test -run TestChangeNode -v ./internal/nodes/
 cd frontend && npm run type-check
 ```
 
-### End-to-End
-1. LOOPZE starten (`make build-all && ./bin/loopze`)
-2. Change Node in Flow ziehen
-3. Properties öffnen → Regeln konfigurieren:
-   - Setze msg.payload auf "Hello"
-   - Lösche msg.topic
-4. Inject → Change → Debug verbinden
-5. Deploy + Inject triggern
-6. Debug-Panel: Message hat payload="Hello", kein topic
+### End-to-end
+1. Start LOOPZE (`make build-all && ./bin/loopze`)
+2. Drag Change Node into flow
+3. Open properties → configure rules:
+   - Set msg.payload to "Hello"
+   - Delete msg.topic
+4. Wire Inject → Change → Debug
+5. Deploy + trigger Inject
+6. Debug panel: message has payload="Hello", no topic

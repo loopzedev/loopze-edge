@@ -1,17 +1,17 @@
-# Issue: Node-Status nach Seitenaufruf wiederherstellen
+# Issue: Restore node status after page load
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem description
 
-Nach dem Neuladen der Seite (F5 / Browser-Refresh) sind alle Node-Status-Anzeigen leer, obwohl die Nodes im Backend weiterhin laufen und aktiv Status melden. Der Status erscheint erst wieder, wenn ein Node erneut `n.status(fill, text)` aufruft — z.B. beim nächsten eingehenden Message.
+After reloading the page (F5 / browser refresh), all node status indicators are empty even though the nodes are still running in the backend and actively reporting status. The status only reappears once a node calls `n.status(fill, text)` again — e.g. on the next incoming message.
 
-**Ursache**: Der Node-Status wird aktuell nur als **Live-Stream** über WebSocket übermittelt. Es gibt keine Persistenz und keinen Mechanismus, den letzten bekannten Status beim Verbindungsaufbau abzurufen.
+**Cause**: The node status is currently transmitted only as a **live stream** via WebSocket. There is no persistence and no mechanism to retrieve the last known status when the connection is established.
 
-## Aktuelle Pipeline
+## Current pipeline
 
 ```
-Node ruft n.status("green", "42 msgs")
+Node calls n.status("green", "42 msgs")
     ↓
 Engine.makeStatusFunc → NATS Publish "status.<flowID>.<nodeID>"
     ↓
@@ -19,35 +19,35 @@ Server: conn.Subscribe("status.>") → hub.Broadcast(EventStatus, msg)
     ↓
 WebSocket → Frontend: flowStore.updateNodeStatus(nodeId, status)
     ↓
-BaseNode rendert Farbpunkt + Text
+BaseNode renders color dot + text
 ```
 
-**Problem**: Beim Seitenaufruf ist der WebSocket noch nicht verbunden, wenn die Flows geladen werden. Status-Nachrichten die vor dem Verbindungsaufbau gesendet wurden, gehen verloren.
+**Problem**: When the page loads, the WebSocket is not yet connected when the flows are loaded. Status messages sent before the connection was established are lost.
 
-## Lösung: In-Memory Map in der Engine
+## Solution: in-memory map in the engine
 
-Eine einfache Go-Map in der Engine speichert den **jeweils letzten Status** pro Node. Beim Seitenaufruf fragt das Frontend den aktuellen Status über einen neuen API-Endpoint ab.
+A simple Go map in the engine stores the **most recent status** per node. On page load, the frontend queries the current status via a new API endpoint.
 
-### Warum Go-Map statt NATS KV?
+### Why a Go map instead of NATS KV?
 
-- LOOPZE läuft als **einzelner Prozess** — kein verteiltes System das KV bräuchte
-- Der Status ist **flüchtig** — geht bei Server-Neustart sowieso verloren (Engine startet neu, Nodes haben keinen Status)
-- Die Engine hat bereits die `nodes`-Map — der Status-Cache lebt im selben Scope
-- **Zero Overhead**: Kein Netzwerk-Roundtrip, kein Serialisieren, direkter Map-Zugriff
+- LOOPZE runs as a **single process** — no distributed system that would need KV
+- The status is **volatile** — it is lost on server restart anyway (the engine starts fresh, nodes have no status)
+- The engine already has the `nodes` map — the status cache lives in the same scope
+- **Zero overhead**: no network roundtrip, no serialization, direct map access
 
-### Race Conditions
+### Race conditions
 
-Die Status-Map wird von **mehreren Goroutinen** gleichzeitig beschrieben (jeder Node läuft in seiner eigenen Goroutine via `nodeLoop`). Gleichzeitig liest der API-Handler die Map bei HTTP-Requests.
+The status map is written by **multiple goroutines** concurrently (each node runs in its own goroutine via `nodeLoop`). At the same time, the API handler reads the map on HTTP requests.
 
-**Lösung**: `sync.RWMutex` schützt die Map.
+**Solution**: `sync.RWMutex` protects the map.
 
-- **Schreibzugriff** (`Lock`): `makeStatusFunc` — wird aus Node-Goroutinen aufgerufen
-- **Lesezugriff** (`RLock`): API-Handler — parallele Reads sind erlaubt
+- **Write access** (`Lock`): `makeStatusFunc` — called from node goroutines
+- **Read access** (`RLock`): API handler — parallel reads are allowed
 
 ```go
 type statusCache struct {
     mu      sync.RWMutex
-    entries map[string]StatusMessage // nodeID → letzter Status
+    entries map[string]StatusMessage // nodeID → last status
 }
 
 func (c *statusCache) Set(nodeID string, msg StatusMessage) {
@@ -73,28 +73,28 @@ func (c *statusCache) Clear() {
 }
 ```
 
-## Betroffene Dateien
+## Affected files
 
-### Backend — Anpassungen
+### Backend — changes
 
 #### `internal/flow/engine.go`
 
-Neues Feld in der Engine-Struct:
+New field in the Engine struct:
 
 ```go
 type Engine struct {
-    // ... bestehende Felder ...
+    // ... existing fields ...
     statusCache statusCache
 }
 ```
 
-Initialisierung in `NewEngine`:
+Initialization in `NewEngine`:
 
 ```go
 statusCache: statusCache{entries: make(map[string]StatusMessage)},
 ```
 
-In `makeStatusFunc` den Status zusätzlich cachen:
+In `makeStatusFunc`, additionally cache the status:
 
 ```go
 func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
@@ -113,13 +113,13 @@ func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 }
 ```
 
-In `stopNodes` den Cache leeren:
+In `stopNodes`, clear the cache:
 
 ```go
 e.statusCache.Clear()
 ```
 
-Neue öffentliche Methode für den API-Handler:
+New public method for the API handler:
 
 ```go
 func (e *Engine) NodeStatuses() map[string]StatusMessage {
@@ -129,27 +129,27 @@ func (e *Engine) NodeStatuses() map[string]StatusMessage {
 
 #### `internal/api/handlers.go`
 
-Neuer Endpoint:
+New endpoint:
 
 ```
 GET /api/v1/status/nodes → { "statuses": { "<nodeId>": { "nodeId": "...", "flowId": "...", "status": { "fill": "green", "text": "42" } } } }
 ```
 
-Der Handler ruft `engine.NodeStatuses()` auf und serialisiert das Ergebnis.
+The handler calls `engine.NodeStatuses()` and serializes the result.
 
 #### `internal/api/routes.go`
 
-Neue Route registrieren:
+Register new route:
 
 ```go
 r.Get("/api/v1/status/nodes", handler.GetNodeStatuses)
 ```
 
-### Frontend — Anpassungen
+### Frontend — changes
 
 #### `frontend/src/composables/useApi.ts`
 
-Neue Methode:
+New method:
 
 ```typescript
 async function getNodeStatuses(): Promise<Record<string, { fill: string; text: string }>> {
@@ -161,14 +161,14 @@ async function getNodeStatuses(): Promise<Record<string, { fill: string; text: s
 
 #### `frontend/src/views/FlowEditor.vue`
 
-Im `onMounted` nach `loadFlows` den Status abrufen und auf die Nodes anwenden:
+In `onMounted`, after `loadFlows`, fetch the status and apply it to the nodes:
 
 ```typescript
 onMounted(async () => {
     const response = await api.getFlows()
     flowStore.loadFlows(response.flows, response.rev)
 
-    // NEU: Letzten Node-Status wiederherstellen
+    // NEW: restore last node status
     const statuses = await api.getNodeStatuses()
     for (const [nodeId, status] of Object.entries(statuses)) {
         flowStore.updateNodeStatus(nodeId, status)
@@ -176,29 +176,29 @@ onMounted(async () => {
 })
 ```
 
-## Ablauf nach der Implementierung
+## Flow after implementation
 
 ```
-Seite wird geladen
+Page is loaded
     ↓
-GET /api/v1/flows → Flows + Nodes laden
+GET /api/v1/flows → load flows + nodes
     ↓
-GET /api/v1/status/nodes → Letzten Status aller Nodes aus Engine-Cache abrufen
+GET /api/v1/status/nodes → fetch last status of all nodes from engine cache
     ↓
-flowStore.updateNodeStatus() für jeden Node mit Status
+flowStore.updateNodeStatus() for each node with status
     ↓
-BaseNode zeigt sofort den letzten bekannten Status an
+BaseNode immediately shows the last known status
     ↓
-WebSocket verbindet → Live-Updates übernehmen ab jetzt
+WebSocket connects → live updates take over from now on
 ```
 
-## Lifecycle-Hinweise
+## Lifecycle notes
 
-- **Deploy**: `stopNodes()` ruft `statusCache.Clear()` auf — alle Nodes starten neu und haben zunächst keinen Status
-- **Server-Neustart**: Cache ist weg (in-memory) — gewollt, da die Engine auch keine laufenden Nodes mehr hat
-- **Hochfrequente Updates**: `statusCache.Set()` überschreibt immer den letzten Wert — kein Speicherwachstum, egal wie oft ein Node seinen Status aktualisiert
+- **Deploy**: `stopNodes()` calls `statusCache.Clear()` — all nodes restart and initially have no status
+- **Server restart**: cache is gone (in-memory) — intentional, since the engine has no running nodes either
+- **High-frequency updates**: `statusCache.Set()` always overwrites the last value — no memory growth, regardless of how often a node updates its status
 
-## Abhängigkeiten
+## Dependencies
 
-- Die bestehende Status-Pipeline (NATS Publish → WebSocket → Frontend) muss funktionieren — ist seit `NODE_STATUS_PIPELINE.md` implementiert
-- Keine Frontend-Komponentenänderungen nötig — `updateNodeStatus()` und das BaseNode-Rendering existieren bereits
+- The existing status pipeline (NATS Publish → WebSocket → Frontend) must work — implemented since `NODE_STATUS_PIPELINE.md`
+- No frontend component changes needed — `updateNodeStatus()` and the BaseNode rendering already exist

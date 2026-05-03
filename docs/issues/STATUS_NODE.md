@@ -1,52 +1,52 @@
-# Issue: Status Node — Status-Events anderer Nodes als Message ausgeben
+# Issue: Status Node — Emit status events of other nodes as messages
 
 ## Status: Implemented
 
-## Problembeschreibung
+## Problem description
 
-Aktuell ist der Node-Status (`n.status(fill, text)`) ausschließlich **visuelles Feedback** am Node selbst — ein farbiger Punkt mit Text. Status-Änderungen lassen sich nicht programmatisch im Flow weiterverarbeiten.
+Currently, node status (`n.status(fill, text)`) is purely **visual feedback** on the node itself — a colored dot with text. Status changes cannot be processed programmatically in the flow.
 
-Damit fehlt eine ganze Klasse von Use Cases:
+This means a whole class of use cases is missing:
 
-- **Watchdog**: Geht ein MQTT-In Node auf `red`, soll automatisch ein Alert über einen MQTT-Out Node oder eine Funktion versendet werden
-- **Status-Aggregation**: Status mehrerer kritischer Nodes in einem zentralen Topic / Dashboard zusammenführen
-- **Brücke nach außen**: Node-Status als MQTT-Nachricht oder Webhook in ein externes Monitoring-System schieben
-- **Reaktive Flows**: Andere Nodes (z.B. State Machine, Function) sollen auf Status-Wechsel reagieren, nicht nur auf Payload
+- **Watchdog**: If an MQTT-In node turns `red`, an alert should be sent automatically through an MQTT-Out node or a function
+- **Status aggregation**: Combine the status of several critical nodes into a central topic / dashboard
+- **Bridge to the outside**: Push node status as an MQTT message or webhook into an external monitoring system
+- **Reactive flows**: Other nodes (e.g. State Machine, Function) should react to status changes, not just to the payload
 
-In Node-RED löst das der **Status Node**: Er steht im Flow, abonniert die Status-Events anderer Nodes und gibt jeden Status als Message am eigenen Output aus.
+In Node-RED this is solved by the **Status node**: It sits in the flow, subscribes to status events of other nodes, and emits each status as a message on its own output.
 
-## Sichtweise / Begründung
+## View / rationale
 
-Die Vorarbeit existiert bereits:
+The groundwork already exists:
 
-- **Status-Pipeline** (`NODE_STATUS_PIPELINE.md`): Engine → NATS `status.<flowID>.<nodeID>` → WebSocket → Frontend
-- **Status-Cache** (`NODE_STATUS.md`): `engine.NodeStatuses()` hält den letzten Status pro Node
-- **Standard-Node-Pattern**: `internal/nodes/*.go` zeigt klar, wie ein Node `Init` / `Start` / `HandleMessage` / `Stop` umsetzt
+- **Status pipeline** (`NODE_STATUS_PIPELINE.md`): Engine → NATS `status.<flowID>.<nodeID>` → WebSocket → frontend
+- **Status cache** (`NODE_STATUS.md`): `engine.NodeStatuses()` holds the last status per node
+- **Standard node pattern**: `internal/nodes/*.go` clearly shows how a node implements `Init` / `Start` / `HandleMessage` / `Stop`
 
-Ein Status Node ist im Wesentlichen ein **Status-Subscriber-Node**. Architektur-Entscheidung: Er hängt sich nicht an NATS, sondern an einen neuen **Engine-internen Fan-out** (siehe Technische Skizze) — passt zu den bestehenden Provider-Interfaces (`LinkProvider`, `ContextProvider`, `ConfigProvider`) und vermeidet einen NATS-Roundtrip pro Status-Event.
+A Status node is essentially a **status subscriber node**. Architecture decision: It does not hook into NATS but into a new **engine-internal fan-out** (see Technical sketch) — fits the existing provider interfaces (`LinkProvider`, `ContextProvider`, `ConfigProvider`) and avoids a NATS round-trip per status event.
 
-## Anforderungen
+## Requirements
 
-### 1. Scope-Konfiguration
+### 1. Scope configuration
 
-Der Bediener wählt im Properties-Panel, **welche Status-Events** der Node aufgreift:
+The operator chooses in the properties panel **which status events** the node picks up:
 
-| Wert | Label | Verhalten |
+| Value | Label | Behavior |
 |---|---|---|
-| `flow` | Aktueller Flow | Status aller Nodes im selben Flow wie der Status Node (Default) |
-| `selected` | Selected nodes | Status nur einer expliziten Auswahl von Nodes — strikt auf den eigenen Flow beschränkt |
-| `all` | Alle Flows | Status sämtlicher Nodes systemweit |
+| `flow` | Current flow | Status of all nodes in the same flow as the Status node (default) |
+| `selected` | Selected nodes | Status of only an explicit selection of nodes — strictly limited to the own flow |
+| `all` | All flows | Status of all nodes system-wide |
 
-- Default: `flow` — die häufigste Erwartung und entspricht Node-RED.
-- `selected`: Multi-Select mit Checkbox-Liste. Auswahl ist als Set von Node-IDs in `config.targetNodes` (`string[]`) gespeichert. Die Liste enthält **nur Nodes des aktuellen Flows**, ohne den Status Node selbst und ohne andere Status Nodes (die kann er ohnehin nicht beobachten).
+- Default: `flow` — the most common expectation and matches Node-RED.
+- `selected`: Multi-select with checkbox list. Selection is stored as a set of node IDs in `config.targetNodes` (`string[]`). The list contains **only nodes of the current flow**, without the Status node itself and without other Status nodes (it cannot observe those anyway).
 
-**Status Nodes empfangen niemals Status von anderen Status Nodes** — unabhängig vom Scope. Damit sind Endlosschleifen architektonisch ausgeschlossen, und ein Status Node ist für andere Status Nodes "unsichtbar". Die Filterung erfolgt zentral im Engine-Fan-out, nicht im einzelnen Node — siehe Technische Skizze.
+**Status nodes never receive status from other Status nodes** — regardless of scope. This architecturally rules out infinite loops, and a Status node is "invisible" to other Status nodes. Filtering happens centrally in the engine fan-out, not in the individual node — see Technical sketch.
 
-**Doppelter Schutz für Selected-Mode**: Der Backend-Filter prüft zusätzlich `FlowID == config.FlowID`, selbst wenn das Frontend versehentlich eine fremde Node-ID lieferte oder der Node später in einen anderen Flow wandert. Selection bleibt strikt flow-lokal.
+**Double protection for selected mode**: The backend filter additionally checks `FlowID == config.FlowID`, even if the frontend accidentally supplied a foreign node ID or the node later moves to another flow. Selection stays strictly flow-local.
 
-### 2. Output-Message
+### 2. Output message
 
-Pro empfangenem Status-Event wird **eine Message** ausgegeben:
+Per received status event **one message** is emitted:
 
 ```json
 {
@@ -64,54 +64,54 @@ Pro empfangenem Status-Event wird **eine Message** ausgegeben:
 }
 ```
 
-- `msg.status` enthält das vollständige Status-Objekt inkl. Quelle (analog Node-RED `msg.status`)
-- `msg.payload` enthält den `text` — bequem für direkte MQTT-Out / Debug-Verarbeitung ohne weiteren Change Node
-- `source.name` wird aus dem Node-Namen (`config.name`) aufgelöst — Fallback: leerer String wenn unbekannt
-- `source.type` ermöglicht Filterung im Flow (z.B. nur `mqtt-in`-Status auswerten)
+- `msg.status` contains the full status object including source (analogous to Node-RED `msg.status`)
+- `msg.payload` contains the `text` — convenient for direct MQTT-Out / Debug processing without an additional Change node
+- `source.name` is resolved from the node name (`config.name`) — fallback: empty string when unknown
+- `source.type` enables filtering in the flow (e.g. only evaluate `mqtt-in` status)
 
 ### 3. Filter (optional, Phase 2)
 
-- **Nur bei Status-Wechsel**: Checkbox "Nur bei Änderung emittieren" — der Node merkt sich den letzten Status pro Quell-Node und gibt eine Message nur aus, wenn `fill` oder `text` sich geändert hat. Verhindert Floods bei `count`-Status mit jeder Message.
-- **Nur bei `fill`-Wert**: Multi-Select über die fünf Status-Farben (`red`, `green`, `yellow`, `blue`, `grey`). Default: alle.
+- **Only on status change**: Checkbox "Emit only on change" — the node remembers the last status per source node and emits a message only if `fill` or `text` changed. Prevents floods on `count` status with every message.
+- **Only on `fill` value**: Multi-select over the five status colors (`red`, `green`, `yellow`, `blue`, `grey`). Default: all.
 
-Phase 1 implementiert beides **nicht** — erst beobachten, ob Bedarf entsteht.
+Phase 1 implements **neither** — first observe whether the need arises.
 
-### 4. Kein Input
+### 4. No input
 
-Der Status Node hat **keinen Input-Handle**, nur einen Output. Anders als z.B. Inject ist er nicht durch eingehende Messages getriggert, sondern reagiert ausschließlich auf Status-Events.
+The Status node has **no input handle**, only an output. Unlike e.g. Inject, it is not triggered by incoming messages but reacts solely to status events.
 
-### 5. Eigener Status
+### 5. Own status
 
-Der Status Node selbst zeigt am Frontend einen kurzen Status:
+The Status node itself shows a brief status in the frontend:
 
-- Beim Start: `green` / `"listening"`
-- Bei jedem Output: `grey` / `"<source.name>: <fill>"` für ~2 Sekunden, dann zurück auf `green`/`"listening"` (Truncate auf 32 Zeichen)
-- Blink-Sequenz wird per `atomic.Uint64` gegen Race Conditions geschützt — bei schnellen Updates überschreibt nicht ein älterer Reset einen neueren Blink
+- On start: `green` / `"listening"`
+- On every output: `grey` / `"<source.name>: <fill>"` for ~2 seconds, then back to `green`/`"listening"` (truncate to 32 characters)
+- The blink sequence is protected against race conditions via `atomic.Uint64` — on rapid updates an older reset does not overwrite a newer blink
 
-Da Status Nodes im Engine-Fan-out ausgefiltert sind, lösen diese eigenen Status-Updates keine Re-Trigger anderer Status Nodes aus.
+Since Status nodes are filtered out in the engine fan-out, these own status updates do not re-trigger other Status nodes.
 
-### 6. Hover-Highlight im Multi-Select
+### 6. Hover highlight in multi-select
 
-Beim Hover über ein Item in der Selected-Nodes-Checkbox-Liste wird der entsprechende Node im Flow-Editor mit einer **gestrichelten Outline** markiert (1px dashed in Accent-Farbe). Damit lässt sich beim Konfigurieren auf einen Blick zuordnen, welche Node welchem Listeneintrag entspricht — kein "Welcher mqtt-in war jetzt 'Sensor Living Room' und welcher 'Sensor Bedroom'?".
+When hovering over an item in the selected-nodes checkbox list, the corresponding node in the flow editor is marked with a **dashed outline** (1px dashed in accent color). This makes it possible to tell at a glance during configuration which node corresponds to which list entry — no "Which mqtt-in was 'Sensor Living Room' and which was 'Sensor Bedroom'?".
 
-Der Mechanismus existierte bereits im DebugPanel (`hoveredDebugNodeId` mit `outline: dashed` an `BaseNode`). Für die zweite Verwendung wurde er auf einen generischen Namen umbenannt (`hoveredHighlightNodeId` / `setHoveredHighlightNodeId` / `isHighlighted`), damit er semantisch nicht mehr nur "Debug-Hover" suggeriert. DebugPanel und StatusConfig konsumieren denselben State.
+The mechanism already existed in the DebugPanel (`hoveredDebugNodeId` with `outline: dashed` on `BaseNode`). For the second usage it was renamed to a generic name (`hoveredHighlightNodeId` / `setHoveredHighlightNodeId` / `isHighlighted`) so it no longer semantically suggests "Debug hover" only. DebugPanel and StatusConfig consume the same state.
 
-## Technische Skizze
+## Technical sketch
 
-### Architektur-Entscheidung: Engine-internes Fan-out
+### Architecture decision: Engine-internal fan-out
 
-Die Engine ist explizit so designt, dass Nodes **nichts** über NATS wissen — externe Kommunikation läuft ausschließlich über Engine-Callbacks (`SetSend`, `SetStatus`, `SetDebug`) und Provider-Interfaces (`ContextProvider`, `LinkProvider`, `ConfigProvider`). Der Status Node folgt diesem Pattern: Er bekommt Status-Events über einen neuen `StatusListener`-Mechanismus von der Engine geliefert, statt selbst auf NATS zu hören.
+The engine is explicitly designed so that nodes **know nothing** about NATS — external communication runs exclusively via engine callbacks (`SetSend`, `SetStatus`, `SetDebug`) and provider interfaces (`ContextProvider`, `LinkProvider`, `ConfigProvider`). The Status node follows this pattern: It receives status events via a new `StatusListener` mechanism from the engine, instead of listening to NATS itself.
 
-| | Engine-Fan-out (gewählt) | Node abonniert NATS direkt |
+| | Engine fan-out (chosen) | Node subscribes to NATS directly |
 |---|---|---|
-| Architektur-Konsistenz | passt zu LinkProvider/ContextProvider | bricht "Nodes kennen kein NATS" |
-| Latenz | Go-Funktionsaufruf (ns) | NATS-Roundtrip (μs), JSON-Roundtrip |
-| Daten-Doppel | nein — selbe `StatusMessage`-Struct | ja — Marshal/Unmarshal nochmal |
-| Lifecycle | Engine räumt Listener beim Stop ab | Node muss Unsubscribe selbst koordinieren |
+| Architecture consistency | fits LinkProvider/ContextProvider | breaks "nodes know no NATS" |
+| Latency | Go function call (ns) | NATS round-trip (μs), JSON round-trip |
+| Data duplication | no — same `StatusMessage` struct | yes — marshal/unmarshal again |
+| Lifecycle | engine cleans up listener on stop | node must coordinate unsubscribe itself |
 
 ### Backend — `internal/flow/registry.go`
 
-`StatusMessage` um `SourceType` und `SourceName` erweitert (rückwärtskompatibel via `omitempty`):
+`StatusMessage` extended by `SourceType` and `SourceName` (backward compatible via `omitempty`):
 
 ```go
 type StatusMessage struct {
@@ -123,7 +123,7 @@ type StatusMessage struct {
 }
 ```
 
-`NodeConfig` um `FlowID` erweitert, damit Nodes ihren eigenen Flow kennen (für den Scope-Filter):
+`NodeConfig` extended by `FlowID` so nodes know their own flow (for the scope filter):
 
 ```go
 type NodeConfig struct {
@@ -135,7 +135,7 @@ type NodeConfig struct {
 }
 ```
 
-Neues Provider-Interface analog zu `LinkProvider`:
+New provider interface analogous to `LinkProvider`:
 
 ```go
 type StatusListenerFunc func(msg StatusMessage)
@@ -147,11 +147,11 @@ type StatusListenerProvider interface {
 
 ### Backend — `internal/flow/engine.go`
 
-Engine hält eine Map registrierter Listener unter `sync.RWMutex`:
+Engine holds a map of registered listeners under `sync.RWMutex`:
 
 ```go
 type Engine struct {
-    // ... bestehend ...
+    // ... existing ...
     statusListenersMu sync.RWMutex
     statusListenerSeq uint64
     statusListeners   map[uint64]StatusListenerFunc
@@ -179,7 +179,7 @@ func (e *Engine) fanoutStatus(msg StatusMessage) {
 }
 ```
 
-`makeStatusFunc` ruft `fanoutStatus` zusätzlich auf — aber **Status Nodes selbst werden vom Fan-out ausgenommen**, damit kein Status Node jemals den Status eines anderen Status Nodes empfängt:
+`makeStatusFunc` additionally calls `fanoutStatus` — but **Status nodes themselves are excluded from the fan-out**, so no Status node ever receives the status of another Status node:
 
 ```go
 func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
@@ -203,9 +203,9 @@ func (e *Engine) makeStatusFunc(nodeID string, rn *runningNode) StatusFunc {
 }
 ```
 
-Die Filterung im Fan-out (statt im Status Node selbst) hat zwei Vorteile: Sie ist DRY (eine Stelle, gilt für alle künftigen Status Nodes / Listener) und sie spart die Closure-Calls komplett — bei vielen Status Nodes kein O(n)-Aufwand pro Status-Event eines anderen Status Nodes.
+Filtering in the fan-out (instead of in the Status node itself) has two advantages: It is DRY (one place, applies to all future Status nodes / listeners) and saves the closure calls entirely — with many Status nodes, no O(n) effort per status event of another Status node.
 
-In `wireAllNodes` Provider-Injection analog zu `LinkProvider`:
+In `wireAllNodes`, provider injection analogous to `LinkProvider`:
 
 ```go
 for _, rn := range e.nodes {
@@ -215,9 +215,9 @@ for _, rn := range e.nodes {
 }
 ```
 
-`instantiateNode` befüllt `NodeConfig.FlowID` aus dem `runningNode.flowID`.
+`instantiateNode` populates `NodeConfig.FlowID` from the `runningNode.flowID`.
 
-### Backend — `internal/nodes/status.go` (neu)
+### Backend — `internal/nodes/status.go` (new)
 
 ```go
 type StatusNode struct {
@@ -226,8 +226,8 @@ type StatusNode struct {
     status flow.StatusFunc
     debug  flow.DebugFunc
 
-    scope       string              // "flow", "selected" oder "all"
-    targetNodes map[string]struct{} // populated bei scope == "selected"
+    scope       string              // "flow", "selected" or "all"
+    targetNodes map[string]struct{} // populated when scope == "selected"
 
     register   func(flow.StatusListenerFunc) func()
     unregister func()
@@ -241,7 +241,7 @@ func (n *StatusNode) SetStatusListener(register func(flow.StatusListenerFunc) fu
     n.mu.Lock()
     defer n.mu.Unlock()
     n.register = register
-    // Re-Wire bei modified-nodes deploy: alte Subscription droppen
+    // Re-wire on modified-nodes deploy: drop old subscription
     if n.started {
         if n.unregister != nil { n.unregister() }
         n.unregister = register(n.handleStatus)
@@ -253,11 +253,11 @@ func (n *StatusNode) handleStatus(sm flow.StatusMessage) {
     case "flow":
         if sm.FlowID != n.config.FlowID { return }
     case "selected":
-        // Doppelter Schutz: Selection ist immer flow-lokal
+        // Double protection: selection is always flow-local
         if sm.FlowID != n.config.FlowID { return }
         if _, ok := n.targetNodes[sm.NodeID]; !ok { return }
     case "all":
-        // kein Filter
+        // no filter
     }
     msg := flow.NewMessage()
     msg.Set("status", map[string]any{
@@ -274,25 +274,25 @@ func (n *StatusNode) handleStatus(sm flow.StatusMessage) {
 }
 ```
 
-Der Status Node hat `HandleMessage` als No-Op (returns `nil, nil`) — er ist Source-Only, aber `nodeLoop` der Engine bleibt für ihn aktiv und blockiert auf seiner leeren `inputCh` bis `stopCh` schließt.
+The Status node has `HandleMessage` as a no-op (returns `nil, nil`) — it is source-only, but the engine's `nodeLoop` stays active for it and blocks on its empty `inputCh` until `stopCh` closes.
 
-### Frontend — `frontend/src/components/nodes/StatusNode.vue` (neu)
+### Frontend — `frontend/src/components/nodes/StatusNode.vue` (new)
 
-- Eigene Vue-Komponente analog `InjectNode.vue` — nur Output-Handle, kein Input
-- Body-Anzeige zeigt den Scope: `this flow` / `<N> nodes` / `all flows`
+- Own Vue component analogous to `InjectNode.vue` — only output handle, no input
+- Body display shows the scope: `this flow` / `<N> nodes` / `all flows`
 
-### Frontend — `frontend/src/components/config/StatusConfig.vue` (neu)
+### Frontend — `frontend/src/components/config/StatusConfig.vue` (new)
 
-- Scope-Dropdown (`flow` / `selected` / `all`) via `useNodeProperty`
-- Bei `selected`: scrollbare Checkbox-Liste der Kandidaten
-  - Quelle: `flowStore.activeNodes` — automatisch nur der aktuelle Flow
-  - Filter: ohne den selektierten Status Node selbst, ohne andere Status Nodes (Type-Filter)
-  - Sortiert nach Label, Anzeige `<label> (<type>)`
-  - Toggle persistiert `targetNodes: string[]` in der Node-Config
-- Beim Hover über ein Item: `flowStore.setHoveredHighlightNodeId(id)` → Flow zeigt gestrichelte Outline
-- `onBeforeUnmount` resettet den Hover-State
+- Scope dropdown (`flow` / `selected` / `all`) via `useNodeProperty`
+- On `selected`: scrollable checkbox list of candidates
+  - Source: `flowStore.activeNodes` — automatically only the current flow
+  - Filter: without the selected Status node itself, without other Status nodes (type filter)
+  - Sorted by label, display `<label> (<type>)`
+  - Toggle persists `targetNodes: string[]` in the node config
+- On hover over an item: `flowStore.setHoveredHighlightNodeId(id)` → flow shows dashed outline
+- `onBeforeUnmount` resets the hover state
 
-### Frontend — Hover-Highlight Generalisierung
+### Frontend — Hover highlight generalization
 
 `flowStore`:
 - `hoveredDebugNodeId` → `hoveredHighlightNodeId`
@@ -300,52 +300,52 @@ Der Status Node hat `HandleMessage` als No-Op (returns `nil, nil`) — er ist So
 
 `BaseNode.vue`:
 - `isDebugHovered` → `isHighlighted`
-- Outline-Style-Binding angepasst
+- Outline style binding adjusted
 
-`DebugPanel.vue`: Setter-Aufrufe umbenannt (mouseenter/mouseleave + `onBeforeUnmount`).
+`DebugPanel.vue`: setter calls renamed (mouseenter/mouseleave + `onBeforeUnmount`).
 
-Beide Konsumenten (DebugPanel, StatusConfig) nutzen denselben Mechanismus — kein Code-Duplikat.
+Both consumers (DebugPanel, StatusConfig) use the same mechanism — no code duplication.
 
-### Frontend — Node-Palette
+### Frontend — Node palette
 
-Neuer Eintrag erscheint **automatisch** unter "Common", weil die Palette über `api.getNodes()` aus dem Backend-Registry geladen wird (`StatusTypeInfo` mit `Category: "common"`). Kein zusätzliches Frontend-Mapping nötig.
+A new entry appears **automatically** under "Common", because the palette is loaded via `api.getNodes()` from the backend registry (`StatusTypeInfo` with `Category: "common"`). No additional frontend mapping needed.
 
 ### Frontend — Icon
 
-`NodeIcon.vue` hatte den `status`-Eintrag (Heartbeat-Wave-Path) bereits seit längerem registriert — kein zusätzlicher Eintrag nötig.
+`NodeIcon.vue` already had the `status` entry (heartbeat-wave path) registered for some time — no additional entry needed.
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/flow/registry.go` — `StatusListenerFunc`, `StatusListenerProvider`, `StatusMessage` um `SourceType`/`SourceName`, `NodeConfig` um `FlowID` erweitert
-- `internal/flow/engine.go` — `statusListeners`-Map + Mutex + Sequence, `registerStatusListener`, `fanoutStatus`, Aufruf in `makeStatusFunc` (mit `Type != "status"`-Filter), Provider-Injection in `wireAllNodes`, `FlowID` in `instantiateNode` befüllt
-- `internal/nodes/status.go` (neu) — `StatusNode` Source-Only mit Scope `flow`/`selected`/`all`, Re-Wire-sicher, Idle-Status + 2s-Blink
-- `internal/server/server.go` — Registrierung `registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())`
+- `internal/flow/registry.go` — `StatusListenerFunc`, `StatusListenerProvider`, `StatusMessage` extended by `SourceType`/`SourceName`, `NodeConfig` extended by `FlowID`
+- `internal/flow/engine.go` — `statusListeners` map + mutex + sequence, `registerStatusListener`, `fanoutStatus`, call in `makeStatusFunc` (with `Type != "status"` filter), provider injection in `wireAllNodes`, `FlowID` populated in `instantiateNode`
+- `internal/nodes/status.go` (new) — `StatusNode` source-only with scope `flow`/`selected`/`all`, re-wire safe, idle status + 2s blink
+- `internal/server/server.go` — registration `registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())`
 
 ### Frontend
-- `frontend/src/components/nodes/StatusNode.vue` (neu) — 0/1 Ports, Scope-Anzeige im Body
-- `frontend/src/components/config/StatusConfig.vue` (neu) — Scope-Dropdown + Multi-Select-Checkbox-Liste mit Hover-Highlight
-- `frontend/src/views/FlowEditor.vue` — Import + `<template #node-status>`
-- `frontend/src/components/PropertyPanel.vue` — `<StatusConfig>` für `type === 'status'`
-- `frontend/src/stores/flowStore.ts` — Hover-State umbenannt (generisch)
-- `frontend/src/components/nodes/BaseNode.vue` — Highlight-Computed umbenannt, Style-Binding angepasst
-- `frontend/src/components/DebugPanel.vue` — Setter-Aufrufe umbenannt
+- `frontend/src/components/nodes/StatusNode.vue` (new) — 0/1 ports, scope display in body
+- `frontend/src/components/config/StatusConfig.vue` (new) — scope dropdown + multi-select checkbox list with hover highlight
+- `frontend/src/views/FlowEditor.vue` — import + `<template #node-status>`
+- `frontend/src/components/PropertyPanel.vue` — `<StatusConfig>` for `type === 'status'`
+- `frontend/src/stores/flowStore.ts` — hover state renamed (generic)
+- `frontend/src/components/nodes/BaseNode.vue` — highlight computed renamed, style binding adjusted
+- `frontend/src/components/DebugPanel.vue` — setter calls renamed
 
-## Abhängigkeiten
+## Dependencies
 
-- **Status-Pipeline** muss laufen (`NODE_STATUS_PIPELINE.md`) — sonst kommen keine Status-Events am Engine-Fan-out an
-- **Status-Cache** (`NODE_STATUS.md`) ist **nicht** zwingend — der Status Node braucht nur Live-Events, keinen Replay. Beim Start hat er per Definition leeren Zustand, das ist akzeptiert
-- Multi-Select greift auf `flowStore.activeNodes` zu — Liste der Nodes des aktiven Flows ist dort bereits verfügbar
+- **Status pipeline** must be running (`NODE_STATUS_PIPELINE.md`) — otherwise no status events arrive at the engine fan-out
+- **Status cache** (`NODE_STATUS.md`) is **not** mandatory — the Status node only needs live events, no replay. On start it has, by definition, an empty state, which is accepted
+- Multi-select accesses `flowStore.activeNodes` — the list of nodes of the active flow is already available there
 
-## Out of Scope für Phase 1
+## Out of scope for Phase 1
 
-- **Filter "nur bei Änderung"** — erst beobachten, ob Floods auftreten
-- **Filter nach `fill`-Wert** — selten gebraucht, kann ein nachgeschalteter Switch Node lösen
-- **Status-Source = anderer Status Node** — explizit ausgeschlossen, Endlosschleifen architektonisch verhindert
-- **Persistente Subscription über Server-Restart** — bei Restart sind ohnehin alle laufenden Status weg
-- **Status-Replay** beim Start des Status Nodes (würde den letzten gecachten Status aller Quell-Nodes als initiale Messages emitten) — denkbar, aber semantisch unsauber (Replay vs. Live-Events)
-- **Selected-Mode flow-übergreifend** — Multi-Select ist strikt flow-lokal. Wer flow-übergreifend will, nimmt `scope: all` und filtert im Flow nachgelagert per Switch Node auf `msg.status.source.flowId`
+- **Filter "only on change"** — first observe whether floods occur
+- **Filter by `fill` value** — rarely needed, can be solved by a downstream Switch node
+- **Status source = another Status node** — explicitly excluded, infinite loops architecturally prevented
+- **Persistent subscription across server restart** — on restart, all running statuses are gone anyway
+- **Status replay** when the Status node starts (would emit the last cached status of all source nodes as initial messages) — conceivable, but semantically unclean (replay vs. live events)
+- **Selected mode across flows** — multi-select is strictly flow-local. Whoever wants cross-flow takes `scope: all` and filters downstream in the flow via Switch node on `msg.status.source.flowId`
 
-## Offene Fragen
+## Open questions
 
-Keine.
+None.

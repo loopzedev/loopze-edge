@@ -1,246 +1,246 @@
-# LOOPZE – Implementierungsplan
+# LOOPZE – Implementation Plan
 
-> Dieser Plan beschreibt die schrittweise Umsetzung vom aktuellen Stand zum lauffähigen MVP.
-> Jede Phase baut auf der vorherigen auf. Innerhalb einer Phase sind die Schritte sequenziell.
+> This plan describes the step-by-step path from the current state to a working MVP.
+> Each phase builds on the previous one. Within a phase, the steps are sequential.
 
 ---
 
 ## Status Quo
 
-| Schicht | Status |
+| Layer | Status |
 |---|---|
-| **Infrastruktur** (Server, Config, Middleware, WebSocket Hub) | ✅ Fertig |
-| **Storage** (JSON-Files, Credentials AES-256-GCM, Atomic Writes) | ✅ Fertig |
-| **Embedded NATS** (Server + JetStream + In-Process Client) | ✅ Fertig |
-| **Frontend** (Vue 3 + Vue Flow, Stores, Palette, Debug Panel) | ✅ Fertig – Backend angebunden, Deploy + Debug funktionieren |
-| **Flow Engine** (Types, Registry, Deploy, Message-Routing) | ✅ Fertig – Full Lifecycle, Goroutine-per-Node |
-| **API Handler** | ✅ Fertig – Flows, Nodes, Inject, Debug |
-| **Auth** (First-Run-Setup, Argon2id, Sessions, Rollen, Dev-Bypass) | ✅ Fertig – siehe `docs/issues/USER_AUTH.md` |
-| **Node-Typen** | 🟡 2 implementiert (Inject, Debug) |
+| **Infrastructure** (server, config, middleware, WebSocket hub) | ✅ Done |
+| **Storage** (JSON files, credentials AES-256-GCM, atomic writes) | ✅ Done |
+| **Embedded NATS** (server + JetStream + in-process client) | ✅ Done |
+| **Frontend** (Vue 3 + Vue Flow, stores, palette, debug panel) | ✅ Done — backend wired up, deploy + debug working |
+| **Flow engine** (types, registry, deploy, message routing) | ✅ Done — full lifecycle, goroutine-per-node |
+| **API handlers** | ✅ Done — flows, nodes, inject, debug |
+| **Auth** (first-run setup, Argon2id, sessions, roles, dev bypass) | ✅ Done — see `docs/issues/USER_AUTH.md` |
+| **Node types** | 🟡 2 implemented (Inject, Debug) |
 
 ---
 
-## Phase 1 – Foundation: Engine zum Laufen bringen
+## Phase 1 – Foundation: Get the Engine Running
 
-> **Ziel:** Ein Inject-Node sendet eine Message an einen Debug-Node → Message erscheint im Debug-Panel.
+> **Goal:** An Inject node sends a message to a Debug node → message appears in the debug panel.
 
 ### 1.1 NATS Bootstrapping
 
-Der embedded NATS-Broker läuft bereits. Jetzt die Strukturen anlegen, die zur Laufzeit gebraucht werden.
+The embedded NATS broker is already running. Now create the structures needed at runtime.
 
-- [x] **Debug-Stream anlegen** – JetStream Stream `DEBUG` mit Subject `debug.>`, MaxMsgs 1000, Memory Storage
-- [x] **Context-KV anlegen** – KV-Bucket `context-global` beim Server-Start (Memory Storage)
-- [x] **Context-KV pro Flow** – KV-Bucket `context-flow-{flowID}` wird bei Deploy angelegt
-- [x] Broker-Startup in `server.Start()` um Debug-Stream-Bootstrap erweitern
+- [x] **Create debug stream** — JetStream stream `DEBUG` with subject `debug.>`, MaxMsgs 1000, memory storage
+- [x] **Create context KV** — KV bucket `context-global` at server start (memory storage)
+- [x] **Per-flow context KV** — KV bucket `context-flow-{flowID}` is created on deploy
+- [x] Extend broker startup in `server.Start()` with debug-stream bootstrap
 
-### 1.2 Message-Routing im Engine
+### 1.2 Message Routing in the Engine
 
-Der Kern: Nodes verbinden und Messages zwischen ihnen routen.
+The core: connect nodes and route messages between them.
 
-- [x] **Node-Lifecycle implementieren** – `Engine.Deploy()` Steps 1–7 umgesetzt:
-  1. Laufende Nodes stoppen (falls vorhanden)
-  2. Node-Typen gegen Registry validieren
-  3. `NodeInstance` pro Node erzeugen (via Factory)
-  4. `Init()` auf jedem Node aufrufen
-  5. Go-Channels zwischen verbundenen Nodes verdrahten
-  6. Goroutine pro Node starten (Message-Loop)
-  7. Aktiven State für Introspection speichern
-- [x] **sync.WaitGroup** für sauberes Warten auf Node-Goroutines beim Stop
-- [x] **Error-Channel** für Node-Fehler → an Engine melden *(Fehler werden geloggt, kein dedizierter Channel)*
+- [x] **Implement node lifecycle** — `Engine.Deploy()` steps 1–7 implemented:
+  1. Stop running nodes (if any)
+  2. Validate node types against the registry
+  3. Create a `NodeInstance` per node (via factory)
+  4. Call `Init()` on every node
+  5. Wire Go channels between connected nodes
+  6. Start a goroutine per node (message loop)
+  7. Save the active state for introspection
+- [x] **`sync.WaitGroup`** for clean waiting on node goroutines on stop
+- [x] **Error channel** for node errors → reported to the engine *(errors are logged, no dedicated channel)*
 
-### 1.3 Erste Node-Typen
+### 1.3 First Node Types
 
-Minimalsatz um einen Flow auszuführen.
+Minimum set to execute a flow.
 
-- [x] **Inject Node** – Timer/Manueller Trigger, sendet `msg.payload` + `msg.topic`
-- [x] **Debug Node** – Empfängt Message, publiziert auf NATS `debug.<flowID>.<nodeID>`, broadcastet via WebSocket
-- [x] Nodes im Engine-Registry registrieren (beim Server-Start)
+- [x] **Inject node** — Timer / manual trigger, sends `msg.payload` + `msg.topic`
+- [x] **Debug node** — Receives a message, publishes on NATS `debug.<flowID>.<nodeID>`, broadcasts via WebSocket
+- [x] Register nodes in the engine registry (at server start)
 
-### 1.4 API Handler verdrahten
+### 1.4 Wire Up API Handlers
 
-Die Stubs mit echten Implementierungen ersetzen.
+Replace the stubs with real implementations.
 
-- [x] **`GET /api/v1/nodes`** – Node-Katalog aus Registry liefern (Typ, Kategorie, Label, Icon, Defaults, Ports)
-- [x] **`POST /api/v1/flows`** – Flow-JSON parsen, validieren, an `Engine.Deploy()` übergeben, in Storage persistieren
-- [x] **`GET /api/v1/flows`** – Flows aus Storage laden und zurückgeben
-- [x] **`GET /api/v1/flows/{id}`** – Einzelnen Flow zurückgeben
-- [x] **`POST /api/v1/inject/{id}`** – Inject-Node manuell triggern (`Engine.TriggerNode()`)
+- [x] **`GET /api/v1/nodes`** — Return the node catalog from the registry (type, category, label, icon, defaults, ports)
+- [x] **`POST /api/v1/flows`** — Parse the flow JSON, validate, hand off to `Engine.Deploy()`, persist in storage
+- [x] **`GET /api/v1/flows`** — Load flows from storage and return them
+- [x] **`GET /api/v1/flows/{id}`** — Return a single flow
+- [x] **`POST /api/v1/inject/{id}`** — Trigger an Inject node manually (`Engine.TriggerNode()`)
 
-### 1.5 Debug-Pipeline
+### 1.5 Debug Pipeline
 
-Messages vom Node bis ins Frontend durchschleusen.
+Pipe messages from the node all the way to the frontend.
 
-- [x] Debug Node → NATS Publish auf `debug.<flowID>.<nodeID>`
-- [x] Subscriber im Server: NATS `debug.>` → WebSocket Hub Broadcast als `EventDebug`
-- [x] **`GET /api/v1/debug/messages`** – Letzte N Messages aus JetStream Stream lesen *(Stub, History-Endpoint)*
-- [x] Frontend: WebSocket `debug` Events empfangen → debugStore → DebugPanel
+- [x] Debug node → NATS publish on `debug.<flowID>.<nodeID>`
+- [x] Subscriber in the server: NATS `debug.>` → WebSocket hub broadcast as `EventDebug`
+- [x] **`GET /api/v1/debug/messages`** — Read the last N messages from the JetStream stream *(stub, history endpoint)*
+- [x] Frontend: receive WebSocket `debug` events → debugStore → DebugPanel
 
-### 1.6 Frontend-Anbindung
+### 1.6 Frontend Integration
 
-- [x] Node-Palette aus `/api/v1/nodes` laden statt hardcoded *(noch hardcoded)*
-- [x] Deploy-Button: `POST /api/v1/flows` mit aktuellem Flow-State
-- [x] Deploy-Feedback: WebSocket `deploy` Event empfangen → UI-Indikator *(offen)*
-- [x] Inject-Button im Node: `POST /api/v1/inject/{id}` aufrufen
-- [x] Debug-Messages live anzeigen (WebSocket → Store → Panel)
-- [x] Connection-Status ONLINE/OFFLINE (WebSocket → uiStore → HeaderBar)
-- [x] Flows beim Seitenstart vom Backend laden (GET /flows → flowStore)
-- [x] Node-Konfiguration im PropertyPanel (InjectConfig editierbar)
-- [x] Node-Klick öffnet PropertyPanel (@node-click Event)
+- [x] Load the node palette from `/api/v1/nodes` instead of hardcoded *(still hardcoded)*
+- [x] Deploy button: `POST /api/v1/flows` with the current flow state
+- [x] Deploy feedback: receive WebSocket `deploy` event → UI indicator *(open)*
+- [x] Inject button on the node: call `POST /api/v1/inject/{id}`
+- [x] Display debug messages live (WebSocket → store → panel)
+- [x] Connection status ONLINE/OFFLINE (WebSocket → uiStore → HeaderBar)
+- [x] Load flows from the backend on page start (GET /flows → flowStore)
+- [x] Node configuration in the property panel (InjectConfig editable)
+- [x] Node click opens the property panel (@node-click event)
 
-**Ergebnis Phase 1:** ✅ Inject → Debug funktioniert End-to-End. Flow deployen, manuell triggern, Debug-Output sehen.
+**Result of Phase 1:** ✅ Inject → Debug works end-to-end. Deploy a flow, trigger manually, see debug output.
 
 ---
 
-## Phase 2 – Core Nodes: Datenverarbeitung
+## Phase 2 – Core Nodes: Data Processing
 
-> **Ziel:** Flows können Daten transformieren, routen und verzögern.
+> **Goal:** Flows can transform, route, and delay data.
 
 ### 2.1 Processing Nodes
 
-- [x] **Function Node** – JavaScript via Goja ausführen, `msg` rein → `msg` raus
-- [x] **Change Node** – `msg`-Properties setzen, ändern, löschen, verschieben (Rules-basiert)
-- [x] **Switch Node** – Messages anhand von Regeln auf verschiedene Outputs routen
-- [ ] **Template Node** – Go `text/template` für String-Rendering mit `msg`-Daten
-- [x] **Delay Node** – Messages verzögern, Rate-Limiten oder Random-Jitter (3 Modi); Override per `msg.delay`/`msg.flush`/`msg.reset`
+- [x] **Function node** — Run JavaScript via Goja, `msg` in → `msg` out
+- [x] **Change node** — Set, change, delete, move `msg` properties (rule-based)
+- [x] **Switch node** — Route messages to different outputs based on rules
+- [ ] **Template node** — Go `text/template` for string rendering with `msg` data
+- [x] **Delay node** — Delay messages, rate-limit, or random jitter (3 modes); override via `msg.delay`/`msg.flush`/`msg.reset`
 
-### 2.2 Context-System (NATS KV)
+### 2.2 Context System (NATS KV)
 
-- [x] **Global Context** – `global.get(key)` / `global.set(key, value)` via NATS KV `context-global`
-- [x] **Flow Context** – `flow.get(key)` / `flow.set(key, value)` via NATS KV `context-flow-{id}`
-- [x] Context-API für Function Nodes bereitstellen (Goja-Bindings)
-- [x] Context Watch Node - Watch for a KV Key in the global or flow context
+- [x] **Global context** — `global.get(key)` / `global.set(key, value)` via NATS KV `context-global`
+- [x] **Flow context** — `flow.get(key)` / `flow.set(key, value)` via NATS KV `context-flow-{id}`
+- [x] Provide a context API for function nodes (Goja bindings)
+- [x] Context Watch node — watch for a KV key in the global or flow context
 
-### 2.3 Universelles Node-Debugging
+### 2.3 Universal Node Debugging
 
-Das Alleinstellungsmerkmal von LOOPZE (siehe DECISIONS.md §5.1.2 / §5.1.3).
+The unique selling point of LOOPZE (see DECISIONS.md §5.1.2 / §5.1.3).
 
-- [ ] **Debug-Tap pro Node** – Wenn aktiviert: IN + OUT Messages auf `debug.{nodeID}` publizieren
-- [ ] **Debug-Tap pro Wire** – Wenn aktiviert: Messages auf `debug.wire.{sourceID}.{targetID}` publizieren
-- [ ] Zero-Cost wenn deaktiviert (kein Publish, kein Overhead)
-- [ ] Frontend: Debug-Icon am Node (an/aus toggle)
-- [ ] Frontend: Debug-Icon an Wire (Klick → Kontextmenü)
-- [ ] Debug-Panel: Filter nach Node-ID, Wire, Flow
+- [ ] **Debug tap per node** — When enabled: publish IN + OUT messages on `debug.{nodeID}`
+- [ ] **Debug tap per wire** — When enabled: publish messages on `debug.wire.{sourceID}.{targetID}`
+- [ ] Zero-cost when disabled (no publish, no overhead)
+- [ ] Frontend: debug icon on the node (on/off toggle)
+- [ ] Frontend: debug icon on the wire (click → context menu)
+- [ ] Debug panel: filter by node ID, wire, flow
 
 ### 2.4 Error Handling
 
-- [x] **Catch Node** – Fängt Fehler von Nodes im selben Flow
-- [x] **Status Node** – Meldet Node-Status-Änderungen (connected, disconnected, error)
-- [ ] Globaler Error-Handler im Engine (unhandled errors → Log + WebSocket Notification)
+- [x] **Catch node** — Catches errors from nodes in the same flow
+- [x] **Status node** — Reports node status changes (connected, disconnected, error)
+- [ ] Global error handler in the engine (unhandled errors → log + WebSocket notification)
 
-**Ergebnis Phase 2:** Vollständige Datenverarbeitung. Function-Nodes mit Context, Routing, Error Handling.
+**Result of Phase 2:** Complete data processing. Function nodes with context, routing, error handling.
 
 ---
 
-## Phase 3 – Netzwerk & Industrie: Die Außenwelt anbinden
+## Phase 3 – Network & Industry: Connect to the Outside World
 
-> **Ziel:** LOOPZE kann mit externen Systemen kommunizieren.
+> **Goal:** LOOPZE can communicate with external systems.
 
 ### 3.1 HTTP Nodes
 
-- [ ] **HTTP In Node** – HTTP-Endpunkt erstellen (GET/POST/PUT/DELETE), Request als `msg`
-- [ ] **HTTP Response Node** – Antwort an den HTTP-Client senden
-- [ ] **HTTP Request Node** – Ausgehende HTTP-Aufrufe, Response als `msg`
+- [ ] **HTTP In node** — Create an HTTP endpoint (GET/POST/PUT/DELETE), request as `msg`
+- [ ] **HTTP Response node** — Send the response to the HTTP client
+- [ ] **HTTP Request node** — Outgoing HTTP calls, response as `msg`
 
 ### 3.2 MQTT Nodes
 
-- [ ] **MQTT Broker Config-Node** – Verbindungsdaten (Host, Port, TLS, Credentials)
-- [ ] **MQTT In Node** – Topic subscriben, Messages empfangen
-- [ ] **MQTT Out Node** – Messages auf Topic publishen
-- [ ] Credentials aus CredentialManager laden (AES-256-GCM entschlüsseln)
+- [ ] **MQTT broker config node** — Connection data (host, port, TLS, credentials)
+- [ ] **MQTT In node** — Subscribe to a topic, receive messages
+- [ ] **MQTT Out node** — Publish messages on a topic
+- [ ] Load credentials from CredentialManager (decrypt AES-256-GCM)
 
-### 3.3 Industrie-Protokolle
+### 3.3 Industrial Protocols
 
-- [ ] **Modbus TCP Read/Write** – Register lesen/schreiben (Holding, Input, Coil, Discrete)
-- [ ] **Modbus RTU Read/Write** – Über Serial Port
-- [ ] **Serial/COM Node** – RS232/RS485 Lesen/Schreiben
-- [ ] **OPC-UA Node** – Browse, Read, Write, Subscribe (gopcua Library)
+- [ ] **Modbus TCP read/write** — Read/write registers (holding, input, coil, discrete)
+- [ ] **Modbus RTU read/write** — Over a serial port
+- [ ] **Serial/COM node** — RS232/RS485 read/write
+- [ ] **OPC-UA node** — Browse, read, write, subscribe (gopcua library)
 
-### 3.4 Weitere Netzwerk-Nodes
+### 3.4 Other Network Nodes
 
-- [ ] **TCP In/Out** – Raw TCP Sockets
-- [ ] **WebSocket In/Out** – WebSocket Client/Server
-- [ ] **UDP In/Out** – UDP Datagramme
+- [ ] **TCP In/Out** — Raw TCP sockets
+- [ ] **WebSocket In/Out** — WebSocket client/server
+- [ ] **UDP In/Out** — UDP datagrams
 
-**Ergebnis Phase 3:** LOOPZE spricht HTTP, MQTT, Modbus, Serial – industrietauglich.
+**Result of Phase 3:** LOOPZE speaks HTTP, MQTT, Modbus, Serial — industrial-grade.
 
 ---
 
-## Phase 4 – Editor-Polish: Professionelle UX
+## Phase 4 – Editor Polish: Professional UX
 
-> **Ziel:** Der Flow-Editor fühlt sich fertig an.
+> **Goal:** The flow editor feels finished.
 
-### 4.1 Flow-Management
+### 4.1 Flow Management
 
-- [ ] **Tabs** – Mehrere Flows gleichzeitig offen, zwischen Flows wechseln
-- [ ] **Import/Export** – Flows als JSON exportieren und importieren
-- [ ] **Undo/Redo** – History-Stack für Flow-Änderungen (Vue Flow bietet Basis)
+- [ ] **Tabs** — Multiple flows open at the same time, switch between flows
+- [ ] **Import/export** — Export and import flows as JSON
+- [ ] **Undo/redo** — History stack for flow changes (Vue Flow provides the basis)
 
 ### 4.2 Subflows
 
-- [ ] **Subflow erstellen** – Auswahl von Nodes → zu Subflow zusammenfassen
-- [ ] **Subflow-Node** – Subflow als wiederverwendbaren Node im Palette anzeigen
-- [ ] **Subflow-Editor** – Eigener Tab zum Editieren des Subflow-Inhalts
+- [ ] **Create subflow** — Select nodes → bundle them into a subflow
+- [ ] **Subflow node** — Show the subflow as a reusable node in the palette
+- [ ] **Subflow editor** — Dedicated tab for editing the subflow contents
 
-### 4.3 Editor-Features
+### 4.3 Editor Features
 
-- [ ] **Suche** – Nodes und Flows durchsuchen
-- [ ] **Minimap** – Übersichtskarte des Flows
-- [ ] **Keyboard Shortcuts** – Standardkürzel (Ctrl+Z, Ctrl+C/V, Del, etc.)
-- [ ] **Node-Tooltips** – Inline-Hilfe pro Node-Typ
-- [ ] **Validierung** – Fehlerhafte Konfigurationen visuell markieren
-- [ ] **Connection Status** – Live-Indikator WebSocket verbunden/getrennt
+- [ ] **Search** — Search nodes and flows
+- [ ] **Minimap** — Overview map of the flow
+- [ ] **Keyboard shortcuts** — Standard shortcuts (Ctrl+Z, Ctrl+C/V, Del, etc.)
+- [ ] **Node tooltips** — Inline help per node type
+- [ ] **Validation** — Visually mark invalid configurations
+- [ ] **Connection status** — Live indicator: WebSocket connected/disconnected
 
-### 4.4 Settings & Konfiguration
+### 4.4 Settings & Configuration
 
-- [ ] **Settings UI** – Backend-Einstellungen im Frontend ändern
-- [ ] **Settings API** – `GET/POST /api/v1/settings` implementieren
-- [ ] **Origin Validation** – WebSocket Origin-Check für Production
+- [ ] **Settings UI** — Change backend settings from the frontend
+- [ ] **Settings API** — Implement `GET/POST /api/v1/settings`
+- [ ] **Origin validation** — WebSocket origin check for production
 
-**Ergebnis Phase 4:** Professioneller Editor mit allen UX-Features aus DECISIONS.md.
+**Result of Phase 4:** Professional editor with all the UX features from DECISIONS.md.
 
 ---
 
 ## Phase 5 – Production Readiness
 
-> **Ziel:** LOOPZE ist stabil, sicher und deploybar.
+> **Goal:** LOOPZE is stable, secure, and deployable.
 
-### 5.1 Sicherheit
+### 5.1 Security
 
-- [ ] **WebSocket Origin-Restriction** – Nur eigener Host erlaubt
-- [ ] **Rate Limiting** – API-Endpunkte gegen Missbrauch schützen
-- [ ] **Input Validation** – Alle API-Inputs validieren und sanitizen
-- [ ] **CORS** – Konfigurierbare CORS-Policy
+- [ ] **WebSocket origin restriction** — Only the own host is allowed
+- [ ] **Rate limiting** — Protect API endpoints against abuse
+- [ ] **Input validation** — Validate and sanitize all API inputs
+- [ ] **CORS** — Configurable CORS policy
 
 ### 5.2 Observability
 
-- [ ] **Structured Logging** – Log-Level konfigurierbar (Debug/Info/Warn/Error)
-- [ ] **Health-Check erweitern** – `/health` mit NATS-Status, Engine-Status, Uptime
-- [ ] **Metrics** – Optional Prometheus-Endpoint (`/metrics`)
+- [ ] **Structured logging** — Configurable log levels (debug/info/warn/error)
+- [ ] **Extend health check** — `/health` with NATS status, engine status, uptime
+- [ ] **Metrics** — Optional Prometheus endpoint (`/metrics`)
 
 ### 5.3 Packaging
 
-- [ ] **Docker Image** – Multi-Stage Build, minimal Image
-- [ ] **systemd Unit** – Service-File für Linux
-- [ ] **Cross-Compile** – Alle Plattformen testen (bereits im Makefile)
-- [ ] **Release Automation** – GitHub Actions für Build + Release
+- [ ] **Docker image** — Multi-stage build, minimal image
+- [ ] **systemd unit** — Service file for Linux
+- [ ] **Cross-compile** — Test all platforms (already in the Makefile)
+- [ ] **Release automation** — GitHub Actions for build + release
 
 ### 5.4 Testing
 
-- [ ] **Engine Tests** – Deploy, Message-Routing, Node-Lifecycle
-- [ ] **Node Tests** – Jeder Node-Typ mit Unit-Tests
-- [ ] **API Tests** – HTTP-Handler Integration Tests
-- [ ] **Frontend Tests** – Component Tests für kritische UI-Teile
-- [ ] **E2E Test** – Inject → Function → Debug als Smoke Test
+- [ ] **Engine tests** — Deploy, message routing, node lifecycle
+- [ ] **Node tests** — Every node type with unit tests
+- [ ] **API tests** — HTTP-handler integration tests
+- [ ] **Frontend tests** — Component tests for critical UI parts
+- [ ] **E2E test** — Inject → Function → Debug as a smoke test
 
-**Ergebnis Phase 5:** LOOPZE ist production-ready, getestet und paketiert.
+**Result of Phase 5:** LOOPZE is production-ready, tested, and packaged.
 
 ---
 
-## Abhängigkeiten zwischen Phasen
+## Dependencies Between Phases
 
 ```
 Phase 1 ──────► Phase 2 ──────► Phase 3
- (Engine)       (Core Nodes)    (Netzwerk)
+ (Engine)       (Core Nodes)    (Network)
     │                │
     │                ▼
     │           Phase 4
@@ -251,55 +251,55 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
            (Production)
 ```
 
-- **Phase 1 ist Voraussetzung für alles** – ohne Engine läuft kein Flow
-- **Phase 2 und 3** können teilweise parallel bearbeitet werden
-- **Phase 4** kann ab Phase 2 begonnen werden (unabhängig von Netzwerk-Nodes)
-- **Phase 5** zieht sich idealerweise durch alle Phasen (Tests pro Feature)
+- **Phase 1 is a prerequisite for everything** — without the engine no flow runs
+- **Phases 2 and 3** can be worked on partially in parallel
+- **Phase 4** can be started from Phase 2 onward (independent of network nodes)
+- **Phase 5** ideally runs through all phases (tests per feature)
 
 ---
 
-## Nächster Schritt
+## Next Step
 
-**→ Phase 1 abgeschlossen! ✅**
-**→ Phase 2 kann beginnen: Core Processing Nodes (Function, Change, Switch, Template, Delay).**
+**→ Phase 1 done! ✅**
+**→ Phase 2 can begin: core processing nodes (Function, Change, Switch, Template, Delay).**
 
 ---
 
-## Frontend Bugs & Offene Punkte
+## Frontend Bugs & Open Items
 
-> Ergebnis der Code-Analyse vom 2026-03-17.
+> Result of the code analysis from 2026-03-17.
 
 ### CRITICAL
 
-| # | Problem | Datei | Status |
-|---|---------|-------|--------|
-| F1 | **Node-Drag markiert Flow nicht als dirty** — `updateNodePosition()` ruft `markDirty()` nicht auf. Änderungen können verloren gehen. | `flowStore.ts:171` | [x] |
-| F2 | **Deploy-Status nur über WebSocket** — `flowStore.deploy()` aktualisiert `uiStore.deployStatus` nicht direkt. Ohne WS kein Feedback. | `flowStore.ts:235` | [ ] |
-| F3 | **Canvas-Bounds nicht dynamisch** — `translate-extent` hardcoded `[[0,0],[10000,10000]]`, kein `nodeExtent`, MiniMap-Viewport ändert sich nicht beim Zoomen. | `FlowEditor.vue:154` | [ ] |
+| # | Problem | File | Status |
+|---|---------|------|--------|
+| F1 | **Node drag does not mark the flow dirty** — `updateNodePosition()` does not call `markDirty()`. Changes can be lost. | `flowStore.ts:171` | [x] |
+| F2 | **Deploy status only via WebSocket** — `flowStore.deploy()` does not update `uiStore.deployStatus` directly. Without WS no feedback. | `flowStore.ts:235` | [ ] |
+| F3 | **Canvas bounds not dynamic** — `translate-extent` hardcoded to `[[0,0],[10000,10000]]`, no `nodeExtent`, MiniMap viewport doesn't change on zoom. | `FlowEditor.vue:154` | [ ] |
 
 ### HIGH
 
-| # | Problem | Datei | Status |
-|---|---------|-------|--------|
-| F4 | **DebugNode `messageCount` wird nie aktualisiert** — Badge zeigt `props.data?.messageCount`, aber kein Code setzt den Wert. | `DebugNode.vue:13` | [ ] |
-| F6 | **Fehlende `terminal-checkbox` CSS-Klasse** — InjectConfig nutzt eine undefinierte Klasse. | `InjectConfig.vue:73` | [ ] |
-| F7 | **Kein Error-Feedback bei Deploy-Fehler** — Fehler nur in `console.error`, kein Toast/Notification. | `flowStore.ts:266` | [ ] |
+| # | Problem | File | Status |
+|---|---------|------|--------|
+| F4 | **DebugNode `messageCount` is never updated** — Badge shows `props.data?.messageCount`, but no code sets the value. | `DebugNode.vue:13` | [ ] |
+| F6 | **Missing `terminal-checkbox` CSS class** — InjectConfig uses an undefined class. | `InjectConfig.vue:73` | [ ] |
+| F7 | **No error feedback on deploy failure** — Errors only in `console.error`, no toast/notification. | `flowStore.ts:266` | [ ] |
 
 ### MEDIUM
 
-| # | Problem | Datei | Status |
-|---|---------|-------|--------|
-| F8 | **Max-Zoom auf 1.0 begrenzt** — Kann nicht reinzoomen um Details zu sehen. | `FlowEditor.vue:152` | [ ] |
-| F9 | **Linke Sidebar überlagert Canvas** — `position: absolute` statt Flexbox, verdeckt Nodes. | `App.vue:61` | [ ] |
-| F10 | **Keine Validierung von Node-Verbindungen** — Inkompatible Ports können verbunden werden. | `FlowEditor.vue` | [ ] |
-| F11 | **Multi-Select ignoriert** — Bei Mehrfachauswahl wird nur der erste Node gespeichert. | `FlowEditor.vue:54` | [ ] |
-| F12 | **Status-Farben weichen vom Design-System ab** — Hardcoded hex statt Token-Farben. | `BaseNode.vue:36` | [ ] |
+| # | Problem | File | Status |
+|---|---------|------|--------|
+| F8 | **Max zoom limited to 1.0** — Cannot zoom in to see details. | `FlowEditor.vue:152` | [ ] |
+| F9 | **Left sidebar overlays the canvas** — `position: absolute` instead of flexbox, hides nodes. | `App.vue:61` | [ ] |
+| F10 | **No validation of node connections** — Incompatible ports can be connected. | `FlowEditor.vue` | [ ] |
+| F11 | **Multi-select ignored** — On multi-selection only the first node is saved. | `FlowEditor.vue:54` | [ ] |
+| F12 | **Status colors deviate from the design system** — Hardcoded hex instead of token colors. | `BaseNode.vue:36` | [ ] |
 
 ### LOW (Polish)
 
-| # | Problem | Datei | Status |
-|---|---------|-------|--------|
-| F13 | **Palette-Suchfilter nicht persistiert** — Reset beim Schließen. | `NodePalette.vue` | [ ] |
-| F14 | **Hardcoded Werte** — MAX_MESSAGES=1000, Deploy-Reset=3s, Grid=16px. | diverse | [ ] |
-| F15 | **Doppelter Deploy-API-Pfad** — `flowStore.deploy()` nutzt `fetch` direkt, HeaderBar hat `useApi().deployFlows()`. | `flowStore.ts` / `HeaderBar.vue` | [ ] |
-| F16 | **Settings-Page ist ein Dummy** — `handleSave()` und `handleReset()` sind leer, kein Backend. | `SettingsView.vue` | [ ] |
+| # | Problem | File | Status |
+|---|---------|------|--------|
+| F13 | **Palette search filter not persisted** — Resets when closed. | `NodePalette.vue` | [ ] |
+| F14 | **Hardcoded values** — MAX_MESSAGES=1000, deploy reset=3s, grid=16px. | various | [ ] |
+| F15 | **Duplicate deploy API path** — `flowStore.deploy()` uses `fetch` directly, HeaderBar has `useApi().deployFlows()`. | `flowStore.ts` / `HeaderBar.vue` | [ ] |
+| F16 | **Settings page is a dummy** — `handleSave()` and `handleReset()` are empty, no backend. | `SettingsView.vue` | [ ] |

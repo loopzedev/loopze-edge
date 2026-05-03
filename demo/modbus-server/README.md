@@ -1,112 +1,112 @@
 # LOOPZE Modbus Demo Server
 
-Ein schlanker Modbus-TCP-Slave (Go, ohne externe Dependencies) zum Testen der
-LOOPZE Modbus-Nodes (`modbus-server`-Config, `modbus-read`, `modbus-write`).
+A lean Modbus TCP slave (Go, no external dependencies) for testing the
+LOOPZE Modbus nodes (`modbus-server` config, `modbus-read`, `modbus-write`).
 
-Er füllt seine Register-Räume mit ein paar definierten Werten und animiert
-einen Teil davon, damit pollende Clients Bewegung sehen.
+It populates its register spaces with a few defined values and animates
+some of them so polling clients see movement.
 
-## Schnellstart
+## Quick start
 
 ```bash
-make demo-modbus            # läuft auf :5502 mit Request-Trace
-# oder direkt:
+make demo-modbus            # runs on :5502 with request trace
+# or directly:
 go run ./demo/modbus-server -listen :5502 -v
 ```
 
-Optionen:
+Options:
 
-| Flag        | Default  | Bedeutung                                           |
+| Flag        | Default  | Meaning                                             |
 | ----------- | -------- | --------------------------------------------------- |
-| `-listen`   | `:5502`  | TCP-Listen-Adresse (z.B. `:502`, `127.0.0.1:1502`) |
-| `-v`        | `false`  | Loggt jeden eingehenden Modbus-Request              |
+| `-listen`   | `:5502`  | TCP listen address (e.g. `:502`, `127.0.0.1:1502`)  |
+| `-v`        | `false`  | Logs every incoming Modbus request                  |
 
-Port `502` ist privileged — entweder mit `sudo` starten, `setcap cap_net_bind_service=+ep`
-auf der Binary setzen, oder einfach beim Default `:5502` bleiben und im
-LOOPZE-Server-Config Port `5502` eintragen.
+Port `502` is privileged — either start with `sudo`, set
+`setcap cap_net_bind_service=+ep` on the binary, or simply stick with the
+default `:5502` and enter port `5502` in the LOOPZE server config.
 
-## Adressbelegung
+## Address map
 
-Alle Werte sind **big-endian byte order** mit **big-endian word order** (ABCD)
-codiert — also der Modbus-Default. Wer den Codec gegen alle vier
-Order-Kombinationen testen will, stellt im LOOPZE-Client einfach Little-Byte
-oder Little-Word ein und vergleicht.
+All values are encoded with **big-endian byte order** and **big-endian word
+order** (ABCD) — i.e. the Modbus default. To test the codec against all four
+order combinations, simply switch to little-byte or little-word in the LOOPZE
+client and compare.
 
 ### Holding Registers (FC3, RW)
 
-| Adresse  | Typ      | Inhalt                                                   |
+| Address  | Type     | Content                                                  |
 | -------- | -------- | -------------------------------------------------------- |
-| 0..1     | float32  | Temperatur (°C) — driftet langsam zwischen 18 und 24     |
-| 2..3     | uint32   | Tick-Counter — zählt 4 mal pro Sekunde                   |
-| 4..5     | float32  | Druck (bar) — Random Walk um 1.0 bar                     |
-| 6        | int16    | Setpoint — RW, Default 200                               |
-| 7        | uint16   | Mode — RW, Default 1                                     |
-| 10..14   | string   | "LOOPZE-DEMO" (5 Register, 10 ASCII-Zeichen)              |
-| 20..21   | float32  | Energie (kWh) — monoton steigend, 1 kWh / Minute         |
+| 0..1     | float32  | Temperature (°C) — drifts slowly between 18 and 24       |
+| 2..3     | uint32   | Tick counter — counts 4 times per second                 |
+| 4..5     | float32  | Pressure (bar) — random walk around 1.0 bar              |
+| 6        | int16    | Setpoint — RW, default 200                               |
+| 7        | uint16   | Mode — RW, default 1                                     |
+| 10..14   | string   | "LOOPZE-DEMO" (5 registers, 10 ASCII characters)         |
+| 20..21   | float32  | Energy (kWh) — monotonically increasing, 1 kWh / minute  |
 
 ### Input Registers (FC4, RO)
 
-| Adresse  | Typ      | Inhalt                                  |
-| -------- | -------- | --------------------------------------- |
-| 0..1     | float32  | Live-Sensor — reiner 0.5 Hz Sinus, ±1.0 |
-| 2        | uint16   | Drehzahl — Random Walk in [1200, 1800]  |
+| Address  | Type     | Content                                  |
+| -------- | -------- | ---------------------------------------- |
+| 0..1     | float32  | Live sensor — pure 0.5 Hz sine, ±1.0     |
+| 2        | uint16   | RPM — random walk in [1200, 1800]        |
 
 ### Coils (FC1, RW)
 
-Adressen 0..63 sind alle schreibbar, Default `false`. FC5 (Single) und FC15
-(Multiple) funktionieren beide.
+Addresses 0..63 are all writable, default `false`. FC5 (single) and FC15
+(multiple) both work.
 
 ### Discrete Inputs (FC2, RO)
 
-Adressen 0..15 zeigen ein **Lauflicht**: jede Sekunde wandert ein gesetztes Bit
-um eine Stelle weiter. Praktisch um zu sehen, dass Polling tatsächlich frische
-Daten holt.
+Addresses 0..15 show a **running light**: every second a set bit moves one
+position further. Practical for seeing that polling actually fetches fresh
+data.
 
-## Verifizieren
+## Verify
 
 In LOOPZE:
 
-1. Config-Node `Modbus Server` anlegen, `host=127.0.0.1`, `port=5502`,
+1. Create a config node `Modbus Server`, `host=127.0.0.1`, `port=5502`,
    `defaultUnitId=1`.
-2. `Modbus Read` auf den Canvas ziehen, Server auswählen.
-3. FC3, Address 0, DataType float32, Polling 1 s — Debug-Node anhängen.
+2. Drag a `Modbus Read` onto the canvas, select the server.
+3. FC3, address 0, dataType float32, polling 1 s — attach a Debug node.
 
-Im Debug-Panel muss eine Temperatur in der Größenordnung 21 °C ankommen, die
-sich langsam ändert.
+In the Debug panel a temperature on the order of 21 °C should arrive,
+slowly changing.
 
-## Beispiel: Raw lesen + im Function Node zu float32 dekodieren
+## Example: Read raw + decode to float32 in a Function node
 
-Statt den Codec im Read-Node erledigen zu lassen, kann man die rohen Register
-holen und im Function Node mit der Buffer-API parsen. Das ist z.B. praktisch,
-wenn ein Gerät mehrere Werte unterschiedlichen Typs in einem zusammenhängenden
-Block liefert und man sie in einem Schritt auseinandernimmt.
+Instead of letting the codec in the Read node handle it, you can fetch the
+raw registers and parse them in a Function node with the Buffer API. This is
+practical, for example, when a device delivers several values of different
+types in a contiguous block and you want to break them apart in one step.
 
-**Modbus Read** — alle Defaults aus dem `Modbus Demo` Setup, nur:
+**Modbus Read** — all defaults from the `Modbus Demo` setup, only:
 
 ```
 Function Code: FC3 — Read Holding Registers
 Address:       0
 Quantity:      2
-Data Type:     raw          ← roh, beide Repräsentationen werden ausgeliefert
+Data Type:     raw          ← raw, both representations are delivered
 Polling:       1000 ms
 ```
 
-Bei FC3 / FC4 mit `dataType: raw` liefert der Read-Node **beide** Sichten in
-derselben Message:
+For FC3 / FC4 with `dataType: raw` the Read node delivers **both** views in
+the same message:
 
-| Feld          | Format                  | Wofür                                      |
-| ------------- | ----------------------- | ------------------------------------------ |
-| `msg.payload` | `[]int` Wort-Array      | Direkt-Zugriff auf einzelne Register       |
-| `msg.bytes`   | `[]int` Wire-Bytes      | `Buffer.from(msg.bytes)` für Byte-Parsing  |
-| `msg.modbus`  | Metadaten (FC, Adresse) | Debugging / Round-Trip                     |
+| Field         | Format                  | What for                                    |
+| ------------- | ----------------------- | ------------------------------------------- |
+| `msg.payload` | `[]int` word array      | Direct access to individual registers       |
+| `msg.bytes`   | `[]int` wire bytes      | `Buffer.from(msg.bytes)` for byte parsing   |
+| `msg.modbus`  | Metadata (FC, address)  | Debugging / round-trip                      |
 
-So wählt man im Function Node die für den Anwendungsfall passende Sicht ohne
-Konvertierungs-Boilerplate.
+This way the Function node picks the view appropriate for the use case
+without conversion boilerplate.
 
-**Function Node** — Float32 aus Wire-Bytes:
+**Function node** — float32 from wire bytes:
 
 ```javascript
-// msg.bytes ist exakt das, was vom Bus kam (4 Bytes für 2 Register).
+// msg.bytes is exactly what came from the bus (4 bytes for 2 registers).
 const buf = Buffer.from(msg.bytes);
 
 msg.payload = buf.readFloatBE(0);   // ≈ 21.5 °C
@@ -114,11 +114,11 @@ msg.topic   = 'temperature';
 return msg;
 ```
 
-**Alternativ** — selbe Aufgabe über das Wort-Array (z.B. wenn man pro Register
-unterschiedlich dekodieren will):
+**Alternative** — same task via the word array (e.g. when you want to decode
+each register differently):
 
 ```javascript
-// msg.payload = [reg0, reg1] als uint16 — Bytes selbst zusammenbauen.
+// msg.payload = [reg0, reg1] as uint16 — assemble bytes yourself.
 const buf = Buffer.alloc(4);
 buf.writeUInt16BE(msg.payload[0], 0);
 buf.writeUInt16BE(msg.payload[1], 2);
@@ -127,37 +127,37 @@ msg.payload = buf.readFloatBE(0);
 return msg;
 ```
 
-**Fertiger Flow** liegt als `example-flow.json` neben dieser README — über
-*Import* in der Editor-Toolbar einlesbar.
+**A ready-made flow** is available as `example-flow.json` next to this
+README — importable via *Import* in the editor toolbar.
 
-> **Tipp** für CDAB / BADC / DCBA Geräte: `buf.swap16()` bzw. `buf.swap32()`
-> auf das Buffer-Objekt aufrufen, bevor `readFloatBE` läuft. Damit lassen sich
-> alle vier Byte/Word-Order-Kombinationen im Function Node abdecken, ohne den
-> Read-Node anzufassen.
+> **Tip** for CDAB / BADC / DCBA devices: call `buf.swap16()` or
+> `buf.swap32()` on the Buffer object before `readFloatBE` runs. This
+> covers all four byte/word order combinations in the Function node
+> without touching the Read node.
 
 ## Function Codes
 
-Unterstützt: **FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16**.
+Supported: **FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16**.
 
-Nicht unterstützt (liefert `Illegal Function`, Code 0x01): FC7, FC11, FC12,
+Not supported (returns `Illegal Function`, code 0x01): FC7, FC11, FC12,
 FC17, FC20–24, FC43.
 
 ## Exception Codes
 
-Der Server liefert die Standard-Modbus-Exceptions:
+The server returns the standard Modbus exceptions:
 
-| Code   | Bedeutung               | Wann                                        |
+| Code   | Meaning                 | When                                        |
 | ------ | ----------------------- | ------------------------------------------- |
-| 0x01   | Illegal Function        | unbekannter / nicht unterstützter FC        |
+| 0x01   | Illegal Function        | unknown / unsupported FC                    |
 | 0x02   | Illegal Data Address    | `addr + qty > 65536`                        |
-| 0x03   | Illegal Data Value      | `qty` außerhalb der spec-erlaubten Range    |
+| 0x03   | Illegal Data Value      | `qty` outside the spec-allowed range        |
 
-## Eigenschaften / Grenzen
+## Properties / limits
 
-- Akzeptiert **jede** Unit-ID (Slave-ID) — im Demo-Kontext irrelevant
-- Ein Mutex serialisiert alle Zugriffe auf den Datenstore (echte Devices
-  serialisieren ohnehin pro Verbindung)
-- Daten persistieren **nicht** über Neustarts — bei Stop ist der Setpoint
-  wieder 200, Coils wieder alle `false`
-- Adressraum-Grenzen sind die Modbus-Spec-Maxima: 2000 Coils/Discrete pro
-  Read, 125 Register pro Read, 1968 Coils pro Write, 123 Register pro Write
+- Accepts **any** unit ID (slave ID) — irrelevant in the demo context
+- A mutex serializes all access to the data store (real devices serialize
+  per connection anyway)
+- Data does **not** persist across restarts — on stop the setpoint is back
+  to 200, coils all back to `false`
+- Address space limits are the Modbus spec maxima: 2000 coils/discretes per
+  read, 125 registers per read, 1968 coils per write, 123 registers per write

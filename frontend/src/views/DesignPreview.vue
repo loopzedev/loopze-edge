@@ -27,18 +27,18 @@ const samples: SampleNode[] = [
 ]
 
 const variants = [
-  { id: 1,  name: 'Minimal Flat',        desc: 'Borderless, einheitliche Surface, 2 px Akzent oben.' },
-  { id: 2,  name: 'Soft Card',           desc: 'Soft-Shadow Card, Icon in akzentfarbener Tile.' },
-  { id: 3,  name: 'Bottom Accent',       desc: 'Akzent-Linie unterhalb des Bodies — wie ein Footer-Strich.' },
-  { id: 4,  name: 'Left Accent Hairline',desc: 'Sehr dünner 2 px Akzent-Strich links, sonst minimal.' },
-  { id: 5,  name: 'Icon Side Tile',      desc: 'Icon-Tile in Akzentton füllt die linke Spalte komplett.' },
-  { id: 6,  name: 'Outlined',            desc: 'Akzent-Border statt Schatten — strukturierter, ohne Tiefe.' },
-  { id: 7,  name: 'Tinted Surface',      desc: 'Sehr dezenter Akzent-Tint im Hintergrund, kein Border.' },
-  { id: 8,  name: 'Header Tint',         desc: 'Header bekommt subtilen Akzent-Background, Body neutral.' },
-  { id: 9,  name: 'Floating',            desc: 'Reine Schatten-Card, kein Border. Maximale Ruhe.' },
-  { id: 10, name: 'Underline Type',      desc: 'Type-Label mit Akzent-Underline — typografische Hierarchie.' },
-  { id: 11, name: 'Quiet Mono',          desc: 'Fast farblos, Akzent nur als Mikro-Marker. Sehr leise.' },
-  { id: 12, name: 'Stacked Center',      desc: 'Type oben, Icon mittig groß, Label unten — vertikale Symmetrie.' },
+  { id: 1,  name: 'Minimal Flat',        desc: 'Borderless, uniform surface, 2 px accent on top.' },
+  { id: 2,  name: 'Soft Card',           desc: 'Soft-shadow card, icon in accent-colored tile.' },
+  { id: 3,  name: 'Bottom Accent',       desc: 'Accent line below the body — like a footer stroke.' },
+  { id: 4,  name: 'Left Accent Hairline',desc: 'Very thin 2 px accent stroke on the left, otherwise minimal.' },
+  { id: 5,  name: 'Icon Side Tile',      desc: 'Icon tile in accent shade fills the left column completely.' },
+  { id: 6,  name: 'Outlined',            desc: 'Accent border instead of shadow — more structured, no depth.' },
+  { id: 7,  name: 'Tinted Surface',      desc: 'Very subtle accent tint in the background, no border.' },
+  { id: 8,  name: 'Header Tint',         desc: 'Header gets a subtle accent background, body stays neutral.' },
+  { id: 9,  name: 'Floating',            desc: 'Pure shadow card, no border. Maximum calm.' },
+  { id: 10, name: 'Underline Type',      desc: 'Type label with accent underline — typographic hierarchy.' },
+  { id: 11, name: 'Quiet Mono',          desc: 'Almost colorless, accent only as a micro marker. Very quiet.' },
+  { id: 12, name: 'Stacked Center',      desc: 'Type on top, icon centered and large, label below — vertical symmetry.' },
 ]
 
 const selectedId = ref<number | null>(null)
@@ -528,14 +528,14 @@ function variantComp(id: number) { return VARIANT_COMPS[id - 1] ?? V1 }
     <header class="sticky top-0 z-20 bg-terminal-surface border-b border-terminal-border px-6 py-4 flex items-center justify-between">
       <div>
         <h1 class="text-lg font-bold tracking-wide">Node Design Preview</h1>
-        <p class="text-xs text-terminal-text-dim mt-0.5">12 Varianten in der Minimal/Soft-Familie. Klick auf eine Karte für Solo-Ansicht.</p>
+        <p class="text-xs text-terminal-text-dim mt-0.5">12 variants in the Minimal/Soft family. Click a card for solo view.</p>
       </div>
       <div class="flex items-center gap-2">
         <button
           v-if="!showAll"
           class="px-3 py-1.5 text-xs rounded border border-terminal-border hover:bg-terminal-surface-alt transition-colors"
           @click="selectedId = null"
-        >Zurück zur Übersicht</button>
+        >Back to overview</button>
         <router-link
           to="/"
           class="px-3 py-1.5 text-xs rounded border border-terminal-border hover:bg-terminal-surface-alt transition-colors"

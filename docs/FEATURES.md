@@ -1,72 +1,72 @@
-# LOOPZE — Features & Abgrenzung zu Node-RED
+# LOOPZE — Features & differentiation from Node-RED
 
-LOOPZE ist kein Fork, sondern ein Neuaufbau mit den Lehren aus Node-RED. Gleiche Philosophie (visual flow programming), aber mit bewussten Designentscheidungen die wiederkehrende Schmerzpunkte loesen.
-
----
-
-## Message Models via Function Nodes
-
-In Node-RED sind Messages untypisierte `msg`-Objekte — jeder Node kann beliebige Felder setzen oder weglassen. Das fuehrt in groesseren Flows schnell zu inkonsistenten Payloads, die erst zur Laufzeit auffallen.
-
-In LOOPZE koennen Function Nodes **Models definieren**: ein JSON-Schema das beschreibt wie die ausgehende Message aussieht. Sobald ein Model definiert ist, garantiert der Function Node strukturell konsistente Outputs. Nachfolgende Nodes koennen sich darauf verlassen welche Felder existieren und welchen Typ sie haben — kein defensives `if (msg.payload && msg.payload.temperature)` mehr.
+LOOPZE is not a fork but a rebuild informed by the lessons from Node-RED. Same philosophy (visual flow programming), but with deliberate design decisions that solve recurring pain points.
 
 ---
 
-## Validation Node
+## Message models via Function nodes
 
-Ein dedizierter **Validation Node** prueft eingehende Messages gegen ein definiertes Model. Messages die dem Schema entsprechen werden weitergeleitet, nicht-konforme Messages werden verworfen (oder auf einen separaten Error-Output geroutet). Das ermoeglicht explizite Datenvertraege zwischen Flow-Abschnitten — besonders wertvoll an Systemgrenzen wo externe Daten (MQTT, HTTP, Sensoren) reinkommen und nicht blind vertraut werden sollte.
+In Node-RED, messages are untyped `msg` objects — every node can set or omit arbitrary fields. In larger flows this quickly leads to inconsistent payloads that only show up at runtime.
 
----
-
-## Native Queuing ueber NATS Streams
-
-Node-RED hat kein eingebautes Queuing. Wer Messages puffern, wiederholen oder persistent zwischenspeichern will, braucht externe Systeme (Redis, RabbitMQ) oder fragile Workarounds mit Context-Variablen.
-
-LOOPZE bringt einen eingebetteten NATS-Server mit JetStream mit. Ein nativer **Queue Node** kann Messages in einen NATS Stream schreiben und mit konfigurierbarer Delivery-Garantie (at-least-once, exactly-once) wieder konsumieren. Retry-Logik, Dead-Letter-Queues und Backpressure sind damit Bordmittel — kein externer Broker, kein Plugin, eine einzige Binary.
+In LOOPZE, Function nodes can **define models**: a JSON Schema describing what the outgoing message looks like. As soon as a model is defined, the Function node guarantees structurally consistent outputs. Downstream nodes can rely on which fields exist and what type they have — no more defensive `if (msg.payload && msg.payload.temperature)`.
 
 ---
 
-## Node Profiling & Durchsatz-Metriken
+## Validation node
 
-Node-RED bietet keine Moeglichkeit zu sehen welcher Node wie lange braucht oder wo ein Bottleneck sitzt. Man merkt erst dass etwas langsam ist, aber nicht wo.
+A dedicated **Validation node** checks incoming messages against a defined model. Messages matching the schema are forwarded, non-conforming messages are dropped (or routed to a separate error output). This enables explicit data contracts between flow sections — especially valuable at system boundaries where external data (MQTT, HTTP, sensors) comes in and should not be trusted blindly.
 
-LOOPZE misst **pro Node die Verarbeitungszeit und den Durchsatz**. Im Editor kann ein Profiling-Overlay eingeblendet werden das direkt auf den Nodes zeigt: durchschnittliche Latenz, Messages pro Sekunde, Queue-Fuellstand. Langsame Nodes werden visuell hervorgehoben. Das macht Performance-Probleme sichtbar bevor sie kritisch werden — ohne externe Monitoring-Tools.
+---
+
+## Native queuing via NATS Streams
+
+Node-RED has no built-in queuing. Anyone wanting to buffer, retry or persistently cache messages needs external systems (Redis, RabbitMQ) or fragile workarounds with context variables.
+
+LOOPZE ships with an embedded NATS server with JetStream. A native **Queue node** can write messages into a NATS Stream and consume them again with configurable delivery guarantees (at-least-once, exactly-once). Retry logic, dead-letter queues and backpressure are part of the base toolkit — no external broker, no plugin, a single binary.
+
+---
+
+## Node profiling & throughput metrics
+
+Node-RED offers no way to see which node takes how long or where a bottleneck sits. You notice that something is slow, but not where.
+
+LOOPZE measures **per-node processing time and throughput**. In the editor a profiling overlay can be toggled on that shows directly on the nodes: average latency, messages per second, queue fill level. Slow nodes are highlighted visually. This makes performance problems visible before they become critical — without external monitoring tools.
 
 ---
 
 
-## Goroutine-per-Node Parallelitaet ✅
+## Goroutine-per-node parallelism ✅
 
-> Bereits implementiert — jeder Node laeuft in seiner eigenen Goroutine (`engine.go: nodeLoop`).
+> Already implemented — every node runs in its own goroutine (`engine.go: nodeLoop`).
 
-Node-RED laeuft single-threaded auf Node.js. Ein langsamer Function Node blockiert den gesamten Event-Loop — alle anderen Nodes warten.
+Node-RED runs single-threaded on Node.js. A slow Function node blocks the entire event loop — all other nodes wait.
 
-LOOPZE fuehrt **jeden Node in einer eigenen Goroutine** aus. CPU-intensive Berechnungen in einem Function Node blockieren keine anderen Nodes. Die Go-Runtime verteilt die Arbeit automatisch ueber alle CPU-Kerne. Tausende Nodes laufen echt parallel, nicht kooperativ-sequentiell.
-
----
-
-## Single Binary, Zero Dependencies ✅
-
-> Bereits implementiert — Go-Binary mit eingebettetem Frontend (`web.Embed`) und embedded NATS-Server.
-
-Node-RED braucht Node.js, npm und ein Dateisystem voller `node_modules`. Auf einem frischen System ist die Installation ein Prozess mit mehreren Schritten und potentiellen Versionskonflikten.
-
-LOOPZE ist **eine einzige ausfuehrbare Datei**. Kein Node.js, kein npm, keine externen Abhaengigkeiten. Download, ausfuehren, fertig. Das Frontend ist in die Binary eingebettet, der NATS-Server laeuft embedded. Besonders auf Edge-Devices und in eingeschraenkten Umgebungen (kein Internet, kein Paketmanager) ist das ein entscheidender Vorteil.
+LOOPZE runs **every node in its own goroutine**. CPU-intensive computation in a Function node does not block any other nodes. The Go runtime distributes the work automatically across all CPU cores. Thousands of nodes run truly in parallel, not cooperatively-sequentially.
 
 ---
 
-## Reaktiver Context Store — Events statt Polling ✅
+## Single binary, zero dependencies ✅
 
-> Bereits implementiert — Context Watch Node basiert auf NATS KV Watcher (`context_watch.go`).
+> Already implemented — Go binary with embedded frontend (`web.Embed`) and embedded NATS server.
 
-In Node-RED ist der Context Store (Flow/Global Context) ein passiver Key-Value-Speicher. Man kann Werte lesen und schreiben, aber es gibt keine Moeglichkeit **benachrichtigt zu werden wenn sich ein Wert aendert**. Das fuehrt zu einem fundamentalen Widerspruch: Node-RED ist eine event-basierte Plattform, aber der zentrale Zustandsspeicher ist poll-basiert.
+Node-RED needs Node.js, npm and a filesystem full of `node_modules`. On a fresh system, installation is a multi-step process with potential version conflicts.
 
-In der Praxis erzwingt das anti-patterns:
-- **Polling-Loops**: Inject Nodes die alle 500ms den Context lesen und pruefen ob sich etwas geaendert hat — CPU-Last ohne Mehrwert
-- **Redundante Verdrahtung**: Jeder Node der einen Context-Wert aendert muss zusaetzlich eine Message an alle interessierten Nodes schicken — doppelte Logik, fragile Flows
-- **Race Conditions**: Zwischen zwei Poll-Zyklen kann ein Wert mehrfach geaendert worden sein — Zwischenzustaende gehen verloren
+LOOPZE is **a single executable file**. No Node.js, no npm, no external dependencies. Download, run, done. The frontend is embedded in the binary, the NATS server runs embedded. Especially on edge devices and in constrained environments (no internet, no package manager) this is a decisive advantage.
 
-LOOPZE loest das durch einen **reaktiven Context Store auf Basis von NATS JetStream KV**. Der Context Watch Node subscribt auf Aenderungen an bestimmten Keys oder Key-Patterns und feuert automatisch eine Message wenn sich ein Wert aendert — in Echtzeit, ohne Polling. Der Context wird damit zum vollwertigen Event-Source:
+---
+
+## Reactive context store — events instead of polling ✅
+
+> Already implemented — Context Watch node based on the NATS KV watcher (`context_watch.go`).
+
+In Node-RED, the context store (flow/global context) is a passive key-value store. You can read and write values, but there is no way **to be notified when a value changes**. This leads to a fundamental contradiction: Node-RED is an event-based platform, but the central state store is poll-based.
+
+In practice this forces anti-patterns:
+- **Polling loops**: Inject nodes that read the context every 500 ms and check whether something changed — CPU load with no benefit
+- **Redundant wiring**: Every node that changes a context value must additionally send a message to all interested nodes — duplicated logic, fragile flows
+- **Race conditions**: Between two poll cycles a value can have been changed multiple times — intermediate states are lost
+
+LOOPZE solves this with a **reactive context store on top of NATS JetStream KV**. The Context Watch node subscribes to changes on specific keys or key patterns and automatically fires a message whenever a value changes — in real time, without polling. The context becomes a fully-fledged event source:
 
 ```
 [Sensor] → [Change: set flow.temperature]
@@ -74,42 +74,42 @@ LOOPZE loest das durch einen **reaktiven Context Store auf Basis von NATS JetStr
 [HTTP In] → [Change: set flow.temperature]  ↗
 ```
 
-Egal welcher Node den Wert aendert — der Context Watch reagiert sofort. Das eliminiert Polling komplett und haelt Flows sauber event-basiert.
+No matter which node changes the value — the Context Watch reacts immediately. This eliminates polling completely and keeps flows cleanly event-based.
 
 ---
 
-## Native Industrie-Connectoren — kein Community-Roulette
+## Native industrial connectors — no community roulette
 
-Node-RED liefert von Haus aus keine Industrie-Protokolle mit. OPC-UA, Modbus, S7, MQTT mit Sparkplug B — alles muss ueber Community-Module nachinstalliert werden. Das funktioniert anfangs, fuehrt aber in der Praxis zu ernsthaften Problemen:
+Node-RED ships no industrial protocols out of the box. OPC-UA, Modbus, S7, MQTT with Sparkplug B — everything has to be installed via community modules. This works initially but leads to serious problems in practice:
 
-- **Verwaiste Module**: Der Maintainer verliert das Interesse, das Modul bekommt keine Updates mehr. Sicherheitsluecken bleiben offen, Kompatibilitaet mit neuen Node-RED Versionen bricht.
-- **Qualitaetsschwankungen**: Fuer dasselbe Protokoll gibt es oft 3-5 Module mit unterschiedlicher Reife, Dokumentation und Fehlerbehandlung. Die Auswahl wird zum Gluecksspiel.
-- **Abhaengigkeitsketten**: Community-Module bringen eigene npm-Dependencies mit die mit anderen Modulen kollidieren koennen. Ein `npm install` kann bestehende Flows brechen.
-- **Kein einheitliches Config-Pattern**: Jedes Modul erfindet sein eigenes UI fuer Verbindungseinstellungen. Mal gibt es Reconnect-Logik, mal nicht. Mal werden Credentials verschluesselt, mal im Klartext gespeichert.
+- **Orphaned modules**: The maintainer loses interest, the module no longer receives updates. Security holes stay open, compatibility with new Node-RED versions breaks.
+- **Quality variance**: For the same protocol there are often 3–5 modules with differing maturity, documentation and error handling. Choosing becomes a gamble.
+- **Dependency chains**: Community modules bring their own npm dependencies that can collide with other modules. An `npm install` can break existing flows.
+- **No unified config pattern**: Every module invents its own UI for connection settings. Sometimes there is reconnect logic, sometimes not. Sometimes credentials are encrypted, sometimes stored in plain text.
 
-LOOPZE loest das durch **native Industrie-Connectoren die fest im Produkt verankert sind**:
+LOOPZE solves this with **native industrial connectors firmly anchored in the product**:
 
-| Protokoll | Typ | Beschreibung |
+| Protocol | Type | Description |
 |---|---|---|
-| **MQTT** | Data Connector | v3.1.1 und v5, geteilte Broker-Verbindungen |
-| **OPC-UA** | Industrial | Client fuer SPS- und SCADA-Anbindung |
-| **Modbus** | Industrial | TCP/RTU, Read/Write Coils und Register |
-| **HTTP** | Data Connector | Request/Response und Webhook-Endpoints |
-| **TCP/UDP** | Data Connector | Raw Socket Kommunikation |
-| **S7** | Industrial | Siemens S7-Protokoll fuer S7-300/400/1200/1500 |
-| **Datenbanken** | Storage | PostgreSQL, SQLite, InfluxDB |
+| **MQTT** | Data Connector | v3.1.1 and v5, shared broker connections |
+| **OPC-UA** | Industrial | Client for PLC and SCADA integration |
+| **Modbus** | Industrial | TCP/RTU, read/write coils and registers |
+| **HTTP** | Data Connector | Request/response and webhook endpoints |
+| **TCP/UDP** | Data Connector | Raw socket communication |
+| **S7** | Industrial | Siemens S7 protocol for S7-300/400/1200/1500 |
+| **Databases** | Storage | PostgreSQL, SQLite, InfluxDB |
 
-Alle Connectoren werden mit der Produktentwicklung mitgepflegt — gleiche Testabdeckung, gleiche Release-Zyklen, gleiche Qualitaetsstandards. Sie nutzen das einheitliche **Config Node Plugin-System** (geteilte Verbindungen, automatischer Reconnect, Status-Broadcast), sodass sich alle Connectoren konsistent verhalten. Kein `npm install` das nach 18 Monaten zum Risiko wird.
+All connectors are maintained alongside product development — same test coverage, same release cycles, same quality standards. They use the unified **config node plugin system** (shared connections, automatic reconnect, status broadcast), so all connectors behave consistently. No `npm install` that becomes a risk after 18 months.
 
 ---
 
-## Data Pipelines — Telegraf-Ansatz als visueller Flow
+## Data pipelines — the Telegraf approach as a visual flow
 
-Node-RED ist fuer Event-basierte Flows mit einzelnen Messages gebaut. Sobald grosse Datenmengen verarbeitet werden muessen — Batch-Imports, CSV-Dateien mit 100k Zeilen, Datenbank-Dumps, Log-Aggregation — stoesst es an seine Grenzen. Der Single-Threaded Event-Loop blockiert, die Editor-UI friert ein, MQTT-Subscriptions verpassen Messages weil die Runtime ausgelastet ist.
+Node-RED is built for event-based flows with individual messages. As soon as large data volumes have to be processed — batch imports, CSV files with 100k rows, database dumps, log aggregation — it hits its limits. The single-threaded event loop blocks, the editor UI freezes, MQTT subscriptions miss messages because the runtime is saturated.
 
-Tools wie **Telegraf** loesen das elegant mit einer Input → Processing → Output Pipeline. Aber Telegraf ist konfigurationsgetrieben (TOML-Dateien) — keine visuelle Darstellung, kein schnelles Experimentieren, keine bedingte Logik.
+Tools like **Telegraf** solve this elegantly with an input → processing → output pipeline. But Telegraf is configuration-driven (TOML files) — no visual representation, no quick experimentation, no conditional logic.
 
-LOOPZE verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flows**. Der Schluessel dazu ist ein nativer **Processing Node der in Go ausfuehrt** — nicht in einer interpretierten Sandbox wie der JavaScript Function Node, sondern direkt in der Sprache der Runtime. Das eroeffnet volle Nutzung aller CPU-Kerne, zero-copy Datenverarbeitung und Zugriff auf das Go-Oekosystem.
+LOOPZE bridges both worlds: **Telegraf-style data pipelines as visual flows**. The key to this is a native **Processing node that executes in Go** — not in an interpreted sandbox like the JavaScript Function node, but directly in the runtime's language. This unlocks full use of all CPU cores, zero-copy data processing and access to the Go ecosystem.
 
 ```
                     Data Pipeline Flow
@@ -125,38 +125,38 @@ LOOPZE verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flo
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Kernkonzept — Go Transform Node:**
-- Verarbeitung in nativem Go statt interpretiertem JavaScript
-- Streaming-faehig: verarbeitet Daten zeilenweise statt alles in den Speicher zu laden
-- Batch-Operationen: Aggregation, Windowing, Group-By als eingebaute Primitives
-- Parallel Processing: eine Go Transform kann intern ueber mehrere Goroutines skalieren
+**Core concept — Go Transform node:**
+- Processing in native Go instead of interpreted JavaScript
+- Streaming-capable: processes data row by row instead of loading everything into memory
+- Batch operations: aggregation, windowing, group-by as built-in primitives
+- Parallel processing: a single Go Transform can scale internally across multiple goroutines
 
-**Input Nodes** (Datenquellen):
-- File Input (CSV, JSON Lines, Parquet)
-- SQL Query (PostgreSQL, SQLite)
-- HTTP Bulk Fetch
-- MQTT Retained Bulk Read
+**Input nodes** (data sources):
+- File input (CSV, JSON Lines, Parquet)
+- SQL query (PostgreSQL, SQLite)
+- HTTP bulk fetch
+- MQTT retained bulk read
 
-**Processing Nodes** (Go-nativ):
-- Go Transform — Map, Filter, Reduce mit Go-Syntax
-- Aggregate — Windowed Aggregation (sum, avg, min, max, count)
-- Join — Zwei Streams zusammenfuehren (inner, left, outer)
-- Batch — Messages in konfigurierbare Batches gruppieren
+**Processing nodes** (Go-native):
+- Go Transform — map, filter, reduce with Go syntax
+- Aggregate — windowed aggregation (sum, avg, min, max, count)
+- Join — merge two streams (inner, left, outer)
+- Batch — group messages into configurable batches
 
-**Output Nodes** (Senken):
-- InfluxDB / TimescaleDB Batch Write
-- File Output (CSV, JSON)
-- SQL Insert/Upsert
-- MQTT Bulk Publish
+**Output nodes** (sinks):
+- InfluxDB / TimescaleDB batch write
+- File output (CSV, JSON)
+- SQL insert/upsert
+- MQTT bulk publish
 
-Das Ergebnis: Datenverarbeitungs-Pipelines die in Node-RED Minuten brauchen (oder die Runtime zum Absturz bringen) laufen in LOOPZE in Sekunden — visuell konfiguriert, nicht in TOML-Dateien versteckt.
+The result: data processing pipelines that take minutes in Node-RED (or crash the runtime) run in seconds in LOOPZE — visually configured, not hidden in TOML files.
 
 ---
 
-## Live-Debugging mit Message Tracing
+## Live debugging with message tracing
 
-Node-REDs Debug-Node zeigt Messages in einer separaten Sidebar — aber man sieht nicht welchen Weg eine Message durch den Flow genommen hat.
+Node-RED's Debug node shows messages in a separate sidebar — but you cannot see the path a message took through the flow.
 
-LOOPZE ermoeglicht **Message Tracing**: eine einzelne Message kann visuell durch den Flow verfolgt werden. Der Pfad den die Message genommen hat wird im Canvas hervorgehoben, mit Timestamps und Payload-Snapshots an jedem Node. Das macht das Debugging komplexer Flows mit Verzweigungen, Filtern und Cross-Flow-Links nachvollziehbar.
+LOOPZE enables **message tracing**: a single message can be visually tracked through the flow. The path the message took is highlighted on the canvas, with timestamps and payload snapshots at every node. This makes debugging complex flows with branches, filters and cross-flow links comprehensible.
 
 

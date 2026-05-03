@@ -1,67 +1,67 @@
-# Tooltip-Migration: native `title` → `AppTooltip`
+# Tooltip Migration: native `title` → `AppTooltip`
 
-## Beschreibung
+## Description
 
-Im Codebase werden Tooltips heute über zwei Wege gerendert:
+Tooltips in the codebase are currently rendered via two paths:
 
-1. **`AppTooltip`** (`components/ui/AppTooltip.vue`) — Radix-basiert, im Terminal-Theme gestaltet (`bg-terminal-surface`, `border-terminal-border`, `font-mono`, 400ms Delay). Aktuell genutzt: PropertyPanel (2 Stellen), BaseNode-Output-Handles (Switch-Node).
-2. **Natives `title="..."`** — Browser-Default-Styling, ~500ms Delay (browser-abhängig), kein Theming, taucht an ~30 Stellen auf.
+1. **`AppTooltip`** (`components/ui/AppTooltip.vue`) — Radix-based, styled in the terminal theme (`bg-terminal-surface`, `border-terminal-border`, `font-mono`, 400ms delay). Currently used: PropertyPanel (2 places), BaseNode output handles (Switch node).
+2. **Native `title="..."`** — browser default styling, ~500ms delay (browser-dependent), no theming, appears in ~30 places.
 
-Ziel: alle Tooltips über `AppTooltip` rendern, damit Look-and-Feel konsistent ist und sich Tooltip-Verhalten (Delay, Side, Animation) zentral ändern lässt.
+Goal: render all tooltips via `AppTooltip` so look-and-feel is consistent and tooltip behavior (delay, side, animation) can be changed centrally.
 
-## Was *kein* Tooltip ist
+## What is *not* a Tooltip
 
-`title=` taucht auch in nicht-Tooltip-Kontexten auf — diese **bleiben unverändert**:
+`title=` also appears in non-tooltip contexts — these **remain unchanged**:
 
-- `<PanelHeader title="Properties" />` — `title` als Prop = Header-Text
-- `<SectionHeader title="Konfiguration" />` — dito
-- `<a title="...">` ohne sichtbares Label, das nur a11y dient
+- `<PanelHeader title="Properties" />` — `title` as prop = header text
+- `<SectionHeader title="Configuration" />` — same
+- `<a title="...">` without a visible label, only serving a11y
 
-Die hier gemeinten Stellen sind ausschließlich `title=`-Attribute auf interaktiven Elementen, die einen Hover-Hinweis anzeigen sollen.
+The places meant here are exclusively `title=` attributes on interactive elements that are supposed to display a hover hint.
 
-## Akzeptanzkriterien
+## Acceptance Criteria
 
-- Alle nachfolgend gelisteten Stellen rendern den Hinweis über `AppTooltip` statt nativem `title`.
-- Visuelles Erscheinungsbild: einheitlich Terminal-Theme.
-- A11y nicht verschlechtert: wo `title` bisher zugleich als Screen-Reader-Hint diente (Icon-Buttons ohne sichtbares Label), wird `aria-label` mit dem gleichen Text gesetzt.
-- Keine doppelten Tooltips (nicht versehentlich AppTooltip + verbleibendes `title` auf demselben Element).
+- All places listed below render the hint via `AppTooltip` instead of native `title`.
+- Visual appearance: uniformly terminal theme.
+- A11y not degraded: where `title` previously also served as a screen-reader hint (icon buttons without visible label), `aria-label` is set with the same text.
+- No duplicate tooltips (do not accidentally leave AppTooltip + remaining `title` on the same element).
 
-## Migrations-Pattern
+## Migration Pattern
 
-### Standard-Fall (Icon-Button mit Tooltip)
+### Standard case (icon button with tooltip)
 
 ```vue
-<!-- Vorher -->
+<!-- Before -->
 <button title="Close panel" @click="...">×</button>
 
-<!-- Nachher -->
+<!-- After -->
 <AppTooltip text="Close panel">
   <button aria-label="Close panel" @click="...">×</button>
 </AppTooltip>
 ```
 
-`aria-label` ergänzen, weil das `title` weg ist und der Button keinen sichtbaren Text hat.
+Add `aria-label` because `title` is gone and the button has no visible text.
 
-### Element mit sichtbarem Text + zusätzlichem Hint
+### Element with visible text + additional hint
 
 ```vue
-<!-- Vorher -->
+<!-- Before -->
 <span :title="full">{{ short }}</span>
 
-<!-- Nachher -->
+<!-- After -->
 <AppTooltip :text="full">
   <span>{{ short }}</span>
 </AppTooltip>
 ```
 
-Kein `aria-label` nötig, weil sichtbarer Text vorhanden.
+No `aria-label` needed because visible text is present.
 
-### Sonderfall: zentraler Wrapper-Component (`IconButton`)
+### Special case: central wrapper component (`IconButton`)
 
-`IconButton.vue` nimmt heute eine `title`-Prop und gibt sie auf `<button title="...">` weiter. Statt jeden Caller zu migrieren: **`IconButton` intern auf `AppTooltip` umstellen**, API bleibt gleich. Spart ~10 Call-Site-Edits.
+`IconButton.vue` currently takes a `title` prop and forwards it to `<button title="...">`. Instead of migrating every caller: **switch `IconButton` internally to `AppTooltip`**, the API stays the same. Saves ~10 call-site edits.
 
 ```vue
-<!-- IconButton.vue, neu intern -->
+<!-- IconButton.vue, new internal -->
 <AppTooltip :text="title">
   <button :aria-label="title" ...>
     <slot />
@@ -69,61 +69,61 @@ Kein `aria-label` nötig, weil sichtbarer Text vorhanden.
 </AppTooltip>
 ```
 
-## Migrations-Checkliste
+## Migration Checklist
 
-Pro Component eine Checkbox. Reihenfolge so gewählt, dass zentrale Bottlenecks (IconButton, PropertyListItem) zuerst kommen — die schlagen auf viele Stellen durch.
+One checkbox per component. Order chosen so that central bottlenecks (IconButton, PropertyListItem) come first — they cascade to many places.
 
-### Hoher Hebel (zentrale Components)
+### High leverage (central components)
 
-- [ ] **`components/ui/IconButton.vue`** (Zeile 18) — internes Refactor; alle Aufrufer profitieren ohne Änderung
-- [ ] **`components/ui/PropertyListItem.vue`** (Z. 27 "Drag to reorder", Z. 48 "Remove")
-- [ ] **`components/nodes/BaseNode.vue`** (Z. 150 actionButton, Z. 223 "Undeployed changes" Dot, Z. 256 toggle ON/OFF)
+- [ ] **`components/ui/IconButton.vue`** (line 18) — internal refactor; all callers benefit without change
+- [ ] **`components/ui/PropertyListItem.vue`** (L. 27 "Drag to reorder", L. 48 "Remove")
+- [ ] **`components/nodes/BaseNode.vue`** (L. 150 actionButton, L. 223 "Undeployed changes" dot, L. 256 toggle ON/OFF)
 
-### Header / globale UI
+### Header / global UI
 
-- [ ] **`components/HeaderBar.vue`** (Z. 76, 101, 119, 133, 147, 171, 223) — 7 Tooltips. Z. 101 ist datengebunden (`Status: ${connectionLabel}`)
-- [ ] **`components/FlowTabBar.vue`** (Z. 90 "New flow")
-- [ ] **`components/PanelHeader.vue`** (Z. 22 "Close panel")
+- [ ] **`components/HeaderBar.vue`** (L. 76, 101, 119, 133, 147, 171, 223) — 7 tooltips. L. 101 is data-bound (`Status: ${connectionLabel}`)
+- [ ] **`components/FlowTabBar.vue`** (L. 90 "New flow")
+- [ ] **`components/PanelHeader.vue`** (L. 22 "Close panel")
 
 ### Panels
 
-- [ ] **`components/DebugPanel.vue`** (Z. 97 pause/resume, Z. 107 "Clear all messages", Z. 175 dynamisches "Jump to ...")
-- [ ] **`components/ContextPanel.vue`** (Z. 256 "Refresh", Z. 266 "Delete")
-- [ ] **`components/JsonTreeView.vue`** (Z. 168 collapse/expand, Z. 213 "Copy path", Z. 218 "Copy value", Z. 225 pin/unpin)
-- [ ] **`components/PropertyPanel.vue`** (Z. 193 "Revert changes…")
-- [ ] **`components/FlowProperties.vue`** (Z. 169 "Flow löschen / Letzter Flow…")
+- [ ] **`components/DebugPanel.vue`** (L. 97 pause/resume, L. 107 "Clear all messages", L. 175 dynamic "Jump to ...")
+- [ ] **`components/ContextPanel.vue`** (L. 256 "Refresh", L. 266 "Delete")
+- [ ] **`components/JsonTreeView.vue`** (L. 168 collapse/expand, L. 213 "Copy path", L. 218 "Copy value", L. 225 pin/unpin)
+- [ ] **`components/PropertyPanel.vue`** (L. 193 "Revert changes…")
+- [ ] **`components/FlowProperties.vue`** (L. 169 "Delete flow / Last flow…")
 
 ### Nodes
 
-- [ ] **`components/nodes/LinkNode.vue`** (Z. 75 "Undeployed changes")
-- [ ] **`components/nodes/FunctionNode.vue`** (Z. 39 Code-Preview-Tooltip)
+- [ ] **`components/nodes/LinkNode.vue`** (L. 75 "Undeployed changes")
+- [ ] **`components/nodes/FunctionNode.vue`** (L. 39 code preview tooltip)
 
 ### Palette
 
-- [ ] **`components/NodePalette.vue`** (Z. 157 `node.description`)
+- [ ] **`components/NodePalette.vue`** (L. 157 `node.description`)
 
-## Reihenfolge der PRs
+## PR Order
 
-Vorschlag — kann auch eine PR sein, falls überschaubar:
+Proposal — can also be one PR if manageable:
 
-1. **PR A — Zentrale Components**: IconButton, PropertyListItem, BaseNode. Hier liegt der größte Hebel; alle anderen werden danach kleiner.
-2. **PR B — Panels & Header**: HeaderBar, DebugPanel, ContextPanel, JsonTreeView, PropertyPanel, FlowProperties, FlowTabBar, PanelHeader.
-3. **PR C — Reste**: LinkNode, FunctionNode, NodePalette.
+1. **PR A — Central components**: IconButton, PropertyListItem, BaseNode. Largest leverage here; everything else gets smaller after this.
+2. **PR B — Panels & header**: HeaderBar, DebugPanel, ContextPanel, JsonTreeView, PropertyPanel, FlowProperties, FlowTabBar, PanelHeader.
+3. **PR C — Rest**: LinkNode, FunctionNode, NodePalette.
 
-## Stolperfallen
+## Pitfalls
 
-1. **AppTooltip wrappt den Slot in einen Radix-`TooltipTrigger as-child`** — das funktioniert nur sauber, wenn der Slot ein DOM-Element rendert (kein Component, das mehrere Root-Elemente liefert). Bei Komponenten ohne Single-Root muss ein `<span>`/`<div>` außenrum.
-2. **VueFlow-`Handle`** funktioniert (siehe BaseNode-Outputs als Beispiel) — der Handle rendert intern ein einzelnes div und nimmt die Trigger-Props sauber an.
-3. **Touch-Geräte**: `AppTooltip` zeigt nichts auf Touch (Radix-Default). `title` zeigte immerhin auf Long-Press. Falls auf Touch wichtig, jeweils einzeln entscheiden — meist akzeptabel, weil Touch-Nutzer den Hinweis ohnehin selten brauchen (Buttons haben sichtbare Labels oder sprechende Icons).
-4. **Performance**: jeder `AppTooltip` mountet einen `TooltipProvider`. Bei vielen Tooltips in einer Liste (z.B. NodePalette mit 20+ Nodes) ggf. einen einzelnen `TooltipProvider` als Wrapper rendern und nur `TooltipRoot` pro Item. Falls relevant, kann `AppTooltip` um einen `provider="external"`-Modus erweitert werden — erst messen, ob nötig.
-5. **`title`-Attribute auf `<a>` mit URL** für externe Links: nicht migrieren, das ist der konventionelle Weg und Browser zeigen es ohne JS.
+1. **AppTooltip wraps the slot in a Radix `TooltipTrigger as-child`** — this only works cleanly when the slot renders a DOM element (no component delivering multiple root elements). For components without a single root a `<span>`/`<div>` wrapper is needed.
+2. **VueFlow `Handle`** works (see BaseNode outputs as example) — the handle internally renders a single div and accepts the trigger props cleanly.
+3. **Touch devices**: `AppTooltip` shows nothing on touch (Radix default). `title` at least showed on long-press. If important on touch, decide individually — usually acceptable, since touch users rarely need the hint anyway (buttons have visible labels or speaking icons).
+4. **Performance**: every `AppTooltip` mounts a `TooltipProvider`. With many tooltips in a list (e.g., NodePalette with 20+ nodes) consider rendering a single `TooltipProvider` as a wrapper and only `TooltipRoot` per item. If relevant, `AppTooltip` can be extended with a `provider="external"` mode — measure first whether needed.
+5. **`title` attributes on `<a>` with URL** for external links: do not migrate, that is the conventional way and browsers display it without JS.
 
-## Abhängigkeiten
+## Dependencies
 
-- `AppTooltip` unterstützt seit kurzem leeren `text` (rendert dann nur den Slot) — wichtig für optionale Tooltips. Keine weiteren API-Änderungen nötig.
-- Alle migrierten Stellen brauchen `import AppTooltip from '@/components/ui/AppTooltip.vue'`.
+- `AppTooltip` recently supports an empty `text` (then renders only the slot) — important for optional tooltips. No further API changes needed.
+- All migrated places need `import AppTooltip from '@/components/ui/AppTooltip.vue'`.
 
 ## Out of Scope
 
-- Neue Tooltip-Features (Multi-Line, Rich Content, klickbare Tooltips). Erst Migration sauber abschließen, dann separat.
-- Eine globale `tooltip`-Directive (`v-tooltip="text"`) — möglich, aber Component-Wrapping ist explizit und zwingt zur Stelle, wo der Trigger steht. Erst nach Migration evaluieren, ob die Directive Mehrwert hätte.
+- New tooltip features (multi-line, rich content, clickable tooltips). First finish the migration cleanly, then separately.
+- A global `tooltip` directive (`v-tooltip="text"`) — possible, but component wrapping is explicit and forces the spot where the trigger sits. Evaluate after migration whether the directive would add value.

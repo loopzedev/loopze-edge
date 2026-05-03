@@ -1,49 +1,49 @@
-# Plan: Benutzer-Authentifizierung (V1, Lokale Auth)
+# Plan: User Authentication (V1, Local Auth)
 
-Implementierungsplan zu [`USER_AUTH.md`](./USER_AUTH.md). Ziel: V1 mit First-Run-Setup, lokalen Usern, Rollen `admin` / `editor` / `viewer`. SSO ist explizit **nicht** Teil von V1.
+Implementation plan for [`USER_AUTH.md`](./USER_AUTH.md). Goal: V1 with first-run setup, local users, roles `admin` / `editor` / `viewer`. SSO is explicitly **not** part of V1.
 
-## Reihenfolge
+## Order
 
-Backend zuerst, danach Frontend. Innerhalb von Backend: Domäne → Persistenz → Sessions → HTTP-Schicht. So ist nach jedem Schritt etwas Lauffähiges testbar.
+Backend first, then frontend. Within backend: domain → persistence → sessions → HTTP layer. This way something runnable is testable after each step.
 
 ```
-[1] auth-Package (Domäne, Argon2)
+[1] auth package (domain, Argon2)
    ↓
-[2] UserStorage in storage-Package (users.json)
+[2] UserStorage in storage package (users.json)
    ↓
-[3] Session-Manager (NATS-KV)
+[3] Session manager (NATS-KV)
    ↓
-[4] Auth-Middleware
+[4] Auth middleware
    ↓
-[5] HTTP-Routen (setup, login, logout, me, users) + Routen-Schutz
+[5] HTTP routes (setup, login, logout, me, users) + route protection
    ↓
-[6] WebSocket-Schutz
+[6] WebSocket protection
    ↓
-[7] Frontend: Auth-Store + API-Hooks
+[7] Frontend: auth store + API hooks
    ↓
-[8] Setup-Modal
+[8] Setup modal
    ↓
-[9] Login-Modal
+[9] Login modal
    ↓
-[10] User-Verwaltungs-View
+[10] User management view
    ↓
-[11] Rollen-Gating in vorhandenen UI-Komponenten
+[11] Role gating in existing UI components
    ↓
-[12] Tests + Dev-Bypass-Flag
+[12] Tests + dev-bypass flag
 ```
 
-Nach jedem Schritt: kompilieren, Server starten, das in dem Schritt definierte „Smoke-Test"-Kriterium prüfen.
+After each step: compile, start the server, check the "smoke test" criterion defined in that step.
 
 ---
 
-## Schritt 1 — `internal/auth` Package
+## Step 1 — `internal/auth` Package
 
-**Ziel:** Domäne und Passwort-Hashing als isoliertes Package, ohne HTTP- oder Storage-Abhängigkeit.
+**Goal:** Domain and password hashing as an isolated package, without HTTP or storage dependency.
 
-**Neue Dateien:**
-- `internal/auth/types.go` — `User`, `Role` (`admin`/`editor`/`viewer`), `AuthProvider` (Konstante `local`), Validierungs-Funktionen.
-- `internal/auth/password.go` — `HashPassword(plain string) (string, error)`, `VerifyPassword(plain, hash string) bool`. **Argon2id** mit den OWASP-2024-Defaults (m=19MiB, t=2, p=1).
-- `internal/auth/store.go` — Interface `UserStore`:
+**New files:**
+- `internal/auth/types.go` — `User`, `Role` (`admin`/`editor`/`viewer`), `AuthProvider` (constant `local`), validation functions.
+- `internal/auth/password.go` — `HashPassword(plain string) (string, error)`, `VerifyPassword(plain, hash string) bool`. **Argon2id** with the OWASP 2024 defaults (m=19MiB, t=2, p=1).
+- `internal/auth/store.go` — interface `UserStore`:
   ```go
   type UserStore interface {
       Get(id string) (*User, error)
@@ -55,55 +55,55 @@ Nach jedem Schritt: kompilieren, Server starten, das in dem Schritt definierte �
   }
   ```
   Errors: `ErrUserNotFound`, `ErrUsernameTaken`, `ErrLastAdmin`.
-- `internal/auth/auth_test.go` — Hash-Roundtrip, Username-Normalisierung (case-insensitive), Validierung.
+- `internal/auth/auth_test.go` — hash roundtrip, username normalization (case-insensitive), validation.
 
-**Abhängigkeit:** `golang.org/x/crypto/argon2` (Standard-Lib unter `x/`, kein neues Major-Dependency).
+**Dependency:** `golang.org/x/crypto/argon2` (standard lib under `x/`, no new major dependency).
 
-**Smoke-Test:** `go test ./internal/auth/...` grün.
+**Smoke test:** `go test ./internal/auth/...` green.
 
 ---
 
-## Schritt 2 — UserStorage (File-Based)
+## Step 2 — UserStorage (File-Based)
 
-**Ziel:** `users.json` neben `workspace.json` und `credentials.json`.
+**Goal:** `users.json` next to `workspace.json` and `credentials.json`.
 
-**Erweiterung in `internal/storage/storage.go`:**
+**Extension in `internal/storage/storage.go`:**
 
 ```go
 type Storage interface {
-    // ... bestehend ...
+    // ... existing ...
     LoadUsers() ([]auth.User, error)
     SaveUsers(users []auth.User) error
 }
 ```
 
-`FileStorage` bekommt ein neues Feld `usersFile string`. Schreiben mit `atomicWriteFile(path, data, 0600)` — **0600**, nicht 0644, weil die Datei Argon2-Hashes enthält.
+`FileStorage` gets a new field `usersFile string`. Write with `atomicWriteFile(path, data, 0600)` — **0600**, not 0644, because the file contains Argon2 hashes.
 
-**Anpassung `internal/config/config.go`:**
-- Neuer Default `defaultUsersFile = "users.json"`
-- Neue Flag/Env: `--users-file` / `LOOPZE_USERS_FILE`
-- Neue Methode: `(c *Config) UsersFilePath() string`
+**Adjustment `internal/config/config.go`:**
+- New default `defaultUsersFile = "users.json"`
+- New flag/env: `--users-file` / `LOOPZE_USERS_FILE`
+- New method: `(c *Config) UsersFilePath() string`
 
-**Anpassung `internal/server/server.go`:**
-- `NewFileStorage(...)` bekommt zusätzlich `cfg.UsersFilePath()`.
+**Adjustment `internal/server/server.go`:**
+- `NewFileStorage(...)` additionally receives `cfg.UsersFilePath()`.
 
-**Neue Datei `internal/auth/filestore.go`:**
-- `NewFileStore(s storage.Storage) *FileStore` — implementiert `UserStore` über die Storage-Schnittstelle. Lädt einmal beim Start in eine In-Memory-Map, persistiert bei jedem Write.
-- Mutex für Concurrent-Reads (analog zu `FileStorage`).
+**New file `internal/auth/filestore.go`:**
+- `NewFileStore(s storage.Storage) *FileStore` — implements `UserStore` over the storage interface. Loads once on start into an in-memory map, persists on every write.
+- Mutex for concurrent reads (analogous to `FileStorage`).
 
-**Smoke-Test:** Server startet, leere `users.json` wird angelegt sobald der erste User geschrieben wird (kein Pre-Touch nötig).
+**Smoke test:** Server starts, an empty `users.json` is created as soon as the first user is written (no pre-touch needed).
 
 ---
 
-## Schritt 3 — Session-Manager (NATS-KV)
+## Step 3 — Session Manager (NATS-KV)
 
-**Ziel:** Session-Persistenz mit TTL, kein eigener State-Daemon.
+**Goal:** Session persistence with TTL, no separate state daemon.
 
-**Neue Datei `internal/auth/session.go`:**
+**New file `internal/auth/session.go`:**
 
 ```go
 type Session struct {
-    ID        string    // ULID, in Cookie
+    ID        string    // ULID, in cookie
     UserID    string
     CreatedAt time.Time
     ExpiresAt time.Time
@@ -115,84 +115,84 @@ func (s *SessionManager) Create(userID string) (*Session, error)
 func (s *SessionManager) Get(id string) (*Session, error)
 func (s *SessionManager) Refresh(id string) error  // sliding window
 func (s *SessionManager) Delete(id string) error
-func (s *SessionManager) DeleteAllForUser(userID string) error  // nach Disable / PW-Reset
+func (s *SessionManager) DeleteAllForUser(userID string) error  // after disable / pw reset
 ```
 
-**Speicherung:** NATS-JetStream-KV-Bucket `auth-sessions` mit TTL = 12 h. `Refresh` schreibt den gleichen Eintrag mit erneuertem TTL — JetStream-KV unterstützt MaxAge pro Bucket; pro Eintrag triggert jeder Write den TTL-Reset (siehe `internal/nats/context_store.go` für das KV-Muster, das wir schon nutzen).
+**Storage:** NATS JetStream KV bucket `auth-sessions` with TTL = 12 h. `Refresh` writes the same entry with renewed TTL — JetStream KV supports MaxAge per bucket; per entry every write triggers a TTL reset (see `internal/nats/context_store.go` for the KV pattern we already use).
 
-**Cookie-Signing:** Session-IDs werden HMAC-SHA256 signiert; Schlüssel aus `data/loopze.session.key`. Neue Datei `internal/auth/sessionkey.go` mit `EnsureSessionKey(path string) ([]byte, error)` — analog zu `credentials.EnsureKeyFile`.
+**Cookie signing:** Session IDs are HMAC-SHA256 signed; key from `data/loopze.session.key`. New file `internal/auth/sessionkey.go` with `EnsureSessionKey(path string) ([]byte, error)` — analogous to `credentials.EnsureKeyFile`.
 
-**Wiring im `Broker`:** Neue Methode `(*Broker).SetupSessionKV(ctx) (jetstream.KeyValue, error)` in `internal/nats/broker.go`. In `server.Start()` aufrufen, das Ergebnis an den `SessionManager` geben.
+**Wiring in `Broker`:** New method `(*Broker).SetupSessionKV(ctx) (jetstream.KeyValue, error)` in `internal/nats/broker.go`. Called in `server.Start()`, the result passed to the `SessionManager`.
 
-**Smoke-Test:** Server startet, Bucket wird angelegt, `nats kv ls` zeigt `auth-sessions`.
+**Smoke test:** Server starts, bucket is created, `nats kv ls` shows `auth-sessions`.
 
 ---
 
-## Schritt 4 — Auth-Middleware
+## Step 4 — Auth Middleware
 
-**Ziel:** Ein Chi-Middleware-Stück, das Requests gegen Sessions+Rollen prüft.
+**Goal:** A single chi middleware piece that checks requests against sessions+roles.
 
-**Neue Datei `internal/auth/middleware.go`:**
+**New file `internal/auth/middleware.go`:**
 
 ```go
 type ctxKey int
 const userCtxKey ctxKey = 0
 
-func WithUser(r *http.Request) (*User, bool)  // helper für Handler
+func WithUser(r *http.Request) (*User, bool)  // helper for handlers
 
-func RequireRole(min Role) func(http.Handler) http.Handler  // 401 wenn keine Session, 403 wenn Rolle zu niedrig
-func RequireSetupComplete(...) func(http.Handler) http.Handler  // 503 im Setup-Modus
+func RequireRole(min Role) func(http.Handler) http.Handler  // 401 if no session, 403 if role too low
+func RequireSetupComplete(...) func(http.Handler) http.Handler  // 503 in setup mode
 ```
 
-**Rollen-Vergleich:** `Role` ist eine `string`, aber intern wird `RoleRank(r) int` (`viewer=1, editor=2, admin=3`) für den `>=`-Vergleich verwendet. Bewusst flach trotz der „nicht hierarchisch"-Aussage im Issue: Implementierungs-seitig ist *Rang-basiert* einfacher, das Mapping bleibt einfach (`admin >= editor >= viewer`). Das Issue meinte: keine getrennten Permissions, keine ACL-Listen — und das gilt weiterhin.
+**Role comparison:** `Role` is a `string`, but internally `RoleRank(r) int` (`viewer=1, editor=2, admin=3`) is used for the `>=` comparison. Deliberately flat despite the "not hierarchical" statement in the issue: implementation-wise *rank-based* is simpler, the mapping stays simple (`admin >= editor >= viewer`). The issue meant: no separate permissions, no ACL lists — and that still holds.
 
-**Smoke-Test:** Unit-Tests für jede Rang-Kombination + Setup-Modus.
+**Smoke test:** Unit tests for every rank combination + setup mode.
 
 ---
 
-## Schritt 5 — HTTP-Routen + Schutz bestehender Routen
+## Step 5 — HTTP Routes + Protection of Existing Routes
 
-**Neue Datei `internal/api/auth_handlers.go`:**
+**New file `internal/api/auth_handlers.go`:**
 
-| Route | Handler | Body | Antwort |
+| Route | Handler | Body | Response |
 |---|---|---|---|
-| `POST /api/v1/setup` | `handleSetup` | `{ username, password }` | `201 { user }` oder `409` |
-| `POST /api/v1/auth/login` | `handleLogin` | `{ username, password }` | `200 { user }` + Cookie oder `401` |
+| `POST /api/v1/setup` | `handleSetup` | `{ username, password }` | `201 { user }` or `409` |
+| `POST /api/v1/auth/login` | `handleLogin` | `{ username, password }` | `200 { user }` + cookie or `401` |
 | `POST /api/v1/auth/logout` | `handleLogout` | – | `204` |
-| `GET /api/v1/auth/me` | `handleMe` | – | `200 { user }` oder `401` |
+| `GET /api/v1/auth/me` | `handleMe` | – | `200 { user }` or `401` |
 
-**Neue Datei `internal/api/user_handlers.go`:**
+**New file `internal/api/user_handlers.go`:**
 
-| Route | Mindestrolle | Body / Antwort |
+| Route | Minimum role | Body / Response |
 |---|---|---|
 | `GET /api/v1/users` | admin | `200 { users: [...] }` |
 | `POST /api/v1/users` | admin | `{ username, password, role }` → `201 { user }` |
 | `PATCH /api/v1/users/{id}` | admin | `{ role?, disabled? }` |
 | `POST /api/v1/users/{id}/password` | admin | `{ password }` |
 
-`/users/{id}/password` invalidiert Sessions des Ziel-Users (`SessionManager.DeleteAllForUser`).
+`/users/{id}/password` invalidates sessions of the target user (`SessionManager.DeleteAllForUser`).
 
-**Erweiterung `Deps`:**
+**Extension `Deps`:**
 ```go
 type Deps struct {
-    // ... bestehend ...
+    // ... existing ...
     Users    auth.UserStore
     Sessions *auth.SessionManager
-    Setup    *auth.SetupGuard  // ein-Schuss-Lock für Setup
+    Setup    *auth.SetupGuard  // one-shot lock for setup
 }
 ```
 
-**`internal/api/routes.go`** — Routen-Schutz mit der Middleware:
+**`internal/api/routes.go`** — route protection with the middleware:
 
 ```go
 r.Group(func(r chi.Router) {
-    r.Use(deps.RequireSetupComplete())  // alles außer /setup, /auth/*
+    r.Use(deps.RequireSetupComplete())  // everything except /setup, /auth/*
 
     r.Group(func(r chi.Router) {
         r.Use(deps.RequireRole(auth.RoleViewer))
         r.Get("/flows", deps.handleGetFlows)
         r.Get("/nodes", deps.handleGetNodes)
-        // … alle GETs
+        // … all GETs
     })
 
     r.Group(func(r chi.Router) {
@@ -208,35 +208,35 @@ r.Group(func(r chi.Router) {
     })
 })
 
-// offene Routen (außerhalb der Setup-Gate):
+// open routes (outside the setup gate):
 r.Post("/setup", deps.handleSetup)
 r.Post("/auth/login", deps.handleLogin)
 r.Post("/auth/logout", deps.handleLogout)
 r.Get("/auth/me", deps.handleMe)
 ```
 
-**Login-Cookie:**
+**Login cookie:**
 - Name: `loopze_session`
-- HttpOnly, Secure (per Default; `auth.requireSecureCookies = false` per Env zum Abschalten in Dev), SameSite=Lax
+- HttpOnly, Secure (by default; `auth.requireSecureCookies = false` via env to disable in dev), SameSite=Lax
 - Path `/`
-- MaxAge = 12 h (ohne `Expires` → Browser hält bei Window-Close, sliding-Window passiert serverseitig)
+- MaxAge = 12 h (without `Expires` → browser keeps it until window close, sliding window happens server-side)
 
-**Brute-Force-Schutz:** `internal/auth/throttle.go` — In-Memory-Map `map[username]struct{ failures int; until time.Time }`, Mutex-geschützt. 5 Fehler in 15 min → Lock auf weitere 15 min. Map wird beim Restart geleert (akzeptiert; Brute-Force über Restarts hinweg ist kein realistisches Bedrohungsmodell für eine On-Prem-Instanz).
+**Brute-force protection:** `internal/auth/throttle.go` — in-memory map `map[username]struct{ failures int; until time.Time }`, mutex-guarded. 5 failures in 15 min → lock for another 15 min. Map is cleared on restart (accepted; brute-force across restarts is not a realistic threat model for an on-prem instance).
 
-**Smoke-Test:**
-- `curl /api/v1/flows` ohne Setup → 503
+**Smoke test:**
+- `curl /api/v1/flows` without setup → 503
 - `curl -X POST /api/v1/setup -d '{"username":"admin","password":"hunter22"}'` → 201
-- `curl -X POST /api/v1/auth/login ...` → 200 mit Set-Cookie
+- `curl -X POST /api/v1/auth/login ...` → 200 with Set-Cookie
 - `curl --cookie ... /api/v1/flows` → 200
-- 2. Setup-Aufruf → 409
+- 2nd setup call → 409
 
 ---
 
-## Schritt 6 — WebSocket-Schutz
+## Step 6 — WebSocket Protection
 
-**Anpassung `internal/ws/hub.go`:**
+**Adjustment `internal/ws/hub.go`:**
 
-`ServeWS` bekommt eine optionale Auth-Funktion injiziert (Server-Setup):
+`ServeWS` gets an optional auth function injected (server setup):
 
 ```go
 type AuthFunc func(*http.Request) (*auth.User, error)
@@ -248,22 +248,22 @@ func (h *Hub) ServeWSAuthed(authFn AuthFunc) http.HandlerFunc {
             http.Error(w, "unauthorized", http.StatusUnauthorized)
             return
         }
-        // bestehender Upgrade-Code, plus user in Client speichern
+        // existing upgrade code, plus store user in client
     }
 }
 ```
 
-Der `Client` bekommt ein Feld `userID string` (für späteres Audit / Per-User-Filter — V1 nur logging).
+The `Client` gets a field `userID string` (for later audit / per-user filter — V1 only logging).
 
-**Session-Ablauf-Termination:** Der `SessionManager` veröffentlicht beim `Delete`/`DeleteAllForUser` ein NATS-Event `auth.session.deleted` mit `{ sessionID, userID }`. Der Hub abonniert das und schließt alle Clients mit passender `userID`. So funktioniert Logout sofort über alle offenen Tabs hinweg.
+**Session expiration termination:** The `SessionManager` publishes a NATS event `auth.session.deleted` with `{ sessionID, userID }` on `Delete`/`DeleteAllForUser`. The hub subscribes to it and closes all clients with the matching `userID`. This way logout works immediately across all open tabs.
 
-**Smoke-Test:** WS-Verbindung ohne Cookie → 401. WS-Verbindung mit gültigem Cookie → connect. Logout → WS schließt sich serverseitig.
+**Smoke test:** WS connection without cookie → 401. WS connection with valid cookie → connect. Logout → WS closes server-side.
 
 ---
 
-## Schritt 7 — Frontend Auth-Store
+## Step 7 — Frontend Auth Store
 
-**Neue Datei `frontend/src/stores/authStore.ts`** (Pinia, analog zu den bestehenden Stores):
+**New file `frontend/src/stores/authStore.ts`** (Pinia, analogous to the existing stores):
 
 ```ts
 state: () => ({
@@ -272,7 +272,7 @@ state: () => ({
   needsSetup: false,
 })
 actions:
-  init()       // GET /auth/me → user; bei 503 → needsSetup=true; bei 401 → user=null
+  init()       // GET /auth/me → user; on 503 → needsSetup=true; on 401 → user=null
   setup(...)   // POST /setup → init()
   login(...)   // POST /auth/login → init()
   logout()     // POST /auth/logout → user=null
@@ -280,119 +280,119 @@ getters:
   isAuthenticated, role, can(action) // 'deploy'|'inject'|'manageUsers'|...
 ```
 
-**Erweiterung `useApi.ts`:** `request<T>` interpretiert `401` zentral — setzt `authStore.user = null`, damit Login-Modal automatisch erscheint.
+**Extension `useApi.ts`:** `request<T>` interprets `401` centrally — sets `authStore.user = null` so the login modal appears automatically.
 
-**App.vue:** ruft beim Mounten `authStore.init()` auf und blockiert das Rendern des Editor-Inhalts, bis `authStore.loading === false`. Je nach State:
+**App.vue:** calls `authStore.init()` on mount and blocks the rendering of the editor content until `authStore.loading === false`. Depending on state:
 - `needsSetup` → `<SetupModal>`
 - `!user` → `<LoginModal>`
-- sonst → bestehender Editor
+- otherwise → existing editor
 
-**Smoke-Test:** Frontend-Build läuft, `/auth/me` wird beim Page-Load gerufen.
-
----
-
-## Schritt 8 — Setup-Modal
-
-**Neue Datei `frontend/src/components/auth/SetupModal.vue`:**
-- Username, Passwort, Passwort-Wiederholung, Submit-Button
-- Mindestlänge 8, Live-Validierung
-- Bei Erfolg: automatisch `authStore.login(...)` mit denselben Daten (vom Setup-Endpoint zurückkommendes `user`-Objekt reicht; wir lösen den Login direkt nach Setup im Backend mit aus → spart einen Roundtrip; setzt das Cookie sofort).
-
-**Backend-Anpassung:** `handleSetup` setzt direkt nach Anlage des Admin auch ein Session-Cookie. Begründung: ein direkt anschließender separater Login-Call kann durch eine Race mit dem Setup-Lock fehlschlagen, und der UX-Vorteil ist klar.
-
-**Smoke-Test:** Auf leerer Datenbasis startet das UI mit dem Modal, nach Submit landet der User im Editor.
+**Smoke test:** Frontend build runs, `/auth/me` is called on page load.
 
 ---
 
-## Schritt 9 — Login-Modal
+## Step 8 — Setup Modal
 
-**Neue Datei `frontend/src/components/auth/LoginModal.vue`:**
-- Username, Passwort
-- Fehleranzeige für `401` und `429` (Rate-Limit)
-- Optional ausgeblendete Sektion „Login mit ..." als Vorbereitung für SSO (V1: leer, kein Code)
+**New file `frontend/src/components/auth/SetupModal.vue`:**
+- Username, password, password confirmation, submit button
+- Minimum length 8, live validation
+- On success: automatically `authStore.login(...)` with the same data (the `user` object returned from the setup endpoint is sufficient; we trigger the login directly after setup in the backend → saves a roundtrip; sets the cookie immediately).
 
-**Smoke-Test:** Falsches Passwort → Fehlermeldung. Korrektes → Editor lädt.
+**Backend adjustment:** `handleSetup` sets a session cookie directly after creating the admin. Rationale: a directly following separate login call could fail due to a race with the setup lock, and the UX advantage is clear.
 
----
-
-## Schritt 10 — User-Verwaltung-View
-
-**Neue Datei `frontend/src/views/UsersView.vue`** + Route `/users` in `frontend/src/router/index.ts` (mit Route-Guard: nur sichtbar wenn `authStore.role === 'admin'`).
-
-**Komponenten:**
-- Tabelle: Username, Rolle (Dropdown zum Ändern), Status (Toggle), Auth-Provider, Aktionen (Passwort setzen)
-- „Neuer User"-Dialog: Username, Passwort, Rolle (`editor` / `viewer`; `admin` nur per separatem Klick mit Bestätigung)
-- „Passwort setzen"-Dialog pro Zeile
-- „Deaktivieren"-Toggle pro Zeile
-
-**Header-Eintrag:** In `HeaderBar.vue` einen Link „Users" einblenden, wenn `can('manageUsers')`.
-
-**Smoke-Test:** Als Admin: User anlegen, deaktivieren, Passwort setzen, Rolle ändern. Als letzter Admin → Versuch sich selbst zu deaktivieren wird mit `409` abgelehnt und im UI als Fehler gezeigt.
+**Smoke test:** On an empty database the UI starts with the modal, after submit the user lands in the editor.
 
 ---
 
-## Schritt 11 — Rollen-Gating in vorhandenen Komponenten
+## Step 9 — Login Modal
 
-**Anpassungen** (Liste, jeweils mit `v-if="authStore.can('...')"`):
-- `HeaderBar.vue` — Deploy-Button: `can('deploy')`
-- `NodePalette.vue` — Drag-out und Edit-Modus: `can('deploy')` (Viewer kann Flows ansehen, aber nicht modifizieren)
-- `FlowProperties.vue` — Editieren der Felder: `can('deploy')`
-- `PropertyPanel.vue` — Inputs `disabled` wenn nicht `can('deploy')`
-- `ContextPanel.vue` — Delete-Buttons: `can('deploy')` (Editor löscht; Viewer sieht read-only)
-- Inject-Node-Trigger im Canvas: `can('inject')`
+**New file `frontend/src/components/auth/LoginModal.vue`:**
+- Username, password
+- Error display for `401` and `429` (rate limit)
+- Optionally hidden section "Login with ..." as preparation for SSO (V1: empty, no code)
 
-**Wichtig:** UI-Gating ist Zucker. Die Backend-Routen sind die Sicherheitslinie.
-
-**Smoke-Test:** Mit Viewer-User einloggen — keine Deploy-/Inject-/Delete-Buttons sichtbar.
+**Smoke test:** Wrong password → error message. Correct → editor loads.
 
 ---
 
-## Schritt 12 — Tests, Doku, Dev-Bypass
+## Step 10 — User Management View
 
-**Backend-Tests** (in den jeweiligen Packages):
-- `internal/auth/password_test.go` — Roundtrip, Tampering
-- `internal/auth/store_test.go` — CRUD, last-admin-Schutz, Username-Eindeutigkeit
-- `internal/auth/middleware_test.go` — alle Rang-Kombinationen × Setup-Modus
-- `internal/api/auth_handlers_test.go` — Setup-Idempotenz, Login-Cookie, Logout, Throttle
-- `internal/api/user_handlers_test.go` — Rollen-Enforcement-Matrix (Tabellen-Tests)
+**New file `frontend/src/views/UsersView.vue`** + route `/users` in `frontend/src/router/index.ts` (with route guard: only visible when `authStore.role === 'admin'`).
 
-**Dev-Bypass:**
-- Env-Variable `LOOPZE_DISABLE_AUTH=1` → Middleware lässt alles durch und injiziert einen virtuellen `dev-admin`-User in den Context. Bei Server-Start: dicker `slog.Warn` mit Banner.
-- Implementiert in der Middleware als erste Prüfung, vor Cookie-Lookup.
+**Components:**
+- Table: username, role (dropdown to change), status (toggle), auth provider, actions (set password)
+- "New user" dialog: username, password, role (`editor` / `viewer`; `admin` only via separate click with confirmation)
+- "Set password" dialog per row
+- "Disable" toggle per row
 
-**Doku-Update:**
-- `PLANNING.md` — Auth-Block ergänzen, Status `🚧 In Arbeit` / dann `✅ Fertig`
-- `README.md` — Setup-Hinweis: „Nach erstem Start: Browser öffnen → Admin anlegen"
-- *Kein* eigenes Auth-Doku-File. Das Issue + Plan in `docs/issues/` reichen, Code ist selbst-dokumentierend.
+**Header entry:** In `HeaderBar.vue` show a link "Users" when `can('manageUsers')`.
 
-**Smoke-Test:** Vollständiger Durchlauf:
+**Smoke test:** As admin: create user, disable, set password, change role. As the last admin → an attempt to disable yourself is rejected with `409` and shown as an error in the UI.
+
+---
+
+## Step 11 — Role Gating in Existing Components
+
+**Adjustments** (list, each with `v-if="authStore.can('...')"`):
+- `HeaderBar.vue` — Deploy button: `can('deploy')`
+- `NodePalette.vue` — drag-out and edit mode: `can('deploy')` (viewer can view flows but not modify)
+- `FlowProperties.vue` — editing the fields: `can('deploy')`
+- `PropertyPanel.vue` — inputs `disabled` when not `can('deploy')`
+- `ContextPanel.vue` — Delete buttons: `can('deploy')` (editor deletes; viewer sees read-only)
+- Inject node trigger in the canvas: `can('inject')`
+
+**Important:** UI gating is sugar. The backend routes are the security line.
+
+**Smoke test:** Log in with viewer user — no Deploy/Inject/Delete buttons visible.
+
+---
+
+## Step 12 — Tests, Docs, Dev Bypass
+
+**Backend tests** (in the respective packages):
+- `internal/auth/password_test.go` — roundtrip, tampering
+- `internal/auth/store_test.go` — CRUD, last-admin protection, username uniqueness
+- `internal/auth/middleware_test.go` — all rank combinations × setup mode
+- `internal/api/auth_handlers_test.go` — setup idempotency, login cookie, logout, throttle
+- `internal/api/user_handlers_test.go` — role enforcement matrix (table tests)
+
+**Dev bypass:**
+- Env variable `LOOPZE_DISABLE_AUTH=1` → middleware lets everything through and injects a virtual `dev-admin` user into the context. On server start: bold `slog.Warn` with banner.
+- Implemented in the middleware as the first check, before cookie lookup.
+
+**Doc update:**
+- `PLANNING.md` — add auth block, status `🚧 In Progress` / then `✅ Done`
+- `README.md` — setup hint: "After first start: open browser → create admin"
+- *No* dedicated auth doc file. The issue + plan in `docs/issues/` are enough, code is self-documenting.
+
+**Smoke test:** Full run-through:
 1. `rm -rf data/`
-2. Server starten
-3. Browser → Setup-Modal → Admin anlegen
-4. Editor lädt mit Admin-Berechtigungen
-5. Users-View → Editor- und Viewer-User anlegen
-6. Logout → Login als Editor → keine Users-View
-7. Logout → Login als Viewer → keine Deploy-/Inject-Buttons
+2. Start server
+3. Browser → setup modal → create admin
+4. Editor loads with admin permissions
+5. Users view → create editor and viewer users
+6. Logout → log in as editor → no users view
+7. Logout → log in as viewer → no Deploy/Inject buttons
 
 ---
 
-## Migrations-Hinweise
+## Migration Notes
 
-Bestehende Installationen (mit `workspace.json`, aber ohne `users.json`) landen beim ersten Start mit dieser Version automatisch im **Setup-Modus** — der vorhandene Workspace wird dabei *nicht* gelöscht; er wird einfach erst freigegeben, sobald der Admin angelegt ist und sich eingeloggt hat. Backups-Hinweis im README ergänzen.
+Existing installations (with `workspace.json` but without `users.json`) automatically land in **setup mode** on first start with this version — the existing workspace is *not* deleted; it simply remains gated until the admin is created and logged in. Add a backups note in the README.
 
-## Was bewusst weggelassen wurde
+## What Was Deliberately Left Out
 
-- **Custom Roles, Permissions** → nur drei Rollen, fertig.
-- **Email-basiertes Passwort-Reset** → Admin setzt out-of-band, Self-Service ist V2.
-- **2FA / TOTP** → V2 oder mit SSO.
-- **Audit-Log** → eigenes Issue, separat.
-- **CSRF-Token** → wir setzen `SameSite=Lax`. Für lokale Editor-Nutzung (gleicher Origin, kein Embedding) reicht das. Wenn LOOPZE später per `<iframe>` eingebettet werden soll, kommt CSRF separat.
-- **JWT** → siehe Issue, bewusst nicht.
+- **Custom roles, permissions** → only three roles, done.
+- **Email-based password reset** → admin sets out-of-band, self-service is V2.
+- **2FA / TOTP** → V2 or with SSO.
+- **Audit log** → separate issue, on its own.
+- **CSRF token** → we set `SameSite=Lax`. For local editor use (same origin, no embedding) that is sufficient. If LOOPZE is later to be embedded via `<iframe>`, CSRF comes separately.
+- **JWT** → see issue, deliberately not.
 
-## Geschätzte Größe
+## Estimated Size
 
-Pi mal Daumen, ohne Garantien:
-- Backend: ~800 LOC inkl. Tests
+Rough thumb, no guarantees:
+- Backend: ~800 LOC incl. tests
 - Frontend: ~600 LOC
 
-Nach Bestätigung des Plans → Schritt 1 starten.
+After confirmation of the plan → start step 1.

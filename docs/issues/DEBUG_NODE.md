@@ -1,17 +1,17 @@
-# Issue: Debug Node – ON/OFF State Persistierung & Backend-Logik
+# Issue: Debug Node – ON/OFF State Persistence & Backend Logic
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem Description
 
-Der Debug Node besitzt ausgangsseitig einen rastenden Toggle-Taster (ON/OFF). Aktuell ist dieser Zustand nur lokal im Vue-Component (`enabled = ref(true)`) gespeichert und geht beim Neuladen des Browsers verloren. Der Zustand muss in `workspace.json` über das `config.active`-Feld des Nodes persistiert werden.
+The Debug node has a latching toggle button (ON/OFF) on its output side. Currently this state is only stored locally in the Vue component (`enabled = ref(true)`) and is lost when the browser is reloaded. The state must be persisted in `workspace.json` via the node's `config.active` field.
 
-## Anforderungen
+## Requirements
 
-### 1. Persistierung in workspace.json
+### 1. Persistence in workspace.json
 
-- Der ON/OFF-Zustand wird im Node-Config-Feld `active` (boolean) abgebildet
-- Beispiel workspace.json Struktur:
+- The ON/OFF state is mapped in the node config field `active` (boolean)
+- Example workspace.json structure:
   ```json
   {
     "id": "node-uuid",
@@ -22,93 +22,93 @@ Der Debug Node besitzt ausgangsseitig einen rastenden Toggle-Taster (ON/OFF). Ak
     }
   }
   ```
-- Default-Wert bei fehlendem Feld: `true` (ON)
+- Default value when the field is missing: `true` (ON)
 
-### 2. Toggle → Dirty → Deploy Zyklus
+### 2. Toggle → Dirty → Deploy Cycle
 
-- Wird der Toggle-Taster betätigt, ändert sich `config.active` im Frontend-State
-- Die Änderung markiert den Node als **dirty** (`flowStore.markNodeDirty(nodeId)`)
-- Der blaue Dirty-Indicator wird am Node angezeigt
-- Erst mit **Deploy** wird der geänderte Zustand in `workspace.json` geschrieben
-- Nach erfolgreichem Deploy wird der Dirty-State zurückgesetzt
+- When the toggle button is pressed, `config.active` changes in the frontend state
+- The change marks the node as **dirty** (`flowStore.markNodeDirty(nodeId)`)
+- The blue dirty indicator is shown on the node
+- Only on **deploy** is the changed state written to `workspace.json`
+- After a successful deploy the dirty state is reset
 
-### 3. Initialer Zustand beim Laden
+### 3. Initial State on Load
 
-- Beim Öffnen von LOOPZE im Browser wird `config.active` aus den geladenen Flow-Daten gelesen
-- Der Toggle-Taster zeigt den gespeicherten Zustand korrekt an (ON/OFF)
-- Wurde noch nie deployed, gilt der Default `active: true`
+- When LOOPZE is opened in the browser, `config.active` is read from the loaded flow data
+- The toggle button shows the persisted state correctly (ON/OFF)
+- If never deployed, the default `active: true` applies
 
-### 4. Frontend-Filterung mit Dirty-State
+### 4. Frontend Filtering with Dirty State
 
-- Die Filterung passiert **beim Eingang** neuer Nachrichten im Frontend (`addMessage`), nicht retroaktiv auf der bestehenden Liste
-- Nachrichten die bereits in der Debug-Liste stehen **bleiben bei Filteränderung erhalten**
-- Wird ein Debug Node deaktiviert, werden nur **neue** eingehende Nachrichten dieses Nodes verworfen
-- Wird ein Debug Node wieder aktiviert, erscheinen ab sofort wieder neue Nachrichten in der Liste
-- Dabei greift der **aktuelle Toggle-State des Frontends**, auch wenn dieser dirty (noch nicht deployed) ist
-- Der Bediener kann Debug Nodes sofort aktivieren/deaktivieren ohne vorher deployen zu müssen
-- Erst das Persistieren des Zustands erfordert ein Deploy – die Eingangs-Filterung wirkt sofort
+- Filtering happens **on incoming** new messages in the frontend (`addMessage`), not retroactively on the existing list
+- Messages that are already in the debug list **remain when the filter changes**
+- When a Debug node is deactivated, only **new** incoming messages of this node are dropped
+- When a Debug node is reactivated, new messages appear in the list again from that point on
+- The **current toggle state of the frontend** applies, even if it is dirty (not yet deployed)
+- The operator can activate/deactivate Debug nodes immediately without having to deploy first
+- Only persisting the state requires a deploy – the input filtering takes effect immediately
 
-### 5. Backend-Logik: Debug Stream
+### 5. Backend Logic: Debug Stream
 
-- Der Debug Node streamt **immer** in den DEBUG Stream – unabhängig davon ob `active` true oder false ist
-- Das Backend ignoriert den `active`-State bei der Nachrichtenverarbeitung: jede eingehende Message wird über `DebugFunc` in den NATS-Subject `debug.{flowId}.{nodeId}` publiziert
-- **Die Filterung (anzeigen/unterdrücken) findet ausschließlich im Frontend statt**, nicht im Backend
+- The Debug node **always** streams to the DEBUG stream – regardless of whether `active` is true or false
+- The backend ignores the `active` state during message processing: every incoming message is published via `DebugFunc` to the NATS subject `debug.{flowId}.{nodeId}`
+- **Filtering (show/suppress) happens exclusively in the frontend**, not in the backend
 
-### 6. Architektur-Entscheidung: Immer streamen vs. Subscription anpassen
+### 6. Architecture Decision: Always Stream vs. Adjust Subscription
 
-**Zwei Optionen wurden abgewogen:**
+**Two options were weighed:**
 
-| | Option A: Immer streamen, Frontend filtert | Option B: Frontend passt Subscriptions an |
+| | Option A: Always stream, frontend filters | Option B: Frontend adjusts subscriptions |
 |---|---|---|
-| **Prinzip** | Backend publiziert alle Debug-Messages, Frontend blendet deaktivierte Nodes aus | Frontend subscribed/unsubscribed pro Debug Node bei Toggle-Änderung |
-| **Latenz beim Toggle** | Sofort – reine UI-Filterung | Verzögerung durch Subscribe/Unsubscribe Roundtrip |
-| **Dirty-State Kompatibilität** | Trivial – Frontend kennt den lokalen State und filtert direkt | Komplex – Subscription-Änderung ohne Deploy erfordert separaten Signalweg zum WebSocket-Layer |
-| **Nachrichtenverlust** | Keiner – Stream läuft durchgehend | Möglich – Messages während Unsubscribe/Subscribe-Transition gehen verloren |
-| **Traffic** | Etwas mehr – auch deaktivierte Nodes senden | Weniger – nur aktive Nodes senden |
-| **Komplexität** | Gering – keine Subscription-Verwaltung | Hoch – Subscription-State muss synchron zu Toggle-State gehalten werden |
+| **Principle** | Backend publishes all debug messages, frontend hides deactivated nodes | Frontend subscribes/unsubscribes per Debug node on toggle change |
+| **Latency on toggle** | Immediate – pure UI filtering | Delay due to subscribe/unsubscribe roundtrip |
+| **Dirty-state compatibility** | Trivial – frontend knows the local state and filters directly | Complex – subscription change without deploy requires a separate signal path to the WebSocket layer |
+| **Message loss** | None – stream runs continuously | Possible – messages during the unsubscribe/subscribe transition are lost |
+| **Traffic** | Slightly more – deactivated nodes also send | Less – only active nodes send |
+| **Complexity** | Low – no subscription management | High – subscription state must be kept in sync with toggle state |
 
-**Entscheidung: Option A – Immer streamen, Frontend filtert**
+**Decision: Option A – always stream, frontend filters**
 
-Begründung:
-- Debug-Nachrichten sind klein und typischerweise low-volume
-- Der Toggle muss **sofort** wirken, auch im Dirty-State ohne Deploy – das schließt Subscription-Management praktisch aus
-- Keine Race Conditions oder Nachrichtenverlust bei schnellem Hin- und Herschalten
-- Deutlich weniger Komplexität im gesamten Stack
+Rationale:
+- Debug messages are small and typically low-volume
+- The toggle must take effect **immediately**, even in the dirty state without deploy – this practically rules out subscription management
+- No race conditions or message loss when toggling rapidly back and forth
+- Significantly less complexity across the entire stack
 
-### 7. Debug-Ausgabe konfigurieren
+### 7. Configuring the Debug Output
 
-Der Bediener kann im Properties-Panel konfigurieren, **welche Informationen** aus der Nachricht in den Debug geschrieben werden und **welcher Inhalt als Node-Status** angezeigt wird.
+The operator can configure in the properties panel **which information** from the message is written into the debug, and **which content is shown as the node status**.
 
-#### Debug-Ausgabe (`output`)
+#### Debug Output (`output`)
 
-Dropdown-Feld **"Ausgabe"** mit folgenden Optionen:
+Dropdown field **"Output"** with the following options:
 
-| Wert | Label | Beschreibung |
+| Value | Label | Description |
 |---|---|---|
-| `property` | `msg.` (+ Eingabefeld) | Gibt ein einzelnes Property der Message aus (Default: `payload`) |
-| `message` | Kompletten Nachrichten-Objekt | Gibt die gesamte `msg` als JSON aus |
-| `gjson` | GJSON | Wertet einen GJSON-Pfadausdruck auf der Message aus |
+| `property` | `msg.` (+ input field) | Outputs a single property of the message (default: `payload`) |
+| `message` | Complete message object | Outputs the entire `msg` as JSON |
+| `gjson` | GJSON | Evaluates a GJSON path expression on the message |
 
-- Bei `property`: zusätzliches Textfeld für den Property-Pfad (z.B. `payload`, `topic`, `payload.temperature`)
-- Bei `gjson`: zusätzliches Textfeld für den GJSON-Ausdruck (z.B. `payload.items.#`, `payload.items.0.name`)
-- Default: `property` mit Wert `payload`
+- For `property`: additional text field for the property path (e.g. `payload`, `topic`, `payload.temperature`)
+- For `gjson`: additional text field for the GJSON expression (e.g. `payload.items.#`, `payload.items.0.name`)
+- Default: `property` with value `payload`
 
-#### Node-Status (`statusOutput`)
+#### Node Status (`statusOutput`)
 
-Checkbox **"Node-Status"** (max. 32 Zeichen) mit zugehörigem Dropdown:
+Checkbox **"Node status"** (max. 32 chars) with associated dropdown:
 
-| Wert | Label | Beschreibung |
+| Value | Label | Description |
 |---|---|---|
-| `same` | Identisch mit Debug-Ausgabe | Zeigt denselben Inhalt wie die Debug-Ausgabe als Status an |
-| `property` | `msg.` (+ Eingabefeld) | Zeigt ein spezifisches Property als Status an |
-| `gjson` | GJSON | Wertet einen GJSON-Pfadausdruck aus und zeigt das Ergebnis als Status |
-| `count` | message count | Zeigt die Anzahl empfangener Nachrichten als Status |
+| `same` | Identical to debug output | Shows the same content as the debug output as status |
+| `property` | `msg.` (+ input field) | Shows a specific property as status |
+| `gjson` | GJSON | Evaluates a GJSON path expression and shows the result as status |
+| `count` | message count | Shows the number of received messages as status |
 
-- Node-Status ist optional (Checkbox aktiviert/deaktiviert die Anzeige)
-- Der Status-Text wird auf **max. 32 Zeichen** gekürzt
-- Default: deaktiviert
+- Node status is optional (checkbox enables/disables the display)
+- The status text is truncated to **max. 32 chars**
+- Default: disabled
 
-#### Config-Struktur in workspace.json
+#### Config Structure in workspace.json
 
 ```json
 {
@@ -125,128 +125,128 @@ Checkbox **"Node-Status"** (max. 32 Zeichen) mit zugehörigem Dropdown:
 }
 ```
 
-## Betroffene Dateien
+## Affected Files
 
 ### Frontend
-- `frontend/src/components/nodes/DebugNode.vue` – Toggle-State aus Config lesen, bei Toggle Config ändern + dirty markieren
-- `frontend/src/stores/flowStore.ts` – Node-Config-Update und Dirty-Tracking
-- `frontend/src/stores/debugStore.ts` – Filterung der Debug-Messages basierend auf aktuellem Toggle-State (inkl. dirty)
+- `frontend/src/components/nodes/DebugNode.vue` – read toggle state from config, on toggle change config + mark dirty
+- `frontend/src/stores/flowStore.ts` – node config update and dirty tracking
+- `frontend/src/stores/debugStore.ts` – filter the debug messages based on the current toggle state (incl. dirty)
 
 ### Backend
-- `internal/nodes/debug.go` – `active`-Feld aus Config lesen, aber Nachrichten **immer** streamen
-- `internal/flow/registry.go` – `DebugMessage`-Struct (kein `active`-Feld nötig, da Backend immer streamt)
+- `internal/nodes/debug.go` – read `active` field from config, but **always** stream messages
+- `internal/flow/registry.go` – `DebugMessage` struct (no `active` field needed since the backend always streams)
 
 ---
 
-## Erweiterung: Interaktiver JSON-Tree-View in der Debug-Sidebar
+## Extension: Interactive JSON Tree View in the Debug Sidebar
 
 ### Status: Open
 
-### Ausgangslage
+### Background
 
-Aktuell wird jede Debug-Payload in `frontend/src/components/DebugPanel.vue` (Z. 59-69, 182-189) per `JSON.stringify(payload, null, 2)` in einem `<pre>`-Block als reiner, statischer Text gerendert. Bei verschachtelten Objekten und Arrays bedeutet das:
+Currently every debug payload in `frontend/src/components/DebugPanel.vue` (lines 59-69, 182-189) is rendered as plain, static text via `JSON.stringify(payload, null, 2)` in a `<pre>` block. For nested objects and arrays this means:
 
-- Keine Möglichkeit, uninteressante Teilbäume einzuklappen
-- Pfade müssen visuell aus der Einrückung abgeleitet werden
-- Werte oder Pfade müssen manuell selektiert und kopiert werden – fehleranfällig bei langen Strings
+- No way to collapse uninteresting subtrees
+- Paths must be derived visually from indentation
+- Values or paths must be selected and copied manually – error-prone for long strings
 
-### Ziel
+### Goal
 
-Die Payload wird als interaktiver JSON-Tree dargestellt, ähnlich wie in Browser-DevTools oder Node-RED. Der Bediener kann Teilbäume aufklappen, Pfade und Werte mit einem Klick kopieren und so deutlich schneller mit Debug-Nachrichten arbeiten.
+The payload is rendered as an interactive JSON tree, similar to browser DevTools or Node-RED. The operator can expand subtrees, copy paths and values with one click, and thus work with debug messages much faster.
 
-### Anforderungen
+### Requirements
 
 #### 1. Collapsible Tree
 
-- Objekte und Arrays werden mit einem Twisty-Icon (`▶` / `▼`) als zuklappbare Knoten dargestellt
-- Primitive Werte (string, number, boolean, null, undefined) werden inline ohne Toggle gerendert
-- Initialer Expand-State: **Top-Level expanded, Kindknoten collapsed** (Tiefe 1 sichtbar)
-- Bei eingeklapptem Knoten wird eine Vorschau angezeigt:
-  - Objekt: `{ … } (5 keys)`
+- Objects and arrays are rendered as collapsible nodes with a twisty icon (`▶` / `▼`)
+- Primitive values (string, number, boolean, null, undefined) are rendered inline without a toggle
+- Initial expand state: **top level expanded, child nodes collapsed** (depth 1 visible)
+- A preview is shown for collapsed nodes:
+  - Object: `{ … } (5 keys)`
   - Array: `[ … ] (12 items)`
-- Der Expand-State wird **pro Message lokal** gehalten und überlebt Re-Renders, aber nicht das Schließen des Panels (in-memory, nicht persistiert)
+- The expand state is held **per message locally** and survives re-renders, but not closing the panel (in-memory, not persisted)
 
-#### 2. Syntax-Coloring
+#### 2. Syntax Coloring
 
-Werte werden nach Typ farbig dargestellt, passend zum bestehenden Terminal-Theme:
+Values are colored by type, matching the existing terminal theme:
 
-| Typ | Stil |
+| Type | Style |
 |---|---|
-| `string` | grün/türkis, in Anführungszeichen |
-| `number` | orange/gelb |
-| `boolean` | violett |
-| `null` / `undefined` | dimmed grau, kursiv |
-| Object/Array Header | terminal-text in normaler Farbe |
+| `string` | green/teal, in quotes |
+| `number` | orange/yellow |
+| `boolean` | violet |
+| `null` / `undefined` | dimmed gray, italic |
+| Object/Array header | terminal-text in normal color |
 | Keys | terminal-text-dim |
 
-Bestehende Status-Farben (`error`, `warn`) bleiben für die gesamte Message-Card erhalten – die Tree-Farben werden nur im Default-Status (`debug`) verwendet, bei Fehler/Warn wird der Tree in der jeweiligen Status-Farbe gerendert (so wie heute).
+Existing status colors (`error`, `warn`) remain for the entire message card – the tree colors are only used in the default status (`debug`); on error/warn the tree is rendered in the respective status color (as today).
 
-#### 3. Copy-Aktionen pro Knoten
+#### 3. Copy Actions per Node
 
-Beim Hover über eine Tree-Zeile erscheinen rechts zwei kleine Icon-Buttons:
+When hovering over a tree row, two small icon buttons appear on the right:
 
-- **Copy Path** – kopiert den Property-Pfad relativ zur Wurzel der Message-Payload
-  - Notation: JavaScript-Property-Style mit `[idx]` für Arrays, z.B. `payload.items[0].name` oder `temperature`
-  - Wenn die Payload selbst nicht das gesamte `msg`-Objekt ist (also `msg.property !== 'payload'` bzw. konfigurierter Property-Pfad/GJSON), beginnt der Pfad **relativ zur angezeigten Payload** – die Sidebar zeigt was sie zeigt, der kopierte Pfad gilt im selben Bezugssystem
-- **Copy Value** – kopiert den Wert des Knotens
-  - Primitive: roher Wert (String ohne Anführungszeichen, Zahl als String, etc.)
-  - Objekte/Arrays: kompaktes JSON ohne Einrückung (`JSON.stringify(value)`)
+- **Copy Path** – copies the property path relative to the root of the message payload
+  - Notation: JavaScript property style with `[idx]` for arrays, e.g. `payload.items[0].name` or `temperature`
+  - If the payload itself is not the entire `msg` object (i.e. `msg.property !== 'payload'` or a configured property path/GJSON), the path begins **relative to the displayed payload** – the sidebar shows what it shows, the copied path applies in the same frame of reference
+- **Copy Value** – copies the value of the node
+  - Primitives: raw value (string without quotes, number as string, etc.)
+  - Objects/arrays: compact JSON without indentation (`JSON.stringify(value)`)
 
-Visuelles Feedback nach dem Klick:
-- Icon wechselt für ~1 Sekunde auf ein Häkchen
-- Kein Toast, keine Modal – konsistent mit dem schlanken Terminal-Stil
+Visual feedback after the click:
+- Icon switches to a checkmark for ~1 second
+- No toast, no modal – consistent with the lean terminal style
 
-#### 4. Verhalten bei Nicht-JSON Payloads
+#### 4. Behavior for Non-JSON Payloads
 
-- `string`, `number`, `boolean` werden weiterhin inline ohne Tree dargestellt, aber mit **Copy Value**-Button am Zeilenrand (Hover)
-- `null` / `undefined`: nur Anzeige, kein Copy nötig
-- `format: 'buffer'`: out of scope – wird wie heute als String dargestellt
-- Wenn `JSON.stringify` fehlschlägt (z.B. zirkuläre Referenz), Fallback auf die heutige `String(payload)`-Darstellung ohne Tree
+- `string`, `number`, `boolean` are still rendered inline without a tree, but with a **Copy Value** button at the line edge (hover)
+- `null` / `undefined`: only display, no copy needed
+- `format: 'buffer'`: out of scope – rendered as a string as today
+- If `JSON.stringify` fails (e.g. circular reference), fall back to the current `String(payload)` rendering without a tree
 
 #### 5. Performance
 
-- Pro Message läuft die rekursive Komponente nur über die **expandierten** Pfade – Kinder collapsed Knoten werden nicht ins DOM gerendert
-- Bei initialem Render der Liste sind also nur die Top-Level-Properties jeder Message materialisiert
-- Lange String-Werte (> 200 Zeichen) werden mit `…` truncated, ein **Expand**-Klick zeigt den vollen String (innerhalb derselben Message)
+- Per message the recursive component only iterates over the **expanded** paths – children of collapsed nodes are not rendered into the DOM
+- On the initial render of the list, only the top-level properties of each message are materialized
+- Long string values (> 200 chars) are truncated with `…`; an **expand** click shows the full string (within the same message)
 
-#### 6. Toolbar-Erweiterung pro Message (Phase 2, optional)
+#### 6. Toolbar Extension per Message (Phase 2, optional)
 
-In der Header-Zeile jeder Message (rechts neben dem Format-Badge in `DebugPanel.vue:176-178`) zwei zusätzliche Icon-Buttons beim Hover:
+In the header row of each message (right next to the format badge in `DebugPanel.vue:176-178`), two additional icon buttons on hover:
 
-- **Expand All** – klappt alle Knoten dieser Message auf
-- **Collapse All** – klappt alle bis auf Top-Level zu
+- **Expand All** – expands all nodes of this message
+- **Collapse All** – collapses all but the top level
 
-Phase-1-Scope: nur per-Knoten Toggle. Phase 2 nur umsetzen, wenn sich im Realeinsatz Bedarf zeigt.
+Phase 1 scope: per-node toggle only. Implement phase 2 only if real-world use shows the need.
 
-### Implementierungsplan
+### Implementation Plan
 
-#### Neue Komponente: `JsonTreeView.vue`
+#### New Component: `JsonTreeView.vue`
 
-Pfad: `frontend/src/components/debug/JsonTreeView.vue` (neuer Unterordner für Debug-spezifische UI-Bausteine)
+Path: `frontend/src/components/debug/JsonTreeView.vue` (new subfolder for debug-specific UI building blocks)
 
 Props:
 ```ts
 interface Props {
   data: unknown
-  path?: string                // aktueller Pfad (default '')
-  rootKey?: string             // Anzeigename des Root-Knotens (z.B. 'payload' oder Property-Name)
-  depth?: number               // aktuelle Rekursionstiefe (default 0)
-  defaultExpandDepth?: number  // bis zu welcher Tiefe initial expanded (default 1)
+  path?: string                // current path (default '')
+  rootKey?: string             // display name of the root node (e.g. 'payload' or property name)
+  depth?: number               // current recursion depth (default 0)
+  defaultExpandDepth?: number  // up to which depth initially expanded (default 1)
 }
 ```
 
-Verhalten:
-- Rekursive Selbstreferenz für Kinder
-- Lokaler `expanded`-State per Knoten (`ref<boolean>`), initialisiert via `depth < defaultExpandDepth`
-- Pfad-Aufbau:
-  - Object-Key: `path === '' ? key : ${path}.${key}`
-  - Array-Index: `${path}[${idx}]`
-  - Keys mit Sonderzeichen (Punkt, Klammer, Whitespace): Bracket-Notation `${path}["weird.key"]`
-- Copy-Funktion via `navigator.clipboard.writeText()` mit kurzem `copied`-Flag pro Button für das Icon-Feedback
+Behavior:
+- Recursive self-reference for children
+- Local `expanded` state per node (`ref<boolean>`), initialized via `depth < defaultExpandDepth`
+- Path construction:
+  - Object key: `path === '' ? key : ${path}.${key}`
+  - Array index: `${path}[${idx}]`
+  - Keys with special characters (dot, bracket, whitespace): bracket notation `${path}["weird.key"]`
+- Copy function via `navigator.clipboard.writeText()` with a brief `copied` flag per button for the icon feedback
 
 #### Integration in `DebugPanel.vue`
 
-`<pre>`-Block (Z. 182-189) ersetzen durch:
+Replace the `<pre>` block (lines 182-189) with:
 
 ```vue
 <JsonTreeView
@@ -259,72 +259,72 @@ Verhalten:
 />
 ```
 
-Die `formatPayload`-Funktion (Z. 59-69) entfällt für Objekte/Arrays. Für primitive Top-Level-Werte rendert die `JsonTreeView`-Komponente intern direkt die Inline-Darstellung mit Copy-Button.
+The `formatPayload` function (lines 59-69) becomes obsolete for objects/arrays. For primitive top-level values the `JsonTreeView` component internally renders the inline display directly with a copy button.
 
-#### Keine neue Dependency
+#### No New Dependency
 
-Da der Stack auf TailwindCSS + Radix Vue + bewusst minimalem Footprint setzt und das Styling stark Terminal-themed ist, wird **bewusst keine externe JSON-Viewer-Lib** (vue-json-pretty etc.) eingeführt. Eine eigene rekursive Komponente in ~150–200 LOC fügt sich nahtlos ins bestehende Theme.
+Since the stack relies on TailwindCSS + Radix Vue with a deliberately minimal footprint and the styling is heavily terminal-themed, **no external JSON viewer lib** (vue-json-pretty etc.) is intentionally introduced. A custom recursive component in ~150–200 LOC fits seamlessly into the existing theme.
 
-### Betroffene Dateien
+### Affected Files
 
-#### Neu
-- `frontend/src/components/debug/JsonTreeView.vue` – rekursive Tree-Komponente mit Collapse + Copy
+#### New
+- `frontend/src/components/debug/JsonTreeView.vue` – recursive tree component with collapse + copy
 
-#### Geändert
-- `frontend/src/components/DebugPanel.vue` – `<pre>`-Block durch `<JsonTreeView>` ersetzen, `formatPayload` ggf. entfernen wenn nicht mehr benötigt
+#### Changed
+- `frontend/src/components/DebugPanel.vue` – replace `<pre>` block with `<JsonTreeView>`, remove `formatPayload` if no longer needed
 
 #### Optional
-- `frontend/src/utils/clipboard.ts` (falls noch keine zentrale Copy-Hilfe existiert) – schmaler Wrapper um `navigator.clipboard.writeText` mit Fallback
+- `frontend/src/utils/clipboard.ts` (if no central copy helper exists yet) – thin wrapper around `navigator.clipboard.writeText` with fallback
 
 ### Out of Scope
 
-- Persistieren des Expand-States über Session-Grenzen hinweg
-- Such-/Filter-Funktion innerhalb eines einzelnen JSON-Trees
-- Diff-View zwischen aufeinanderfolgenden Debug-Messages desselben Nodes
-- Edit-Mode für Debug-Werte (das ist ein Inspector, kein Editor)
+- Persisting the expand state across session boundaries
+- Search/filter function within a single JSON tree
+- Diff view between consecutive debug messages of the same node
+- Edit mode for debug values (this is an inspector, not an editor)
 
 ---
 
-## Erweiterung: Hover-Highlight im Flow
+## Extension: Hover Highlight in the Flow
 
 ### Status: Open
 
-### Ausgangslage
+### Background
 
-Bei vielen Debug-Nachrichten in der Sidebar ist es schwer zu erkennen, von welchem Node im Flow eine bestimmte Message stammt. Der Node-Name in der Header-Zeile ist zwar sichtbar, aber bei mehreren gleichnamigen oder ähnlich benannten Nodes muss der Bediener im Flow suchen.
+With many debug messages in the sidebar it is hard to tell which node in the flow a particular message originates from. The node name in the header row is visible, but with several nodes of the same or similar name the operator has to search in the flow.
 
-### Ziel
+### Goal
 
-Beim Hover über eine Debug-Message-Zeile in der Sidebar wird der ursprungs-Node im Flow-Editor durch einen **gestrichelten Rahmen** (dashed border) hervorgehoben. Beim Verlassen der Zeile verschwindet der Indikator wieder. Damit lässt sich auf einen Blick zuordnen, welcher Node welche Nachricht produziert hat.
+When hovering over a debug message row in the sidebar, the originating node in the flow editor is highlighted with a **dashed border**. When leaving the row the indicator disappears again. This makes it possible at a glance to associate which node produced which message.
 
-### Anforderungen
+### Requirements
 
-#### 1. Hover-Verhalten
+#### 1. Hover Behavior
 
-- Mouse-Enter auf einer Debug-Row → Node mit passender `nodeId` bekommt dashed Border
-- Mouse-Leave → Highlight wird zurückgenommen
-- Schneller Wechsel zwischen Rows: das Highlight wandert sofort mit, ohne Flackern oder Nachglühen
-- Kein Klick nötig, rein hover-basiert (Klick bleibt für Selection reserviert)
+- Mouse enter on a debug row → node with matching `nodeId` gets a dashed border
+- Mouse leave → highlight is removed
+- Quick switching between rows: the highlight moves immediately, without flicker or afterglow
+- No click required, purely hover-based (click stays reserved for selection)
 
-#### 2. Visuelles Erscheinungsbild
+#### 2. Visual Appearance
 
-- **Border-Style**: `dashed`
-- **Border-Color**: `accent` (`#58a6ff` aus dem Theme) — klar unterscheidbar von der grauen Default-Border
-- **Border-Width**: 1px — identisch zur normalen Border, damit es keine Layout-Verschiebung der Nodes gibt
-- **Kein** Box-Shadow / Glow — bewusst dezenter als der `selected`-State, damit die beiden Zustände visuell unterscheidbar bleiben
-- Wenn der Node bereits `selected` ist: `selected`-Styling hat Vorrang (Glow + solid border bleibt), keine Überlagerung
+- **Border style**: `dashed`
+- **Border color**: `accent` (`#58a6ff` from the theme) — clearly distinct from the gray default border
+- **Border width**: 1px — identical to the normal border, so there is no layout shift of the nodes
+- **No** box-shadow / glow — deliberately more subtle than the `selected` state, so the two states stay visually distinct
+- If the node is already `selected`: `selected` styling takes precedence (glow + solid border remain), no overlay
 
-#### 3. Edge-Cases
+#### 3. Edge Cases
 
-- Hovered Node existiert nicht im aktuell sichtbaren Flow (Multi-Flow / gewechselter Tab): Highlight greift einfach nicht — kein Fehler
-- Debug-Message ohne `nodeId` (sollte nach dem ID-Fix nicht mehr vorkommen): kein Highlight
-- Sidebar wird geschlossen während Hover aktiv: Highlight muss zurückgesetzt werden (über `onBeforeUnmount` der Sidebar oder per Mouse-Leave-Event)
+- Hovered node does not exist in the currently visible flow (multi-flow / changed tab): highlight simply does not apply — no error
+- Debug message without `nodeId` (should not happen anymore after the ID fix): no highlight
+- Sidebar is closed while hover is active: highlight must be reset (via `onBeforeUnmount` of the sidebar or via a mouse-leave event)
 
-### Implementierungsplan
+### Implementation Plan
 
 #### State
 
-In `frontend/src/stores/flowStore.ts` neu:
+In `frontend/src/stores/flowStore.ts` new:
 
 ```ts
 const hoveredDebugNodeId = ref<string | null>(null)
@@ -334,11 +334,11 @@ function setHoveredDebugNodeId(id: string | null) {
 }
 ```
 
-Beide im Store-Return exportieren. Bewusst im `flowStore` (nicht `uiStore`), weil es semantisch ein Node-State ist und `BaseNode.vue` ohnehin auf den `flowStore` zugreift.
+Export both in the store return. Deliberately in `flowStore` (not `uiStore`), because semantically it is a node state and `BaseNode.vue` already accesses `flowStore`.
 
 #### Sidebar (`DebugPanel.vue`)
 
-Pro Message-Row:
+Per message row:
 
 ```vue
 <div
@@ -351,9 +351,9 @@ Pro Message-Row:
 >
 ```
 
-Hinweis: Listener werden bei Mount registriert und sind statisch — kompatibel mit `v-memo`.
+Note: listeners are registered at mount and are static — compatible with `v-memo`.
 
-Zusätzlich `onBeforeUnmount` im `<script>`-Block: `flowStore.setHoveredDebugNodeId(null)` aufrufen, falls die Sidebar geschlossen wird während ein Hover aktiv ist.
+Additionally `onBeforeUnmount` in the `<script>` block: call `flowStore.setHoveredDebugNodeId(null)` in case the sidebar is closed while a hover is active.
 
 #### Node (`BaseNode.vue`)
 
@@ -365,13 +365,13 @@ const isDebugHovered = computed(
 )
 ```
 
-Class-Binding ergänzen:
+Extend class binding:
 
 ```vue
 :class="{ selected: props.selected, 'debug-hovered': isDebugHovered, ... }"
 ```
 
-CSS-Regel im `<style>`-Block (nach `.selected`, damit `.selected`-Vorrang hat oder via spezifischem Selector):
+CSS rule in the `<style>` block (after `.selected`, so `.selected` takes precedence, or via a more specific selector):
 
 ```css
 .loopze-node.debug-hovered:not(.selected) {
@@ -380,66 +380,66 @@ CSS-Regel im `<style>`-Block (nach `.selected`, damit `.selected`-Vorrang hat od
 }
 ```
 
-### Out of Scope für Phase 1
+### Out of Scope for Phase 1
 
-- **LinkNode-Highlight**: `LinkNode.vue` hat eigenes Wrapper-Styling ohne `.loopze-node`-Klasse — kann nachgezogen werden, ist aber für die Diagnose-UX nicht kritisch (Link-Nodes erzeugen typischerweise keine Debug-Messages)
-- **Auto-Pan/Scroll** im Flow zum hovered Node, wenn er außerhalb des Viewports liegt
-- **Bidirektionalität** (Hover über Node → Highlight aller Messages dieses Nodes in der Sidebar)
-- **Animation** / Übergang beim Highlight-Wechsel
+- **LinkNode highlight**: `LinkNode.vue` has its own wrapper styling without the `.loopze-node` class — can be retrofitted, but is not critical for the diagnostic UX (link nodes typically do not produce debug messages)
+- **Auto-pan/scroll** in the flow to the hovered node when it is outside the viewport
+- **Bidirectionality** (hover over node → highlight all messages of this node in the sidebar)
+- **Animation** / transition when the highlight changes
 
-### Betroffene Dateien
+### Affected Files
 
-#### Geändert
-- `frontend/src/stores/flowStore.ts` — neuer `hoveredDebugNodeId`-Ref + Setter
-- `frontend/src/components/DebugPanel.vue` — Hover-Listener pro Row, Cleanup im Unmount
-- `frontend/src/components/nodes/BaseNode.vue` — `isDebugHovered`-Computed, Class-Binding, CSS-Regel
+#### Changed
+- `frontend/src/stores/flowStore.ts` — new `hoveredDebugNodeId` ref + setter
+- `frontend/src/components/DebugPanel.vue` — hover listener per row, cleanup on unmount
+- `frontend/src/components/nodes/BaseNode.vue` — `isDebugHovered` computed, class binding, CSS rule
 
 ---
 
-## Erweiterung: Click-to-Jump zum Quell-Node
+## Extension: Click-to-Jump to the Source Node
 
 ### Status: Open
 
-### Ausgangslage
+### Background
 
-Die Debug-Sidebar zeigt pro Message den Node-Namen (bzw. die ersten 8 Zeichen der Node-ID als Fallback) als reine Text-Anzeige. Bei großen Flows oder mehreren Tabs kann es mühsam sein, den Quell-Node manuell zu suchen — insbesondere wenn er außerhalb des Viewports liegt oder in einem anderen Flow-Tab steckt.
+The Debug sidebar shows the node name (or the first 8 characters of the node ID as a fallback) per message as a plain text label. With large flows or multiple tabs it can be tedious to find the source node manually — especially when it is outside the viewport or in a different flow tab.
 
-### Ziel
+### Goal
 
-Klick auf die Node-Identifizierung in einer Debug-Row springt direkt zum Quell-Node:
-1. Wechselt bei Bedarf den aktiven Flow-Tab (`flowId` der Message)
-2. Selektiert den Node (Property-Panel öffnet)
-3. Pant/zoomt das Vue-Flow-Canvas, sodass der Node mittig im Viewport liegt
+Clicking the node identification in a debug row jumps directly to the source node:
+1. Switches the active flow tab if needed (`flowId` of the message)
+2. Selects the node (properties panel opens)
+3. Pans/zooms the Vue Flow canvas so the node is centered in the viewport
 
-### Anforderungen
+### Requirements
 
-#### 1. Klick-Ziel
+#### 1. Click Target
 
-- Klickbar wird der **Node-Name-Span** in der Header-Zeile jeder Debug-Row (`DebugPanel.vue:156-165`) — also genau der Bereich, der heute schon `nodeName` bzw. den gekürzten `nodeId`-Fallback zeigt
-- Visuell als interaktiv markieren: `cursor-pointer`, dezenter Hover-Effekt (z.B. Underline oder leichter Color-Shift)
-- Tooltip beim Hover: `Jump to <nodeName> (<nodeId>)` — gibt dem Bediener Klarheit, dass es sich um eine Aktion handelt
-- Keine Konflikte mit dem Hover-Highlight (separates Feature): Hover **highlightet** den Node, Click **springt hin** und selektiert
+- The clickable area is the **node-name span** in the header row of each debug row (`DebugPanel.vue:156-165`) — i.e. exactly the area that already shows `nodeName` or the truncated `nodeId` fallback today
+- Marked visually as interactive: `cursor-pointer`, subtle hover effect (e.g. underline or slight color shift)
+- Tooltip on hover: `Jump to <nodeName> (<nodeId>)` — gives the operator clarity that this is an action
+- No conflicts with the hover highlight (separate feature): hover **highlights** the node, click **jumps to it** and selects
 
-#### 2. Sprung-Verhalten
+#### 2. Jump Behavior
 
-Bei Klick:
+On click:
 
-1. **Flow-Wechsel** (falls nötig): Wenn `msg.flowId !== flowStore.activeFlowId`, dann `flowStore.setActiveFlow(msg.flowId)` aufrufen. Vue-Flow rendert dann den anderen Flow.
-2. **Selektion**: `flowStore.selectNode(msg.nodeId)` — Property-Panel öffnet, `selected`-State aktiviert
-3. **Pan/Zoom auf Node**: Vue-Flow's `setCenter(x, y, { zoom })` ruft die Node-Position aus den geladenen Nodes ab und zentriert. Aktueller Zoom bleibt erhalten (sofern sinnvoll), alternativ ein moderater Default-Zoom (z.B. 1.0) — entscheiden wir bei Implementierung anhand des Look-and-Feel
+1. **Flow switch** (if needed): if `msg.flowId !== flowStore.activeFlowId`, then call `flowStore.setActiveFlow(msg.flowId)`. Vue Flow then renders the other flow.
+2. **Selection**: `flowStore.selectNode(msg.nodeId)` — properties panel opens, `selected` state activated
+3. **Pan/zoom to node**: Vue Flow's `setCenter(x, y, { zoom })` retrieves the node position from the loaded nodes and centers it. Current zoom is preserved (where sensible), alternatively a moderate default zoom (e.g. 1.0) — to be decided at implementation time based on look and feel
 
-#### 3. Edge-Cases
+#### 3. Edge Cases
 
-- **Node existiert nicht mehr** (gelöscht seit der Message): Flow-Wechsel passiert ggf., Selection schlägt fehl → kein Crash, optional kurze Notification ("Node nicht mehr im Flow vorhanden")
-- **Flow existiert nicht mehr**: kein Tab-Wechsel, kein Crash, optional Notification
-- **Node liegt außerhalb des aktuellen Zooms**: `setCenter` zentriert ihn, Zoom bleibt unverändert — der Node ist garantiert sichtbar
-- **Klick während laufender Auto-Scroll-Burst**: keine Beeinflussung — Sidebar-Scroll-Verhalten bleibt unabhängig
+- **Node no longer exists** (deleted since the message): flow switch happens if needed, selection fails → no crash, optional brief notification ("Node no longer in flow")
+- **Flow no longer exists**: no tab switch, no crash, optional notification
+- **Node is outside the current zoom**: `setCenter` centers it, zoom remains unchanged — the node is guaranteed to be visible
+- **Click during a running auto-scroll burst**: no impact — sidebar scroll behavior remains independent
 
-### Implementierungsplan
+### Implementation Plan
 
-#### Cross-Component-Brücke: Focus-Request über Store
+#### Cross-Component Bridge: Focus Request via Store
 
-Da `useVueFlow('loopze-flow-editor')` zwar von überall aufrufbar ist, der Pan-Aufruf aber nach einem ggf. nötigen Flow-Wechsel **erst nach dem Render** des neuen Flows passieren darf, geht der Trigger über einen Store-State, der vom `FlowEditor` gewatcht wird:
+Since `useVueFlow('loopze-flow-editor')` is callable from anywhere but the pan call must happen **only after the render** of the new flow following any required flow switch, the trigger goes via a store state that is watched by the `FlowEditor`:
 
 In `flowStore.ts`:
 
@@ -451,7 +451,7 @@ function focusNode(nodeId: string, flowId: string) {
     setActiveFlow(flowId)
   }
   selectNode(nodeId)
-  // ts erzwingt Reaktivität auch bei wiederholten Klicks auf dieselbe ID
+  // ts forces reactivity even on repeated clicks on the same ID
   focusRequest.value = { nodeId, flowId, ts: performance.now() }
 }
 ```
@@ -465,7 +465,7 @@ watch(
   () => flowStore.focusRequest,
   async (req) => {
     if (!req) return
-    await nextTick() // sicherstellen, dass nach Flow-Wechsel die Nodes gerendert sind
+    await nextTick() // ensure that nodes are rendered after a flow switch
     const node = getNode.value(req.nodeId)
     if (!node) return
     const x = node.position.x + (node.dimensions?.width ?? 0) / 2
@@ -477,7 +477,7 @@ watch(
 
 #### Sidebar (`DebugPanel.vue`)
 
-Den Node-Name-Span in `<button>` umwandeln (oder `<span role="button" tabindex="0">`), Click-Handler:
+Convert the node-name span into a `<button>` (or `<span role="button" tabindex="0">`), click handler:
 
 ```vue
 <button
@@ -489,79 +489,79 @@ Den Node-Name-Span in `<button>` umwandeln (oder `<span role="button" tabindex="
 </button>
 ```
 
-`v-memo`-Kompatibilität: Click-Handler ist eine statische Property-Reference auf den Store — Vue mountet ihn einmal, kein Diff nötig.
+`v-memo` compatibility: the click handler is a static property reference on the store — Vue mounts it once, no diff needed.
 
-### Out of Scope für Phase 1
+### Out of Scope for Phase 1
 
-- **Sprung in einen Sub-Flow** (z.B. wenn Sub-Flows künftig eingeführt werden)
-- **Animations-Pfad** durch den Flow zum Node (z.B. animierter Pan über Zwischen-Nodes)
-- **Highlighting nach dem Sprung** (Pulse / Glow zur Bestätigung) — das `selected`-Styling und der existierende Hover-Highlight reichen vorerst
-- **Keyboard-Navigation** (Tab durch Messages, Enter zum Sprung) — sinnvoll, aber separates Feature
-- **Notifications** bei verschwundenem Node/Flow — nice-to-have, erstmal stumm scheitern
+- **Jump into a sub-flow** (e.g. when sub-flows are introduced in the future)
+- **Animation path** through the flow to the node (e.g. animated pan over intermediate nodes)
+- **Highlight after the jump** (pulse / glow as confirmation) — the `selected` styling and the existing hover highlight are sufficient for now
+- **Keyboard navigation** (tab through messages, Enter to jump) — useful, but a separate feature
+- **Notifications** for missing node/flow — nice to have, fail silently for now
 
-### Betroffene Dateien
+### Affected Files
 
-#### Geändert
-- `frontend/src/stores/flowStore.ts` — `focusRequest`-Ref + `focusNode`-Action
-- `frontend/src/components/DebugPanel.vue` — Node-Name-Span → klickbarer Button
-- `frontend/src/views/FlowEditor.vue` — Watcher auf `focusRequest`, Aufruf von `setCenter`
+#### Changed
+- `frontend/src/stores/flowStore.ts` — `focusRequest` ref + `focusNode` action
+- `frontend/src/components/DebugPanel.vue` — node-name span → clickable button
+- `frontend/src/views/FlowEditor.vue` — watcher on `focusRequest`, call to `setCenter`
 
 ---
 
-## Erweiterung: Pin-Path — Attribut highlighten und in allen Messages auto-expanden
+## Extension: Pin-Path — Highlight Attribute and Auto-Expand in All Messages
 
 ### Status: Open
 
-### Ausgangslage
+### Background
 
-Der JSON-Tree-View erlaubt zwar Aufklappen einzelner Knoten, aber bei vielen aufeinanderfolgenden Debug-Messages desselben Nodes muss jede Message manuell aufgeklappt werden, um ein bestimmtes Attribut zu sehen. Wenn ein Bediener z.B. `payload.temperature` über die Zeit beobachten will, ist das mühsam.
+The JSON tree view allows expanding individual nodes, but with many consecutive debug messages from the same node, each message has to be expanded manually to see a particular attribute. When an operator wants to e.g. observe `payload.temperature` over time, this is tedious.
 
-### Ziel
+### Goal
 
-Per Klick auf einen Knoten im JSON-Tree wird der Pfad **gepinnt**. Folge:
-1. Der gepinnte Knoten ist visuell hervorgehoben
-2. **Alle Messages desselben Nodes** (vergangene **und** zukünftige) klappen ihren Tree automatisch so auf, dass dieser Pfad sichtbar ist — sofern das Attribut existiert
-3. Erneuter Klick → Pin entfernt, Auto-Expand verschwindet, Trees fallen auf den manuellen/Default-State zurück
+Clicking a node in the JSON tree **pins** the path. Consequence:
+1. The pinned node is visually highlighted
+2. **All messages of the same node** (past **and** future) auto-expand their tree so this path is visible — provided the attribute exists
+3. Click again → pin removed, auto-expand disappears, trees fall back to the manual/default state
 
-Der Bediener kann so ein Property "verfolgen", ohne jede Message anzufassen.
+The operator can thus "follow" a property without touching every message.
 
-### Anforderungen
+### Requirements
 
-#### 1. Pin-Aktion
+#### 1. Pin Action
 
-- Neuer dritter Hover-Button rechts pro Tree-Zeile, neben den existierenden `path` / `val`-Buttons in `JsonTreeView.vue:147-156`. Beschriftung z.B. `pin` (uppercase, gleicher Stil)
-- Klick auf `pin`:
-  - Wenn der Pfad noch nicht gepinnt ist → pinnen
-  - Wenn er gepinnt ist → unpinnen (Toggle)
-- Pinning ist immer **pro `nodeId`**: derselbe Pfad in Messages eines anderen Nodes ist nicht betroffen
-- **Mehrere Pins pro Node** sind erlaubt (Set-basiert) — z.B. `payload.temperature` UND `payload.humidity` parallel pinnen
-- Ein Pin existiert nur in-memory; persistiert nicht über Session-Grenzen (out of scope für Phase 1)
+- New third hover button on the right per tree row, next to the existing `path` / `val` buttons in `JsonTreeView.vue:147-156`. Label e.g. `pin` (uppercase, same style)
+- Click on `pin`:
+  - If the path is not yet pinned → pin
+  - If it is pinned → unpin (toggle)
+- Pinning is always **per `nodeId`**: the same path in messages of another node is unaffected
+- **Multiple pins per node** are allowed (set-based) — e.g. pin `payload.temperature` AND `payload.humidity` in parallel
+- A pin exists only in memory; not persisted across session boundaries (out of scope for phase 1)
 
-#### 2. Visuelles Highlighting
+#### 2. Visual Highlighting
 
-- **Gepinnter Knoten**: dezent gefärbter Hintergrund (`bg-accent/10` oder ähnlich) plus linker 2px-Marker in `accent`-Farbe, sodass er auf einen Blick auffindbar ist
-- Der `pin`-Button selbst zeigt im gepinnten Zustand statt des Wortes `pin` ein gefülltes Pin-Symbol oder `★` — eindeutig vom Default-Zustand unterscheidbar
-- **Pfad-Vorfahren werden NICHT zusätzlich highlightet** — sonst wirkt der Tree schnell überladen. Nur der Endknoten markiert.
+- **Pinned node**: subtly tinted background (`bg-accent/10` or similar) plus a 2px left marker in `accent` color, so it is findable at a glance
+- The `pin` button itself, in the pinned state, shows a filled pin symbol or `★` instead of the word `pin` — clearly distinguishable from the default state
+- **Path ancestors are NOT additionally highlighted** — otherwise the tree quickly looks cluttered. Only the leaf node is marked.
 
-#### 3. Auto-Expand-Logik
+#### 3. Auto-Expand Logic
 
-- Ein gepinnter Pfad zwingt alle **Container-Knoten auf seinem Weg** in den Expanded-State
-- Beispiel: Pin auf `payload.items[0].name` → forciert `root`, `payload`, `payload.items`, `payload.items[0]` als expanded; `name` selbst ist Leaf, kein Toggle nötig
-- Der gepinnte Pfad **dominiert** den manuellen Toggle-State: solange der Pin aktiv ist, lässt sich ein Vorfahren-Container nicht zuklappen (Toggle wird ignoriert oder visuell deaktiviert). Das ist die klare Regel "pinned = always visible"
-- Wenn das Attribut in einer bestimmten Message **nicht existiert** (z.B. die Payload hat `payload.foo` aber kein `payload.items`), bleibt die betroffene Message im Default-Zustand. Kein Fehler, kein Force-Expand auf etwas das nicht da ist.
+- A pinned path forces all **container nodes on its path** into the expanded state
+- Example: pin on `payload.items[0].name` → forces `root`, `payload`, `payload.items`, `payload.items[0]` as expanded; `name` itself is a leaf, no toggle needed
+- The pinned path **dominates** the manual toggle state: as long as the pin is active, an ancestor container cannot be collapsed (toggle is ignored or visually disabled). This is the clear rule "pinned = always visible"
+- If the attribute **does not exist** in a particular message (e.g. the payload has `payload.foo` but no `payload.items`), the affected message remains in the default state. No error, no force-expand on something that is not there.
 
-#### 4. Geltungsbereich
+#### 4. Scope
 
-- Pin gilt für **Messages des gleichen Nodes** (`nodeId`-Match)
-- Andere Nodes in der Liste sind unbeeinflusst
-- Filter (`debugStore.filter`) und Suppression (`active === false`) bleiben unverändert wirksam — Pin überschreibt sie nicht
+- Pin applies to **messages of the same node** (`nodeId` match)
+- Other nodes in the list are unaffected
+- Filter (`debugStore.filter`) and suppression (`active === false`) remain in effect — pin does not override them
 
-#### 5. Aufräumen
+#### 5. Cleanup
 
-- Wenn ein Debug-Node aus dem Flow gelöscht wird oder seine `active === false` gesetzt wird: bestehende Pins bleiben gespeichert (sie schaden nicht), könnten optional bereinigt werden — out of scope für Phase 1
-- "Clear all messages" (CLR-Button) löscht den Message-Buffer, **lässt Pins aber bestehen** — Pins folgen Nodes, nicht Messages
+- When a Debug node is deleted from the flow or its `active === false` is set: existing pins remain stored (they do no harm), could optionally be cleaned up — out of scope for phase 1
+- "Clear all messages" (CLR button) clears the message buffer but **keeps pins** — pins follow nodes, not messages
 
-### Implementierungsplan
+### Implementation Plan
 
 #### State (`debugStore.ts`)
 
@@ -594,11 +594,11 @@ function pinnedPathsForNode(nodeId: string): Set<string> {
 }
 ```
 
-Im Return: `pinnedPaths`, `pinnedPathsVersion`, `togglePinnedPath`, `pinnedPathsForNode` exportieren.
+In the return: export `pinnedPaths`, `pinnedPathsVersion`, `togglePinnedPath`, `pinnedPathsForNode`.
 
-#### Tree-Komponente (`JsonTreeView.vue`)
+#### Tree Component (`JsonTreeView.vue`)
 
-- Neue Prop: `nodeId?: string` — vom `DebugPanel` beim Top-Level-Aufruf reingegeben, in rekursiven Aufrufen weitergereicht
+- New prop: `nodeId?: string` — passed in by `DebugPanel` at the top-level call, forwarded in recursive calls
 - Computeds:
   ```ts
   const pinnedPaths = computed(() =>
@@ -616,7 +616,7 @@ Im Return: `pinnedPaths`, `pinnedPathsVersion`, `togglePinnedPath`, `pinnedPaths
     return false
   })
   ```
-- Bisheriger `expanded`-Ref bleibt (lokal manuell), aber das Template/Toggle-Verhalten nutzt einen Computed-Wrapper:
+- The previous `expanded` ref remains (local manual), but the template/toggle behavior uses a computed wrapper:
   ```ts
   const effectiveExpanded = computed(() => isOnPinnedPath.value || expanded.value)
 
@@ -626,31 +626,31 @@ Im Return: `pinnedPaths`, `pinnedPathsVersion`, `togglePinnedPath`, `pinnedPaths
     expanded.value = !expanded.value
   }
   ```
-- Pin-Button: `v-if="props.nodeId"` (nur in der Sidebar sinnvoll), klickt `debugStore.togglePinnedPath(props.nodeId, props.path)`
-- Visuelle Hervorhebung des gepinnten Knotens: zusätzliche Klasse auf der Header-Zeile, z.B. `bg-accent/10 border-l-2 border-accent -ml-1 pl-0.5`
+- Pin button: `v-if="props.nodeId"` (only sensible in the sidebar), clicks `debugStore.togglePinnedPath(props.nodeId, props.path)`
+- Visual highlight of the pinned node: additional class on the header row, e.g. `bg-accent/10 border-l-2 border-accent -ml-1 pl-0.5`
 
 #### `DebugPanel.vue`
 
 - `<JsonTreeView :node-id="msg.nodeId" ... />`
-- `v-memo` der Message-Row erweitern auf `[msg.id, debugStore.pinnedPathsVersion]`. Damit invalidiert ein Pin-Toggle alle Items — funktional korrekt, weil Pins selten getoggelt werden (nicht im 100/s-Bereich)
+- Extend the `v-memo` of the message row to `[msg.id, debugStore.pinnedPathsVersion]`. A pin toggle thus invalidates all items — functionally correct because pins are toggled rarely (not in the 100/s range)
 
-### Edge-Cases
+### Edge Cases
 
-- **Pfad mit Sonderzeichen**: `JsonTreeView.buildChildPath` erzeugt schon korrekte Bracket-Notation für Keys mit Punkten/Klammern. Das gepinnte `props.path` matched also exakt.
-- **Pin auf Root** (`path === ''`): theoretisch möglich, aber visuell sinnlos (Root ist eh expanded). Die `pin`-Schaltfläche kann am Root ausgeblendet werden (sie nutzt heute schon `v-if="path"` für `path`-Copy — analoge Logik).
-- **Identische `nodeId` über Flows hinweg**: sollte nicht auftreten (UUIDs), aber falls doch: Pin würde "über" Flow-Grenzen wirken — akzeptabel, weil `nodeId` deterministisch eindeutig ist.
+- **Path with special characters**: `JsonTreeView.buildChildPath` already produces correct bracket notation for keys with dots/brackets. The pinned `props.path` thus matches exactly.
+- **Pin at root** (`path === ''`): theoretically possible, but visually meaningless (root is expanded anyway). The `pin` button can be hidden at the root (it already uses `v-if="path"` for `path` copy today — analogous logic).
+- **Identical `nodeId` across flows**: should not occur (UUIDs), but if it does: pin would apply "across" flow boundaries — acceptable, because `nodeId` is deterministically unique.
 
-### Out of Scope für Phase 1
+### Out of Scope for Phase 1
 
-- **Persistenz** der Pins über Session-Grenzen (LocalStorage)
-- **Cross-Node-Pins** (gleicher Pfad in Messages aller Nodes verfolgen)
-- **Inline-Wert-Übersicht** in einer separaten "Pinned Values"-Leiste oben in der Sidebar (interessantes Phase-2-Feature)
-- **Bereinigung** von Pins beim Löschen/Deaktivieren eines Nodes
-- **Pin-Verwaltung** (Liste aller aktiven Pins, einzeln entfernen)
+- **Persistence** of pins across session boundaries (LocalStorage)
+- **Cross-node pins** (track the same path in messages of all nodes)
+- **Inline value overview** in a separate "Pinned Values" bar at the top of the sidebar (interesting phase 2 feature)
+- **Cleanup** of pins on deleting/deactivating a node
+- **Pin management** (list of all active pins, remove individually)
 
-### Betroffene Dateien
+### Affected Files
 
-#### Geändert
-- `frontend/src/stores/debugStore.ts` — `pinnedPaths`-Map, `pinnedPathsVersion`-Counter, `togglePinnedPath`/`pinnedPathsForNode`
-- `frontend/src/components/JsonTreeView.vue` — `nodeId`-Prop, Pin-Button, `effectiveExpanded`-Computed, Toggle-Block, Highlight-Styling
-- `frontend/src/components/DebugPanel.vue` — `nodeId`-Prop an `JsonTreeView`, `v-memo` um Version-Counter ergänzen
+#### Changed
+- `frontend/src/stores/debugStore.ts` — `pinnedPaths` map, `pinnedPathsVersion` counter, `togglePinnedPath`/`pinnedPathsForNode`
+- `frontend/src/components/JsonTreeView.vue` — `nodeId` prop, pin button, `effectiveExpanded` computed, toggle block, highlight styling
+- `frontend/src/components/DebugPanel.vue` — `nodeId` prop on `JsonTreeView`, extend `v-memo` with version counter

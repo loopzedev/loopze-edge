@@ -1,11 +1,11 @@
-# State Machine Node — Beispiel
+# State Machine Node — Example
 
-## Szenario: Türschloss mit PIN-Code
+## Scenario: Door Lock with PIN Code
 
-Eine Tür hat 3 Zustände: `locked`, `unlocked`, `alarm`.
-- Entsperren nur mit korrektem PIN (Guard)
-- Nach 3 Fehlversuchen → Alarm (Action zählt Versuche)
-- Nach 10 Sekunden Unlock → automatisch wieder locked (Delayed Transition)
+A door has 3 states: `locked`, `unlocked`, `alarm`.
+- Unlock only with the correct PIN (guard)
+- After 3 failed attempts -> alarm (action counts attempts)
+- After 10 seconds of unlock -> automatically locked again (delayed transition)
 
 ---
 
@@ -59,9 +59,9 @@ return {
   actions: {
     countFailure: function(ctx, event) {
       ctx.failedAttempts = (ctx.failedAttempts || 0) + 1;
-      node.log("Fehlversuch #" + ctx.failedAttempts);
+      node.log("Failed attempt #" + ctx.failedAttempts);
 
-      // Nach maxAttempts → Alarm auslösen
+      // After maxAttempts -> trigger alarm
       if (ctx.failedAttempts >= ctx.maxAttempts) {
         node.send({ topic: "TRIGGER_ALARM", payload: {} });
       }
@@ -70,15 +70,15 @@ return {
       ctx.failedAttempts = 0;
     },
     notifyOpen: function(ctx, event) {
-      // Nachricht auf Port 1 senden (z.B. an MQTT)
+      // Send message on port 1 (e.g. to MQTT)
       node.send({ topic: "door/status", payload: { open: true } });
     },
     triggerAlarm: function(ctx, event) {
-      node.warn("ALARM: Zu viele Fehlversuche!");
+      node.warn("ALARM: too many failed attempts!");
       node.send({ topic: "alarm/door", payload: { reason: "too_many_attempts", attempts: ctx.failedAttempts } });
     },
     logLocked: function(ctx, event) {
-      node.log("Tür verriegelt");
+      node.log("Door locked");
     }
   }
 }
@@ -86,35 +86,35 @@ return {
 
 ---
 
-## Flow-Beispiel
+## Flow Example
 
 ```
-[Inject: topic="UNLOCK", payload={"pin":"0000"}]  →  [State Machine]  →  Port 0: [Debug: State Changes]
-[Inject: topic="LOCK"]                             →        ↓
+[Inject: topic="UNLOCK", payload={"pin":"0000"}]  ->  [State Machine]  ->  Port 0: [Debug: State Changes]
+[Inject: topic="LOCK"]                             ->        v
                                                       Port 1: [MQTT Out: Action Messages]
 ```
 
-### Test-Sequenz
+### Test Sequence
 
-| # | Input (msg.topic / payload)             | Erwarteter State | Port 0 Output                        | Port 1 Output                    |
+| # | Input (msg.topic / payload)             | Expected State   | Port 0 Output                        | Port 1 Output                    |
 |---|----------------------------------------|------------------|--------------------------------------|----------------------------------|
-| 1 | `UNLOCK` / `{"pin":"0000"}`            | `locked`         | `changed: false` (Guard blockiert)   | —                                |
-| 2 | `WRONG_PIN` / `{}`                     | `locked`         | `changed: false`, failedAttempts=1   | —                                |
-| 3 | `WRONG_PIN` / `{}`                     | `locked`         | failedAttempts=2                     | —                                |
-| 4 | `WRONG_PIN` / `{}`                     | `locked`         | failedAttempts=3                     | `TRIGGER_ALARM` (von Action)     |
-| 5 | `TRIGGER_ALARM`                        | `alarm`          | `locked→alarm`                       | `alarm/door` Nachricht           |
-| 6 | `RESET` / `{}`                         | `locked`         | `alarm→locked`                       | —                                |
-| 7 | `UNLOCK` / `{"pin":"1234"}`            | `unlocked`       | `locked→unlocked`                    | `door/status: {open: true}`      |
-| 8 | *(10s warten)*                         | `locked`         | `unlocked→locked` (auto-timer)       | —                                |
+| 1 | `UNLOCK` / `{"pin":"0000"}`            | `locked`         | `changed: false` (guard blocks)      | -                                |
+| 2 | `WRONG_PIN` / `{}`                     | `locked`         | `changed: false`, failedAttempts=1   | -                                |
+| 3 | `WRONG_PIN` / `{}`                     | `locked`         | failedAttempts=2                     | -                                |
+| 4 | `WRONG_PIN` / `{}`                     | `locked`         | failedAttempts=3                     | `TRIGGER_ALARM` (from action)    |
+| 5 | `TRIGGER_ALARM`                        | `alarm`          | `locked->alarm`                      | `alarm/door` message             |
+| 6 | `RESET` / `{}`                         | `locked`         | `alarm->locked`                      | -                                |
+| 7 | `UNLOCK` / `{"pin":"1234"}`            | `unlocked`       | `locked->unlocked`                   | `door/status: {open: true}`      |
+| 8 | *(wait 10s)*                           | `locked`         | `unlocked->locked` (auto-timer)      | -                                |
 
 ---
 
-## Was hier demonstriert wird
+## What This Demonstrates
 
-- **Guards:** `pinCorrect` prüft den PIN bevor die Transition erlaubt wird
-- **Actions mit Context:** `countFailure` zählt Fehlversuche im Machine-Context hoch
-- **Entry-Actions:** `notifyOpen` und `triggerAlarm` senden Nachrichten beim Betreten eines States
-- **node.send():** Actions können Messages auf Port 1 ausgeben (z.B. an MQTT, Debug, etc.)
-- **node.log/warn():** Diagnostic-Output im Debug-Panel
-- **Delayed Transitions:** `after: {"10000": "locked"}` — automatisches Verriegeln nach 10s
-- **Self-Transitions:** `WRONG_PIN` bleibt in `locked`, führt aber die Action aus
+- **Guards:** `pinCorrect` checks the PIN before the transition is allowed
+- **Actions with context:** `countFailure` increments failed attempts in the machine context
+- **Entry actions:** `notifyOpen` and `triggerAlarm` send messages when entering a state
+- **node.send():** Actions can emit messages on port 1 (e.g. to MQTT, Debug, etc.)
+- **node.log/warn():** Diagnostic output in the debug panel
+- **Delayed transitions:** `after: {"10000": "locked"}` — automatic locking after 10s
+- **Self-transitions:** `WRONG_PIN` stays in `locked` but executes the action

@@ -1,54 +1,54 @@
-# UI-Komponenten auf Radix Vue migrieren
+# Migrate UI Components to Radix Vue
 
 ## Motivation
 
-Unsere UI-Komponenten (`FormSelect`, `FormCheckbox`, `ToggleGroup`, etc.) basieren auf nativen HTML-Elementen mit Tailwind-Styling. Das funktioniert, hat aber Nachteile:
+Our UI components (`FormSelect`, `FormCheckbox`, `ToggleGroup`, etc.) are based on native HTML elements with Tailwind styling. That works, but has drawbacks:
 
-- **Keine Accessibility** — Keyboard-Navigation, ARIA-Attribute, Focus-Management fehlen
-- **Inkonsistentes Verhalten** — native `<select>` sieht auf jedem OS anders aus, lässt sich kaum stylen
-- **Viel Eigenentwicklung** — Dropdowns mit Suche, Dialoge, Tooltips müssten komplett selbst gebaut werden
+- **No accessibility** — keyboard navigation, ARIA attributes, focus management are missing
+- **Inconsistent behavior** — a native `<select>` looks different on every OS and is hard to style
+- **A lot of in-house development** — dropdowns with search, dialogs, tooltips would all have to be built from scratch
 
-Radix Vue (`radix-vue@1.9.17`) ist bereits als Dependency installiert aber wird nicht genutzt. Es liefert **headless UI-Primitives** — unsichtbare Komponenten mit korrektem Verhalten (Keyboard, ARIA, Focus), die wir mit unserem Tailwind-Theme stylen.
+Radix Vue (`radix-vue@1.9.17`) is already installed as a dependency but is not used. It provides **headless UI primitives** — invisible components with correct behavior (keyboard, ARIA, focus) that we style with our Tailwind theme.
 
 ## Scope
 
-Alle unsere UI-Komponenten unter `frontend/src/components/ui/` auf Radix Vue Primitives umstellen.
+Migrate all of our UI components under `frontend/src/components/ui/` to Radix Vue primitives.
 
-## Komponenten-Mapping
+## Component Mapping
 
-### Sofort migrieren (existieren bereits als eigene Komponenten)
+### Migrate Immediately (already exist as our own components)
 
-| Unsere Komponente | Radix Primitive | Vorteil |
+| Our component | Radix primitive | Benefit |
 |---|---|---|
-| `FormSelect.vue` | `SelectRoot/Trigger/Content/Item` | Vollständig stylebar, Keyboard-Nav, Suchfunktion möglich |
-| `FormCheckbox.vue` | `CheckboxRoot/Indicator` | Konsistentes Rendering, ARIA, Indeterminate-State |
+| `FormSelect.vue` | `SelectRoot/Trigger/Content/Item` | Fully styleable, keyboard nav, search possible |
+| `FormCheckbox.vue` | `CheckboxRoot/Indicator` | Consistent rendering, ARIA, indeterminate state |
 | `ToggleGroup.vue` | `ToggleGroupRoot/Item` | ARIA toggle-group, roving focus |
-| `IconButton.vue` | `Toggle` (für ON/OFF) | ARIA pressed state |
-| `PanelHeader.vue` | Bleibt (kein passendes Primitive) | — |
-| `FormLabel.vue` | `Label` | `for`-Attribut automatisch, Accessibility |
-| `FormInput.vue` | Bleibt (natives Input reicht) | — |
-| `SectionHeader.vue` | `Collapsible` | Sections ein-/ausklappbar |
+| `IconButton.vue` | `Toggle` (for ON/OFF) | ARIA pressed state |
+| `PanelHeader.vue` | Stays (no matching primitive) | — |
+| `FormLabel.vue` | `Label` | `for` attribute automatic, accessibility |
+| `FormInput.vue` | Stays (native input is enough) | — |
+| `SectionHeader.vue` | `Collapsible` | Sections collapsible |
 
-### Neue Komponenten (ermöglicht durch Radix)
+### New Components (enabled by Radix)
 
-| Komponente | Radix Primitive | Einsatz |
+| Component | Radix primitive | Use |
 |---|---|---|
-| `Tooltip.vue` | `TooltipRoot/Trigger/Content` | Node-Buttons, Toolbar-Icons, Handle-Hover |
-| `Dialog.vue` | `DialogRoot/Trigger/Content/Close` | Import/Export, Bestätigungen ("Wirklich löschen?") |
-| `DropdownMenu.vue` | `DropdownMenuRoot/Trigger/Content/Item` | Node-Rechtsklick-Kontextmenü |
-| `Popover.vue` | `PopoverRoot/Trigger/Content` | Node-Inline-Config, Quick-Edit |
-| `Tabs.vue` | `TabsRoot/List/Trigger/Content` | Flow-Tabs (Phase 4), Settings-Tabs |
-| `Switch.vue` | `SwitchRoot/Thumb` | Debug ON/OFF Toggle am Node |
-| `Separator.vue` | `Separator` | Konsistente Trennlinien in Panels |
-| `ScrollArea.vue` | `ScrollAreaRoot/Viewport/Scrollbar` | Custom-Scrollbars in Panels |
+| `Tooltip.vue` | `TooltipRoot/Trigger/Content` | Node buttons, toolbar icons, handle hover |
+| `Dialog.vue` | `DialogRoot/Trigger/Content/Close` | Import/export, confirmations ("Really delete?") |
+| `DropdownMenu.vue` | `DropdownMenuRoot/Trigger/Content/Item` | Node right-click context menu |
+| `Popover.vue` | `PopoverRoot/Trigger/Content` | Node inline config, quick edit |
+| `Tabs.vue` | `TabsRoot/List/Trigger/Content` | Flow tabs (phase 4), settings tabs |
+| `Switch.vue` | `SwitchRoot/Thumb` | Debug ON/OFF toggle on the node |
+| `Separator.vue` | `Separator` | Consistent dividers in panels |
+| `ScrollArea.vue` | `ScrollAreaRoot/Viewport/Scrollbar` | Custom scrollbars in panels |
 
-## Implementierung pro Komponente
+## Implementation per Component
 
-### `FormSelect.vue` (höchste Priorität)
+### `FormSelect.vue` (highest priority)
 
-Aktuell: natives `<select>` — kann nicht gestyled werden, sieht auf jedem OS anders aus.
+Currently: native `<select>` — cannot be styled, looks different on every OS.
 
-Neu mit Radix:
+New with Radix:
 ```vue
 <script setup>
 import { SelectRoot, SelectTrigger, SelectValue, SelectContent, SelectItem } from 'radix-vue'
@@ -68,11 +68,11 @@ import { SelectRoot, SelectTrigger, SelectValue, SelectContent, SelectItem } fro
 </template>
 ```
 
-Vorteile:
-- Vollständig mit Tailwind stylebar (kein OS-natives Dropdown)
-- Keyboard: Arrow Keys, Type-ahead Suche, Escape
+Benefits:
+- Fully styleable with Tailwind (no OS-native dropdown)
+- Keyboard: arrow keys, type-ahead search, Escape
 - ARIA: `role="listbox"`, `aria-selected`
-- Portal: Content wird in `<body>` gerendert (kein Overflow-Clipping in Panels)
+- Portal: content is rendered into `<body>` (no overflow clipping in panels)
 
 ### `FormCheckbox.vue`
 
@@ -108,7 +108,7 @@ Vorteile:
 </CollapsibleRoot>
 ```
 
-Bonus: Sections in PropertyPanel können ein-/ausgeklappt werden.
+Bonus: Sections in PropertyPanel can be collapsed.
 
 ### `Tooltip.vue`
 
@@ -123,52 +123,52 @@ Bonus: Sections in PropertyPanel können ein-/ausgeklappt werden.
 </TooltipRoot>
 ```
 
-Einsatz: Alle Buttons die bisher nur `title=""` haben → echte Tooltips mit Animation.
+Use: All buttons that previously only had `title=""` → real tooltips with animation.
 
-## Styling-Konvention
+## Styling Convention
 
-Radix verwendet `data-[state=...]` Attribute für States:
+Radix uses `data-[state=...]` attributes for states:
 
 ```css
-/* Aktiver Toggle */
+/* Active toggle */
 data-[state=on]:bg-accent data-[state=on]:border-accent
 
-/* Geöffneter Collapsible */
+/* Open Collapsible */
 data-[state=open]:rotate-90
 
-/* Selektiertes Item */
+/* Selected item */
 data-[highlighted]:bg-accent/20
 
 /* Disabled */
 data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed
 ```
 
-Das passt perfekt zu Tailwind — kein zusätzliches CSS nötig.
+This is a perfect fit for Tailwind — no additional CSS needed.
 
-## Migrationsreihenfolge
+## Migration Order
 
-1. **FormSelect** → Radix Select (größter visueller Impact, native Selects sind hässlich)
-2. **FormCheckbox** → Radix Checkbox (konsistentes Rendering)
-3. **ToggleGroup** → Radix ToggleGroup (Accessibility)
-4. **SectionHeader** → Radix Collapsible (neue Funktionalität: ein-/ausklappbar)
-5. **Tooltip** → Neu (ersetzt alle `title=""` Attribute)
-6. **Switch** → Neu (für Debug Node ON/OFF, ersetzt Toggle-Button)
-7. **Dialog** → Neu (für zukünftige Bestätigungen/Import/Export)
-8. **DropdownMenu** → Neu (für Node-Kontextmenü)
-9. **ScrollArea** → Neu (Custom-Scrollbars in Panels)
-10. **Tabs** → Neu (Flow-Tabs in Phase 4)
+1. **FormSelect** → Radix Select (largest visual impact, native selects are ugly)
+2. **FormCheckbox** → Radix Checkbox (consistent rendering)
+3. **ToggleGroup** → Radix ToggleGroup (accessibility)
+4. **SectionHeader** → Radix Collapsible (new functionality: collapsible)
+5. **Tooltip** → New (replaces all `title=""` attributes)
+6. **Switch** → New (for Debug node ON/OFF, replaces toggle button)
+7. **Dialog** → New (for future confirmations/import/export)
+8. **DropdownMenu** → New (for node context menu)
+9. **ScrollArea** → New (custom scrollbars in panels)
+10. **Tabs** → New (flow tabs in phase 4)
 
-## Nicht migrieren
+## Do Not Migrate
 
-| Komponente | Grund |
+| Component | Reason |
 |---|---|
-| `FormInput.vue` | Natives `<input>` ist perfekt, Radix hat kein Input-Primitive |
-| `FormLabel.vue` | Zu simpel für Radix, `<label>` reicht |
-| `PanelHeader.vue` | Kein passendes Primitive |
-| `CodeEditor.vue` | Monaco hat eigenes UI-System |
+| `FormInput.vue` | Native `<input>` is perfect, Radix has no input primitive |
+| `FormLabel.vue` | Too simple for Radix, `<label>` is enough |
+| `PanelHeader.vue` | No matching primitive |
+| `CodeEditor.vue` | Monaco has its own UI system |
 
-## Abhängigkeiten
+## Dependencies
 
-- `radix-vue@1.9.17` — bereits installiert
-- Keine neuen Dependencies nötig
-- Icons für Checkbox-Indicator: SVG inline (kein Icon-Package nötig)
+- `radix-vue@1.9.17` — already installed
+- No new dependencies needed
+- Icons for the checkbox indicator: SVG inline (no icon package needed)

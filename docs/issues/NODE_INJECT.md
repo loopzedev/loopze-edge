@@ -1,14 +1,14 @@
-# Issue: Inject Node — Rules-System wie Change Node
+# Issue: Inject Node — rules system like Change Node
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem description
 
-Der Inject Node hat aktuell hardcoded `payload` + `topic` Felder. Der User kann nur eine Payload und ein Topic konfigurieren. Node-RED's Inject Node erlaubt dagegen eine **dynamische Liste von Properties**, die auf der Message gesetzt werden — genau wie die "Set"-Regeln des Change Nodes.
+The Inject Node currently has hardcoded `payload` + `topic` fields. The user can configure only one payload and one topic. Node-RED's Inject Node, in contrast, allows a **dynamic list of properties** that are set on the message — exactly like the "Set" rules of the Change Node.
 
-**Ziel:** Der Inject Node bekommt ein Rules-System analog zum Change Node. Jede Rule definiert ein Property das auf der ausgehenden Message gesetzt wird. Rules können per Drag & Drop umsortiert, hinzugefügt und entfernt werden.
+**Goal:** The Inject Node gets a rules system analogous to the Change Node. Each rule defines a property to set on the outgoing message. Rules can be reordered via drag & drop, added, and removed.
 
-## Aktuell (wird ersetzt)
+## Current (will be replaced)
 
 ```json
 {
@@ -21,11 +21,11 @@ Der Inject Node hat aktuell hardcoded `payload` + `topic` Felder. Der User kann 
 }
 ```
 
-Hardcoded: genau 1 Payload + 1 Topic, nicht erweiterbar.
+Hardcoded: exactly 1 payload + 1 topic, not extensible.
 
-## Neu: Rules-basierte Property-Liste
+## New: rules-based property list
 
-### Konfiguration
+### Configuration
 
 ```json
 {
@@ -39,20 +39,20 @@ Hardcoded: genau 1 Payload + 1 Topic, nicht erweiterbar.
 }
 ```
 
-Jede Rule in `props` definiert:
+Each rule in `props` defines:
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
-| `p` | Property-Name auf `msg` (z.B. `payload`, `topic`, `qos`, `retain`, beliebig) |
-| `vt` | Value-Type: `str`, `num`, `bool`, `json`, `date`, `env`, `flow`, `global` |
-| `v` | Wert (abhängig vom Type) |
-| `vs` | Storage: `memory` oder `persistent` (nur bei `flow`/`global`) |
+| `p` | Property name on `msg` (e.g. `payload`, `topic`, `qos`, `retain`, arbitrary) |
+| `vt` | Value type: `str`, `num`, `bool`, `json`, `date`, `env`, `flow`, `global` |
+| `v` | Value (depends on type) |
+| `vs` | Storage: `memory` or `persistent` (only for `flow`/`global`) |
 
-**Kein `msg`-Type** — der Inject Node hat keine eingehende Message.
+**No `msg` type** — the Inject Node has no incoming message.
 
-### Default-Rules
+### Default rules
 
-Neuer Inject Node startet mit zwei Default-Rules:
+A new Inject Node starts with two default rules:
 
 ```json
 [
@@ -61,24 +61,24 @@ Neuer Inject Node startet mit zwei Default-Rules:
 ]
 ```
 
-### Unterstützte Value-Typen
+### Supported value types
 
-| Typ | `vt` | `v` Inhalt | Beschreibung |
+| Type | `vt` | `v` content | Description |
 |---|---|---|---|
-| **String** | `str` | `"Hallo Welt"` | Statischer String |
-| **Number** | `num` | `"42.5"` | Numerischer Wert (float64) |
+| **String** | `str` | `"Hello world"` | Static string |
+| **Number** | `num` | `"42.5"` | Numeric value (float64) |
 | **Boolean** | `bool` | `"true"` | true/false |
-| **JSON** | `json` | `'{"key": "val"}'` | JSON-Objekt oder Array |
-| **Timestamp** | `date` | `"rfc3339"` oder `"epoch"` | Aktueller Zeitstempel |
-| **Env-Variable** | `env` | `"MY_VAR"` | Umgebungsvariable auslesen |
-| **Flow Context** | `flow` | `"myKey"` | Wert aus Flow-Context lesen |
-| **Global Context** | `global` | `"myKey"` | Wert aus Global-Context lesen |
+| **JSON** | `json` | `'{"key": "val"}'` | JSON object or array |
+| **Timestamp** | `date` | `"rfc3339"` or `"epoch"` | Current timestamp |
+| **Env variable** | `env` | `"MY_VAR"` | Read environment variable |
+| **Flow context** | `flow` | `"myKey"` | Read value from flow context |
+| **Global context** | `global` | `"myKey"` | Read value from global context |
 
-## Umsetzung
+## Implementation
 
 ### Backend (`inject.go`)
 
-Die `emit()` Methode iteriert über alle Rules und setzt die Properties auf der Message:
+The `emit()` method iterates over all rules and sets the properties on the message:
 
 ```go
 func (n *InjectNode) emit() {
@@ -97,17 +97,17 @@ func (n *InjectNode) emit() {
 }
 ```
 
-**Config-Parsing:** `Init()` liest `props` als `[]map[string]any` (analog zu `rules` im Change Node).
+**Config parsing:** `Init()` reads `props` as `[]map[string]any` (analogous to `rules` in the Change Node).
 
-**ContextProvider:** Bereits implementiert — InjectNode implementiert `SetContext()`.
+**ContextProvider:** already implemented — InjectNode implements `SetContext()`.
 
-### Shared Value-Type Komponente (Frontend)
+### Shared value-type component (frontend)
 
-**Bereits vorhanden:** `ValueTypeInput.vue` — wird wiederverwendet.
+**Already exists:** `ValueTypeInput.vue` — reused.
 
 ### Frontend (`InjectConfig.vue`)
 
-Das Property-Panel bekommt die gleiche Rule-Liste wie der Change Node:
+The properties panel gets the same rule list as the Change Node:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -126,43 +126,43 @@ Das Property-Panel bekommt die gleiche Rule-Liste wie der Change Node:
 └─────────────────────────────────────────────────┘
 ```
 
-Jede Zeile enthält:
-- **Drag Handle** (`≡`) für Reihenfolge per Drag & Drop
-- **Property Name** (FormInput, z.B. `payload`, `topic`, `qos`)
-- **ValueTypeInput** (Type-Dropdown + Value-Input + optional Storage)
-- **Delete Button** (`✕`)
+Each row contains:
+- **Drag handle** (`≡`) for ordering via drag & drop
+- **Property name** (FormInput, e.g. `payload`, `topic`, `qos`)
+- **ValueTypeInput** (type dropdown + value input + optional storage)
+- **Delete button** (`✕`)
 
-Die Drag & Drop Logik wird aus `ChangeConfig.vue` wiederverwendet (gleiche `onDragStart`/`onDragOver`/`onDrop` Pattern).
+The drag & drop logic is reused from `ChangeConfig.vue` (same `onDragStart`/`onDragOver`/`onDrop` pattern).
 
-### Shared Value-Resolution (Backend)
+### Shared value resolution (backend)
 
-**Bereits vorhanden:** `valuetype.go` mit `ResolveValue()` — wird wiederverwendet.
+**Already exists:** `valuetype.go` with `ResolveValue()` — reused.
 
-### Bestehende Funktionalität (bleibt unverändert)
+### Existing functionality (unchanged)
 
-- Trigger-Modi: Manual, Once, Interval, Once+Interval
-- TRIG-Button im Canvas
-- API-Endpoint `POST /api/v1/inject/{id}`
-- Node-Darstellung im Canvas (InjectNode.vue)
-- Intervall-Presets im Property-Panel
+- Trigger modes: Manual, Once, Interval, Once+Interval
+- TRIG button on canvas
+- API endpoint `POST /api/v1/inject/{id}`
+- Node display on canvas (InjectNode.vue)
+- Interval presets in the property panel
 
-## Betroffene Dateien
+## Affected files
 
-| Datei | Änderung |
+| File | Change |
 |---|---|
-| `internal/nodes/inject.go` | Rules-Parsing statt hardcoded payload/topic, `emit()` iteriert Rules |
-| `internal/nodes/inject_test.go` | Tests für Multi-Rule, Reihenfolge, verschiedene Value-Typen |
-| `frontend/src/components/config/InjectConfig.vue` | Rule-Liste mit Drag & Drop, nutzt `ValueTypeInput` |
+| `internal/nodes/inject.go` | Rules parsing instead of hardcoded payload/topic, `emit()` iterates rules |
+| `internal/nodes/inject_test.go` | Tests for multi-rule, ordering, various value types |
+| `frontend/src/components/config/InjectConfig.vue` | Rule list with drag & drop, uses `ValueTypeInput` |
 
 ## Tests
 
-| Test | Prüft |
+| Test | Verifies |
 |---|---|
-| `TestInjectSingleRule` | Eine Rule: payload=str |
-| `TestInjectMultipleRules` | Mehrere Rules: payload + topic + custom property |
-| `TestInjectRuleOrder` | Reihenfolge der Rules wird eingehalten |
-| `TestInjectDefaultRules` | Ohne Props-Config → Default payload=timestamp |
-| `TestInjectPayloadDateEpoch` | date-Type mit epoch |
-| `TestInjectPayloadJSON` | json-Type |
-| `TestInjectPayloadEnv` | env-Type |
-| `TestInjectEmptyRules` | Leere props-Liste → Message ohne Properties |
+| `TestInjectSingleRule` | One rule: payload=str |
+| `TestInjectMultipleRules` | Multiple rules: payload + topic + custom property |
+| `TestInjectRuleOrder` | Order of rules is preserved |
+| `TestInjectDefaultRules` | Without props config → default payload=timestamp |
+| `TestInjectPayloadDateEpoch` | date type with epoch |
+| `TestInjectPayloadJSON` | json type |
+| `TestInjectPayloadEnv` | env type |
+| `TestInjectEmptyRules` | Empty props list → message without properties |

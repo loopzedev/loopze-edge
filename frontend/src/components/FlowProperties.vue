@@ -87,12 +87,12 @@ const canDelete = computed(() => flowStore.flows.length > 1)
     <div class="px-3 py-3 border-b border-terminal-border">
       <div class="flex items-center gap-2 mb-2">
         <span class="w-3 h-3 bg-accent flex-shrink-0"></span>
-        <span class="text-accent text-sm font-bold uppercase tracking-wider">Neuer Flow</span>
+        <span class="text-accent text-sm font-bold uppercase tracking-wider">New Flow</span>
       </div>
     </div>
 
     <div class="px-3 py-3">
-      <SectionHeader title="Einstellungen">
+      <SectionHeader title="Settings">
         <div class="flex flex-col gap-3">
           <div class="flex flex-col gap-1">
             <FormLabel>Name</FormLabel>
@@ -110,13 +110,13 @@ const canDelete = computed(() => flowStore.flows.length > 1)
               :class="{ 'opacity-50 cursor-not-allowed': !newFlowName.trim() }"
               @click="handleCreate"
             >
-              Anlegen
+              Create
             </button>
             <button
               class="terminal-btn text-xs uppercase tracking-wider flex-1"
               @click="handleCancel"
             >
-              Abbrechen
+              Cancel
             </button>
           </div>
         </div>
@@ -140,7 +140,7 @@ const canDelete = computed(() => flowStore.flows.length > 1)
     </div>
 
     <div class="px-3 py-3 border-b border-terminal-border">
-      <SectionHeader title="Einstellungen">
+      <SectionHeader title="Settings">
         <div class="flex flex-col gap-3">
           <div class="flex flex-col gap-1">
             <FormLabel>Name</FormLabel>
@@ -155,7 +155,7 @@ const canDelete = computed(() => flowStore.flows.length > 1)
             <FormLabel>Status</FormLabel>
             <AppSwitch
               :model-value="!editFlow.disabled"
-              label="Aktiviert"
+              label="Enabled"
               @update:model-value="handleToggleDisabled"
             />
           </div>
@@ -168,28 +168,28 @@ const canDelete = computed(() => flowStore.flows.length > 1)
         <button
           class="text-xs text-red-400 hover:text-red-300 transition-colors duration-100 disabled:opacity-30 disabled:cursor-not-allowed"
           :disabled="!canDelete"
-          :title="canDelete ? 'Flow löschen' : 'Letzter Flow kann nicht gelöscht werden'"
+          :title="canDelete ? 'Delete flow' : 'The last flow cannot be deleted'"
           @click="handleDeleteClick"
         >
-          Flow löschen
+          Delete Flow
         </button>
       </div>
       <div v-else class="flex flex-col gap-2">
         <p class="text-[10px] text-terminal-text-dim">
-          Flow &laquo;{{ editFlow.label }}&raquo; wirklich löschen?
+          Really delete flow &laquo;{{ editFlow.label }}&raquo;?
         </p>
         <div class="flex gap-2">
           <button
             class="terminal-btn text-xs uppercase tracking-wider flex-1 !border-red-500 !text-red-400 hover:!bg-red-500/10"
             @click="handleDeleteConfirm"
           >
-            Löschen
+            Delete
           </button>
           <button
             class="terminal-btn text-xs uppercase tracking-wider flex-1"
             @click="handleDeleteCancel"
           >
-            Abbrechen
+            Cancel
           </button>
         </div>
       </div>

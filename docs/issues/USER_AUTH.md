@@ -1,118 +1,118 @@
-# Issue: Benutzer-Authentifizierung – First-Run Admin-Setup, Rollen, SSO-Vorbereitung
+# Issue: User Authentication – First-Run Admin Setup, Roles, SSO Preparation
 
-## Status: Konzept
+## Status: Concept
 
-## Problembeschreibung
+## Problem Description
 
-LOOPZE hat aktuell **keinerlei Zugriffsschutz** — wer den Editor im Browser öffnet, kann Flows deployen, Connector-Konfigurationen ändern und Context-Daten löschen. Für jeden Einsatz außerhalb eines abgeschotteten Lab-Netzes ist das nicht tragbar.
+LOOPZE currently has **no access protection whatsoever** — anyone who opens the editor in the browser can deploy flows, change connector configurations, and delete context data. For any deployment outside of an isolated lab network this is untenable.
 
-Dieses Issue entwirft das Konzept für eine **Benutzer-Authentifizierung** mit den folgenden Eckpfeilern:
+This issue drafts the concept for **user authentication** with the following pillars:
 
-1. **First-Run-Setup**: Beim erstmaligen Start fragt LOOPZE per Popup nach den Daten für einen initialen Admin-Account. Vorher ist das UI gesperrt.
-2. **Lokale Benutzerverwaltung**: Der Admin kann weitere Benutzer mit den Rollen **Editor** oder **Viewer** anlegen.
-3. **SSO-Erweiterbarkeit**: Spätere Einbindung von OAuth2 / Azure AD / OIDC ohne Bruch des bestehenden Modells.
+1. **First-run setup**: On the first start, LOOPZE asks via popup for the credentials of an initial admin account. The UI is locked beforehand.
+2. **Local user management**: The admin can create additional users with the **Editor** or **Viewer** role.
+3. **SSO extensibility**: Later integration of OAuth2 / Azure AD / OIDC without breaking the existing model.
 
-Das Issue beschreibt das **Konzept**, nicht den Code. Ziel ist Alignment, bevor der Implementierungsplan geschrieben wird.
+The issue describes the **concept**, not the code. Goal is alignment before the implementation plan is written.
 
-## Abgrenzung
+## Out of Scope
 
-**Nicht Teil dieses Issues:**
+**Not part of this issue:**
 
-- **Connector-Passwörter** (MQTT-Broker, später HTTP/DB-Connectors). Die werden bereits über `internal/credentials/credentials.go` (AES-256-GCM, Master-Key in `data/loopze.key`) verwaltet — das ist ein separates Thema mit eigener Krypto und eigenem Lifecycle. **Berührungspunkt nur**: Beide Mechanismen brauchen Server-seitige Geheimnisse auf der Platte (siehe „Offene Fragen"). Tracker für Connector-Credentials → eigenes Issue.
-- **Audit-Log** (wer hat wann was geändert). Sinnvolle Erweiterung, aber separat.
-- **Multi-Tenancy** / Mandanten-Trennung. LOOPZE bleibt vorerst Single-Tenant.
+- **Connector passwords** (MQTT broker, later HTTP/DB connectors). These are already managed via `internal/credentials/credentials.go` (AES-256-GCM, master key in `data/loopze.key`) — that is a separate topic with its own crypto and own lifecycle. **Touchpoint only**: Both mechanisms need server-side secrets on disk (see "Open Questions"). Tracker for connector credentials → separate issue.
+- **Audit log** (who changed what when). Useful extension, but separate.
+- **Multi-tenancy** / tenant separation. LOOPZE remains single-tenant for now.
 
-## Anforderungen
+## Requirements
 
 ### 1. First-Run Setup
 
-Beim Start prüft das Backend, ob ein User-Store existiert und mindestens **einen Admin** enthält.
+On start the backend checks whether a user store exists and contains at least **one admin**.
 
-- **Kein Admin vorhanden** → das Backend befindet sich im **Setup-Modus**. Alle API-Routen außer `/api/v1/setup` und der Frontend-Auslieferung antworten mit `503 Service Unavailable` (oder einem dezidierten Setup-Required-Status).
-- **Setup-Endpoint**: `POST /api/v1/setup` mit `{ username, password }` — legt den ersten Admin-User an. Funktioniert **nur einmal** (idempotent: zweiter Aufruf liefert `409 Conflict`).
-- **Frontend**: zeigt ein modales Setup-Popup (nicht abbruchbar), solange das Backend Setup-Modus meldet. Nach erfolgreichem Setup → automatischer Login mit den frisch eingegebenen Daten.
+- **No admin present** → the backend is in **setup mode**. All API routes except `/api/v1/setup` and frontend serving respond with `503 Service Unavailable` (or a dedicated setup-required status).
+- **Setup endpoint**: `POST /api/v1/setup` with `{ username, password }` — creates the first admin user. Works **only once** (idempotent: second call returns `409 Conflict`).
+- **Frontend**: shows a modal setup popup (non-cancelable) as long as the backend reports setup mode. After successful setup → automatic login with the freshly entered credentials.
 
-**Begründung:** Ein im Code hartcodierter Default-Admin (`admin/admin`) wäre unsicher und würde in der Praxis nie geändert. Erzwungenes First-Run-Setup ist die einzig saubere Lösung.
+**Rationale:** A hardcoded default admin (`admin/admin`) would be insecure and would in practice never be changed. Enforced first-run setup is the only clean solution.
 
-### 2. Benutzer-Modell
+### 2. User Model
 
-Drei Rollen, **flach** (nicht hierarchisch — Admin ist *nicht* automatisch Editor + Viewer, sondern eine eigene Rolle, die alle Rechte umfasst):
+Three roles, **flat** (not hierarchical — admin is *not* automatically editor + viewer, but a separate role that encompasses all rights):
 
-| Rolle | Flows lesen | Flows deployen | Inject auslösen | Context anzeigen | Context löschen | User verwalten |
+| Role | Read flows | Deploy flows | Trigger inject | View context | Delete context | Manage users |
 |---|---|---|---|---|---|---|
 | **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **Editor** | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
 | **Viewer** | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ |
 
-**Bewusste Entscheidung:** Nur drei Rollen. Keine Permission-Matrix, keine Custom-Roles, keine Per-Flow-ACLs. Das ist die einfache Lösung, die die Bediener nicht überfordert.
+**Deliberate decision:** Only three roles. No permission matrix, no custom roles, no per-flow ACLs. This is the simple solution that does not overwhelm operators.
 
-**User-Felder:**
+**User fields:**
 - `id` (string, UUID)
-- `username` (string, eindeutig, case-insensitive)
-- `passwordHash` (string, **argon2id**) — leer bei SSO-Usern (siehe unten)
+- `username` (string, unique, case-insensitive)
+- `passwordHash` (string, **argon2id**) — empty for SSO users (see below)
 - `role` (`admin` | `editor` | `viewer`)
 - `createdAt`, `updatedAt` (RFC3339)
-- `disabled` (bool) — ein User wird **deaktiviert**, nicht gelöscht (Audit-freundlich; spätere Löschung möglich, aber Soft-Disable ist Default)
-- `authProvider` (string) — `local` oder später `oauth2:google`, `azure-ad` etc. Trennt lokale von SSO-Usern.
+- `disabled` (bool) — a user is **disabled**, not deleted (audit-friendly; later deletion possible, but soft-disable is the default)
+- `authProvider` (string) — `local` or later `oauth2:google`, `azure-ad`, etc. Separates local from SSO users.
 
 **Constraints:**
-- Mindestens **ein** aktiver Admin muss immer existieren. API verweigert das Deaktivieren / Rollendowngrade des letzten Admins.
-- Username eindeutig pro `authProvider` — derselbe `alice` kann lokal und SSO existieren (wird aber als zwei verschiedene User behandelt; **kein** automatisches Account-Linking).
+- At least **one** active admin must always exist. API refuses to disable / role-downgrade the last admin.
+- Username unique per `authProvider` — the same `alice` may exist locally and via SSO (but treated as two different users; **no** automatic account linking).
 
 ### 3. Login & Session
 
-- **Login-Endpoint**: `POST /api/v1/auth/login` mit `{ username, password }` → setzt ein **HttpOnly, Secure, SameSite=Lax Session-Cookie** mit einer signierten Session-ID. Antwort enthält `{ user: { id, username, role } }`.
-- **Logout-Endpoint**: `POST /api/v1/auth/logout` → invalidiert die Session.
-- **Me-Endpoint**: `GET /api/v1/auth/me` → liefert den aktuell eingeloggten User oder `401`.
-- **Session-Speicherung**: Server-seitig in einem NATS-KV-Bucket `auth-sessions` (TTL: 12 h sliding). Vorteil: Konsistent mit der bestehenden Persistenz, kein zusätzlicher State.
-- **Session-Signing-Key**: 256-bit Random Key, beim ersten Start in `data/loopze.session.key` generiert (analog zu `loopze.key`). Rotation = manuelles Löschen der Datei, alle Sessions ungültig.
-- **Brute-Force-Schutz**: Pro Username max. 5 Fehlversuche / 15 min, danach Sperre auf weitere 15 min. Einfache In-Memory-Map reicht — keine externe Rate-Limit-Lösung.
+- **Login endpoint**: `POST /api/v1/auth/login` with `{ username, password }` → sets a **HttpOnly, Secure, SameSite=Lax session cookie** with a signed session ID. Response contains `{ user: { id, username, role } }`.
+- **Logout endpoint**: `POST /api/v1/auth/logout` → invalidates the session.
+- **Me endpoint**: `GET /api/v1/auth/me` → returns the currently logged-in user or `401`.
+- **Session storage**: Server-side in a NATS-KV bucket `auth-sessions` (TTL: 12 h sliding). Advantage: consistent with existing persistence, no extra state.
+- **Session signing key**: 256-bit random key, generated on first start in `data/loopze.session.key` (analogous to `loopze.key`). Rotation = manually deleting the file, all sessions invalid.
+- **Brute-force protection**: Per username max 5 failed attempts / 15 min, then locked for another 15 min. A simple in-memory map suffices — no external rate-limit solution.
 
-**Bewusste Entscheidung — Cookie statt JWT:** Server-seitige Sessions sind einfacher (Logout funktioniert sofort, Token-Revocation kein Problem) und LOOPZE hat ohnehin eine zentrale Instanz. JWT wäre Over-Engineering für ein Single-Node-System.
+**Deliberate decision — cookie instead of JWT:** Server-side sessions are simpler (logout works immediately, token revocation is no problem) and LOOPZE has a central instance anyway. JWT would be over-engineering for a single-node system.
 
-### 4. WebSocket-Authentifizierung
+### 4. WebSocket Authentication
 
-Der `/ws`-Endpunkt ist heute offen. Mit Auth:
+The `/ws` endpoint is open today. With auth:
 
-- WS-Upgrade akzeptiert nur Requests mit gültigem Session-Cookie (Browser sendet das Cookie automatisch beim WS-Handshake).
-- Beim Session-Ablauf wird die Verbindung serverseitig geschlossen; Frontend zeigt Login-Modal.
+- WS upgrade only accepts requests with a valid session cookie (browser sends the cookie automatically on the WS handshake).
+- On session expiration the connection is closed server-side; frontend shows the login modal.
 
 ### 5. Frontend
 
-Drei UI-Bereiche:
+Three UI areas:
 
-1. **Setup-Modal** (First-Run, blockierend, nicht schließbar) — Username, Passwort, Passwort-Wiederholung.
-2. **Login-Modal** (wenn nicht angemeldet) — Username, Passwort, Fehleranzeige bei `401`.
-3. **User-Verwaltung** (nur Admins sichtbar) — neuer Sidebar-/Header-Eintrag „Users":
-   - Liste aller User: Username, Rolle, Status (aktiv/deaktiviert), Auth-Provider
-   - „User anlegen" — Username, Passwort, Rolle (Editor / Viewer; Admin nur durch anderen Admin)
-   - „Passwort zurücksetzen" — setzt ein neues Passwort (kein E-Mail-Reset, kein Reset-Token-Flow — der Admin tippt das neue Passwort ein, der User kriegt es out-of-band)
-   - „Deaktivieren" / „Aktivieren"
-   - **Kein** „Löschen" in V1 (siehe Soft-Disable oben).
+1. **Setup modal** (first-run, blocking, not closable) — username, password, password confirmation.
+2. **Login modal** (when not logged in) — username, password, error display on `401`.
+3. **User management** (only visible to admins) — new sidebar/header entry "Users":
+   - List of all users: username, role, status (active/disabled), auth provider
+   - "Create user" — username, password, role (editor / viewer; admin only by another admin)
+   - "Reset password" — sets a new password (no email reset, no reset-token flow — the admin types the new password, the user gets it out-of-band)
+   - "Disable" / "Enable"
+   - **No** "Delete" in V1 (see soft-disable above).
 
-**Rollen-Gating im UI:**
-- Viewer sieht den Deploy-Button nicht (statt ihn zu zeigen und beim Klick `403` zu kassieren).
-- Viewer sieht den Inject-Button nicht.
-- Viewer sieht die Context-„Delete"-Buttons nicht.
+**Role gating in the UI:**
+- Viewer does not see the Deploy button (instead of showing it and getting `403` on click).
+- Viewer does not see the Inject button.
+- Viewer does not see the context "Delete" buttons.
 
-Das UI-Gating ist **kein Sicherheits-Feature** — der Server muss alle Aktionen unabhängig vom UI absichern. Es ist reine UX, damit Viewer nicht auf Buttons starren, die immer fehlschlagen.
+UI gating is **not a security feature** — the server must secure all actions independently of the UI. It is pure UX so viewers don't stare at buttons that always fail.
 
-### 6. Backend-Routen-Schutz
+### 6. Backend Route Protection
 
-Middleware in `internal/api/routes.go`, die jede Route mit der nötigen Mindestrolle annotiert:
+Middleware in `internal/api/routes.go` that annotates each route with the required minimum role:
 
-| Route | Mindestrolle |
+| Route | Minimum role |
 |---|---|
 | `GET /api/v1/flows`, `/nodes`, `/configs/types`, `/settings`, `/status/...`, `/debug/messages`, `/logs`, `/context/...` (GET) | viewer |
 | `POST /api/v1/flows` (deploy) | editor |
 | `POST /api/v1/inject/{id}` | editor |
 | `DELETE /api/v1/context/...` | editor |
 | `/api/v1/users/*` | admin |
-| `/api/v1/auth/login`, `/auth/logout`, `/auth/me`, `/setup` | (offen) |
+| `/api/v1/auth/login`, `/auth/logout`, `/auth/me`, `/setup` | (open) |
 
-### 7. Persistenz
+### 7. Persistence
 
-Neue Datei: `data/users.json` (analog zu `workspace.json`). Format:
+New file: `data/users.json` (analogous to `workspace.json`). Format:
 
 ```json
 {
@@ -131,56 +131,56 @@ Neue Datei: `data/users.json` (analog zu `workspace.json`). Format:
 }
 ```
 
-Atomic-Write (temp-Datei + rename) wie bei `workspace.json`.
+Atomic write (temp file + rename) as with `workspace.json`.
 
-**Warum JSON-Datei und nicht NATS-KV?** Konsistent mit dem bestehenden Storage-Pattern (Flows, Credentials sind auch File-Based). User-Daten ändern sich selten, ein paar hundert Einträge sind kein Problem für JSON.
+**Why a JSON file and not NATS-KV?** Consistent with the existing storage pattern (flows, credentials are also file-based). User data changes rarely, a few hundred entries are no problem for JSON.
 
-### 8. SSO-Vorbereitung (V2, nicht in V1 implementiert)
+### 8. SSO Preparation (V2, not implemented in V1)
 
-V1 implementiert **nur** lokale User. Aber das Modell muss SSO **architektonisch nicht ausschließen**. Konkret:
+V1 implements **only** local users. But the model must **architecturally not exclude** SSO. Concretely:
 
-- `authProvider` als Feld am User existiert von Anfang an.
-- Login-Endpoint trennt klar zwischen Credential-Verifikation und Session-Erzeugung. Eine künftige `/auth/oauth2/callback`-Route würde dieselbe Session-Logik nutzen, nur mit einer anderen Credential-Verifikation davor.
-- Das Frontend-Login-Modal hat einen Platzhalter „Login mit ..." (in V1 ausgeblendet, in V2 erscheinen dort die konfigurierten Provider).
+- `authProvider` as a field on the user exists from the start.
+- Login endpoint clearly separates credential verification from session creation. A future `/auth/oauth2/callback` route would use the same session logic, just with a different credential verification in front.
+- The frontend login modal has a placeholder "Login with ..." (hidden in V1, in V2 the configured providers appear there).
 
-**Was V1 explizit nicht enthält** (um nicht zu spekulieren):
-- Provider-Konfigurations-UI
-- OAuth2 / OIDC Library-Integration
-- Account-Linking lokal ↔ SSO
-- Group-Mapping „Azure-AD-Group X → LOOPZE-Rolle Editor"
+**What V1 explicitly does not contain** (to avoid speculation):
+- Provider configuration UI
+- OAuth2 / OIDC library integration
+- Account linking local ↔ SSO
+- Group mapping "Azure AD group X → LOOPZE editor role"
 
-Das wird in einem **separaten V2-Issue** entworfen, sobald V1 läuft und ein konkreter SSO-Bedarf da ist.
+This is drafted in a **separate V2 issue** as soon as V1 is running and a concrete SSO need exists.
 
 ## Acceptance Criteria
 
-**V1 (Lokale Auth):**
+**V1 (Local Auth):**
 
-- [ ] Beim ersten Start ohne `data/users.json` zeigt das Frontend ein nicht abbrechbares Setup-Modal; alle API-Routen außer Setup sind gesperrt.
-- [ ] Nach Setup ist der erste User automatisch eingeloggt und sieht den Editor.
-- [ ] Logout funktioniert; danach erscheint das Login-Modal.
-- [ ] Login mit falschem Passwort schlägt fehl, mit korrektem gelingt.
-- [ ] 5 Fehlversuche / 15 min sperren den Account temporär.
-- [ ] Admin kann unter „Users" weitere Editor- und Viewer-User anlegen.
-- [ ] Editor kann deployen und injecten, aber keine User verwalten (`/api/v1/users/*` → 403).
-- [ ] Viewer sieht Flows und Context, aber Deploy- / Inject- / Delete-Buttons sind ausgeblendet; Server liefert für diese Aktionen `403`.
-- [ ] Letzter aktiver Admin kann nicht deaktiviert / heruntergestuft werden (`409 Conflict`).
-- [ ] WebSocket-Verbindungen ohne gültige Session werden abgelehnt; bei Session-Ablauf wird die offene Verbindung serverseitig geschlossen.
-- [ ] Sessions überleben einen Server-Restart (KV-persistiert).
+- [ ] On first start without `data/users.json` the frontend shows a non-cancelable setup modal; all API routes except setup are gated.
+- [ ] After setup the first user is automatically logged in and sees the editor.
+- [ ] Logout works; afterwards the login modal appears.
+- [ ] Login with wrong password fails, with correct succeeds.
+- [ ] 5 failed attempts / 15 min temporarily lock the account.
+- [ ] Admin can create additional editor and viewer users under "Users".
+- [ ] Editor can deploy and inject but not manage users (`/api/v1/users/*` → 403).
+- [ ] Viewer sees flows and context, but Deploy / Inject / Delete buttons are hidden; server returns `403` for these actions.
+- [ ] The last active admin cannot be disabled / downgraded (`409 Conflict`).
+- [ ] WebSocket connections without a valid session are rejected; on session expiration the open connection is closed server-side.
+- [ ] Sessions survive a server restart (KV-persisted).
 
-## Offene Fragen
+## Open Questions
 
-1. **Master-Key-Beziehung**: Soll der Connector-Credentials-Master-Key (`loopze.key`) optional an den eingeloggten Admin gekoppelt werden (z. B. „Connector-Passwörter sind nur entschlüsselbar, wenn ein Admin angemeldet ist")? — **Vorschlag: Nein.** Der Server muss Flows auch ohne angemeldeten User ausführen (Boot-Time Deploy). Master-Key bleibt ein reines Server-Geheimnis. User-Auth schützt nur den UI-/API-Zugang.
-2. **Passwort-Policy**: Mindestlänge / Komplexität? — **Vorschlag**: Nur Mindestlänge 8 Zeichen, keine Komplexitätsregeln (NIST 800-63B-konform).
-3. **Session-Dauer**: 12 h sliding ist ein Start. Konfigurierbar? — **Vorschlag**: Vorerst hartcodiert, später Setting.
-4. **HTTPS-Erzwingung**: Cookie ist `Secure` — funktioniert dann nicht über HTTP. Akzeptabel oder brauchen wir einen „Insecure-Dev-Modus"? — **Vorschlag**: Setting `auth.requireSecureCookies` (Default: an, abschaltbar nur per Flag/Env).
-5. **Default-Login bei laufendem Dev-Server**: Soll es einen Dev-Modus geben, der die Auth komplett aushebelt (`LOOPZE_DISABLE_AUTH=1`)? — **Vorschlag**: Ja, aber mit dickem Warn-Log bei Start. Nützlich für lokale Entwicklung und Tests.
+1. **Master-key relation**: Should the connector credentials master key (`loopze.key`) optionally be coupled to the logged-in admin (e.g., "connector passwords are only decryptable when an admin is logged in")? — **Proposal: No.** The server must execute flows even without a logged-in user (boot-time deploy). The master key remains a pure server secret. User auth only protects UI/API access.
+2. **Password policy**: Minimum length / complexity? — **Proposal**: Only minimum length 8 characters, no complexity rules (NIST 800-63B compliant).
+3. **Session duration**: 12 h sliding is a start. Configurable? — **Proposal**: Hardcoded for now, later a setting.
+4. **HTTPS enforcement**: Cookie is `Secure` — then does not work over HTTP. Acceptable or do we need an "insecure dev mode"? — **Proposal**: Setting `auth.requireSecureCookies` (default: on, only disable via flag/env).
+5. **Default login on running dev server**: Should there be a dev mode that completely disables auth (`LOOPZE_DISABLE_AUTH=1`)? — **Proposal**: Yes, but with a bold warn log on start. Useful for local development and tests.
 
-## Implementierungsplan (Skizze, vor Detailplan)
+## Implementation Plan (Sketch, before Detail Plan)
 
-1. **Backend-Skeleton**: `internal/auth/` Package mit User-Store, Argon2-Hashing, Session-KV.
-2. **API-Routen**: `/setup`, `/auth/login`, `/auth/logout`, `/auth/me`, `/users/*`. Middleware `RequireRole(...)` an die bestehenden Routen hängen.
-3. **Frontend**: Auth-Pinia-Store, Setup-Modal, Login-Modal, „Users"-View, Rollen-Gating in vorhandenen Komponenten.
-4. **WebSocket-Schutz**: Cookie-Check beim Upgrade, Verbindungs-Termination bei Session-Ablauf.
-5. **Tests**: Setup-Flow, Login-Flow, Rollen-Enforcement (für jede geschützte Route ein 200/403-Test).
+1. **Backend skeleton**: `internal/auth/` package with user store, Argon2 hashing, session KV.
+2. **API routes**: `/setup`, `/auth/login`, `/auth/logout`, `/auth/me`, `/users/*`. Hang middleware `RequireRole(...)` on the existing routes.
+3. **Frontend**: auth Pinia store, setup modal, login modal, "Users" view, role gating in existing components.
+4. **WebSocket protection**: cookie check on upgrade, connection termination on session expiration.
+5. **Tests**: setup flow, login flow, role enforcement (for every protected route a 200/403 test).
 
-Nach Bestätigung dieses Konzepts → Detail-Plan in `docs/issues/USER_AUTH_PLAN.md`.
+After confirmation of this concept → detail plan in `docs/issues/USER_AUTH_PLAN.md`.

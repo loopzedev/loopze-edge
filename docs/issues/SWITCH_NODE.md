@@ -1,109 +1,109 @@
 # Switch Node
 
-## Beschreibung
+## Description
 
-Der Switch Node leitet eingehende Messages anhand konfigurierbarer Bedingungen auf einen oder mehrere Ausgänge weiter. Er ist das zentrale Werkzeug für **Routing/Verzweigung** in einem Flow — analog zu einem `if/elseif/else` oder `switch`-Statement, aber ohne Code.
+The Switch node forwards incoming messages to one or more outputs based on configurable conditions. It is the central tool for **routing/branching** in a flow — analogous to an `if/elseif/else` or `switch` statement, but without code.
 
-Pendant zum Change Node: Während Change Daten **manipuliert**, **routet** Switch nur — die Message wird unverändert weitergegeben, lediglich der Ausgang wird gewählt.
+Counterpart to the Change node: while Change **manipulates** data, Switch only **routes** — the message is passed through unchanged, only the output is selected.
 
-## Verhalten
+## Behavior
 
-- **1 Input**, **N Outputs** (N = Anzahl der Regeln)
-- Jede Regel entspricht **einem Output-Port** (Reihenfolge = Port-Reihenfolge von oben nach unten)
-- Pro eingehender Message werden die Regeln sequenziell ausgewertet
-- Die Message wird **unverändert** an alle treffenden Outputs gesendet (kein Klon nötig solange der Empfänger sie nicht mutiert — Implementierung muss aber ggf. defensiv klonen, siehe Implementierung)
+- **1 input**, **N outputs** (N = number of rules)
+- Each rule corresponds to **one output port** (order = port order from top to bottom)
+- For each incoming message, the rules are evaluated sequentially
+- The message is sent **unchanged** to all matching outputs (no clone needed as long as the receiver does not mutate it — the implementation may need to clone defensively, see Implementation)
 
-### Auswertungs-Modi
+### Evaluation Modes
 
-| Modus | Beschreibung |
+| Mode | Description |
 |---|---|
-| **stop after first match** (Default) | Sobald eine Regel matched, werden weitere Regeln übersprungen. Klassisches `if/elseif`-Verhalten. |
-| **check all rules** | Alle Regeln werden ausgewertet, jede passende Regel sendet auf ihren Output. Eine Message kann so an mehreren Outputs erscheinen. |
+| **stop after first match** (default) | As soon as a rule matches, further rules are skipped. Classic `if/elseif` behavior. |
+| **check all rules** | All rules are evaluated; every matching rule sends to its output. A message can thus appear at multiple outputs. |
 
-## Vergleichswert / Property
+## Comparison Value / Property
 
-Wie beim Change Node wird der **zu prüfende Wert** über Scope + Property gewählt:
+As with the Change node, the **value to be checked** is selected via scope + property:
 
-| Scope | Beispiel |
+| Scope | Example |
 |---|---|
 | **msg.** | `msg.payload`, `msg.topic`, `msg.foo.bar` |
-| **flow.** | Wert aus dem Flow-Context |
-| **global.** | Wert aus dem Global-Context |
+| **flow.** | Value from the flow context |
+| **global.** | Value from the global context |
 
-Bei `flow.`/`global.` erscheint zusätzlich das **Storage-Dropdown** (`memory` / `persistent`) — identisch zum Change Node.
+For `flow.`/`global.`, the **storage dropdown** (`memory` / `persistent`) appears additionally — identical to the Change node.
 
-## Operatoren (pro Regel)
+## Operators (per rule)
 
-### Wert-Vergleiche
+### Value Comparisons
 
-| Operator | Symbol | Beschreibung |
+| Operator | Symbol | Description |
 |---|---|---|
-| **==** | `==` | Gleichheit (lose, mit Typkonvertierung) |
-| **!=** | `!=` | Ungleichheit |
-| **<** | `<` | Kleiner als |
-| **<=** | `<=` | Kleiner oder gleich |
-| **>** | `>` | Größer als |
-| **>=** | `>=` | Größer oder gleich |
-| **is between** | `[a..b]` | Wert liegt im Intervall [a, b] (zwei Wert-Felder) |
-| **contains** | `⊃` | String/Array enthält Wert |
-| **matches regex** | `.*` | Regex-Match auf String-Property |
+| **==** | `==` | Equality (loose, with type conversion) |
+| **!=** | `!=` | Inequality |
+| **<** | `<` | Less than |
+| **<=** | `<=` | Less than or equal |
+| **>** | `>` | Greater than |
+| **>=** | `>=` | Greater than or equal |
+| **is between** | `[a..b]` | Value lies in the interval [a, b] (two value fields) |
+| **contains** | `⊃` | String/array contains value |
+| **matches regex** | `.*` | Regex match on string property |
 
-### Typ-Prüfungen (kein Wert nötig)
+### Type Checks (no value needed)
 
-| Operator | Beschreibung |
+| Operator | Description |
 |---|---|
-| **is true** | Wert ist `true` |
-| **is false** | Wert ist `false` |
-| **is null** | Wert ist `null` oder fehlt komplett |
-| **is not null** | Wert existiert und ist nicht null |
-| **is empty** | String/Array/Object ist leer |
-| **is not empty** | Gegenstück zu `is empty` |
-| **is of type** | Vergleich gegen Typ-Dropdown: `string`, `number`, `boolean`, `array`, `object`, `buffer`, `null`, `undefined` |
+| **is true** | Value is `true` |
+| **is false** | Value is `false` |
+| **is null** | Value is `null` or completely missing |
+| **is not null** | Value exists and is not null |
+| **is empty** | String/array/object is empty |
+| **is not empty** | Counterpart to `is empty` |
+| **is of type** | Comparison against type dropdown: `string`, `number`, `boolean`, `array`, `object`, `buffer`, `null`, `undefined` |
 
 ### Default
 
-| Operator | Beschreibung |
+| Operator | Description |
 |---|---|
-| **otherwise** | Catch-all. Matched genau dann, wenn vorher **keine** Regel im `stop after first match`-Modus zugetroffen hat. Sollte als letzte Regel platziert werden. |
+| **otherwise** | Catch-all. Matches exactly when **no** previous rule matched in `stop after first match` mode. Should be placed as the last rule. |
 
-## Wert-Typen (rechts vom Operator)
+## Value Types (right of the operator)
 
-Identisch zum Change Node — die Vergleichswerte können statisch oder aus anderen Quellen kommen:
+Identical to the Change node — comparison values can be static or come from other sources:
 
-| Typ | Beschreibung |
+| Type | Description |
 |---|---|
-| **msg.** | Wert aus einem anderen Message-Property |
-| **flow.** | Wert aus Flow-Context (mit Storage-Dropdown) |
-| **global.** | Wert aus Global-Context (mit Storage-Dropdown) |
-| **string** | Statischer String |
-| **number** | Statische Zahl |
+| **msg.** | Value from another message property |
+| **flow.** | Value from flow context (with storage dropdown) |
+| **global.** | Value from global context (with storage dropdown) |
+| **string** | Static string |
+| **number** | Static number |
 | **boolean** | `true` / `false` |
-| **JSON** | Geparstes JSON-Objekt/Array |
-| **Umgebungsvariable** | Wert aus ENV |
-| **previous value** | Wert aus letzter Auswertung dieser Property (nur bei sinnvollen Operatoren — z.B. `!=` für "hat sich geändert") |
+| **JSON** | Parsed JSON object/array |
+| **environment variable** | Value from ENV |
+| **previous value** | Value from the last evaluation of this property (only with operators where it makes sense — e.g. `!=` for "has changed") |
 
-## UI-Layout
+## UI Layout
 
 ```
-Property:    ▼ msg. [payload                        ]
+Property:    v msg. [payload                        ]
 
-Regeln:
-  ≡  ▼ ==           ▼ string  [active        ]   ✕      → Output 1
-  ≡  ▼ >            ▼ number  [10            ]   ✕      → Output 2
-  ≡  ▼ matches re   ▼ string  [^err_         ]   ✕      → Output 3
-  ≡  ▼ otherwise                                  ✕      → Output 4
-       [ + Regel hinzufügen ]
+Rules:
+  =  v ==           v string  [active        ]   x      -> Output 1
+  =  v >            v number  [10            ]   x      -> Output 2
+  =  v matches re   v string  [^err_         ]   x      -> Output 3
+  =  v otherwise                                  x      -> Output 4
+       [ + Add rule ]
 
-Modus:  ◉ stop after first match   ○ check all rules
+Mode:  (o) stop after first match   ( ) check all rules
 ```
 
-- Sortierbare Liste (Drag-Handle `≡`) — Reihenfolge bestimmt **Port-Reihenfolge**
-- Pro Regel: Operator-Dropdown, Wert-Typ-Dropdown, Wert-Input (zwei Inputs bei `is between`/`index between`), Löschen-Button
-- Beim Hinzufügen/Entfernen einer Regel wird ein Output-Port hinzugefügt/entfernt — bestehende Wires bleiben an ihrer Regel hängen (Wire-Map über Regel-ID, nicht Port-Index)
+- Sortable list (drag handle `=`) — order determines **port order**
+- Per rule: operator dropdown, value-type dropdown, value input (two inputs for `is between`/`index between`), delete button
+- When a rule is added/removed, an output port is added/removed — existing wires stay attached to their rule (wire map by rule ID, not port index)
 
-> Siehe auch `NODE_AND_MULTIOUTPUT.md` — die dort beschriebenen Probleme mit Multi-Output-Skalierung müssen für den Switch Node sauber gelöst sein, sonst wird die UI unbenutzbar.
+> See also `NODE_AND_MULTIOUTPUT.md` — the multi-output scaling problems described there must be cleanly solved for the Switch node, otherwise the UI becomes unusable.
 
-## Konfiguration (Backend)
+## Configuration (Backend)
 
 ```json
 {
@@ -121,114 +121,114 @@ Modus:  ◉ stop after first match   ○ check all rules
 }
 ```
 
-### Top-Level-Felder
+### Top-Level Fields
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
-| `property` | Name der zu prüfenden Property (ohne Scope-Prefix) |
+| `property` | Name of the property to check (without scope prefix) |
 | `propertyType` | Scope: `msg`, `flow`, `global` |
-| `propertyStorage` | `memory` / `persistent` (nur bei flow/global) |
-| `checkall` | `false` = stop after first match (Default), `true` = alle Regeln prüfen |
+| `propertyStorage` | `memory` / `persistent` (only for flow/global) |
+| `checkall` | `false` = stop after first match (default), `true` = check all rules |
 
-### Regel-Felder
+### Rule Fields
 
-| Feld | Beschreibung |
+| Field | Description |
 |---|---|
-| `id` | Stabile ID (für Wire-Mapping über Reihenfolge-Änderungen hinweg) |
-| `t` | Operator (siehe Operator-Tabelle, Kürzel s.u.) |
-| `v` | Vergleichswert |
-| `vt` | Wert-Typ: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `env`, `prev` |
-| `vs` | Storage für `v` (nur bei `vt` = flow/global) |
-| `v2` | Zweiter Wert (nur bei `btwn`, `idxbtwn`) |
-| `v2t` | Typ für `v2` |
-| `v2s` | Storage für `v2` |
-| `case` | Bei `regex`/`cont`: Case-Sensitivity-Flag |
+| `id` | Stable ID (for wire mapping across order changes) |
+| `t` | Operator (see operator table, abbreviations below) |
+| `v` | Comparison value |
+| `vt` | Value type: `msg`, `flow`, `global`, `str`, `num`, `bool`, `json`, `env`, `prev` |
+| `vs` | Storage for `v` (only when `vt` = flow/global) |
+| `v2` | Second value (only for `btwn`, `idxbtwn`) |
+| `v2t` | Type for `v2` |
+| `v2s` | Storage for `v2` |
+| `case` | For `regex`/`cont`: case-sensitivity flag |
 
-### Operator-Kürzel (`t`)
+### Operator Abbreviations (`t`)
 
-| Kürzel | Operator |
+| Abbrev | Operator |
 |---|---|
 | `eq` / `neq` | `==` / `!=` |
-| `lt` / `lte` / `gt` / `gte` | Vergleiche |
+| `lt` / `lte` / `gt` / `gte` | Comparisons |
 | `btwn` | `is between` |
 | `cont` | `contains` |
 | `regex` | `matches regex` |
 | `true` / `false` | `is true` / `is false` |
 | `null` / `nnull` | `is null` / `is not null` |
 | `empty` / `nempty` | `is empty` / `is not empty` |
-| `istype` | `is of type` (Typ in `v`) |
-| `else` | `otherwise` (Catch-all) |
+| `istype` | `is of type` (type in `v`) |
+| `else` | `otherwise` (catch-all) |
 
-## Beispiele
+## Examples
 
-### Routing nach Status-String
+### Routing by Status String
 ```
 Property: msg.payload.status
-  == "ok"      → Output 1
-  == "warn"    → Output 2
-  == "error"   → Output 3
-  otherwise    → Output 4
+  == "ok"      -> Output 1
+  == "warn"    -> Output 2
+  == "error"   -> Output 3
+  otherwise    -> Output 4
 ```
 
-### Schwellwert-Splitting
+### Threshold Splitting
 ```
 Property: msg.payload
-  <  10        → Output 1 (low)
-  is between 10..50  → Output 2 (mid)
-  >  50        → Output 3 (high)
+  <  10        -> Output 1 (low)
+  is between 10..50  -> Output 2 (mid)
+  >  50        -> Output 3 (high)
 ```
 
-### Topic-Filter via Regex
+### Topic Filter via Regex
 ```
 Property: msg.topic
-  matches regex "^sensor/temp/"  → Output 1
-  matches regex "^sensor/hum/"   → Output 2
-  otherwise                       → Output 3 (unbekannt)
+  matches regex "^sensor/temp/"  -> Output 1
+  matches regex "^sensor/hum/"   -> Output 2
+  otherwise                       -> Output 3 (unknown)
 ```
 
-### Existenz-Filter
+### Existence Filter
 ```
 Property: msg.payload.userId
-  is not null  → Output 1 (verarbeiten)
-  otherwise    → Output 2 (verwerfen / loggen)
+  is not null  -> Output 1 (process)
+  otherwise    -> Output 2 (discard / log)
 ```
 
-## Implementierung
+## Implementation
 
 ### Backend (`internal/nodes/switch.go`)
 
-- **Inputs:** 1, **Outputs:** dynamisch = `len(rules)`
-- Implementiert `flow.NodeInstance` und `flow.ContextProvider` (für flow/global Lookups)
-- `Init()` parst `rules`, kompiliert ggf. Regex einmalig
+- **Inputs:** 1, **Outputs:** dynamic = `len(rules)`
+- Implements `flow.NodeInstance` and `flow.ContextProvider` (for flow/global lookups)
+- `Init()` parses `rules`, compiles regex once if applicable
 - `OnMessage(msg)`:
-  1. Property-Wert via Scope (msg/flow/global) holen
-  2. Über Regeln iterieren — für jede zutreffende Regel `n.send(msg, outputIdx)`
-  3. Im `stop after first match`-Modus nach erstem Treffer abbrechen
-  4. `else` matched nur, wenn vorher nichts getroffen hat (auch im `checkall`-Modus)
-- Defensive Kopie der Message **nur** wenn `checkall=true` und mehrere Outputs treffen — sonst Pointer-Pass
+  1. Get property value via scope (msg/flow/global)
+  2. Iterate over rules — for each matching rule call `n.send(msg, outputIdx)`
+  3. In `stop after first match` mode, abort after the first match
+  4. `else` matches only when nothing else matched (also in `checkall` mode)
+- Defensive copy of the message **only** when `checkall=true` and multiple outputs match — otherwise pointer pass
 
-### Typkonvertierung
+### Type Conversion
 
-- Vergleiche nutzen die gleiche Konvertierungslogik wie Change Node (`valuetype.go`)
-- `==`/`!=` mit loser Typkonvertierung (z.B. `"10" == 10` ist true)
-- Strikte Vergleiche (`===`) bewusst weggelassen — kann später ergänzt werden falls gewünscht
+- Comparisons use the same conversion logic as the Change node (`valuetype.go`)
+- `==`/`!=` with loose type conversion (e.g. `"10" == 10` is true)
+- Strict comparisons (`===`) deliberately omitted — can be added later if desired
 
 ### Frontend
 
 #### `SwitchConfig.vue`
-- Wiederverwendung der Bausteine aus `ChangeConfig.vue`:
-  - `MsgFieldEditor` für Property-Wahl mit Scope+Storage
-  - `ValueTypeInput` für die Vergleichswerte
-  - `FormSelect` für Operator-Dropdown
-- Sortierbare Regelliste (Drag & Drop) — Reihenfolge wird auf Port-Reihenfolge gemappt
-- Modus-Toggle (Radio: stop after first / check all)
+- Reuse the building blocks from `ChangeConfig.vue`:
+  - `MsgFieldEditor` for property selection with scope + storage
+  - `ValueTypeInput` for the comparison values
+  - `FormSelect` for operator dropdown
+- Sortable rule list (drag & drop) — order maps to port order
+- Mode toggle (radio: stop after first / check all)
 
 #### `SwitchNode.vue`
-- BaseNode mit Category `function` (oder neue Kategorie `routing` falls farblich abgegrenzt werden soll)
-- Body zeigt Property + Regelanzahl, z.B. `msg.payload · 4 rules`
-- Dynamische Höhe je nach Output-Anzahl (siehe `NODE_AND_MULTIOUTPUT.md`)
+- BaseNode with category `function` (or new category `routing` if it should be visually distinct)
+- Body shows property + rule count, e.g. `msg.payload * 4 rules`
+- Dynamic height depending on output count (see `NODE_AND_MULTIOUTPUT.md`)
 
-### Node-Registrierung
+### Node Registration
 
 ```go
 registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
@@ -252,26 +252,26 @@ func SwitchTypeInfo() flow.NodeTypeInfo {
             },
         },
         Inputs:  1,
-        Outputs: 2, // wird zur Laufzeit aus len(rules) abgeleitet
+        Outputs: 2, // derived at runtime from len(rules)
     }
 }
 ```
 
-> **Offen:** Wie wird ein Node-Type mit **dynamischer** Output-Anzahl registriert? Aktuell ist `Outputs` ein statisches Int. Das muss entweder über eine Funktion `OutputsFunc(props) int` oder durch Berechnung beim Editor-Save gelöst werden.
+> **Open:** How is a node type with a **dynamic** output count registered? Currently `Outputs` is a static int. This must be solved either via a function `OutputsFunc(props) int` or by computation on editor save.
 
-## Abhängigkeiten
+## Dependencies
 
-- `flow.ContextStore` / `flow.ContextProvider` — vorhanden (vom Change Node verwendet)
-- `msg.Get()` mit Dot-Path — vorhanden
-- `valuetype.go` — Typkonvertierung wiederverwenden
-- Multi-Output-Handling in der Engine — vorhanden (Function Node hat es), siehe `NODE_AND_MULTIOUTPUT.md` für offene UI-Probleme
-- Frontend: `MsgFieldEditor`, `ValueTypeInput`, `FormSelect` aus `components/config/`
+- `flow.ContextStore` / `flow.ContextProvider` — present (used by Change node)
+- `msg.Get()` with dot path — present
+- `valuetype.go` — reuse type conversion
+- Multi-output handling in the engine — present (Function node has it), see `NODE_AND_MULTIOUTPUT.md` for open UI issues
+- Frontend: `MsgFieldEditor`, `ValueTypeInput`, `FormSelect` from `components/config/`
 
-## Offene Fragen
+## Open Questions
 
-1. **Dynamische Output-Anzahl** in `NodeTypeInfo` — Pattern abstimmen, ggf. eigenes Issue.
-2. **`previous value`-Typ** — braucht Per-Node-State zwischen Messages. MVP oder weglassen?
-3. **`is of type`** — Welche Typen werden tatsächlich unterstützt (Buffer? Date?).
-4. **Strikte Vergleiche** (`===`/`!==`) — gewünscht oder bewusst weglassen?
+1. **Dynamic output count** in `NodeTypeInfo` — agree on a pattern, possibly a separate issue.
+2. **`previous value` type** — needs per-node state between messages. MVP or skip?
+3. **`is of type`** — which types are actually supported (Buffer? Date?).
+4. **Strict comparisons** (`===`/`!==`) — wanted or deliberately omitted?
 
-> Sequenz-bezogene Operatoren (`head`/`tail`/`index between`) wurden bewusst weggelassen — siehe `SPLIT_JOIN_NODE.md`. Die setzen ein `msg.parts`-Konzept voraus, das LOOPZE heute nicht hat.
+> Sequence-related operators (`head`/`tail`/`index between`) were deliberately omitted — see `SPLIT_JOIN_NODE.md`. They presuppose a `msg.parts` concept that LOOPZE does not have today.

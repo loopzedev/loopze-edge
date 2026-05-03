@@ -1,35 +1,35 @@
-# Issue: Node-Status End-to-End Pipeline
+# Issue: Node status end-to-end pipeline
 
 ## Status: Open
 
-## Problembeschreibung
+## Problem description
 
-Die Infrastruktur für Node-Status ist in Frontend und Backend bereits angelegt, aber die **End-to-End-Kette ist unterbrochen**. Nodes rufen `n.status(fill, text)` auf, der Status kommt aber nie im Browser an.
+The infrastructure for node status is already in place in frontend and backend, but the **end-to-end chain is broken**. Nodes call `n.status(fill, text)`, but the status never reaches the browser.
 
-Die bestehende Debug-Pipeline zeigt das korrekte Muster:
+The existing debug pipeline shows the correct pattern:
 
 ```
 Node → n.debug() → Engine.PublishDebugFunc → NATS "debug.>" → Server Subscriber → hub.Broadcast() → WebSocket → Browser
 ```
 
-Für Status fehlt dieses Muster komplett — `makeStatusFunc` loggt nur via `slog.Debug`.
+For status, this pattern is completely missing — `makeStatusFunc` only logs via `slog.Debug`.
 
-## Bestandsaufnahme
+## Inventory
 
-### Was bereits funktioniert
+### What already works
 
-| Komponente | Status | Details |
+| Component | Status | Details |
 |---|---|---|
-| `StatusFunc` Definition | OK | `internal/flow/registry.go` — `func(fill string, text string)` |
-| `SetStatus()` Lifecycle | OK | Engine ruft `SetStatus(makeStatusFunc(nodeID))` nach `Init()` auf |
-| Nodes rufen `n.status()` auf | OK | Debug Node (grey, statusText), Function Node (`node.status(fill, text)` in JS) |
-| WebSocket Hub Broadcast | OK | `hub.Broadcast(eventType, data)` in `internal/ws/hub.go` |
-| `StatusEvent` TypeScript-Typen | OK | `frontend/src/types/events.ts` — `StatusEvent`, `NodeStatus` |
-| WebSocket `onStatus` Dispatcher | OK | `frontend/src/composables/useWebSocket.ts` — dispatcht Status-Events korrekt |
-| BaseNode Status-Rendering | OK | `frontend/src/components/nodes/BaseNode.vue` — Farbpunkt + Text |
-| Status-Farben | OK | `frontend/src/components/nodes/tokens.ts` — red, green, yellow, blue, grey |
+| `StatusFunc` definition | OK | `internal/flow/registry.go` — `func(fill string, text string)` |
+| `SetStatus()` lifecycle | OK | Engine calls `SetStatus(makeStatusFunc(nodeID))` after `Init()` |
+| Nodes call `n.status()` | OK | Debug node (grey, statusText), Function node (`node.status(fill, text)` in JS) |
+| WebSocket Hub broadcast | OK | `hub.Broadcast(eventType, data)` in `internal/ws/hub.go` |
+| `StatusEvent` TypeScript types | OK | `frontend/src/types/events.ts` — `StatusEvent`, `NodeStatus` |
+| WebSocket `onStatus` dispatcher | OK | `frontend/src/composables/useWebSocket.ts` — dispatches status events correctly |
+| BaseNode status rendering | OK | `frontend/src/components/nodes/BaseNode.vue` — color dot + text |
+| Status colors | OK | `frontend/src/components/nodes/tokens.ts` — red, green, yellow, blue, grey |
 
-### Referenz: Debug-Pipeline (funktioniert)
+### Reference: debug pipeline (works)
 
 ```
 Engine.makeDebugFunc(nodeID)                    → PublishDebugFunc(subject, msg)
@@ -45,19 +45,19 @@ server.go: conn.Subscribe("debug.>", func(m) {
 Browser: ws.onDebug → debugStore.addMessage()
 ```
 
-### Die 4 fehlenden Verbindungen
+### The 4 missing connections
 
-#### Lücke 1: Engine — `PublishStatusFunc` Callback fehlt
+#### Gap 1: Engine — `PublishStatusFunc` callback missing
 
-**Analog zu:** `SetPublishDebug` / `PublishDebugFunc` in `internal/flow/engine.go`
+**Analogous to:** `SetPublishDebug` / `PublishDebugFunc` in `internal/flow/engine.go`
 
-Die Engine braucht einen `PublishStatusFunc` Callback (analog zu `PublishDebugFunc`), den der Server beim Start setzt.
+The engine needs a `PublishStatusFunc` callback (analogous to `PublishDebugFunc`) that the server sets at start.
 
 ```go
 type PublishStatusFunc func(subject string, msg StatusMessage)
 ```
 
-Neues Struct `StatusMessage` in `internal/flow/registry.go`:
+New `StatusMessage` struct in `internal/flow/registry.go`:
 
 ```go
 type StatusMessage struct {
@@ -68,12 +68,12 @@ type StatusMessage struct {
 }
 ```
 
-#### Lücke 2: Engine — `makeStatusFunc` muss über NATS publishen
+#### Gap 2: Engine — `makeStatusFunc` must publish via NATS
 
-**Datei:** `internal/flow/engine.go:344-350`
+**File:** `internal/flow/engine.go:344-350`
 
 ```go
-// AKTUELL:
+// CURRENT:
 func (e *Engine) makeStatusFunc(nodeID string) StatusFunc {
     return func(fill string, text string) {
         slog.Debug("node status",
@@ -83,7 +83,7 @@ func (e *Engine) makeStatusFunc(nodeID string) StatusFunc {
 }
 ```
 
-**Fix:** Analog zu `makeDebugFunc` den `PublishStatusFunc` Callback aufrufen:
+**Fix:** Analogous to `makeDebugFunc`, call the `PublishStatusFunc` callback:
 
 ```go
 func (e *Engine) makeStatusFunc(nodeID string) StatusFunc {
@@ -100,13 +100,13 @@ func (e *Engine) makeStatusFunc(nodeID string) StatusFunc {
 }
 ```
 
-#### Lücke 3: Server — NATS Publish + Subscribe für Status
+#### Gap 3: Server — NATS publish + subscribe for status
 
-**Datei:** `internal/server/server.go`
+**File:** `internal/server/server.go`
 
-Analog zum Debug-Pattern zwei Ergänzungen:
+Analogous to the debug pattern, two additions:
 
-1. **Publish-Callback setzen** (analog zu `SetPublishDebug`):
+1. **Set publish callback** (analogous to `SetPublishDebug`):
 ```go
 s.engine.SetPublishStatus(func(subject string, msg flow.StatusMessage) {
     data, _ := json.Marshal(msg)
@@ -114,7 +114,7 @@ s.engine.SetPublishStatus(func(subject string, msg flow.StatusMessage) {
 })
 ```
 
-2. **NATS Subscriber** (analog zu `debug.>`):
+2. **NATS subscriber** (analogous to `debug.>`):
 ```go
 conn.Subscribe("status.>", func(m *nats.Msg) {
     var status flow.StatusMessage
@@ -123,9 +123,9 @@ conn.Subscribe("status.>", func(m *nats.Msg) {
 })
 ```
 
-#### Lücke 4: Frontend — Listener + FlowStore Action
+#### Gap 4: Frontend — listener + FlowStore action
 
-**Datei:** `frontend/src/App.vue` — `ws.onStatus()` Listener fehlt:
+**File:** `frontend/src/App.vue` — `ws.onStatus()` listener missing:
 
 ```typescript
 ws.onStatus((event) => {
@@ -133,7 +133,7 @@ ws.onStatus((event) => {
 })
 ```
 
-**Datei:** `frontend/src/stores/flowStore.ts` — Action zum Aktualisieren:
+**File:** `frontend/src/stores/flowStore.ts` — action to update:
 
 ```typescript
 function updateNodeStatus(nodeId: string, status: NodeStatus) {
@@ -144,24 +144,24 @@ function updateNodeStatus(nodeId: string, status: NodeStatus) {
 }
 ```
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/flow/registry.go` — `StatusMessage` Struct + `PublishStatusFunc` Type
-- `internal/flow/engine.go` — `SetPublishStatus`, `makeStatusFunc` über NATS publishen
-- `internal/server/server.go` — NATS Publish-Callback + `status.>` Subscriber
-- `internal/ws/hub.go` — `EventStatus` Konstante existiert bereits
+- `internal/flow/registry.go` — `StatusMessage` struct + `PublishStatusFunc` type
+- `internal/flow/engine.go` — `SetPublishStatus`, `makeStatusFunc` publishes via NATS
+- `internal/server/server.go` — NATS publish callback + `status.>` subscriber
+- `internal/ws/hub.go` — `EventStatus` constant already exists
 
 ### Frontend
-- `frontend/src/App.vue` — `ws.onStatus()` Listener hinzufügen
-- `frontend/src/stores/flowStore.ts` — `updateNodeStatus()` Action hinzufügen
+- `frontend/src/App.vue` — add `ws.onStatus()` listener
+- `frontend/src/stores/flowStore.ts` — add `updateNodeStatus()` action
 
-## Abhängigkeiten
+## Dependencies
 
-- Der Debug Node (`internal/nodes/debug.go`) nutzt bereits `n.status("grey", statusText)` für die konfigurierbare Status-Ausgabe — wird erst sichtbar wenn diese Pipeline steht
-- Der Function Node (`internal/nodes/function.go`) bietet `node.status(fill, text)` in der JS-Runtime an — ebenfalls blockiert
+- The Debug node (`internal/nodes/debug.go`) already uses `n.status("grey", statusText)` for the configurable status output — only becomes visible once this pipeline is in place
+- The Function node (`internal/nodes/function.go`) offers `node.status(fill, text)` in the JS runtime — also blocked
 
-## Hinweise
+## Notes
 
-- `NodeStatus` im Frontend erwartet ein `shape`-Feld (`ring` | `dot`), das Backend liefert aktuell nur `fill` + `text`. Default `dot` verwenden wenn nicht angegeben.
-- Status-Updates sind hochfrequent möglich (z.B. bei jedem Message im Debug Node mit `count`-Modus) — ggf. Throttling/Debouncing auf Backend- oder Frontend-Seite erwägen.
+- `NodeStatus` in the frontend expects a `shape` field (`ring` | `dot`); the backend currently only delivers `fill` + `text`. Use default `dot` if not specified.
+- Status updates can be high-frequency (e.g. on every message in the Debug node with `count` mode) — consider throttling/debouncing on backend or frontend side if needed.

@@ -1,87 +1,87 @@
-# Issue: Terminal Log — Application-Log im Frontend sichtbar machen
+# Issue: Terminal Log — Make application log visible in the frontend
 
 ## Status: Proposed
 
-## Problembeschreibung
+## Problem description
 
-Der Application-Log läuft derzeit ausschließlich auf **stdout** des LOOPZE-Prozesses (`cmd/loopze/main.go`, `slog.NewTextHandler(os.Stdout, …)`). Wer den Log sehen will, braucht Zugriff auf das Terminal in dem LOOPZE gestartet wurde — bei deployten Instanzen also SSH, `journalctl`, Docker-Logs o.ä.
+The application log currently runs exclusively on **stdout** of the LOOPZE process (`cmd/loopze/main.go`, `slog.NewTextHandler(os.Stdout, …)`). To see the log you need access to the terminal in which LOOPZE was started — for deployed instances that means SSH, `journalctl`, Docker logs, etc.
 
-Für den Bediener im Browser ist der Log damit unsichtbar. Typische Fragen wie *"warum ist mein Deploy fehlgeschlagen?"*, *"kommt mein MQTT-Connect durch?"* oder *"warum loggt der Server gerade so viel?"* erfordern jedes Mal einen Wechsel auf die Server-Konsole.
+For the operator in the browser, the log is therefore invisible. Typical questions like *"why did my deploy fail?"*, *"is my MQTT connect coming through?"* or *"why is the server logging so much right now?"* require switching to the server console every time.
 
-Ziel: Den laufenden Log direkt im Frontend sichtbar machen — als zuschaltbares Vollflächen-Fenster über dem Flow-Editor, mit farbiger Level-Kennzeichnung und Live-Streaming.
+Goal: Make the running log directly visible in the frontend — as a switchable full-screen window over the flow editor, with colored level indication and live streaming.
 
-## Sichtweise / Begründung
+## View / rationale
 
-Die Vorarbeit existiert bereits:
+The groundwork already exists:
 
-- **WebSocket-Hub** (`internal/ws/hub.go`) mit generischem `Broadcast(eventType, payload)` — neue Event-Typen lassen sich ohne Architekturänderung ergänzen
-- **REST-Pattern mit Limit-Param** (`GET /api/v1/debug/messages?limit=N` in `internal/api/handlers.go`) — exakt das Pattern, das wir für `/api/v1/logs` brauchen
-- **Standardisierter Logger**: alles geht durch `slog.Default()` — ein einziger benutzerdefinierter `slog.Handler` reicht aus, um sämtliche Log-Aufrufe abzugreifen
-- **Header-Icons + uiStore-Toggles** (`HeaderBar.vue`, `uiStore.ts`) — das Pattern für ein neues Toggle-Icon ist etabliert
+- **WebSocket hub** (`internal/ws/hub.go`) with generic `Broadcast(eventType, payload)` — new event types can be added without architectural changes
+- **REST pattern with limit param** (`GET /api/v1/debug/messages?limit=N` in `internal/api/handlers.go`) — exactly the pattern we need for `/api/v1/logs`
+- **Standardized logger**: everything goes through `slog.Default()` — a single custom `slog.Handler` is enough to capture all log calls
+- **Header icons + uiStore toggles** (`HeaderBar.vue`, `uiStore.ts`) — the pattern for a new toggle icon is established
 
-Architekturentscheidung: **Ring-Buffer im Backend** (kein NATS-Stream). Logs sind kurzlebige Beobachtung, kein persistentes Event-Log. Bei Restart sind sie weg — das ist akzeptiert und entspricht dem heutigen Verhalten von stdout.
+Architecture decision: **Ring buffer in the backend** (no NATS stream). Logs are short-lived observation, not a persistent event log. On restart they are gone — that is accepted and matches today's stdout behavior.
 
-## Anforderungen
+## Requirements
 
-### 1. Header-Icon
+### 1. Header icon
 
-In `HeaderBar.vue` rechts neben dem Info/Debug-Icon ein neues Icon "Terminal Log" (Terminal-/Konsolen-Symbol, passend zum Lucide-/Heroicon-Set, das aktuell verwendet wird).
+In `HeaderBar.vue`, to the right of the Info/Debug icon, a new "Terminal Log" icon (terminal/console symbol, matching the Lucide/Heroicon set currently used).
 
-- Klick toggelt `uiStore.logsPanelOpen` (`true`/`false`)
-- Aktiver Zustand: Icon visuell hervorgehoben (selbe Logik wie Properties-/Info-Icon)
-- Tooltip: "Terminal Log" / "Application Log anzeigen"
+- Click toggles `uiStore.logsPanelOpen` (`true`/`false`)
+- Active state: icon visually highlighted (same logic as Properties/Info icon)
+- Tooltip: "Terminal Log" / "Show application log"
 
-### 2. Vollflächen-Overlay
+### 2. Full-screen overlay
 
-Anders als Properties- und Info-Panel (die als rechte Sidebar einklappen) ist der Terminal-Log ein **Overlay über dem kompletten Flow-Bereich** — wie der Bediener es vom Konsolenfenster gewohnt ist und wie der User-Wunsch ihn explizit beschreibt: *"über den kompletten Flow ein Fenster"*.
+Unlike the Properties and Info panels (which collapse into the right sidebar), the Terminal Log is an **overlay over the entire flow area** — as the operator knows it from the console window and as the user request explicitly describes: *"a window over the entire flow"*.
 
 Layout:
-- Position: absolut, deckt den gesamten Canvas-Bereich ab (HeaderBar bleibt sichtbar, Sidebars optional verdeckt — pragmatisch: `inset-0` unter der HeaderBar, Z-Index oberhalb der Sidebars)
-- Hintergrund: `bg-terminal-bg` mit leichter Opazität-Abstufung wenn nötig, damit der Charakter "schwebendes Fenster" erkennbar bleibt
-- Schließen: X-Button oben rechts im Panel + ESC-Taste
+- Position: absolute, covers the entire canvas area (HeaderBar stays visible, sidebars optionally covered — pragmatically: `inset-0` below the HeaderBar, z-index above the sidebars)
+- Background: `bg-terminal-bg` with slight opacity gradation if needed, so the "floating window" character remains recognizable
+- Close: X button at the top right of the panel + ESC key
 
-Bewusst **kein** Tab in der bestehenden `InformationSidebar` — der Log ist kein Inspect-Werkzeug für ein einzelnes Element, sondern eine Übersichtsansicht und braucht entsprechend Platz.
+Deliberately **not** a tab in the existing `InformationSidebar` — the log is not an inspect tool for a single element but an overview view and needs corresponding space.
 
-### 3. Toolbar im Panel
+### 3. Toolbar in the panel
 
-Oben im Panel:
-- **Limit-Dropdown**: `100 / 200 / 500 / 1000` Zeilen. Default: `200`. Auswahl persistiert in `uiStore.logsLimit` (in `localStorage`)
-- **Level-Filter** (optional Phase 1, vermutlich nützlich): Multi-Select `DEBUG / INFO / WARN / ERROR`. Default: alle. Wirkt nur clientseitig auf die bereits geladenen / gestreamten Einträge — kein zusätzlicher Backend-Round-Trip
-- **CLR-Button**: leert die Anzeige (nicht den Backend-Buffer). Selbe UX wie DebugPanel
-- **Auto-Scroll-Toggle**: an = neue Einträge scrollen mit. Wird beim manuellen Hochscrollen automatisch ausgeschaltet, wieder eingeschaltet wenn der User ans Ende scrollt (Pattern aus `DebugPanel.vue`)
+At the top of the panel:
+- **Limit dropdown**: `100 / 200 / 500 / 1000` lines. Default: `200`. Selection persists in `uiStore.logsLimit` (in `localStorage`)
+- **Level filter** (optional Phase 1, presumably useful): multi-select `DEBUG / INFO / WARN / ERROR`. Default: all. Acts only client-side on the already loaded / streamed entries — no additional backend round-trip
+- **CLR button**: clears the display (not the backend buffer). Same UX as DebugPanel
+- **Auto-scroll toggle**: on = new entries scroll along. Switched off automatically on manual scroll-up, switched on again when the user scrolls to the end (pattern from `DebugPanel.vue`)
 
-### 4. Lazy Loading + Streaming
+### 4. Lazy loading + streaming
 
-**Beim Öffnen** des Panels:
-1. `GET /api/v1/logs?limit=<dropdown-wert>` holt die letzten N Einträge aus dem Ring-Buffer und befüllt die Liste
-2. Frontend registriert einen WebSocket-Listener für `EventLog` und hängt jeden eingehenden Eintrag ans Ende der Liste
+**On opening** the panel:
+1. `GET /api/v1/logs?limit=<dropdown-value>` fetches the last N entries from the ring buffer and populates the list
+2. Frontend registers a WebSocket listener for `EventLog` and appends each incoming entry to the end of the list
 
-**Beim Schließen**:
-- WebSocket-Listener wird deregistriert (kein State-Update, keine Re-Renders während das Panel zu ist)
-- Die zuletzt angezeigte Liste wird verworfen — beim nächsten Öffnen frisch laden
+**On closing**:
+- WebSocket listener is deregistered (no state update, no re-renders while the panel is closed)
+- The last displayed list is discarded — load fresh on next open
 
-**Bei Limit-Wechsel** im offenen Panel:
-- Frischer `GET /api/v1/logs?limit=N` ersetzt die Liste
-- Streaming läuft weiter
+**On limit change** in the open panel:
+- A fresh `GET /api/v1/logs?limit=N` replaces the list
+- Streaming continues
 
-Dieses Verhalten erfüllt die User-Anforderung: *"Das Log soll erst abgerufen werden wenn ich die Log Seite öffne und neue Logs sollen bei geöffneten Fenster hinein streamen."*
+This behavior fulfills the user requirement: *"The log should only be fetched when I open the log page, and new logs should stream in while the window is open."*
 
-### 5. Level-Farben
+### 5. Level colors
 
-Jede Zeile zeigt das Level in eckigen Klammern und farblich:
+Each line shows the level in square brackets and in color:
 
-| Level | Farbe |
+| Level | Color |
 |---|---|
-| `DEBUG` | grau (`text-zinc-500`) |
-| `INFO`  | blau / Standard-Foreground (`text-blue-400` oder Theme-Default) |
-| `WARN`  | gelb (`text-yellow-400`) |
-| `ERROR` | rot (`text-red-400`) |
+| `DEBUG` | gray (`text-zinc-500`) |
+| `INFO`  | blue / standard foreground (`text-blue-400` or theme default) |
+| `WARN`  | yellow (`text-yellow-400`) |
+| `ERROR` | red (`text-red-400`) |
 
-Eingefärbt wird mindestens das **Level-Tag**; die Message bleibt im Standard-Foreground. Komplette Zeilen-Färbung (Hintergrund-Tinten für ERROR-Zeilen) ist Phase 2 falls gewünscht.
+At a minimum, the **level tag** is colored; the message stays in the standard foreground. Full-line coloring (background tints for ERROR lines) is Phase 2 if desired.
 
-### 6. Anzeigeformat pro Zeile
+### 6. Display format per line
 
-Eine Log-Zeile rendert sich als monospace-Text:
+A log line renders as monospace text:
 
 ```
 10:23:14.428 [INFO ] starting LOOPZE version=0.1.0 commit=abc123 log_level=info
@@ -89,19 +89,19 @@ Eine Log-Zeile rendert sich als monospace-Text:
 10:23:15.001 [ERROR] failed to connect mqtt broker error="connection refused"
 ```
 
-- Zeitstempel: lokale Zeit, Format `HH:mm:ss.SSS` (Sekunden + Millisekunden — knapp und ausreichend für Sequenzanalyse)
-- Level rechtsbündig in 5 Zeichen breitem Feld (`INFO ` mit Leerzeichen, damit Spaltenausrichtung passt)
-- Message + Attribute werden zusammenhängend gerendert: `key=value` für jeden Attr-Eintrag, Werte mit Leerzeichen werden mit `"…"` gequoted (entspricht slog TextHandler-Output, an den der Bediener vom Terminal gewöhnt ist)
+- Timestamp: local time, format `HH:mm:ss.SSS` (seconds + milliseconds — concise and sufficient for sequence analysis)
+- Level right-aligned in a 5-character wide field (`INFO ` with space, so column alignment fits)
+- Message + attributes rendered contiguously: `key=value` for each attr entry, values containing whitespace quoted with `"…"` (matches slog TextHandler output, which the operator is used to from the terminal)
 
-## Technische Skizze
+## Technical sketch
 
-### Backend — Ring-Buffer + slog.Handler
+### Backend — Ring buffer + slog.Handler
 
-Neues Package `internal/logbuffer` mit:
+New package `internal/logbuffer` with:
 
 ```go
 type LogEntry struct {
-    Seq     uint64         `json:"seq"`     // monoton wachsend, vom Buffer vergeben
+    Seq     uint64         `json:"seq"`     // monotonically increasing, assigned by the buffer
     Time    time.Time      `json:"time"`
     Level   string         `json:"level"`   // "DEBUG" | "INFO" | "WARN" | "ERROR"
     Message string         `json:"message"`
@@ -114,33 +114,33 @@ type Buffer struct {
     head    int
     full    bool
     cap     int
-    seq     uint64     // wird in Add() inkrementiert und in entry.Seq gesetzt
+    seq     uint64     // incremented in Add() and set in entry.Seq
 }
 
 func New(capacity int) *Buffer
-func (b *Buffer) Add(e LogEntry) LogEntry // gibt Entry mit gesetzter Seq zurück (für notify)
-func (b *Buffer) Last(n int) []LogEntry   // oldest-first slice der letzten min(n, len) Einträge
+func (b *Buffer) Add(e LogEntry) LogEntry // returns entry with assigned Seq (for notify)
+func (b *Buffer) Last(n int) []LogEntry   // oldest-first slice of the last min(n, len) entries
 ```
 
-Capacity: konfigurierbar über `cfg.LogBufferSize` mit Default `1000`. Wert wird beim Start in `cmd/loopze/main.go` an `logbuffer.New` übergeben. UI-Maximum bleibt `1000` (der Dropdown-Cap), die Backend-Capacity darf größer sein wenn z.B. eine externe API künftig mehr abrufen soll. Validierung in `config`: Minimum `1`, kein Maximum erzwungen.
+Capacity: configurable via `cfg.LogBufferSize` with default `1000`. The value is passed to `logbuffer.New` at startup in `cmd/loopze/main.go`. The UI maximum stays at `1000` (the dropdown cap); the backend capacity may be larger if e.g. an external API later wants to fetch more. Validation in `config`: minimum `1`, no maximum enforced.
 
-Die `Seq`-ID wird beim `Add` vom Buffer vergeben und sowohl in den Buffer geschrieben als auch im zurückgegebenen Entry an den Notify-Callback durchgereicht — damit haben REST-Antwort und WebSocket-Stream **dieselben** Seq-Werte für denselben Eintrag.
+The `Seq` ID is assigned by the buffer in `Add` and both written into the buffer and forwarded in the returned entry to the notify callback — so REST response and WebSocket stream have **the same** `Seq` values for the same entry.
 
-Neuer `slog.Handler`-Wrapper in `internal/logbuffer`:
+New `slog.Handler` wrapper in `internal/logbuffer`:
 
 ```go
 type Handler struct {
-    inner  slog.Handler          // delegate für stdout (TextHandler)
+    inner  slog.Handler          // delegate for stdout (TextHandler)
     buf    *Buffer
-    notify func(LogEntry)         // optional: Callback für Live-Broadcast
+    notify func(LogEntry)         // optional: callback for live broadcast
 }
 
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
-    // 1) durchreichen an inner (stdout-Verhalten unverändert)
+    // 1) forward to inner (stdout behavior unchanged)
     if err := h.inner.Handle(ctx, r); err != nil {
         return err
     }
-    // 2) zu LogEntry konvertieren, in Ring schreiben, Notify
+    // 2) convert to LogEntry, write to ring, notify
     entry := toEntry(r)
     h.buf.Add(entry)
     if h.notify != nil {
@@ -149,34 +149,34 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
     return nil
 }
 
-// Enabled, WithAttrs, WithGroup an inner durchreichen.
+// Enabled, WithAttrs, WithGroup forwarded to inner.
 ```
 
-Wichtig: **stdout-Verhalten bleibt 1:1 erhalten** — wer heute mit `journalctl` arbeitet, merkt nichts. Der Wrapper ist additiv.
+Important: **stdout behavior remains 1:1 preserved** — anyone working with `journalctl` today will notice nothing. The wrapper is additive.
 
 ### Backend — Wiring in `cmd/loopze/main.go`
 
 ```go
-buf := logbuffer.New(cfg.LogBufferSize) // Default 1000, konfigurierbar
+buf := logbuffer.New(cfg.LogBufferSize) // default 1000, configurable
 inner := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
 
-// Hub muss vor dem Logger existieren, damit notify ihn aufrufen kann.
-// Aktuell wird der Hub im Server erstellt — entweder Hub-Erstellung in main vorziehen,
-// oder notify per zwei-Stufen-Hookup setzen (siehe unten).
+// Hub must exist before the logger so that notify can call it.
+// Currently the hub is created in the server — either move hub creation into main,
+// or set notify via two-stage hookup (see below).
 
-handler := logbuffer.NewHandler(inner, buf, nil) // notify zunächst nil
+handler := logbuffer.NewHandler(inner, buf, nil) // notify initially nil
 slog.SetDefault(slog.New(handler))
 
-srv, err := server.New(cfg, buf) // Server bekommt Buffer für REST-Endpoint
-// Nach srv.New: Hub existiert. Notify nachträglich setzen.
+srv, err := server.New(cfg, buf) // server gets buffer for REST endpoint
+// After srv.New: hub exists. Set notify afterwards.
 handler.SetNotify(func(e logbuffer.LogEntry) {
     srv.Hub().Broadcast(ws.EventLog, e)
 })
 ```
 
-Alternativ: Hub aus dem Server herausziehen und in `main.go` instantiieren — sauberer, aber größerer Refactor. **Pragmatisch**: zwei-Stufen-Hookup mit `SetNotify` (ein einziges atomares Pointer-Field reicht).
+Alternative: pull the hub out of the server and instantiate it in `main.go` — cleaner, but a larger refactor. **Pragmatic**: two-stage hookup with `SetNotify` (a single atomic pointer field is enough).
 
-### Backend — Neuer Event-Typ
+### Backend — New event type
 
 `internal/ws/hub.go`:
 
@@ -186,13 +186,13 @@ const (
     EventStatus       = "status"
     EventDeploy       = "deploy"
     EventNotification = "notification"
-    EventLog          = "log" // NEU
+    EventLog          = "log" // NEW
 )
 ```
 
-### Backend — REST-Endpoint
+### Backend — REST endpoint
 
-`internal/api/routes.go` registriert `r.Get("/logs", h.GetLogs)`.
+`internal/api/routes.go` registers `r.Get("/logs", h.GetLogs)`.
 
 `internal/api/handlers.go`:
 
@@ -206,15 +206,15 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Pattern und Param-Validierung exakt wie `GetDebugMessages`.
+Pattern and param validation exactly like `GetDebugMessages`.
 
-### Backend — Selbst-Referenz vermeiden
+### Backend — Avoid self-reference
 
-Der WebSocket-Hub loggt selbst (`slog.Info("websocket client connected", …)`). Diese Logs landen über den Wrapper im Buffer und werden dann erneut über den Hub an alle Clients broadcastet — kein Loop, weil die Clients die Events nur empfangen, nicht zurücksenden. Trotzdem **Vorsicht** bei zukünftigen Änderungen: Falls ein Hub-Broadcast jemals selbst loggt (z.B. Error-Pfad in `Broadcast`), entsteht eine Endlosschleife. Schutz: `Broadcast` darf intern nur bei "channel full" loggen (heute der Fall) und das via `slog.Warn` — solange Warn-Logs an "channel full"-Bedingung gekoppelt sind, wirken sie selbstdrosselnd.
+The WebSocket hub itself logs (`slog.Info("websocket client connected", …)`). These logs end up in the buffer via the wrapper and are then broadcast again via the hub to all clients — no loop, because the clients only receive the events, they don't send them back. Still, **caution** with future changes: If a hub broadcast ever logs itself (e.g. error path in `Broadcast`), an infinite loop arises. Protection: `Broadcast` may only log internally on "channel full" (currently the case), via `slog.Warn` — as long as warn logs are tied to the "channel full" condition, they are self-throttling.
 
 ### Frontend — `uiStore.ts`
 
-Analog zu `propertiesPanelOpen` / `infoPanelOpen`:
+Analogous to `propertiesPanelOpen` / `infoPanelOpen`:
 
 ```ts
 const logsPanelOpen = ref(false)
@@ -224,11 +224,11 @@ function openLogsPanel()   { logsPanelOpen.value = true }
 function closeLogsPanel()  { logsPanelOpen.value = false }
 ```
 
-`logsLimit` wird in `localStorage` persistiert (selbes Pattern wie `propertiesPanelWidth`).
+`logsLimit` is persisted in `localStorage` (same pattern as `propertiesPanelWidth`).
 
 ### Frontend — `HeaderBar.vue`
 
-Neuer Button-Block nach dem Debug/Info-Icon (HeaderBar.vue ~Zeile 153):
+New button block after the Debug/Info icon (HeaderBar.vue ~line 153):
 
 ```vue
 <button
@@ -240,19 +240,19 @@ Neuer Button-Block nach dem Debug/Info-Icon (HeaderBar.vue ~Zeile 153):
 </button>
 ```
 
-### Frontend — `TerminalLogPanel.vue` (neu)
+### Frontend — `TerminalLogPanel.vue` (new)
 
-Komponente mit folgender Struktur:
+Component with the following structure:
 
 ```vue
 <template v-if="ui.logsPanelOpen">
   <div class="absolute inset-0 z-40 bg-terminal-bg flex flex-col">
     <header>
       <select v-model="ui.logsLimit" @change="reload">
-        <option :value="100">100 Zeilen</option>
-        <option :value="200">200 Zeilen</option>
-        <option :value="500">500 Zeilen</option>
-        <option :value="1000">1000 Zeilen</option>
+        <option :value="100">100 lines</option>
+        <option :value="200">200 lines</option>
+        <option :value="500">500 lines</option>
+        <option :value="1000">1000 lines</option>
       </select>
       <LevelFilterChips v-model="levelFilter" />
       <button @click="entries = []">CLR</button>
@@ -265,26 +265,26 @@ Komponente mit folgender Struktur:
 </template>
 ```
 
-`onMounted` (genauer: `watch(() => ui.logsPanelOpen, …, { immediate: true })`):
-- Wenn open wird:
-  1. `unsubscribe = ws.onLog(stagedAdd)` **zuerst** registrieren — Streaming-Einträge landen ab sofort in einem Staging-Array
-  2. `const initial = await api.getLogs(limit)` — REST-Antwort holen (kommt mit `Seq`-IDs)
+`onMounted` (more precisely: `watch(() => ui.logsPanelOpen, …, { immediate: true })`):
+- When opened:
+  1. `unsubscribe = ws.onLog(stagedAdd)` register **first** — streaming entries land in a staging array from now on
+  2. `const initial = await api.getLogs(limit)` — fetch REST response (comes with `Seq` IDs)
   3. `entries.value = initial; lastSeqFromHttp = initial.at(-1)?.seq ?? 0`
-  4. Staging-Array nach `entries.value` flushen, dabei alle Einträge mit `seq <= lastSeqFromHttp` verwerfen (= Doppelte aus dem HTTP-Set)
-  5. `stagedAdd` auf direkten Append umschalten
-- Wenn close wird: `unsubscribe?.()`; `entries.value = []`
+  4. Flush staging array into `entries.value`, discarding all entries with `seq <= lastSeqFromHttp` (= duplicates from the HTTP set)
+  5. Switch `stagedAdd` to direct append
+- When closed: `unsubscribe?.()`; `entries.value = []`
 
-Die Reihenfolge "WS subscribe → HTTP fetch → merge → switch" garantiert, dass kein Eintrag zwischen REST-Antwort und WebSocket-Subscribe verloren geht (würde er sonst in der Lücke), und dass Doppelte zuverlässig erkannt werden (gleiche `Seq` aus REST und WS).
+The order "WS subscribe → HTTP fetch → merge → switch" guarantees that no entry is lost between the REST response and the WebSocket subscribe (otherwise it would in the gap), and that duplicates are reliably detected (same `Seq` from REST and WS).
 
-Auto-Scroll: nach jedem `addLog` `nextTick` → wenn `scrollEl` zuvor am Ende war (`scrollHeight - scrollTop - clientHeight < 4`), neu ans Ende scrollen. User-Scroll-Up unterbricht Auto-Scroll, Scroll-To-Bottom reaktiviert.
+Auto-scroll: after each `addLog`, `nextTick` → if `scrollEl` was previously at the end (`scrollHeight - scrollTop - clientHeight < 4`), scroll to the end again. User scroll-up interrupts auto-scroll, scroll-to-bottom reactivates.
 
 ### Frontend — `useWebSocket.ts`
 
-Neuer Dispatcher `onLog(cb: (e: LogEntry) => void): () => void` analog zu `onDebug`/`onStatus`. Da das Panel die einzige Stelle ist, die Log-Events konsumiert, gibt es keinen globalen Store dafür — der Listener registriert sich nur solange das Panel offen ist (siehe Lazy Loading).
+New dispatcher `onLog(cb: (e: LogEntry) => void): () => void` analogous to `onDebug`/`onStatus`. Since the panel is the only place that consumes log events, there is no global store for it — the listener registers only while the panel is open (see Lazy loading).
 
 ### Frontend — `useApi.ts`
 
-Neue Methode:
+New method:
 
 ```ts
 async function getLogs(limit: number): Promise<LogEntry[]> {
@@ -292,56 +292,56 @@ async function getLogs(limit: number): Promise<LogEntry[]> {
 }
 ```
 
-### Frontend — `LogLine.vue` (neu)
+### Frontend — `LogLine.vue` (new)
 
-Kleine Helper-Komponente für eine einzelne Zeile:
-- Zeitformatierung
-- Level-Klasse aus Mapping
-- Attrs als `key=value` joined, Werte mit Whitespace gequoted
+Small helper component for a single line:
+- Time formatting
+- Level class from mapping
+- Attrs joined as `key=value`, values with whitespace quoted
 
-Reine Präsentation, keine eigene State.
+Pure presentation, no own state.
 
-## Betroffene Dateien
+## Affected files
 
 ### Backend
-- `internal/logbuffer/buffer.go` (neu) — Ring-Buffer + `LogEntry` mit `Seq`-Vergabe
-- `internal/logbuffer/handler.go` (neu) — `slog.Handler`-Wrapper mit `SetNotify`
-- `internal/logbuffer/buffer_test.go` (neu) — Wraparound, Last(n), Seq-Monotonie, Concurrency
-- `internal/config/config.go` — neues Feld `LogBufferSize int` (Default `1000`, Min-Validierung), Flag `--log-buffer-size`, Env `LOOPZE_LOG_BUFFER_SIZE`
-- `internal/ws/hub.go` — `EventLog = "log"` Konstante ergänzen
-- `internal/server/server.go` — `New(cfg, buf)`-Signatur, `Hub()`-Getter, REST-Routing-Aufruf reicht den Buffer in `api.NewHandler` durch
-- `internal/api/handlers.go` — `GetLogs` Handler, `logBuffer`-Feld im Handler-Struct
+- `internal/logbuffer/buffer.go` (new) — ring buffer + `LogEntry` with `Seq` assignment
+- `internal/logbuffer/handler.go` (new) — `slog.Handler` wrapper with `SetNotify`
+- `internal/logbuffer/buffer_test.go` (new) — wraparound, Last(n), seq monotonicity, concurrency
+- `internal/config/config.go` — new field `LogBufferSize int` (default `1000`, min validation), flag `--log-buffer-size`, env `LOOPZE_LOG_BUFFER_SIZE`
+- `internal/ws/hub.go` — add `EventLog = "log"` constant
+- `internal/server/server.go` — `New(cfg, buf)` signature, `Hub()` getter, REST routing call passes the buffer through to `api.NewHandler`
+- `internal/api/handlers.go` — `GetLogs` handler, `logBuffer` field in handler struct
 - `internal/api/routes.go` — `r.Get("/logs", h.GetLogs)`
-- `cmd/loopze/main.go` — Buffer mit `cfg.LogBufferSize` + Wrapper-Handler instantiieren, nach `server.New` `SetNotify` mit Hub-Broadcast verdrahten
+- `cmd/loopze/main.go` — instantiate buffer with `cfg.LogBufferSize` + wrapper handler, after `server.New` wire `SetNotify` with hub broadcast
 
 ### Frontend
-- `frontend/src/stores/uiStore.ts` — `logsPanelOpen`, `logsLimit`, Toggle-Actions, localStorage-Persistenz für `logsLimit`
-- `frontend/src/components/HeaderBar.vue` — neues Icon-Button neben Debug/Info
-- `frontend/src/components/TerminalLogPanel.vue` (neu) — Vollflächen-Overlay
-- `frontend/src/components/LogLine.vue` (neu) — eine Log-Zeile mit Level-Farbe
-- `frontend/src/views/FlowEditor.vue` — `<TerminalLogPanel />` einhängen (Position: über dem Canvas)
-- `frontend/src/composables/useWebSocket.ts` — `onLog`-Dispatcher
+- `frontend/src/stores/uiStore.ts` — `logsPanelOpen`, `logsLimit`, toggle actions, localStorage persistence for `logsLimit`
+- `frontend/src/components/HeaderBar.vue` — new icon button next to Debug/Info
+- `frontend/src/components/TerminalLogPanel.vue` (new) — full-screen overlay
+- `frontend/src/components/LogLine.vue` (new) — a log line with level color
+- `frontend/src/views/FlowEditor.vue` — mount `<TerminalLogPanel />` (position: above the canvas)
+- `frontend/src/composables/useWebSocket.ts` — `onLog` dispatcher
 - `frontend/src/composables/useApi.ts` — `getLogs(limit)`
 
-## Abhängigkeiten
+## Dependencies
 
-Keine externen. Nutzt:
-- `log/slog` (Standard-Library) — bereits im Einsatz
-- bestehender WebSocket-Hub
-- bestehendes REST-Pattern (`/debug/messages?limit=N`)
-- bestehendes Header-Icon-/uiStore-Pattern
+None external. Uses:
+- `log/slog` (standard library) — already in use
+- existing WebSocket hub
+- existing REST pattern (`/debug/messages?limit=N`)
+- existing header icon / uiStore pattern
 
-## Out of Scope für Phase 1
+## Out of scope for Phase 1
 
-- **Persistenter Log über Restart** — Buffer ist In-Memory, das ist Absicht (entspricht stdout-Verhalten)
-- **Backend-seitiger Filter / Suche** — clientseitige Level-Filterung reicht für 1000 Einträge problemlos
-- **Volltextsuche im Frontend** — kann später als Browser-typisches Ctrl+F bzw. Such-Inputfeld nachgerüstet werden
-- **Download/Export** des aktuellen Log-Inhalts — denkbar als "Copy as text"-Button in Phase 2
-- **Source-Filter** (nur Logs aus bestimmten Packages) — slog-Records tragen keine zuverlässige Quelle ohne `AddSource`, das treiben wir erst wenn Bedarf entsteht
-- **Mehrere Server / Cluster-Logs** — LOOPZE ist single-instance, jeder Browser sieht den Log seines verbundenen Servers
-- **ANSI-Color-Codes aus stdout in HTML übersetzen** — slog produziert keine ANSI-Codes, also nicht relevant
-- **Hintergrund-Tinte für ERROR-Zeilen** — wenn der Wunsch konkret entsteht, leicht ergänzbar
+- **Persistent log across restart** — buffer is in-memory, that is intentional (matches stdout behavior)
+- **Backend-side filter / search** — client-side level filtering is plenty for 1000 entries
+- **Full-text search in the frontend** — can be added later as a browser-typical Ctrl+F or search input field
+- **Download/export** of the current log content — conceivable as a "Copy as text" button in Phase 2
+- **Source filter** (only logs from certain packages) — slog records don't carry a reliable source without `AddSource`, we'll push for it only when the need arises
+- **Multiple servers / cluster logs** — LOOPZE is single-instance, each browser sees the log of its connected server
+- **Translate ANSI color codes from stdout into HTML** — slog produces no ANSI codes, so not relevant
+- **Background tint for ERROR lines** — if the wish concretely arises, easily added
 
-## Offene Fragen
+## Open questions
 
-Keine.
+None.

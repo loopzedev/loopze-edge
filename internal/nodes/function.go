@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	"github.com/niceclouds/loopze/internal/flow"
-	scriptingoja "github.com/niceclouds/loopze/internal/scripting/goja"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	scriptingoja "github.com/loopzedev/loopze-edge/internal/scripting/goja"
 )
 
 // FunctionNode executes user-supplied JavaScript for each incoming message.

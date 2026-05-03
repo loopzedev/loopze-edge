@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/scripting"
-	scriptingexpr "github.com/niceclouds/loopze/internal/scripting/expr"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/scripting"
+	scriptingexpr "github.com/loopzedev/loopze-edge/internal/scripting/expr"
 )
 
 // Rule represents a single change operation within the Change Node.

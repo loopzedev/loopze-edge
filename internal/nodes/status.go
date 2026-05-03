@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // idleStatusText is shown on the Status Node when no status event has been

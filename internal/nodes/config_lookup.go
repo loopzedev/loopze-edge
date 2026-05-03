@@ -7,7 +7,7 @@ package nodes
 import (
 	"fmt"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // resolveConfigParams describes the human-readable strings that

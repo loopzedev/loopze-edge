@@ -1,4 +1,4 @@
-module github.com/niceclouds/loopze
+module github.com/loopzedev/loopze-edge
 
 go 1.25.0
 

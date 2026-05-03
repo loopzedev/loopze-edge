@@ -6,7 +6,7 @@ package nodes
 import (
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // newSwitchNode builds a SwitchNode with the given top-level config.

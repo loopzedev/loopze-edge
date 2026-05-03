@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // ValueContext provides the context stores needed for value resolution.

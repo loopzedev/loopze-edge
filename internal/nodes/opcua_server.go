@@ -15,7 +15,7 @@ import (
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/debug"
 	"github.com/gopcua/opcua/ua"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // init turns on gopcua's verbose debug logging when LOOPZE_OPCUA_DEBUG=1 is

@@ -29,7 +29,7 @@ Designed for automation technicians, PLC programmers, and engineers who think in
 
 ```
 # Clone the repository
-git clone https://github.com/niceclouds/loopze.git
+git clone https://github.com/loopzedev/loopze-edge.git
 cd loopze
 
 # Build everything (frontend + backend)

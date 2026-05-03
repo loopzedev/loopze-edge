@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // Test that mqtt-in's onMessage handler maps MQTT v5 publish properties into

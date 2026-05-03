@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 type jsonStores struct {

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // ModbusReadNode reads from a Modbus device. Two modes:

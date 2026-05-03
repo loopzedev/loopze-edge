@@ -12,7 +12,7 @@ import (
 
 	"github.com/dop251/goja"
 
-	"github.com/niceclouds/loopze/internal/buffer"
+	"github.com/loopzedev/loopze-edge/internal/buffer"
 )
 
 // BufferWrapper bundles the Buffer global registration and the wrapBuffer

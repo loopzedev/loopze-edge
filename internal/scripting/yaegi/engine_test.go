@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	scriptingyaegi "github.com/niceclouds/loopze/internal/scripting/yaegi"
+	scriptingyaegi "github.com/loopzedev/loopze-edge/internal/scripting/yaegi"
 )
 
 // fakeNode captures Send/Status/Log calls for assertion.

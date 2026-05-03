@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
-	scriptingyaegi "github.com/niceclouds/loopze/internal/scripting/yaegi"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	scriptingyaegi "github.com/loopzedev/loopze-edge/internal/scripting/yaegi"
 )
 
 // FunctionGoNode runs user-supplied Go code (interpreted by Yaegi) for each

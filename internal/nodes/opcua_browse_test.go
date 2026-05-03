@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gopcua/opcua/ua"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 func TestNodeClassName(t *testing.T) {

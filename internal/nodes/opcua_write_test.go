@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 func newOpcuaWriteNodeForTest(t *testing.T, props map[string]any) *OpcuaWriteNode {

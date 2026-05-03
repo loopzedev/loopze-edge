@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 )
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

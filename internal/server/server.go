@@ -21,16 +21,16 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nats-io/nats.go"
 
-	"github.com/niceclouds/loopze/internal/api"
-	"github.com/niceclouds/loopze/internal/auth"
-	"github.com/niceclouds/loopze/internal/config"
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/logbuffer"
-	loopzenats "github.com/niceclouds/loopze/internal/nats"
-	"github.com/niceclouds/loopze/internal/nodes"
-	"github.com/niceclouds/loopze/internal/storage"
-	"github.com/niceclouds/loopze/internal/ws"
-	"github.com/niceclouds/loopze/web"
+	"github.com/loopzedev/loopze-edge/internal/api"
+	"github.com/loopzedev/loopze-edge/internal/auth"
+	"github.com/loopzedev/loopze-edge/internal/config"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/logbuffer"
+	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
+	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/storage"
+	"github.com/loopzedev/loopze-edge/internal/ws"
+	"github.com/loopzedev/loopze-edge/web"
 )
 
 const (

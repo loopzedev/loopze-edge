@@ -14,11 +14,11 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/logbuffer"
-	loopzenats "github.com/niceclouds/loopze/internal/nats"
-	"github.com/niceclouds/loopze/internal/storage"
-	"github.com/niceclouds/loopze/internal/ws"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/logbuffer"
+	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
+	"github.com/loopzedev/loopze-edge/internal/storage"
+	"github.com/loopzedev/loopze-edge/internal/ws"
 )
 
 // Deps holds the dependencies that API handlers need.

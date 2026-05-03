@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/config"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/config"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // ─── errNode ────────────────────────────────────────────────────────────────

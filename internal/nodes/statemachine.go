@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // StateMachineNode runs a finite state machine defined via JSON with optional

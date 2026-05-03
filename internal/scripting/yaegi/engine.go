@@ -33,7 +33,7 @@ import (
 
 	"github.com/traefik/yaegi/interp"
 
-	"github.com/niceclouds/loopze/internal/scripting"
+	"github.com/loopzedev/loopze-edge/internal/scripting"
 )
 
 // Node is the interface the function-go user code receives as the optional

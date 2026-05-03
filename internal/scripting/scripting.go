@@ -9,7 +9,7 @@
 package scripting
 
 import (
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // MessageEnv builds the env map that single-expression engines (expr) operate

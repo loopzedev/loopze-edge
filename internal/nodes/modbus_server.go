@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/goburrow/modbus"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // ModbusServer is a config node that manages a single Modbus connection

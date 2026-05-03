@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/niceclouds/loopze/internal/storage"
+	"github.com/loopzedev/loopze-edge/internal/storage"
 )
 
 // usersFile is the on-disk JSON envelope for user records. It exists so we

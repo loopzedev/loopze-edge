@@ -10,7 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // MqttOutNode publishes incoming flow messages to an MQTT topic.

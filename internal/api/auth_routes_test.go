@@ -19,8 +19,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/niceclouds/loopze/internal/auth"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/auth"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // memStorage implements storage.Storage for the API tests. The

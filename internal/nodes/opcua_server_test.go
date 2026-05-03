@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // opcuaTestEndpoint returns the configured Deno test-server endpoint or skips

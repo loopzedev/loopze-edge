@@ -14,10 +14,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/niceclouds/loopze/internal/config"
-	"github.com/niceclouds/loopze/internal/logbuffer"
-	"github.com/niceclouds/loopze/internal/server"
-	"github.com/niceclouds/loopze/internal/ws"
+	"github.com/loopzedev/loopze-edge/internal/config"
+	"github.com/loopzedev/loopze-edge/internal/logbuffer"
+	"github.com/loopzedev/loopze-edge/internal/server"
+	"github.com/loopzedev/loopze-edge/internal/ws"
 )
 
 func main() {

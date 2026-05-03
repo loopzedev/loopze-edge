@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 )
 
 // opcuaTestConnectionRequest carries the same Config payload that lands in

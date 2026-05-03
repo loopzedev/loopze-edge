@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // memStorage is a minimal storage.Storage implementation that keeps the

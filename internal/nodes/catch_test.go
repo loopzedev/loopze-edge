@@ -6,7 +6,7 @@ package nodes
 import (
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 func TestCatchNode_InitParsesScope(t *testing.T) {

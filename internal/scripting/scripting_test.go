@@ -6,8 +6,8 @@ package scripting_test
 import (
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/scripting"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/scripting"
 )
 
 func TestMessageEnv(t *testing.T) {

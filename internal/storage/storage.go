@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // Storage defines the persistence interface for flows and credentials.

@@ -6,8 +6,8 @@ package nodes_test
 import (
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
-	"github.com/niceclouds/loopze/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 )
 
 // newFunctionNode is a test helper that creates, inits, and starts a FunctionNode.

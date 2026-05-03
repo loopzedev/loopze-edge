@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // newChangeNode creates a ChangeNode with the given rules for testing.

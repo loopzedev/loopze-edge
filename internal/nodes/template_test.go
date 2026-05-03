@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // memStore is a minimal in-memory ContextStore used in template node tests.

@@ -10,7 +10,7 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 
-	"github.com/niceclouds/loopze/internal/auth"
+	"github.com/loopzedev/loopze-edge/internal/auth"
 )
 
 // RegisterRoutes mounts all LOOPZE API v1 route handlers onto the given router.

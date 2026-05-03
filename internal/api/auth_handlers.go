@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/auth"
+	"github.com/loopzedev/loopze-edge/internal/auth"
 )
 
 // authDeps holds the auth-specific dependencies. It is embedded into the

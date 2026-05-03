@@ -9,7 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/cbroglie/mustache"
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // TemplateNode renders a Mustache template using values from msg, flow and

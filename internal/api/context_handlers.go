@@ -12,7 +12,7 @@ import (
 	"sort"
 
 	"github.com/go-chi/chi/v5"
-	loopzenats "github.com/niceclouds/loopze/internal/nats"
+	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
 )
 
 // resolveContextStore returns a KVContextStore for the given scope/storage.

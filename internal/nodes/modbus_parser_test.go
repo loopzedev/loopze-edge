@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // makeParser constructs a parser node with the given properties already set.

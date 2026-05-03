@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
 // collector is a test helper that captures messages sent via SendFunc.

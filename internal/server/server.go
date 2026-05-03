@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -76,6 +75,10 @@ type Server struct {
 	// RequireRole, RequireSetupComplete) and is also reused by the
 	// WebSocket handler for WS-upgrade authentication.
 	authMW *auth.Middleware
+
+	// proxyChecker decides which TCP peers are allowed to set
+	// X-Forwarded-* headers. Empty allowlist disables header rewriting.
+	proxyChecker *trustedProxyChecker
 }
 
 // New creates a new Server with the given configuration. It sets up the Chi
@@ -123,9 +126,8 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	}
 
 	authMW := &auth.Middleware{
-		Users:        users,
-		Sessions:     sessions,
-		CookieSecure: !cfg.AuthInsecureCookies,
+		Users:    users,
+		Sessions: sessions,
 	}
 	if cfg.AuthDisable {
 		slog.Warn("⚠ LOOPZE_AUTH_DISABLE is set — authentication is bypassed; do NOT use in production")
@@ -137,17 +139,23 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		}
 	}
 
+	proxyChecker, err := newTrustedProxyChecker(cfg.TrustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("server: %w", err)
+	}
+
 	s := &Server{
-		router:    chi.NewRouter(),
-		cfg:       cfg,
-		engine:    engine,
-		hub:       ws.NewHub(),
-		broker:    broker,
-		store:     store,
-		logBuffer: logBuffer,
-		users:     users,
-		sessions:  sessions,
-		authMW:    authMW,
+		router:       chi.NewRouter(),
+		cfg:          cfg,
+		engine:       engine,
+		hub:          ws.NewHub(cfg.TrustedOrigins),
+		broker:       broker,
+		store:        store,
+		logBuffer:    logBuffer,
+		users:        users,
+		sessions:     sessions,
+		authMW:       authMW,
+		proxyChecker: proxyChecker,
 	}
 
 	s.setupMiddleware()
@@ -168,20 +176,34 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 // setupMiddleware registers Chi middleware for all routes. Middleware is
 // executed in the order it is added.
 func (s *Server) setupMiddleware() {
+	// Heartbeat runs before any base-path stripping so /health answers
+	// at the root regardless of where the rest of the app is mounted.
+	// This is what L4/L7 health checks expect; reverse proxies typically
+	// probe an absolute path that is not subject to subpath routing.
+	s.router.Use(middleware.Heartbeat("/health"))
+
+	// Strip the configured base path so route matching, logging and
+	// metrics use the canonical path. /health (above) is intentionally
+	// outside this strip so it stays root-addressable.
+	if s.cfg.BasePath != "" {
+		s.router.Use(stripBasePath(s.cfg.BasePath))
+	}
+
 	// RequestID injects a unique request ID into the context of each request.
 	s.router.Use(middleware.RequestID)
 
-	// RealIP extracts the real client IP from X-Forwarded-For / X-Real-IP headers.
-	s.router.Use(middleware.RealIP)
+	// Honour X-Forwarded-* / Forwarded headers only when the direct peer
+	// is in the configured trusted-proxy allowlist. With no proxies
+	// configured the middleware is a no-op and r.RemoteAddr stays the
+	// raw TCP peer, so spoofed headers from the open internet are
+	// ignored by default.
+	s.router.Use(realIPMiddleware(s.proxyChecker))
 
 	// Structured request logging via slog.
 	s.router.Use(slogRequestLogger)
 
 	// Recoverer catches panics in handlers and returns a 500 instead of crashing.
 	s.router.Use(middleware.Recoverer)
-
-	// Set response content type for API routes.
-	s.router.Use(middleware.Heartbeat("/health"))
 }
 
 // setupRoutes configures all HTTP routes: API endpoints, WebSocket, and frontend.
@@ -200,6 +222,10 @@ func (s *Server) setupRoutes() {
 	deps.Throttle = auth.NewLoginThrottle(nil)
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
+		// Double-submit-cookie CSRF: issues loopze_csrf cookie on every
+		// request and rejects state-changing requests without a matching
+		// X-CSRF-Token header.
+		r.Use(auth.CSRF())
 		api.RegisterRoutes(r, deps)
 	})
 
@@ -247,8 +273,9 @@ func (s *Server) wsAuthFunc() ws.AuthFunc {
 }
 
 // serveFrontend configures the router to serve the embedded frontend files.
-// It serves static assets from the embedded filesystem and falls back to
-// index.html for SPA client-side routing.
+// Static assets stream straight from the embedded filesystem; index.html
+// is rendered through indexInjector so the runtime base path can be
+// stamped into a <base href> tag without rebuilding the frontend.
 func (s *Server) serveFrontend() {
 	frontendFS, err := web.GetFS()
 	if err != nil {
@@ -256,29 +283,44 @@ func (s *Server) serveFrontend() {
 		return
 	}
 
-	// Serve static files from the embedded filesystem.
+	indexer, err := newIndexInjector(frontendFS, s.cfg.BasePath)
+	if err != nil {
+		slog.Warn("failed to load index.html for runtime base-path injection", "error", err)
+	}
+
 	fileServer := http.FileServer(http.FS(frontendFS))
 
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		if indexer == nil {
+			r.URL.Path = "/"
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		body := indexer.render()
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write(body)
+	}
+
 	s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		// Try to serve the exact file first.
 		path := r.URL.Path
-		if path == "/" {
-			path = "/index.html"
+		if path == "/" || path == "/index.html" {
+			serveIndex(w, r)
+			return
 		}
 
-		// Check if the file exists in the embedded filesystem.
-		f, err := frontendFS.Open(path[1:]) // strip leading /
+		f, err := frontendFS.Open(path[1:])
 		if err != nil {
-			// File not found — serve index.html for SPA client-side routing.
-			if errors.Is(err, fs.ErrNotExist) {
-				r.URL.Path = "/"
+			if errFSNotExist(err) {
+				// SPA fallback: client-side route → index.html.
+				serveIndex(w, r)
+				return
 			}
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 		f.Close()
 
-		// File exists — serve it directly.
 		fileServer.ServeHTTP(w, r)
 	})
 }
@@ -386,7 +428,7 @@ func (s *Server) Start() error {
 		"data_dir", s.cfg.DataDir,
 		"address", s.cfg.ListenAddr(),
 	)
-	slog.Info(fmt.Sprintf("editor available at http://%s", s.cfg.ListenAddr()))
+	slog.Info(fmt.Sprintf("editor available at http://%s%s/", s.cfg.ListenAddr(), s.cfg.BasePath))
 
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server: listen failed: %w", err)

@@ -75,7 +75,7 @@ func newTestServer(t *testing.T) *testServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mw := &auth.Middleware{Users: users, Sessions: sm, CookieSecure: false}
+	mw := &auth.Middleware{Users: users, Sessions: sm}
 
 	deps := &Deps{Storage: storage}
 	deps.Users = users

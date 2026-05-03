@@ -57,7 +57,6 @@ make build
 | `--users-file`             | `users.json`       | User records file (in `--data-dir`)                          |
 | `--session-key-file`       | `loopze.session.key`| HMAC signing key for session cookies (auto-generated)        |
 | `--session-ttl`            | `12h`              | Sliding-window session lifetime                              |
-| `--auth-insecure-cookies`  | `false`            | Drop `Secure` flag on cookies — only use over plain HTTP/dev |
 | `--auth-disable`           | `false`            | Skip authentication entirely (development only)              |
 
 All flags are mirrored as `LOOPZE_*` environment variables (e.g. `LOOPZE_AUTH_DISABLE=1`).

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -54,22 +55,36 @@ type Middleware struct {
 	// user is injected into every request and the setup gate is skipped.
 	// Used by LOOPZE_DISABLE_AUTH for local development.
 	DevUser *User
+}
 
-	// CookieSecure controls the Secure flag on session cookies. Should be
-	// true in any deployment served over HTTPS. May be disabled for
-	// localhost development; the user accepts the lower bar.
-	CookieSecure bool
+// RequestIsSecure reports whether the request is being served over a
+// secure transport, either directly (r.TLS != nil) or via a TLS-
+// terminating reverse proxy that set X-Forwarded-Proto: https. Used to
+// decide the Secure attribute on issued cookies on a per-request basis,
+// so the same binary works on http://localhost, on a LAN over plain
+// HTTP, and behind a TLS proxy without any boot-time flag.
+func RequestIsSecure(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if v := r.Header.Get("X-Forwarded-Proto"); v != "" {
+		return strings.EqualFold(strings.TrimSpace(v), "https")
+	}
+	return false
 }
 
 // BuildSessionCookie returns a session cookie carrying the given signed
 // value. ttl controls MaxAge; pass m.Sessions.TTL() in normal flow.
-func (m *Middleware) BuildSessionCookie(value string, ttl time.Duration) *http.Cookie {
+// The Secure attribute is derived from r so HTTPS callers get a Secure
+// cookie and plain-HTTP callers do not (and the browser actually keeps
+// the cookie).
+func (m *Middleware) BuildSessionCookie(value string, ttl time.Duration, r *http.Request) *http.Cookie {
 	return &http.Cookie{
 		Name:     CookieName,
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   m.CookieSecure,
+		Secure:   RequestIsSecure(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(ttl.Seconds()),
 	}
@@ -77,13 +92,13 @@ func (m *Middleware) BuildSessionCookie(value string, ttl time.Duration) *http.C
 
 // ClearSessionCookie returns a cookie that, when set on the response,
 // instructs the browser to delete the session cookie.
-func (m *Middleware) ClearSessionCookie() *http.Cookie {
+func (m *Middleware) ClearSessionCookie(r *http.Request) *http.Cookie {
 	return &http.Cookie{
 		Name:     CookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   m.CookieSecure,
+		Secure:   RequestIsSecure(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	}

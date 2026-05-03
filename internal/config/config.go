@@ -46,11 +46,6 @@ type Config struct {
 	// key (relative to DataDir). Auto-generated on first run.
 	SessionKeyFile string
 
-	// AuthInsecureCookies, when true, disables the Secure flag on the
-	// session cookie so login works over plain HTTP. Intended for
-	// localhost development; never enable in production.
-	AuthInsecureCookies bool
-
 	// AuthDisable, when true, bypasses authentication entirely. A
 	// synthetic admin user is injected into every request. Intended for
 	// localhost development and CI.
@@ -73,6 +68,28 @@ type Config struct {
 	// ShowVersion, when true, instructs main to print version information
 	// and exit before any runtime initialisation.
 	ShowVersion bool
+
+	// BasePath is the URL prefix the application is served under, e.g.
+	// "/loopze". Empty means the app is mounted at the root. When set, all
+	// routes (API, /ws, frontend) live under this prefix and the embedded
+	// frontend is served with a matching <base href> so client-side
+	// routing and asset URLs resolve correctly behind a reverse proxy.
+	// Must start with "/" and must not end with "/".
+	BasePath string
+
+	// TrustedProxies is the list of CIDR blocks (or single IPs) whose
+	// X-Forwarded-For / X-Real-IP / Forwarded headers are honoured. Any
+	// request whose direct peer is not in this list keeps r.RemoteAddr
+	// untouched, so spoofed headers from untrusted upstreams are ignored.
+	// Empty means "trust no upstream" — appropriate when the binary is
+	// directly internet-facing.
+	TrustedProxies []string
+
+	// TrustedOrigins is the list of HTTP Origin values allowed to open
+	// WebSocket connections (CSWSH protection). A leading "*." matches
+	// any subdomain. Empty falls back to same-origin checks against the
+	// request Host header.
+	TrustedOrigins []string
 }
 
 // Build-time variables injected via ldflags.
@@ -117,13 +134,19 @@ func Load() *Config {
 	flag.IntVar(&cfg.NATSPort, "nats-port", defaultNATSPort, "port for the embedded NATS server (-1 for auto)")
 	flag.StringVar(&cfg.LogLevel, "log-level", defaultLogLevel, "log level: debug, info, warn, error")
 	flag.IntVar(&cfg.LogBufferSize, "log-buffer-size", defaultLogBufferSize, "in-memory log ring buffer capacity (entries)")
-	flag.BoolVar(&cfg.AuthInsecureCookies, "auth-insecure-cookies", false, "disable Secure flag on session cookies (development only)")
 	flag.BoolVar(&cfg.AuthDisable, "auth-disable", false, "bypass authentication; inject a synthetic admin (development only)")
 	flag.DurationVar(&cfg.SessionTTL, "session-ttl", defaultSessionTTL, "lifetime of an authenticated session (sliding window)")
 	flag.BoolVar(&cfg.ShowVersion, "version", false, "print version information and exit")
 	flag.BoolVar(&cfg.ShowVersion, "v", false, "print version information and exit (shorthand)")
+	flag.StringVar(&cfg.BasePath, "base-path", "", "URL prefix the app is served under (e.g. /loopze); empty for root")
+	var trustedProxies, trustedOrigins string
+	flag.StringVar(&trustedProxies, "trusted-proxies", "", "comma-separated CIDRs/IPs whose X-Forwarded-* headers are honoured")
+	flag.StringVar(&trustedOrigins, "trusted-origins", "", "comma-separated WebSocket origins to accept (e.g. https://app.example.com); empty = same-origin only")
 
 	flag.Parse()
+
+	cfg.TrustedProxies = splitCSV(trustedProxies)
+	cfg.TrustedOrigins = splitCSV(trustedOrigins)
 
 	// Override with environment variables if flags were not explicitly set.
 	applyEnvOverrides(cfg)
@@ -132,7 +155,43 @@ func Load() *Config {
 		cfg.LogBufferSize = defaultLogBufferSize
 	}
 
+	cfg.BasePath = NormalizeBasePath(cfg.BasePath)
+
 	return cfg
+}
+
+// NormalizeBasePath cleans a configured base path so callers can rely on
+// it being either "" (root) or "/segment[/segment...]" with no trailing
+// slash. Returns "" when the input is empty or invalid (a single "/" also
+// normalises to "" so root deployments stay simple).
+func NormalizeBasePath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" || p == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	p = strings.TrimRight(p, "/")
+	return p
+}
+
+// splitCSV splits a comma-separated value into a trimmed, non-empty list.
+func splitCSV(v string) []string {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // applyEnvOverrides checks for LOOPZE_* environment variables and applies them
@@ -164,9 +223,6 @@ func applyEnvOverrides(cfg *Config) {
 	if v, ok := getenv("SESSION_KEY_FILE"); ok && !flagProvided("session-key-file") {
 		cfg.SessionKeyFile = v
 	}
-	if v, ok := getenv("AUTH_INSECURE_COOKIES"); ok && !flagProvided("auth-insecure-cookies") {
-		cfg.AuthInsecureCookies = parseBool(v)
-	}
 	if v, ok := getenv("AUTH_DISABLE"); ok && !flagProvided("auth-disable") {
 		cfg.AuthDisable = parseBool(v)
 	}
@@ -187,6 +243,15 @@ func applyEnvOverrides(cfg *Config) {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			cfg.LogBufferSize = n
 		}
+	}
+	if v, ok := getenv("BASE_PATH"); ok && !flagProvided("base-path") {
+		cfg.BasePath = v
+	}
+	if v, ok := getenv("TRUSTED_PROXIES"); ok && !flagProvided("trusted-proxies") {
+		cfg.TrustedProxies = splitCSV(v)
+	}
+	if v, ok := getenv("TRUSTED_ORIGINS"); ok && !flagProvided("trusted-origins") {
+		cfg.TrustedOrigins = splitCSV(v)
 	}
 }
 

@@ -9,6 +9,7 @@ import type {
   NotificationEvent,
   LogEntry,
 } from '@/types/events'
+import { basePathNoSlash } from '@/runtime'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
 
@@ -23,7 +24,7 @@ interface UseWebSocketOptions {
 }
 
 const DEFAULT_OPTIONS: Required<UseWebSocketOptions> = {
-  url: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`,
+  url: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${basePathNoSlash}/ws`,
   autoConnect: true,
   maxReconnectAttempts: Infinity,
   baseReconnectDelay: 1000,

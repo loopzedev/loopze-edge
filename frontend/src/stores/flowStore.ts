@@ -533,18 +533,8 @@ export const useFlowStore = defineStore("flow", () => {
         deployMode: deployMode.value,
       };
 
-      const response = await fetch("/api/v1/flows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Deploy failed: ${response.status} — ${errorBody}`);
-      }
-
-      const result: DeployResponse = await response.json();
+      const api = useApi();
+      const result = await api.deployFlows(payload);
       revision.value = result.rev;
       snapshotDeployedState();
       dirty.value = false;

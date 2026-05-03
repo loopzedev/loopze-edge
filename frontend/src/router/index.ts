@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 
 import { useAuthStore } from '@/stores/authStore'
+import { basePath } from '@/runtime'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -28,7 +29,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(basePath),
   routes,
 })
 

@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,15 +43,75 @@ const (
 	EventLog          = "log"
 )
 
-// upgrader configures the WebSocket upgrade from HTTP. CheckOrigin allows all
-// origins in development; this should be tightened for production deployments.
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// TODO: Restrict origins in production.
-		return true
-	},
+// newUpgrader builds an Upgrader whose CheckOrigin enforces the
+// configured allowlist. An empty allowlist falls back to same-origin: the
+// request's Origin host must match its Host header. Wildcard subdomain
+// entries are written as "*.example.com" and match any depth.
+//
+// Same-origin only blocks browsers — non-browser clients (curl, custom
+// scripts) typically omit Origin and would be allowed; auth still gates
+// the upgrade in ServeWSAuthed.
+func newUpgrader(allowed []string) websocket.Upgrader {
+	check := buildOriginChecker(allowed)
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     check,
+	}
+}
+
+// buildOriginChecker returns the CheckOrigin func for the upgrader.
+// Compiled once at startup; the closure is hot path on every WS upgrade.
+//
+// Configured entries are compared as full origins (scheme://host[:port])
+// for exact matches, and as host-suffixes for wildcard entries written
+// "*.example.com". Schemes matter: an http:// configuration does not
+// allow https:// callers and vice versa, which matches the spirit of
+// CSWSH protection.
+func buildOriginChecker(allowed []string) func(*http.Request) bool {
+	exact := make(map[string]struct{}, len(allowed))
+	wildcards := make([]string, 0)
+	for _, a := range allowed {
+		s := strings.TrimSpace(a)
+		if s == "" {
+			continue
+		}
+		if strings.HasPrefix(s, "*.") {
+			wildcards = append(wildcards, strings.ToLower(s[1:])) // ".example.com"
+			continue
+		}
+		exact[strings.ToLower(strings.TrimRight(s, "/"))] = struct{}{}
+	}
+
+	return func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			// Non-browser clients (curl, tooling) often omit Origin.
+			// Auth still gates the upgrade in ServeWSAuthed, so allowing
+			// these here does not relax security.
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil || u.Host == "" {
+			return false
+		}
+		oHost := strings.ToLower(u.Host)
+		oFull := strings.ToLower(u.Scheme + "://" + u.Host)
+
+		if len(exact) == 0 && len(wildcards) == 0 {
+			// Same-origin fallback: Origin host must equal request Host.
+			return strings.EqualFold(oHost, r.Host)
+		}
+		if _, ok := exact[oFull]; ok {
+			return true
+		}
+		for _, suffix := range wildcards {
+			if strings.HasSuffix(oHost, suffix) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // Event represents a message sent to or received from a WebSocket client.
@@ -98,17 +160,24 @@ type Hub struct {
 
 	// done signals the Run loop to stop.
 	done chan struct{}
+
+	// upgrader carries the per-hub WebSocket upgrade config, in
+	// particular the Origin allowlist. Built once in NewHub.
+	upgrader websocket.Upgrader
 }
 
-// NewHub creates a new WebSocket Hub. Call Run() in a goroutine to start
-// processing client registrations and broadcasts.
-func NewHub() *Hub {
+// NewHub creates a new WebSocket Hub with the given list of allowed
+// Origins (CSWSH protection). Pass nil/empty to fall back to same-origin
+// (Origin host must match the request Host header). Call Run() in a
+// goroutine to start processing client registrations and broadcasts.
+func NewHub(allowedOrigins []string) *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		done:       make(chan struct{}),
+		upgrader:   newUpgrader(allowedOrigins),
 	}
 }
 
@@ -243,7 +312,7 @@ func (h *Hub) ServeWSAuthed(authFn AuthFunc) http.HandlerFunc {
 // upgradeAndRun performs the WebSocket upgrade and starts the read/write
 // pumps. userID is attached to the Client for later targeted teardown.
 func (h *Hub) upgradeAndRun(w http.ResponseWriter, r *http.Request, userID string) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err, "remote", r.RemoteAddr)
 		return

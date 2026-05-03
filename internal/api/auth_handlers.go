@@ -116,7 +116,7 @@ func (d *Deps) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, d.AuthMW.BuildSessionCookie(d.Sessions.SignCookieValue(sess.ID), d.Sessions.TTL()))
+	http.SetCookie(w, d.AuthMW.BuildSessionCookie(d.Sessions.SignCookieValue(sess.ID), d.Sessions.TTL(), r))
 	slog.Info("first-run setup completed", "user_id", user.ID, "username", user.Username)
 	jsonResponse(w, http.StatusCreated, map[string]any{"user": user.Public()})
 }
@@ -178,7 +178,7 @@ func (d *Deps) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, d.AuthMW.BuildSessionCookie(d.Sessions.SignCookieValue(sess.ID), d.Sessions.TTL()))
+	http.SetCookie(w, d.AuthMW.BuildSessionCookie(d.Sessions.SignCookieValue(sess.ID), d.Sessions.TTL(), r))
 	slog.Info("user logged in", "user_id", user.ID, "username", user.Username)
 	jsonResponse(w, http.StatusOK, map[string]any{"user": user.Public()})
 }
@@ -194,7 +194,7 @@ func (d *Deps) handleLogout(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	http.SetCookie(w, d.AuthMW.ClearSessionCookie())
+	http.SetCookie(w, d.AuthMW.ClearSessionCookie(r))
 	w.WriteHeader(http.StatusNoContent)
 }
 

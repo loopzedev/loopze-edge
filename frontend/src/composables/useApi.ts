@@ -7,6 +7,7 @@ import type {
 } from '@/types/flow'
 import type { LogEntry } from '@/types/events'
 import type { Role, User } from '@/types/auth'
+import { basePathNoSlash, readCookie } from '@/runtime'
 
 export interface ApiError {
   status: number
@@ -92,7 +93,11 @@ export interface OpcuaReadResponse {
   result?: OpcuaReadResult
 }
 
-const BASE_URL = '/api/v1'
+const BASE_URL = `${basePathNoSlash}/api/v1`
+
+const CSRF_COOKIE = 'loopze_csrf'
+const CSRF_HEADER = 'X-CSRF-Token'
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 async function request<T>(
   path: string,
@@ -107,6 +112,18 @@ async function request<T>(
 
   if (options.body && typeof options.body === 'string') {
     headers['Content-Type'] = 'application/json'
+  }
+
+  // Double-submit-cookie CSRF: echo the loopze_csrf cookie back as a
+  // header on state-changing requests. The cookie is issued by the
+  // backend on every API response, so by the time the SPA does its
+  // first mutation it has already been set during /auth/status.
+  const method = (options.method ?? 'GET').toUpperCase()
+  if (MUTATING_METHODS.has(method)) {
+    const token = readCookie(CSRF_COOKIE)
+    if (token) {
+      headers[CSRF_HEADER] = token
+    }
   }
 
   const response = await fetch(url, {

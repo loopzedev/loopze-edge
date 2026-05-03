@@ -24,17 +24,23 @@ const label = computed(() => props.data?.label);
 
 const intervalLabel = computed(() => {
     const cfg = props.data?.config ?? {};
+    const mode = (cfg.mode as string | undefined) ?? "interval";
     const interval = cfg.interval as number | undefined;
+    const cronExpr = cfg.cron as string | undefined;
     const once = cfg.once as boolean | undefined;
     const parts: string[] = [];
     if (once) parts.push("once");
-    if (interval && interval > 0) {
+    if (mode === "cron") {
+        if (cronExpr && cronExpr.trim()) parts.push(cronExpr.trim());
+    } else if (interval && interval > 0) {
         if (interval >= 60000) parts.push(`${interval / 60000}min`);
         else if (interval >= 1000) parts.push(`${interval / 1000}s`);
         else parts.push(`${interval}ms`);
     }
     return parts.length > 0 ? parts.join(" + ") : "manual";
 });
+
+const isCron = computed(() => (props.data?.config?.mode as string | undefined) === "cron");
 
 function handleTrigger(): void {
     api.triggerInject(props.id).catch((err) => {
@@ -58,7 +64,10 @@ function handleTrigger(): void {
     >
         <template #body>
             <div class="flex items-center justify-between gap-1">
-                <span class="uppercase tracking-wider">{{ intervalLabel }}</span>
+                <span
+                    class="truncate"
+                    :class="isCron ? 'font-mono' : 'uppercase tracking-wider'"
+                >{{ intervalLabel }}</span>
                 <span class="truncate">{{ props.data?.config?.payloadType ?? "timestamp" }}</span>
             </div>
         </template>

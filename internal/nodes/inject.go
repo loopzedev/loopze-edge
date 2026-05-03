@@ -10,6 +10,13 @@ import (
 	"time"
 
 	"github.com/niceclouds/flint/internal/flow"
+	"github.com/robfig/cron/v3"
+)
+
+// cronParser parses 6-field cron expressions (with seconds) plus standard
+// descriptors like @hourly. The frontend mirrors these capabilities.
+var cronParser = cron.NewParser(
+	cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
 // InjectProp defines a single property to set on the injected message.
@@ -36,9 +43,12 @@ type InjectNode struct {
 	flowPers flow.ContextStore
 
 	// Parsed from Properties.
-	once     bool          // send one message immediately on Start
-	interval time.Duration // recurring interval (0 = disabled)
-	props    []InjectProp  // properties to set on each emitted message
+	once     bool           // send one message immediately on Start
+	mode     string         // "interval" or "cron"
+	interval time.Duration  // recurring interval for interval mode (0 = disabled)
+	cronExpr string         // raw cron expression (kept for status/debug)
+	schedule cron.Schedule  // parsed cron schedule (nil when mode != cron or parse failed)
+	props    []InjectProp   // properties to set on each emitted message
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -61,8 +71,14 @@ func (n *InjectNode) Init() error {
 		n.once = v
 	}
 
+	n.mode = stringVal(cfgProps, "mode", "interval")
+
 	if v, ok := cfgProps["interval"].(float64); ok && v > 0 {
 		n.interval = time.Duration(v) * time.Millisecond
+	}
+
+	if expr, ok := cfgProps["cron"].(string); ok {
+		n.cronExpr = expr
 	}
 
 	// Parse props list (array of rule objects).
@@ -89,13 +105,37 @@ func (n *InjectNode) Init() error {
 		}
 	}
 
-	if !n.once && n.interval == 0 {
-		slog.Warn("inject node has no trigger configured (neither once nor interval)",
+	if n.mode == "cron" && n.cronExpr != "" {
+		schedule, err := cronParser.Parse(n.cronExpr)
+		if err != nil {
+			slog.Warn("inject node: invalid cron expression",
+				"node_id", n.config.ID, "expression", n.cronExpr, "error", err)
+			if n.status != nil {
+				n.status("red", "invalid cron expression")
+			}
+		} else {
+			n.schedule = schedule
+		}
+	}
+
+	if !n.once && !n.hasRecurringTrigger() {
+		slog.Warn("inject node has no trigger configured (neither once, interval, nor cron)",
 			"node_id", n.config.ID,
 		)
 	}
 
 	return nil
+}
+
+// hasRecurringTrigger reports whether the active trigger mode has a valid
+// recurring schedule configured.
+func (n *InjectNode) hasRecurringTrigger() bool {
+	switch n.mode {
+	case "cron":
+		return n.schedule != nil
+	default:
+		return n.interval > 0
+	}
 }
 
 // SetSend stores the engine-provided callback for sending messages downstream.
@@ -132,7 +172,11 @@ func (n *InjectNode) Start() error {
 		n.emit()
 	}
 
-	if n.interval > 0 {
+	switch {
+	case n.mode == "cron" && n.schedule != nil:
+		n.wg.Add(1)
+		go n.cronLoop()
+	case n.mode != "cron" && n.interval > 0:
 		n.wg.Add(1)
 		go n.tickerLoop()
 	}
@@ -140,7 +184,9 @@ func (n *InjectNode) Start() error {
 	slog.Info("inject node started",
 		"node_id", n.config.ID,
 		"once", n.once,
+		"mode", n.mode,
 		"interval", n.interval,
+		"cron", n.cronExpr,
 		"props", len(n.props),
 	)
 	return nil
@@ -209,6 +255,30 @@ func (n *InjectNode) tickerLoop() {
 	}
 }
 
+// cronLoop runs in a goroutine and emits messages at each next-fire time
+// computed by the parsed cron schedule. It uses a one-shot timer per fire
+// rather than a fixed Ticker so that uneven intervals (e.g. weekday-only
+// schedules) are honoured correctly.
+func (n *InjectNode) cronLoop() {
+	defer n.wg.Done()
+
+	for {
+		next := n.schedule.Next(time.Now())
+		wait := time.Until(next)
+		if wait < 0 {
+			wait = 0
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-n.done:
+			timer.Stop()
+			return
+		case <-timer.C:
+			n.emit()
+		}
+	}
+}
+
 // InjectTypeInfo returns the NodeTypeInfo for registering the inject node.
 func InjectTypeInfo() flow.NodeTypeInfo {
 	return flow.NodeTypeInfo{
@@ -219,7 +289,9 @@ func InjectTypeInfo() flow.NodeTypeInfo {
 		Icon:        "mdi-play",
 		Defaults: map[string]any{
 			"once":     false,
+			"mode":     "interval",
 			"interval": 0,
+			"cron":     "",
 			"props": []any{
 				map[string]any{"p": "payload", "vt": "date", "v": "rfc3339"},
 				map[string]any{"p": "topic", "vt": "str", "v": ""},

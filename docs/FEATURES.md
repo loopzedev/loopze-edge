@@ -1,6 +1,6 @@
-# Flint — Features & Abgrenzung zu Node-RED
+# LOOPZE — Features & Abgrenzung zu Node-RED
 
-Flint ist kein Fork, sondern ein Neuaufbau mit den Lehren aus Node-RED. Gleiche Philosophie (visual flow programming), aber mit bewussten Designentscheidungen die wiederkehrende Schmerzpunkte loesen.
+LOOPZE ist kein Fork, sondern ein Neuaufbau mit den Lehren aus Node-RED. Gleiche Philosophie (visual flow programming), aber mit bewussten Designentscheidungen die wiederkehrende Schmerzpunkte loesen.
 
 ---
 
@@ -8,7 +8,7 @@ Flint ist kein Fork, sondern ein Neuaufbau mit den Lehren aus Node-RED. Gleiche 
 
 In Node-RED sind Messages untypisierte `msg`-Objekte — jeder Node kann beliebige Felder setzen oder weglassen. Das fuehrt in groesseren Flows schnell zu inkonsistenten Payloads, die erst zur Laufzeit auffallen.
 
-In Flint koennen Function Nodes **Models definieren**: ein JSON-Schema das beschreibt wie die ausgehende Message aussieht. Sobald ein Model definiert ist, garantiert der Function Node strukturell konsistente Outputs. Nachfolgende Nodes koennen sich darauf verlassen welche Felder existieren und welchen Typ sie haben — kein defensives `if (msg.payload && msg.payload.temperature)` mehr.
+In LOOPZE koennen Function Nodes **Models definieren**: ein JSON-Schema das beschreibt wie die ausgehende Message aussieht. Sobald ein Model definiert ist, garantiert der Function Node strukturell konsistente Outputs. Nachfolgende Nodes koennen sich darauf verlassen welche Felder existieren und welchen Typ sie haben — kein defensives `if (msg.payload && msg.payload.temperature)` mehr.
 
 ---
 
@@ -22,7 +22,7 @@ Ein dedizierter **Validation Node** prueft eingehende Messages gegen ein definie
 
 Node-RED hat kein eingebautes Queuing. Wer Messages puffern, wiederholen oder persistent zwischenspeichern will, braucht externe Systeme (Redis, RabbitMQ) oder fragile Workarounds mit Context-Variablen.
 
-Flint bringt einen eingebetteten NATS-Server mit JetStream mit. Ein nativer **Queue Node** kann Messages in einen NATS Stream schreiben und mit konfigurierbarer Delivery-Garantie (at-least-once, exactly-once) wieder konsumieren. Retry-Logik, Dead-Letter-Queues und Backpressure sind damit Bordmittel — kein externer Broker, kein Plugin, eine einzige Binary.
+LOOPZE bringt einen eingebetteten NATS-Server mit JetStream mit. Ein nativer **Queue Node** kann Messages in einen NATS Stream schreiben und mit konfigurierbarer Delivery-Garantie (at-least-once, exactly-once) wieder konsumieren. Retry-Logik, Dead-Letter-Queues und Backpressure sind damit Bordmittel — kein externer Broker, kein Plugin, eine einzige Binary.
 
 ---
 
@@ -30,7 +30,7 @@ Flint bringt einen eingebetteten NATS-Server mit JetStream mit. Ein nativer **Qu
 
 Node-RED bietet keine Moeglichkeit zu sehen welcher Node wie lange braucht oder wo ein Bottleneck sitzt. Man merkt erst dass etwas langsam ist, aber nicht wo.
 
-Flint misst **pro Node die Verarbeitungszeit und den Durchsatz**. Im Editor kann ein Profiling-Overlay eingeblendet werden das direkt auf den Nodes zeigt: durchschnittliche Latenz, Messages pro Sekunde, Queue-Fuellstand. Langsame Nodes werden visuell hervorgehoben. Das macht Performance-Probleme sichtbar bevor sie kritisch werden — ohne externe Monitoring-Tools.
+LOOPZE misst **pro Node die Verarbeitungszeit und den Durchsatz**. Im Editor kann ein Profiling-Overlay eingeblendet werden das direkt auf den Nodes zeigt: durchschnittliche Latenz, Messages pro Sekunde, Queue-Fuellstand. Langsame Nodes werden visuell hervorgehoben. Das macht Performance-Probleme sichtbar bevor sie kritisch werden — ohne externe Monitoring-Tools.
 
 ---
 
@@ -41,7 +41,7 @@ Flint misst **pro Node die Verarbeitungszeit und den Durchsatz**. Im Editor kann
 
 Node-RED laeuft single-threaded auf Node.js. Ein langsamer Function Node blockiert den gesamten Event-Loop — alle anderen Nodes warten.
 
-Flint fuehrt **jeden Node in einer eigenen Goroutine** aus. CPU-intensive Berechnungen in einem Function Node blockieren keine anderen Nodes. Die Go-Runtime verteilt die Arbeit automatisch ueber alle CPU-Kerne. Tausende Nodes laufen echt parallel, nicht kooperativ-sequentiell.
+LOOPZE fuehrt **jeden Node in einer eigenen Goroutine** aus. CPU-intensive Berechnungen in einem Function Node blockieren keine anderen Nodes. Die Go-Runtime verteilt die Arbeit automatisch ueber alle CPU-Kerne. Tausende Nodes laufen echt parallel, nicht kooperativ-sequentiell.
 
 ---
 
@@ -51,7 +51,7 @@ Flint fuehrt **jeden Node in einer eigenen Goroutine** aus. CPU-intensive Berech
 
 Node-RED braucht Node.js, npm und ein Dateisystem voller `node_modules`. Auf einem frischen System ist die Installation ein Prozess mit mehreren Schritten und potentiellen Versionskonflikten.
 
-Flint ist **eine einzige ausfuehrbare Datei**. Kein Node.js, kein npm, keine externen Abhaengigkeiten. Download, ausfuehren, fertig. Das Frontend ist in die Binary eingebettet, der NATS-Server laeuft embedded. Besonders auf Edge-Devices und in eingeschraenkten Umgebungen (kein Internet, kein Paketmanager) ist das ein entscheidender Vorteil.
+LOOPZE ist **eine einzige ausfuehrbare Datei**. Kein Node.js, kein npm, keine externen Abhaengigkeiten. Download, ausfuehren, fertig. Das Frontend ist in die Binary eingebettet, der NATS-Server laeuft embedded. Besonders auf Edge-Devices und in eingeschraenkten Umgebungen (kein Internet, kein Paketmanager) ist das ein entscheidender Vorteil.
 
 ---
 
@@ -66,7 +66,7 @@ In der Praxis erzwingt das anti-patterns:
 - **Redundante Verdrahtung**: Jeder Node der einen Context-Wert aendert muss zusaetzlich eine Message an alle interessierten Nodes schicken — doppelte Logik, fragile Flows
 - **Race Conditions**: Zwischen zwei Poll-Zyklen kann ein Wert mehrfach geaendert worden sein — Zwischenzustaende gehen verloren
 
-Flint loest das durch einen **reaktiven Context Store auf Basis von NATS JetStream KV**. Der Context Watch Node subscribt auf Aenderungen an bestimmten Keys oder Key-Patterns und feuert automatisch eine Message wenn sich ein Wert aendert — in Echtzeit, ohne Polling. Der Context wird damit zum vollwertigen Event-Source:
+LOOPZE loest das durch einen **reaktiven Context Store auf Basis von NATS JetStream KV**. Der Context Watch Node subscribt auf Aenderungen an bestimmten Keys oder Key-Patterns und feuert automatisch eine Message wenn sich ein Wert aendert — in Echtzeit, ohne Polling. Der Context wird damit zum vollwertigen Event-Source:
 
 ```
 [Sensor] → [Change: set flow.temperature]
@@ -87,7 +87,7 @@ Node-RED liefert von Haus aus keine Industrie-Protokolle mit. OPC-UA, Modbus, S7
 - **Abhaengigkeitsketten**: Community-Module bringen eigene npm-Dependencies mit die mit anderen Modulen kollidieren koennen. Ein `npm install` kann bestehende Flows brechen.
 - **Kein einheitliches Config-Pattern**: Jedes Modul erfindet sein eigenes UI fuer Verbindungseinstellungen. Mal gibt es Reconnect-Logik, mal nicht. Mal werden Credentials verschluesselt, mal im Klartext gespeichert.
 
-Flint loest das durch **native Industrie-Connectoren die fest im Produkt verankert sind**:
+LOOPZE loest das durch **native Industrie-Connectoren die fest im Produkt verankert sind**:
 
 | Protokoll | Typ | Beschreibung |
 |---|---|---|
@@ -109,7 +109,7 @@ Node-RED ist fuer Event-basierte Flows mit einzelnen Messages gebaut. Sobald gro
 
 Tools wie **Telegraf** loesen das elegant mit einer Input → Processing → Output Pipeline. Aber Telegraf ist konfigurationsgetrieben (TOML-Dateien) — keine visuelle Darstellung, kein schnelles Experimentieren, keine bedingte Logik.
 
-Flint verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flows**. Der Schluessel dazu ist ein nativer **Processing Node der in Go ausfuehrt** — nicht in einer interpretierten Sandbox wie der JavaScript Function Node, sondern direkt in der Sprache der Runtime. Das eroeffnet volle Nutzung aller CPU-Kerne, zero-copy Datenverarbeitung und Zugriff auf das Go-Oekosystem.
+LOOPZE verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flows**. Der Schluessel dazu ist ein nativer **Processing Node der in Go ausfuehrt** — nicht in einer interpretierten Sandbox wie der JavaScript Function Node, sondern direkt in der Sprache der Runtime. Das eroeffnet volle Nutzung aller CPU-Kerne, zero-copy Datenverarbeitung und Zugriff auf das Go-Oekosystem.
 
 ```
                     Data Pipeline Flow
@@ -149,7 +149,7 @@ Flint verbindet beide Welten: **Telegraf-artige Data Pipelines als visuelle Flow
 - SQL Insert/Upsert
 - MQTT Bulk Publish
 
-Das Ergebnis: Datenverarbeitungs-Pipelines die in Node-RED Minuten brauchen (oder die Runtime zum Absturz bringen) laufen in Flint in Sekunden — visuell konfiguriert, nicht in TOML-Dateien versteckt.
+Das Ergebnis: Datenverarbeitungs-Pipelines die in Node-RED Minuten brauchen (oder die Runtime zum Absturz bringen) laufen in LOOPZE in Sekunden — visuell konfiguriert, nicht in TOML-Dateien versteckt.
 
 ---
 
@@ -157,6 +157,6 @@ Das Ergebnis: Datenverarbeitungs-Pipelines die in Node-RED Minuten brauchen (ode
 
 Node-REDs Debug-Node zeigt Messages in einer separaten Sidebar — aber man sieht nicht welchen Weg eine Message durch den Flow genommen hat.
 
-Flint ermoeglicht **Message Tracing**: eine einzelne Message kann visuell durch den Flow verfolgt werden. Der Pfad den die Message genommen hat wird im Canvas hervorgehoben, mit Timestamps und Payload-Snapshots an jedem Node. Das macht das Debugging komplexer Flows mit Verzweigungen, Filtern und Cross-Flow-Links nachvollziehbar.
+LOOPZE ermoeglicht **Message Tracing**: eine einzelne Message kann visuell durch den Flow verfolgt werden. Der Pfad den die Message genommen hat wird im Canvas hervorgehoben, mit Timestamps und Payload-Snapshots an jedem Node. Das macht das Debugging komplexer Flows mit Verzweigungen, Filtern und Cross-Flow-Links nachvollziehbar.
 
 

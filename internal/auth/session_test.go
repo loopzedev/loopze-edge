@@ -207,7 +207,7 @@ func TestNewSessionManagerValidation(t *testing.T) {
 
 func TestEnsureSessionKeyCreatesAndReuses(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "flint.session.key")
+	path := filepath.Join(dir, "loopze.session.key")
 
 	first, err := EnsureSessionKey(path)
 	if err != nil {
@@ -228,7 +228,7 @@ func TestEnsureSessionKeyCreatesAndReuses(t *testing.T) {
 
 func TestEnsureSessionKeyRejectsWrongLength(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "flint.session.key")
+	path := filepath.Join(dir, "loopze.session.key")
 
 	if err := os.WriteFile(path, []byte("too short"), 0600); err != nil {
 		t.Fatal(err)

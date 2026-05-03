@@ -24,7 +24,7 @@ interface Rule {
 }
 
 const flowStore = useFlowStore()
-const { updateNodeInternals } = useVueFlow('flint-flow-editor')
+const { updateNodeInternals } = useVueFlow('loopze-flow-editor')
 
 const property = useNodeProperty<string>('property', 'payload')
 const propertyType = useNodeProperty<string>('propertyType', 'msg')

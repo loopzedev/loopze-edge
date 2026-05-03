@@ -14,18 +14,18 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/logbuffer"
-	flintnats "github.com/niceclouds/flint/internal/nats"
-	"github.com/niceclouds/flint/internal/storage"
-	"github.com/niceclouds/flint/internal/ws"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/logbuffer"
+	loopzenats "github.com/niceclouds/loopze/internal/nats"
+	"github.com/niceclouds/loopze/internal/storage"
+	"github.com/niceclouds/loopze/internal/ws"
 )
 
 // Deps holds the dependencies that API handlers need.
 type Deps struct {
 	Engine    *flow.Engine
 	Storage   storage.Storage
-	Broker    *flintnats.Broker
+	Broker    *loopzenats.Broker
 	Hub       *ws.Hub
 	LogBuffer *logbuffer.Buffer
 

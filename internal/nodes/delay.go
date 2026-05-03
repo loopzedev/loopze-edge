@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // Per-message override field names. They are stripped from the message before

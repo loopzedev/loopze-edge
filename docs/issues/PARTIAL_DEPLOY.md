@@ -4,7 +4,7 @@
 
 ## Problembeschreibung
 
-Aktuell verwendet Flint eine **Full-Restart-Strategie**: Bei jedem Deploy werden **alle** laufenden Nodes gestoppt und der gesamte Workspace neu instantiiert (`engine.go:204-205`). Das ist bei größeren Workspaces problematisch:
+Aktuell verwendet LOOPZE eine **Full-Restart-Strategie**: Bei jedem Deploy werden **alle** laufenden Nodes gestoppt und der gesamte Workspace neu instantiiert (`engine.go:204-205`). Das ist bei größeren Workspaces problematisch:
 
 - **Downtime**: Alle Flows werden kurzzeitig unterbrochen — auch solche, die sich nicht geändert haben
 - **Message-Verlust**: Messages in Node-Buffern (`inputCh`) gehen beim Stop verloren

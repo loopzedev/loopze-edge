@@ -3,7 +3,7 @@
 // See LICENSE file for details.
 
 // Package ws provides a WebSocket hub for real-time communication between
-// the Flint backend and connected editor clients. It manages client
+// the LOOPZE backend and connected editor clients. It manages client
 // connections, broadcasts events (debug messages, deploy status, node status,
 // notifications), and handles graceful disconnection.
 package ws
@@ -79,7 +79,7 @@ type Client struct {
 
 // Hub maintains the set of active WebSocket clients and broadcasts messages
 // to all of them. It is the central coordination point for real-time events
-// flowing from the Flint runtime to the editor frontend.
+// flowing from the LOOPZE runtime to the editor frontend.
 type Hub struct {
 	// clients holds all currently connected clients.
 	clients map[*Client]bool
@@ -216,7 +216,7 @@ func (h *Hub) ClientCount() int {
 type AuthFunc func(r *http.Request) (userID string, err error)
 
 // ServeWS handles a WebSocket upgrade request without authentication. It
-// is intended only for development setups (FLINT_AUTH_DISABLE) — in
+// is intended only for development setups (LOOPZE_AUTH_DISABLE) — in
 // normal operation use ServeWSAuthed.
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	h.upgradeAndRun(w, r, "")

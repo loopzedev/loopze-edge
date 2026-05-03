@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package api defines the REST API routes and handlers for the Flint runtime.
+// Package api defines the REST API routes and handlers for the LOOPZE runtime.
 // All API endpoints are mounted under /api/v1/ and provide the interface
 // between the Vue 3 frontend editor and the Go backend engine.
 package api
@@ -10,10 +10,10 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 
-	"github.com/niceclouds/flint/internal/auth"
+	"github.com/niceclouds/loopze/internal/auth"
 )
 
-// RegisterRoutes mounts all Flint API v1 route handlers onto the given router.
+// RegisterRoutes mounts all LOOPZE API v1 route handlers onto the given router.
 // The Deps struct provides access to the flow engine, storage layer and
 // auth subsystem.
 //

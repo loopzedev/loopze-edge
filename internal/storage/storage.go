@@ -4,7 +4,7 @@
 
 // Package storage provides persistence for flows and encrypted credentials.
 // The default implementation uses JSON files on the local filesystem,
-// matching the single-binary, zero-dependency philosophy of Flint.
+// matching the single-binary, zero-dependency philosophy of LOOPZE.
 package storage
 
 import (
@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // Storage defines the persistence interface for flows and credentials.
@@ -216,7 +216,7 @@ func (fs *FileStorage) SaveWorkspace(ws flow.Workspace) error {
 //
 // Encryption details (handled by credentials.CredentialManager):
 //   - Algorithm: AES-256-GCM (authenticated encryption with associated data)
-//   - Key source: separate key file (flint.key), auto-generated on first run
+//   - Key source: separate key file (loopze.key), auto-generated on first run
 //   - Format: nonce (12 bytes) || ciphertext || GCM authentication tag (16 bytes)
 func (fs *FileStorage) LoadCredentials() ([]byte, error) {
 	fs.mu.RLock()
@@ -294,7 +294,7 @@ func (fs *FileStorage) SaveUsers(data []byte) error {
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 
-	tmp, err := os.CreateTemp(dir, ".flint-tmp-*")
+	tmp, err := os.CreateTemp(dir, ".loopze-tmp-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file in %q: %w", dir, err)
 	}

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 	"github.com/robfig/cron/v3"
 )
 

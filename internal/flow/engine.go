@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niceclouds/flint/internal/config"
+	"github.com/niceclouds/loopze/internal/config"
 )
 
 // PublishDebugFunc is a callback the server provides to the engine so that

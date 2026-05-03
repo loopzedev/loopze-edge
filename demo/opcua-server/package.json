@@ -1,8 +1,8 @@
 {
-  "name": "flint-opcua-demo-server",
+  "name": "loopze-opcua-demo-server",
   "version": "0.1.0",
   "private": true,
-  "description": "OPC UA demo server for testing Flint nodes (security, ExtensionObjects, simulated data)",
+  "description": "OPC UA demo server for testing LOOPZE nodes (security, ExtensionObjects, simulated data)",
   "license": "MIT",
   "type": "module",
   "engines": {

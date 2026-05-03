@@ -55,7 +55,7 @@ async function handleSubmit() {
     >
       <header class="px-6 py-4 border-b border-terminal-border">
         <h1 class="text-base text-terminal-text-bright font-medium">
-          Welcome to Flint
+          Welcome to LOOPZE
         </h1>
         <p class="mt-1 text-xs text-terminal-text-dim">
           No administrator account exists yet. Create the first one to continue.

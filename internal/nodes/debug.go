@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 	"github.com/tidwall/gjson"
 )
 

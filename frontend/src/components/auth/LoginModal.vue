@@ -62,7 +62,7 @@ async function handleSubmit() {
           <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-accent" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
           </svg>
-          <span class="text-accent text-4xl font-bold tracking-widest font-mono">FLINT</span>
+          <span class="text-accent text-4xl font-bold tracking-widest font-mono">LOOPZE</span>
         </div>
       </header>
 

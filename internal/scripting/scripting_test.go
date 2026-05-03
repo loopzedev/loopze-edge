@@ -6,8 +6,8 @@ package scripting_test
 import (
 	"testing"
 
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/scripting"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/scripting"
 )
 
 func TestMessageEnv(t *testing.T) {

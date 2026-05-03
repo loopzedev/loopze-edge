@@ -1,5 +1,5 @@
 /**
- * WebSocket event types for Flint real-time communication.
+ * WebSocket event types for LOOPZE real-time communication.
  */
 
 export type WebSocketEventType = 'debug' | 'status' | 'deploy' | 'notification' | 'log'

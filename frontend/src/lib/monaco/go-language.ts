@@ -1,11 +1,11 @@
-// Flint-specific completion provider for Go (function-go node).
+// LOOPZE-specific completion provider for Go (function-go node).
 //
 // Monaco ships a Go tokenizer for syntax highlighting but no language service,
 // so user code in a function-go node has no IntelliSense out of the box. This
 // module adds completions for:
 //
 //   - the supported `handle` signatures (snippets)
-//   - flintnode.Node interface methods (after `node.`)
+//   - loopzenode.Node interface methods (after `node.`)
 //   - allowed stdlib imports (after `import "`)
 //
 // Registered once on first use via registerGoCompletions(). Compile errors
@@ -23,7 +23,7 @@ interface MethodDoc {
   doc: string
 }
 
-// Methods on the flintnode.Node interface — must stay in sync with
+// Methods on the loopzenode.Node interface — must stay in sync with
 // internal/scripting/yaegi/engine.go.
 const NODE_METHODS: MethodDoc[] = [
   { name: 'Send',         signature: 'Send(port int, msg any)',         insertText: 'Send(${1:0}, ${2:payload})',           detail: 'Send(port int, msg any)',                doc: 'Emit msg on output port. Use for multi-output.' },
@@ -63,7 +63,7 @@ const ALLOWED_IMPORTS = [
   'encoding/hex',
   'encoding/json',
   'errors',
-  'flintnode',
+  'loopzenode',
   'fmt',
   'math',
   'math/big',
@@ -128,9 +128,9 @@ const HANDLE_TEMPLATES = [
   },
   {
     label: 'handle (with node — multi-output)',
-    detail: 'route via flintnode.Node.Send',
+    detail: 'route via loopzenode.Node.Send',
     insertText: [
-      'func handle(payload any, node flintnode.Node) {',
+      'func handle(payload any, node loopzenode.Node) {',
       '\tif ${1:cond} {',
       '\t\tnode.Send(0, payload)',
       '\t} else {',
@@ -174,7 +174,7 @@ export function registerGoCompletions(): void {
         endColumn: position.column,
       })
 
-      // After "node." → flintnode.Node interface methods
+      // After "node." → loopzenode.Node interface methods
       if (/\bnode\.[\w]*$/.test(lineUntilPos)) {
         return {
           suggestions: NODE_METHODS.map(m => ({
@@ -222,7 +222,7 @@ export function registerGoCompletions(): void {
       suggestions.push({
         label: 'node',
         kind: monaco.languages.CompletionItemKind.Variable,
-        detail: 'flintnode.Node — runtime API',
+        detail: 'loopzenode.Node — runtime API',
         insertText: 'node',
         range,
       })
@@ -243,10 +243,10 @@ export function registerGoCompletions(): void {
         range,
       })
       suggestions.push({
-        label: 'import "flintnode"',
+        label: 'import "loopzenode"',
         kind: monaco.languages.CompletionItemKind.Snippet,
-        detail: 'Flint runtime API (node.Send, node.Log, …)',
-        insertText: 'import "flintnode"',
+        detail: 'LOOPZE runtime API (node.Send, node.Log, …)',
+        insertText: 'import "loopzenode"',
         range,
       })
 

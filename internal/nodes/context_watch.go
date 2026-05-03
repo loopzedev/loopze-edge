@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // kvProvider is a local interface for accessing the underlying NATS KV bucket

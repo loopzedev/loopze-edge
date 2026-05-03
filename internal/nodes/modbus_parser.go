@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // modbusField describes one entry of the parser node's register layout.

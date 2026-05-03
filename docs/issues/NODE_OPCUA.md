@@ -10,7 +10,7 @@
 - ExtensionObject-Handling: Marker-Type-Registrierung gegen gopcua, schema-driven Encode/Decode für Struct/Enum/Optional/Union/Nested/Array
 - Type-Resolver lädt `DataTypeDefinition` mit Recursion-Schutz, geteilter Cache pro Server, Reset bei Reconnect
 - Address-Space-Browser: Modal mit Lazy-Tree, NodeClass-Filter, Multi-/Single-Select, Detail-Pane mit DataType-Info, integriert in alle drei Operations-Nodes
-- Tests gegen den extern gepflegten Deno-OPCUA-Test-Server via `FLINT_OPCUA_TEST_ENDPOINT`
+- Tests gegen den extern gepflegten Deno-OPCUA-Test-Server via `LOOPZE_OPCUA_TEST_ENDPOINT`
 
 **Bewusst auf später verschoben (eigene Issues):**
 - Cert-Pinning (TOFU): Feld in der Server-Config vorhanden, Fingerprint-Persistenz + Vergleich nicht implementiert
@@ -21,7 +21,7 @@
 
 ## Problembeschreibung
 
-OPC UA ist **der** Standard für Maschinenkommunikation in der Industrie (Werkzeugmaschinen, Roboter, SPSen, MES, SCADA, Edge-Gateways). Flint braucht erstklassige OPC-UA-Unterstützung, damit es als ernstzunehmende Edge-Automation-Plattform im industriellen Umfeld eingesetzt werden kann.
+OPC UA ist **der** Standard für Maschinenkommunikation in der Industrie (Werkzeugmaschinen, Roboter, SPSen, MES, SCADA, Edge-Gateways). LOOPZE braucht erstklassige OPC-UA-Unterstützung, damit es als ernstzunehmende Edge-Automation-Plattform im industriellen Umfeld eingesetzt werden kann.
 
 Drei neue Node-Typen — `opcua-read`, `opcua-subscribe`, `opcua-write` — decken die drei zentralen OPC-UA-Operationen ab. Sie referenzieren einen gemeinsamen **OPC UA Server Config Node** (`opcua-server`), der die Verbindungs- und Sicherheitsparameter bündelt. Das Config-Node-Konzept wurde mit dem MQTT-Issue ([NODE_MQTT.md](NODE_MQTT.md)) eingeführt und wird hier wiederverwendet.
 
@@ -71,8 +71,8 @@ Der OPC UA Server ist ein **Config Node** — analog zum MQTT-Broker. Er erschei
   - `password` (string, optional) — bei `authMode=username`
   - `clientCertFile` (string, optional) — Pfad zur Client-Zertifikatsdatei (PEM/DER), bei Bedarf für `securityMode != None` oder `authMode=certificate`
   - `clientKeyFile` (string, optional) — Pfad zum privaten Schlüssel
-  - `applicationUri` (string) — Default: `urn:flint:client`. Muss zum Subject-AltName im Client-Cert passen, sonst lehnen viele Server die Verbindung ab
-  - `applicationName` (string) — Default: `Flint OPC UA Client`
+  - `applicationUri` (string) — Default: `urn:loopze:client`. Muss zum Subject-AltName im Client-Cert passen, sonst lehnen viele Server die Verbindung ab
+  - `applicationName` (string) — Default: `LOOPZE OPC UA Client`
   - `sessionTimeout` (number, ms) — Default: `60000`
   - `requestTimeout` (number, ms) — Default: `5000`. Timeout für einzelne Service-Calls (Read/Write/CreateSubscription)
   - `serverCertTrust` (string) — `prompt` (Default in v1: log-only, akzeptiert) | `pinned` (akzeptiert nur das Cert mit gespeichertem Fingerprint) | `system` (akzeptiert alles im OS-Truststore). v1 implementiert `prompt`/`pinned` — TOFU-Pattern: erstes Cert wird geloggt, kann manuell gepinnt werden
@@ -109,8 +109,8 @@ Der OPC UA Server ist ein **Config Node** — analog zum MQTT-Broker. Er erschei
 │  Password   [ •••••                         ] │
 │                                               │
 │  ▼ Client Identity (advanced)                 │
-│  Application URI  [ urn:flint:client       ]  │
-│  Application Name [ Flint OPC UA Client    ]  │
+│  Application URI  [ urn:loopze:client       ]  │
+│  Application Name [ LOOPZE OPC UA Client    ]  │
 │  Client Cert File [                        ]  │
 │  Client Key  File [                        ]  │
 │                                               │
@@ -595,8 +595,8 @@ Der OPC-UA-Standard verlangt für `securityMode != None` ein Client-Zertifikat. 
         "securityPolicy": "None",
         "securityMode": "None",
         "authMode": "anonymous",
-        "applicationUri": "urn:flint:client",
-        "applicationName": "Flint OPC UA Client",
+        "applicationUri": "urn:loopze:client",
+        "applicationName": "LOOPZE OPC UA Client",
         "sessionTimeout": 60000,
         "requestTimeout": 5000,
         "keepaliveInterval": 10000,
@@ -612,7 +612,7 @@ Der OPC-UA-Standard verlangt für `securityMode != None` ein Client-Zertifikat. 
 ### Backend – Neue Dateien
 
 - `internal/nodes/opcua_server.go` — Config Node: Session-Lifecycle, Reconnect, Subscription-Pool, Type-Cache. Kapselt den `gopcua/opcua` Client
-- `internal/nodes/opcua_server_test.go` — End-to-End-Tests gegen einen externen OPC-UA-Test-Server (Node.js / `node-opcua`, gepflegt unter `demo/opcua-server/`). Tests skippen, wenn `FLINT_OPCUA_TEST_ENDPOINT` nicht gesetzt ist
+- `internal/nodes/opcua_server_test.go` — End-to-End-Tests gegen einen externen OPC-UA-Test-Server (Node.js / `node-opcua`, gepflegt unter `demo/opcua-server/`). Tests skippen, wenn `LOOPZE_OPCUA_TEST_ENDPOINT` nicht gesetzt ist
 - `internal/nodes/opcua_read.go` — Read Node mit Static/Triggered/Dynamic Mode
 - `internal/nodes/opcua_read_test.go`
 - `internal/nodes/opcua_subscribe.go` — Subscribe Node mit MonitoredItem-Verwaltung
@@ -660,7 +660,7 @@ Der OPC-UA-Standard verlangt für `securityMode != None` ein Client-Zertifikat. 
 
 - `github.com/gopcua/opcua` — OPC UA Client Library für Go. Aktuell die einzige produktionsreife Pure-Go-Implementierung. Unterstützt Read, Write, Subscribe, Browse, alle gängigen Security-Policies und v1.04
 
-**Test-Server**: ein dedizierter Deno-basierter OPC-UA-Test-Server wird parallel gepflegt (separates Projekt). Tests in diesem Issue laufen gegen diesen Server via `FLINT_OPCUA_TEST_ENDPOINT`-Env-Variable.
+**Test-Server**: ein dedizierter Deno-basierter OPC-UA-Test-Server wird parallel gepflegt (separates Projekt). Tests in diesem Issue laufen gegen diesen Server via `LOOPZE_OPCUA_TEST_ENDPOINT`-Env-Variable.
 
 ## Technische Hinweise
 
@@ -712,7 +712,7 @@ func (n *OpcuaReadNode) doRead(ctx context.Context, nodeIds []string, attr ua.At
 
 ### ExtensionObject-Handling (zentrales Feature)
 
-ExtensionObjects sind das OPC-UA-Vehikel für komplexe Strukturen — UDTs in SPSen, AAS-Submodels, Gerätekonfigurationen, EUInformation, Range, AnalogItem-Properties. In der Praxis ist **kein** industrieller OPC-UA-Server ohne sie nutzbar. Flint muss daher Strukturen transparent zwischen OPC UA und JSON umwandeln können.
+ExtensionObjects sind das OPC-UA-Vehikel für komplexe Strukturen — UDTs in SPSen, AAS-Submodels, Gerätekonfigurationen, EUInformation, Range, AnalogItem-Properties. In der Praxis ist **kein** industrieller OPC-UA-Server ohne sie nutzbar. LOOPZE muss daher Strukturen transparent zwischen OPC UA und JSON umwandeln können.
 
 **Read-Pfad: ExtensionObject → JSON**
 
@@ -744,7 +744,7 @@ ExtensionObjects sind das OPC-UA-Vehikel für komplexe Strukturen — UDTs in SP
 
 **Discovery der DataTypeDefinition**
 
-Der OPC UA Standard ab 1.04 verlangt vom Server, die Struktur via `DataTypeDefinition`-Attribut maschinenlesbar bereitzustellen (`StructureDefinition` oder `EnumDefinition`). Die `gopcua/opcua` Library implementiert das Read aus diesem Attribut; Flint nutzt es im Type-Resolver. Server, die kein DataTypeDefinition liefern (alte 1.03-Server, ggf. einfache OSS-Implementierungen), fallen auf einen Browse-basierten Discovery-Pfad zurück:
+Der OPC UA Standard ab 1.04 verlangt vom Server, die Struktur via `DataTypeDefinition`-Attribut maschinenlesbar bereitzustellen (`StructureDefinition` oder `EnumDefinition`). Die `gopcua/opcua` Library implementiert das Read aus diesem Attribut; LOOPZE nutzt es im Type-Resolver. Server, die kein DataTypeDefinition liefern (alte 1.03-Server, ggf. einfache OSS-Implementierungen), fallen auf einen Browse-basierten Discovery-Pfad zurück:
 
 - Browse `HasComponent`-Children der DataType-Node
 - Lese `BrowseName` und `DataType` jedes Sub-Felds
@@ -955,7 +955,7 @@ Dieser Endpoint ist **read-only** und ohne Persistenz — er berührt die `confi
 - **Method Calls**: `opcua-call` Node für `Call`-Service. Braucht eigenes Argument-Mapping und Output-Argument-Handling, eigenes Issue
 - **HistoryRead**: Lesen historischer Werte über `HistoryRead`-Service. Eigenes Issue
 - **Events / Alarms & Conditions**: Subscribing auf Event-Notifier-Nodes. Eigenes Issue, weil das Event-Type-Filtering eine eigene UI braucht
-- **OPC UA Server Mode**: Flint als OPC-UA-**Server**, nicht Client. Vollständig anderes Konzept, zukünftiges Issue
+- **OPC UA Server Mode**: LOOPZE als OPC-UA-**Server**, nicht Client. Vollständig anderes Konzept, zukünftiges Issue
 - **Auto-Discovery (LDS)**: Discovery-Endpoint absuchen und alle Server auflisten. Praxisnutzen begrenzt, später
 - **Cert-Auto-Generation im UI**: Self-signed Cert/Key beim ersten Save erzeugen. Wäre nett, aber zunächst Pfad-Eingabe
 - **Multi-Endpoint-Failover**: Eine Server-Config mit mehreren Endpoints und automatischem Failover. Bauernregeln-Industrieanforderung, aber später

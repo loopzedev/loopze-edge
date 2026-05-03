@@ -4,9 +4,9 @@
 
 ## Problembeschreibung
 
-Flint benötigt seinen ersten **Data Connector** — MQTT. Zwei neue Node-Typen (`mqtt-in` und `mqtt-out`) ermöglichen das Empfangen und Senden von MQTT-Nachrichten. Zentral dabei ist das Konzept einer **Broker-Konfiguration**, die als eigenständige, wiederverwendbare Entität verwaltet wird. Jeder MQTT-Node referenziert genau einen Broker, aber über mehrere Nodes hinweg können unterschiedliche Broker konfiguriert werden.
+LOOPZE benötigt seinen ersten **Data Connector** — MQTT. Zwei neue Node-Typen (`mqtt-in` und `mqtt-out`) ermöglichen das Empfangen und Senden von MQTT-Nachrichten. Zentral dabei ist das Konzept einer **Broker-Konfiguration**, die als eigenständige, wiederverwendbare Entität verwaltet wird. Jeder MQTT-Node referenziert genau einen Broker, aber über mehrere Nodes hinweg können unterschiedliche Broker konfiguriert werden.
 
-Dieses Issue führt gleichzeitig das neue Konzept der **Config Nodes** ein — konfigurierbare Entitäten, die nicht auf dem Canvas erscheinen, aber von mehreren Nodes referenziert werden können (z.B. Server-Verbindungen, Authentifizierung). Der MQTT-Broker ist der erste Config Node in Flint.
+Dieses Issue führt gleichzeitig das neue Konzept der **Config Nodes** ein — konfigurierbare Entitäten, die nicht auf dem Canvas erscheinen, aber von mehreren Nodes referenziert werden können (z.B. Server-Verbindungen, Authentifizierung). Der MQTT-Broker ist der erste Config Node in LOOPZE.
 
 **Scope**: **MQTT v5 ist Pflicht.** Der Broker-Client muss v5 sprechen. v3.1.1 bleibt als alternativ wählbare Protokoll-Version verfügbar — die Auswahl trifft der Anwender pro Broker-Config bewusst, es gibt keinen automatischen Fallback. Fokus liegt auf funktionierender Broker-Konfiguration und -Instanziierung. Die Subscribe/Publish-Konfiguration ist bewusst minimal gehalten — v5-spezifische Features (User Properties, Message Expiry, Shared Subscriptions) werden in einer schlanken ersten Stufe unterstützt.
 
@@ -53,7 +53,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
   - `name` (string) — Anzeigename im Dropdown, z.B. "Produktion Broker"
   - `host` (string) — Hostname oder IP, z.B. "mqtt.example.com"
   - `port` (number) — Standard: 1883
-  - `clientId` (string) — Client-ID, Standard: auto-generiert (`flint-<random>`)
+  - `clientId` (string) — Client-ID, Standard: auto-generiert (`loopze-<random>`)
   - `protocolVersion` (string) — `5` (Default) oder `3.1.1`. Muss vom Anwender bewusst gewählt werden — kein automatischer Fallback
   - `username` (string, optional) — Benutzername
   - `password` (string, optional) — Passwort
@@ -61,12 +61,12 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
   - `cleanStart` (boolean) — Clean Start (v5) bzw. Clean Session (v3.1.1) Flag, Standard: true
   - `sessionExpiry` (number, v5) — Session Expiry Interval in Sekunden, Standard: 0 (Session endet beim Disconnect). Wird im v3.1.1-Fallback ignoriert
   - `useTLS` (boolean) — TLS aktivieren, Standard: false
-  - **onConnect Message** — Client-seitige Konvention: wird vom Flint-Client unmittelbar nach erfolgreichem CONNACK als regulärer PUBLISH gesendet (typischer "online"-Status). Optional, alle Felder leer = keine Nachricht:
+  - **onConnect Message** — Client-seitige Konvention: wird vom LOOPZE-Client unmittelbar nach erfolgreichem CONNACK als regulärer PUBLISH gesendet (typischer "online"-Status). Optional, alle Felder leer = keine Nachricht:
     - `onConnectTopic` (string)
     - `onConnectPayload` (string)
     - `onConnectQoS` (number) — 0, 1 oder 2. Standard: 0
     - `onConnectRetain` (boolean) — Standard: false
-  - **onDisconnect Message** — Client-seitige Konvention: wird vom Flint-Client vor einem **regulären** Disconnect (Stop / Re-Deploy) als regulärer PUBLISH gesendet, bevor das DISCONNECT-Paket geht. Optional:
+  - **onDisconnect Message** — Client-seitige Konvention: wird vom LOOPZE-Client vor einem **regulären** Disconnect (Stop / Re-Deploy) als regulärer PUBLISH gesendet, bevor das DISCONNECT-Paket geht. Optional:
     - `onDisconnectTopic` (string)
     - `onDisconnectPayload` (string)
     - `onDisconnectQoS` (number) — Standard: 0
@@ -103,7 +103,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │                                               │
 │  Client ID                                    │
 │  ┌────────────────────────────────────────┐   │
-│  │ flint-abc123                           │   │
+│  │ loopze-abc123                           │   │
 │  └────────────────────────────────────────┘   │
 │                                               │
 │  Credentials                                  │
@@ -126,17 +126,17 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
 │  Session Expiry: [0]s         (v5 only)       │
 │                                               │
 │  ▼ onConnect (after connect, optional)        │
-│  Topic:   [status/flint-abc123          ]     │
+│  Topic:   [status/loopze-abc123          ]     │
 │  Payload: [online                       ]     │
 │  QoS: [0 ▼]   ☐ Retain                        │
 │                                               │
 │  ▼ onDisconnect (clean disconnect)            │
-│  Topic:   [status/flint-abc123          ]     │
+│  Topic:   [status/loopze-abc123          ]     │
 │  Payload: [offline                      ]     │
 │  QoS: [0 ▼]   ☐ Retain                        │
 │                                               │
 │  ▼ LastWill (unclean disconnect, MQTT-spec)   │
-│  Topic:   [status/flint-abc123          ]     │
+│  Topic:   [status/loopze-abc123          ]     │
 │  Payload: [offline                      ]     │
 │  QoS: [0 ▼]   ☐ Retain   Delay: [0]s (v5)     │
 │                                               │
@@ -163,7 +163,7 @@ Der MQTT Broker ist ein **Config Node** — er erscheint nicht auf dem Canvas, s
     - `buffer` — der Payload wird als Zahlen-Array (`[]int`) durchgereicht, z.B. `[222, 173, 190, 239]` für die Bytes `0xDE 0xAD 0xBE 0xEF`. Sinnvoll für binäre Daten (Bilder, Protobuf, MessagePack etc.). Hinweis: bewusst kein `[]byte`, weil Go's `encoding/json` `[]byte` als Base64-String serialisiert, was im Debug-Viewer unleserlich ist und bei JSON-Round-Trips Typ-Info verliert. Der mqtt-out-Node erkennt das Zahlen-Array beim Publishen wieder und baut die Original-Bytes zurück.
 
 - **MQTT v5 Subscription Options** (alle optional, gelten pro Subscription; im v3.1.1-Modus ignoriert):
-  - `noLocal` (boolean, default `false`) — verhindert, dass der Broker dem Client seine eigenen Publishes auf demselben Topic zustellt. Nützlich gegen Echo-Schleifen, wenn ein Flint-Flow auf ein Topic published, das er auch subscribed
+  - `noLocal` (boolean, default `false`) — verhindert, dass der Broker dem Client seine eigenen Publishes auf demselben Topic zustellt. Nützlich gegen Echo-Schleifen, wenn ein LOOPZE-Flow auf ein Topic published, das er auch subscribed
   - `retainAsPublished` (boolean, default `false`) — wenn `true`, wird das Retain-Flag der Original-Publish unverändert weitergereicht. Wenn `false` (Default), setzt der Broker das Flag bei Auslieferung auf `0` — Konsumenten können also nicht mehr unterscheiden, ob die Nachricht retained war
   - `retainHandling` (number, default `0`) — Steuert, wann retained Messages beim Subscribe gesendet werden:
     - `0`: bei jedem Subscribe alle retained Messages senden (Default-Verhalten)
@@ -348,7 +348,7 @@ Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` über
 │                                               │
 │  User Properties:                             │
 │  ┌──────────────┐ ┌──────────────┐ ┌───┐     │
-│  │ source       │ │ flint-flow-1 │ │ × │     │
+│  │ source       │ │ loopze-flow-1 │ │ × │     │
 │  └──────────────┘ └──────────────┘ └───┘     │
 │  [+ Add property]                             │
 │                                               │
@@ -361,7 +361,7 @@ Im Dynamic-Modus können die v5-Subscription-Options zusätzlich per `msg` über
 └──────────────────────────────────────────────┘
 ```
 
-### 4. Config Node Konzept (neu in Flint)
+### 4. Config Node Konzept (neu in LOOPZE)
 
 Config Nodes sind ein neues architektonisches Konzept, das mit diesem Issue eingeführt wird:
 
@@ -460,7 +460,7 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
       "config": {
         "host": "mqtt.example.com",
         "port": 1883,
-        "clientId": "flint-abc123",
+        "clientId": "loopze-abc123",
         "protocolVersion": "5",
         "username": "user",
         "password": "",
@@ -468,15 +468,15 @@ Die Engine muss dafür einen **Broker-Manager** bereitstellen, der:
         "cleanStart": true,
         "sessionExpiry": 0,
         "useTLS": false,
-        "onConnectTopic": "status/flint-abc123",
+        "onConnectTopic": "status/loopze-abc123",
         "onConnectPayload": "online",
         "onConnectQoS": 0,
         "onConnectRetain": true,
-        "onDisconnectTopic": "status/flint-abc123",
+        "onDisconnectTopic": "status/loopze-abc123",
         "onDisconnectPayload": "offline",
         "onDisconnectQoS": 0,
         "onDisconnectRetain": true,
-        "lastWillTopic": "status/flint-abc123",
+        "lastWillTopic": "status/loopze-abc123",
         "lastWillPayload": "offline",
         "lastWillQoS": 0,
         "lastWillRetain": true,
@@ -559,7 +559,7 @@ Stop:     Reguläre Nodes stoppen → Config Nodes stoppen
 Der MQTT-Client implementiert automatisches Reconnect über `paho.golang/autopaho`:
 
 - `autopaho.NewConnection` übernimmt Verbindungsaufbau und Reconnect mit konfigurierbarem Backoff
-- Bei v5-Sessions mit `sessionExpiry > 0` reaktiviert der Broker bestehende Subscriptions; bei `cleanStart=true` muss Flint nach Reconnect alle Subscriptions selbst wiederherstellen
+- Bei v5-Sessions mit `sessionExpiry > 0` reaktiviert der Broker bestehende Subscriptions; bei `cleanStart=true` muss LOOPZE nach Reconnect alle Subscriptions selbst wiederherstellen
 - Bei Verbindungsverlust: Status auf Gelb ("reconnecting...")
 - Bei erfolgreicher Wiederverbindung: Subscriptions automatisch erneuern (sofern nicht durch Session bereits aktiv), Status auf Grün
 - Bei dauerhaftem Fehler: Status auf Rot mit Fehlermeldung
@@ -587,7 +587,7 @@ Der "+" Button neben dem Dropdown öffnet den `MqttBrokerConfig.vue` Dialog. Nac
 
 ### Message-Mapping (mqtt-in)
 
-Empfangene MQTT-Nachrichten werden in das Flint Message-Format übersetzt. v5-Properties werden, falls vom Broker mitgeliefert, in die ausgehende Message übernommen:
+Empfangene MQTT-Nachrichten werden in das LOOPZE Message-Format übersetzt. v5-Properties werden, falls vom Broker mitgeliefert, in die ausgehende Message übernommen:
 
 ```go
 func (n *MqttInNode) onPublish(p *paho.Publish) {

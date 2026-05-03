@@ -9,7 +9,7 @@
 package scripting
 
 import (
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // MessageEnv builds the env map that single-expression engines (expr) operate

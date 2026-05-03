@@ -81,7 +81,7 @@ type Storage interface {
 
 **Anpassung `internal/config/config.go`:**
 - Neuer Default `defaultUsersFile = "users.json"`
-- Neue Flag/Env: `--users-file` / `FLINT_USERS_FILE`
+- Neue Flag/Env: `--users-file` / `LOOPZE_USERS_FILE`
 - Neue Methode: `(c *Config) UsersFilePath() string`
 
 **Anpassung `internal/server/server.go`:**
@@ -120,7 +120,7 @@ func (s *SessionManager) DeleteAllForUser(userID string) error  // nach Disable 
 
 **Speicherung:** NATS-JetStream-KV-Bucket `auth-sessions` mit TTL = 12 h. `Refresh` schreibt den gleichen Eintrag mit erneuertem TTL — JetStream-KV unterstützt MaxAge pro Bucket; pro Eintrag triggert jeder Write den TTL-Reset (siehe `internal/nats/context_store.go` für das KV-Muster, das wir schon nutzen).
 
-**Cookie-Signing:** Session-IDs werden HMAC-SHA256 signiert; Schlüssel aus `data/flint.session.key`. Neue Datei `internal/auth/sessionkey.go` mit `EnsureSessionKey(path string) ([]byte, error)` — analog zu `credentials.EnsureKeyFile`.
+**Cookie-Signing:** Session-IDs werden HMAC-SHA256 signiert; Schlüssel aus `data/loopze.session.key`. Neue Datei `internal/auth/sessionkey.go` mit `EnsureSessionKey(path string) ([]byte, error)` — analog zu `credentials.EnsureKeyFile`.
 
 **Wiring im `Broker`:** Neue Methode `(*Broker).SetupSessionKV(ctx) (jetstream.KeyValue, error)` in `internal/nats/broker.go`. In `server.Start()` aufrufen, das Ergebnis an den `SessionManager` geben.
 
@@ -216,7 +216,7 @@ r.Get("/auth/me", deps.handleMe)
 ```
 
 **Login-Cookie:**
-- Name: `flint_session`
+- Name: `loopze_session`
 - HttpOnly, Secure (per Default; `auth.requireSecureCookies = false` per Env zum Abschalten in Dev), SameSite=Lax
 - Path `/`
 - MaxAge = 12 h (ohne `Expires` → Browser hält bei Window-Close, sliding-Window passiert serverseitig)
@@ -357,7 +357,7 @@ getters:
 - `internal/api/user_handlers_test.go` — Rollen-Enforcement-Matrix (Tabellen-Tests)
 
 **Dev-Bypass:**
-- Env-Variable `FLINT_DISABLE_AUTH=1` → Middleware lässt alles durch und injiziert einen virtuellen `dev-admin`-User in den Context. Bei Server-Start: dicker `slog.Warn` mit Banner.
+- Env-Variable `LOOPZE_DISABLE_AUTH=1` → Middleware lässt alles durch und injiziert einen virtuellen `dev-admin`-User in den Context. Bei Server-Start: dicker `slog.Warn` mit Banner.
 - Implementiert in der Middleware als erste Prüfung, vor Cookie-Lookup.
 
 **Doku-Update:**
@@ -386,7 +386,7 @@ Bestehende Installationen (mit `workspace.json`, aber ohne `users.json`) landen 
 - **Email-basiertes Passwort-Reset** → Admin setzt out-of-band, Self-Service ist V2.
 - **2FA / TOTP** → V2 oder mit SSO.
 - **Audit-Log** → eigenes Issue, separat.
-- **CSRF-Token** → wir setzen `SameSite=Lax`. Für lokale Editor-Nutzung (gleicher Origin, kein Embedding) reicht das. Wenn Flint später per `<iframe>` eingebettet werden soll, kommt CSRF separat.
+- **CSRF-Token** → wir setzen `SameSite=Lax`. Für lokale Editor-Nutzung (gleicher Origin, kein Embedding) reicht das. Wenn LOOPZE später per `<iframe>` eingebettet werden soll, kommt CSRF separat.
 - **JWT** → siehe Issue, bewusst nicht.
 
 ## Geschätzte Größe

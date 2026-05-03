@@ -197,7 +197,7 @@ function cancel() {
       <SectionHeader title="onConnect Message (optional)">
         <div class="flex flex-col gap-2">
           <FormField label="Topic">
-            <FormInput v-model="onConnectTopic" placeholder="e.g. status/flint" mono />
+            <FormInput v-model="onConnectTopic" placeholder="e.g. status/loopze" mono />
           </FormField>
           <FormField label="Payload">
             <FormInput v-model="onConnectPayload" placeholder="e.g. online" />
@@ -218,7 +218,7 @@ function cancel() {
       <SectionHeader title="onDisconnect Message (optional)">
         <div class="flex flex-col gap-2">
           <FormField label="Topic">
-            <FormInput v-model="onDisconnectTopic" placeholder="e.g. status/flint" mono />
+            <FormInput v-model="onDisconnectTopic" placeholder="e.g. status/loopze" mono />
           </FormField>
           <FormField label="Payload">
             <FormInput v-model="onDisconnectPayload" placeholder="e.g. offline" />
@@ -239,7 +239,7 @@ function cancel() {
       <SectionHeader title="LastWill (unclean disconnect, MQTT-spec)">
         <div class="flex flex-col gap-2">
           <FormField label="Topic">
-            <FormInput v-model="lastWillTopic" placeholder="e.g. status/flint" mono />
+            <FormInput v-model="lastWillTopic" placeholder="e.g. status/loopze" mono />
           </FormField>
           <FormField label="Payload">
             <FormInput v-model="lastWillPayload" placeholder="e.g. offline" />

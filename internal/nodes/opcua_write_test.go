@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 func newOpcuaWriteNodeForTest(t *testing.T, props map[string]any) *OpcuaWriteNode {

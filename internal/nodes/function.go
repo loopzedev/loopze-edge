@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	"github.com/niceclouds/flint/internal/flow"
-	scriptingoja "github.com/niceclouds/flint/internal/scripting/goja"
+	"github.com/niceclouds/loopze/internal/flow"
+	scriptingoja "github.com/niceclouds/loopze/internal/scripting/goja"
 )
 
 // FunctionNode executes user-supplied JavaScript for each incoming message.

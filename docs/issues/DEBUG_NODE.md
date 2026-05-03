@@ -34,7 +34,7 @@ Der Debug Node besitzt ausgangsseitig einen rastenden Toggle-Taster (ON/OFF). Ak
 
 ### 3. Initialer Zustand beim Laden
 
-- Beim Öffnen von FLINT im Browser wird `config.active` aus den geladenen Flow-Daten gelesen
+- Beim Öffnen von LOOPZE im Browser wird `config.active` aus den geladenen Flow-Daten gelesen
 - Der Toggle-Taster zeigt den gespeicherten Zustand korrekt an (ON/OFF)
 - Wurde noch nie deployed, gilt der Default `active: true`
 
@@ -374,7 +374,7 @@ Class-Binding ergänzen:
 CSS-Regel im `<style>`-Block (nach `.selected`, damit `.selected`-Vorrang hat oder via spezifischem Selector):
 
 ```css
-.flint-node.debug-hovered:not(.selected) {
+.loopze-node.debug-hovered:not(.selected) {
   border-style: dashed;
   border-color: var(--color-accent, #58a6ff);
 }
@@ -382,7 +382,7 @@ CSS-Regel im `<style>`-Block (nach `.selected`, damit `.selected`-Vorrang hat od
 
 ### Out of Scope für Phase 1
 
-- **LinkNode-Highlight**: `LinkNode.vue` hat eigenes Wrapper-Styling ohne `.flint-node`-Klasse — kann nachgezogen werden, ist aber für die Diagnose-UX nicht kritisch (Link-Nodes erzeugen typischerweise keine Debug-Messages)
+- **LinkNode-Highlight**: `LinkNode.vue` hat eigenes Wrapper-Styling ohne `.loopze-node`-Klasse — kann nachgezogen werden, ist aber für die Diagnose-UX nicht kritisch (Link-Nodes erzeugen typischerweise keine Debug-Messages)
 - **Auto-Pan/Scroll** im Flow zum hovered Node, wenn er außerhalb des Viewports liegt
 - **Bidirektionalität** (Hover über Node → Highlight aller Messages dieses Nodes in der Sidebar)
 - **Animation** / Übergang beim Highlight-Wechsel
@@ -439,7 +439,7 @@ Bei Klick:
 
 #### Cross-Component-Brücke: Focus-Request über Store
 
-Da `useVueFlow('flint-flow-editor')` zwar von überall aufrufbar ist, der Pan-Aufruf aber nach einem ggf. nötigen Flow-Wechsel **erst nach dem Render** des neuen Flows passieren darf, geht der Trigger über einen Store-State, der vom `FlowEditor` gewatcht wird:
+Da `useVueFlow('loopze-flow-editor')` zwar von überall aufrufbar ist, der Pan-Aufruf aber nach einem ggf. nötigen Flow-Wechsel **erst nach dem Render** des neuen Flows passieren darf, geht der Trigger über einen Store-State, der vom `FlowEditor` gewatcht wird:
 
 In `flowStore.ts`:
 
@@ -459,7 +459,7 @@ function focusNode(nodeId: string, flowId: string) {
 In `FlowEditor.vue`:
 
 ```ts
-const { setCenter, getNode } = useVueFlow('flint-flow-editor')
+const { setCenter, getNode } = useVueFlow('loopze-flow-editor')
 
 watch(
   () => flowStore.focusRequest,

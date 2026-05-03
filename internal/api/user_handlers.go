@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/niceclouds/flint/internal/auth"
+	"github.com/niceclouds/loopze/internal/auth"
 )
 
 // createUserRequest is the body of POST /api/v1/users. The role is

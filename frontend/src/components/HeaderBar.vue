@@ -91,7 +91,7 @@ function selectMode(mode: DeployModeType): void {
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
         </svg>
-        <span class="text-accent text-sm font-bold tracking-widest font-mono">FLINT</span>
+        <span class="text-accent text-sm font-bold tracking-widest font-mono">LOOPZE</span>
       </div>
 
       <span class="text-terminal-text-dim text-[10px] tracking-wider hidden sm:inline font-medium uppercase">

@@ -6,7 +6,7 @@ package nodes
 import (
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // LinkCallNode implements a request/response pattern across flows.

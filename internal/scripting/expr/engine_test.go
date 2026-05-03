@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	scriptingexpr "github.com/niceclouds/flint/internal/scripting/expr"
+	scriptingexpr "github.com/niceclouds/loopze/internal/scripting/expr"
 )
 
 var defaultEnv = map[string]any{

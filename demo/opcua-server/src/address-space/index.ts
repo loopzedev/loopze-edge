@@ -17,12 +17,12 @@ export async function buildAddressSpace(
   addressSpace: AddressSpace,
   cfg: DemoConfig,
 ): Promise<DemoAddressSpace> {
-  const namespace = addressSpace.registerNamespace("urn:flint:demo");
+  const namespace = addressSpace.registerNamespace("urn:loopze:demo");
   log.info(`registered namespace index=${namespace.index} uri='${namespace.namespaceUri}'`);
 
   const rootDemo = namespace.addFolder(addressSpace.rootFolder.objects, {
     browseName: "Demo",
-    description: "Flint OPC UA demo data tree",
+    description: "LOOPZE OPC UA demo data tree",
   });
 
   const staticFolder = namespace.addFolder(rootDemo, { browseName: "Static" });

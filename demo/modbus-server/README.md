@@ -1,7 +1,7 @@
-# Flint Modbus Demo Server
+# LOOPZE Modbus Demo Server
 
 Ein schlanker Modbus-TCP-Slave (Go, ohne externe Dependencies) zum Testen der
-Flint Modbus-Nodes (`modbus-server`-Config, `modbus-read`, `modbus-write`).
+LOOPZE Modbus-Nodes (`modbus-server`-Config, `modbus-read`, `modbus-write`).
 
 Er füllt seine Register-Räume mit ein paar definierten Werten und animiert
 einen Teil davon, damit pollende Clients Bewegung sehen.
@@ -23,13 +23,13 @@ Optionen:
 
 Port `502` ist privileged — entweder mit `sudo` starten, `setcap cap_net_bind_service=+ep`
 auf der Binary setzen, oder einfach beim Default `:5502` bleiben und im
-Flint-Server-Config Port `5502` eintragen.
+LOOPZE-Server-Config Port `5502` eintragen.
 
 ## Adressbelegung
 
 Alle Werte sind **big-endian byte order** mit **big-endian word order** (ABCD)
 codiert — also der Modbus-Default. Wer den Codec gegen alle vier
-Order-Kombinationen testen will, stellt im Flint-Client einfach Little-Byte
+Order-Kombinationen testen will, stellt im LOOPZE-Client einfach Little-Byte
 oder Little-Word ein und vergleicht.
 
 ### Holding Registers (FC3, RW)
@@ -41,7 +41,7 @@ oder Little-Word ein und vergleicht.
 | 4..5     | float32  | Druck (bar) — Random Walk um 1.0 bar                     |
 | 6        | int16    | Setpoint — RW, Default 200                               |
 | 7        | uint16   | Mode — RW, Default 1                                     |
-| 10..14   | string   | "FLINT-DEMO" (5 Register, 10 ASCII-Zeichen)              |
+| 10..14   | string   | "LOOPZE-DEMO" (5 Register, 10 ASCII-Zeichen)              |
 | 20..21   | float32  | Energie (kWh) — monoton steigend, 1 kWh / Minute         |
 
 ### Input Registers (FC4, RO)
@@ -64,7 +64,7 @@ Daten holt.
 
 ## Verifizieren
 
-In Flint:
+In LOOPZE:
 
 1. Config-Node `Modbus Server` anlegen, `host=127.0.0.1`, `port=5502`,
    `defaultUnitId=1`.

@@ -88,7 +88,7 @@ func main() {
 	}
 	fmt.Printf("Subscribed: id=%d revisedInterval=%v\n", sub.SubscriptionID, sub.RevisedPublishingInterval)
 
-	// Step 3: register a single MonitoredItem. This is the spot Flint hangs at.
+	// Step 3: register a single MonitoredItem. This is the spot LOOPZE hangs at.
 	monCtx, monCancel := context.WithTimeout(ctx, 5*time.Second)
 	t0 := time.Now()
 	monRes, err := sub.Monitor(monCtx, ua.TimestampsToReturnBoth, &ua.MonitoredItemCreateRequest{

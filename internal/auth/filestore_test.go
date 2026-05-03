@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // memStorage is a minimal storage.Storage implementation that keeps the

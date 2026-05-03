@@ -1,4 +1,4 @@
-# Flint – Projekt-Entscheidungen & Offene Fragen
+# LOOPZE – Projekt-Entscheidungen & Offene Fragen
 
 > Dieses Dokument dient als zentrales Entscheidungslog für das Projekt.
 > Jede Frage wird gemeinsam beantwortet und die Entscheidung hier festgehalten.
@@ -12,8 +12,8 @@
 | Was ist die Vision? | Ein Node-RED-Clone mit modernem Tech-Stack |
 | Zielgruppe? | ✅ Versierte Techniker (keine Fullstack-Entwickler), Automatisierungstechniker, SPS-Programmierer mit Script-Erfahrung |
 | Lizenzmodell? | ✅ Elastic License 2.0 (ELv2) – kostenlos nutzbar, kein Einbetten, keine Modifikation |
-| Projektname Edge App? | ✅ **Flint** |
-| Projektname Management Platform? | ✅ **Flint Hub** |
+| Projektname Edge App? | ✅ **LOOPZE** |
+| Projektname Management Platform? | ✅ **LOOPZE Hub** |
 
 ### 1.1 Zielgruppe – Details & Design-Konsequenzen
 
@@ -133,9 +133,9 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
 
 | Verwendung | Mechanismus | Detail |
 |---|---|---|
-| **Flint ↔ Flint Hub** | LeafNode Connection | Kommunikation zwischen Edge und Management Platform |
+| **LOOPZE ↔ LOOPZE Hub** | LeafNode Connection | Kommunikation zwischen Edge und Management Platform |
 | **Context Speicher** | KV Store | Flow-Context und Global-Context für Function Nodes |
-| **Stammdaten Sync** | KV Store Mirror | Flint Hub verteilt Stammdaten zu allen Edges |
+| **Stammdaten Sync** | KV Store Mirror | LOOPZE Hub verteilt Stammdaten zu allen Edges |
 | **Debug Messages** | JetStream (Ringbuffer) | Letzten N Debug-Messages persistent, live abrufbar |
 
 ### NATS wird NICHT verwendet für:
@@ -232,13 +232,13 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
 
 | Frage | Antwort |
 |---|---|
-| Was soll Flint **besser** machen als Node-RED? | ✅ Performance (Go statt Node.js), Single Binary, kein npm/Node.js nötig, Industrie-Protokolle first-class (Modbus, OPC-UA), expr-lang für schnelle Ausdrücke |
-| Was soll Flint **anders** machen als Node-RED? | ✅ Open Core mit Fleet Management (Flint Hub), Stammdaten-Sync, Retro-Industrial UI, Dual-Mode Scripting, ELv2 Lizenz |
-| Was soll Flint bewusst **nicht** haben? | ✅ Kein npm-Package-Ökosystem, kein Dashboard/UI-Node-System (MVP), keine Cloud-Abhängigkeit |
+| Was soll LOOPZE **besser** machen als Node-RED? | ✅ Performance (Go statt Node.js), Single Binary, kein npm/Node.js nötig, Industrie-Protokolle first-class (Modbus, OPC-UA), expr-lang für schnelle Ausdrücke |
+| Was soll LOOPZE **anders** machen als Node-RED? | ✅ Open Core mit Fleet Management (LOOPZE Hub), Stammdaten-Sync, Retro-Industrial UI, Dual-Mode Scripting, ELv2 Lizenz |
+| Was soll LOOPZE bewusst **nicht** haben? | ✅ Kein npm-Package-Ökosystem, kein Dashboard/UI-Node-System (MVP), keine Cloud-Abhängigkeit |
 
 ### 5.1 UX-Verbesserungen gegenüber Node-RED ✅
 
-> Konkrete Bedienungs- und Konzeptentscheidungen, die Flint bewusst anders (besser) machen soll als Node-RED.
+> Konkrete Bedienungs- und Konzeptentscheidungen, die LOOPZE bewusst anders (besser) machen soll als Node-RED.
 
 #### 5.1.1 Node-Ports: Single Input, Multiple Outputs ✅
 
@@ -311,9 +311,9 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
   09:14:02  { payload: "ok", topic: "status" }
 ```
 
-#### Zusammenfassung: Debug-Konzept in Flint
+#### Zusammenfassung: Debug-Konzept in LOOPZE
 
-| Feature | Node-RED | Flint |
+| Feature | Node-RED | LOOPZE |
 |---|---|---|
 | Debug-Node | ✅ Ja | ✅ Ja (bleibt erhalten) |
 | Debug per Node | ❌ Nein | ✅ **Jeder Node kann gedebugt werden** |
@@ -328,8 +328,8 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
 |---|---|
 | Top-Level-Container | **Workspace** – enthält alle Flows, Konfiguration, Credentials |
 | Einzelner Tab | **Flow** – ein unabhängiger Datenfluss mit Nodes und Wires |
-| Begründung | In Node-RED bedeutet "Flow" sowohl die gesamte Konfiguration als auch einen einzelnen Tab – das ist verwirrend. Flint trennt klar: ein **Workspace** hat mehrere **Flows**. |
-| Node-RED Vergleich | Node-RED: "flows.json" = alles, "flow" = Tab → doppeldeutig. Flint: Workspace = Container, Flow = Tab → eindeutig. |
+| Begründung | In Node-RED bedeutet "Flow" sowohl die gesamte Konfiguration als auch einen einzelnen Tab – das ist verwirrend. LOOPZE trennt klar: ein **Workspace** hat mehrere **Flows**. |
+| Node-RED Vergleich | Node-RED: "flows.json" = alles, "flow" = Tab → doppeldeutig. LOOPZE: Workspace = Container, Flow = Tab → eindeutig. |
 
 ```
   ┌─────────────────────────────────────────────┐
@@ -351,7 +351,7 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
 | JSON-Serialisierung | Flaches JSON-Objekt: `{"_id":"abc","payload":42,"topic":"x","myField":true}` |
 | Clone | Erzeugt Deep-Copy mit **neuer** `_id` |
 | Begründung | In Node-RED ist `msg` ein freies JS-Objekt – man kann beliebig Felder kopieren, verschieben, hinzufügen. Das ist ein Erfolgsgeheimnis. Feste Go-Structs brechen diese Flexibilität (First-class vs. Second-class Felder). |
-| Node-RED Vergleich | Node-RED: `msg.payload = msg.topic` funktioniert sofort. Flint: identisch über `msg.Set("payload", msg.Get("topic"))`. |
+| Node-RED Vergleich | Node-RED: `msg.payload = msg.topic` funktioniert sofort. LOOPZE: identisch über `msg.Set("payload", msg.Get("topic"))`. |
 
 ```
   Geschützte Felder (Runtime-intern):
@@ -390,12 +390,12 @@ Referenz: GitLab · n8n · Grafana – freier Core, kommerzielle Enterprise-Erwe
 | 2026-03-16 | State Management: **Pinia** | Offizieller Vue 3 Standard, TypeScript-nativ, minimaler Boilerplate |
 | 2026-03-16 | Encryption Key: **Auto-generiertes Keyfile** (`goflux.key`) | Einfachste UX für Techniker, Key getrennt von Credentials, AES-256-GCM |
 | 2026-03-16 | Function-Node Scripting: **Dual-Mode** – JavaScript (Goja) + expr-lang | JS für komplexe Logik, expr-lang für schnelle Ausdrücke mit Runtime-Kompilierung |
-| 2026-03-16 | Projektname: **Flint** (Edge App) + **Flint Hub** (Management Platform) | Kurz, einprägsam, industriell – Feuerstein als Metapher für klein, hart, zuverlässig |
+| 2026-03-16 | Projektname: **LOOPZE** (Edge App) + **LOOPZE Hub** (Management Platform) | Kurz, einprägsam, industriell – Feuerstein als Metapher für klein, hart, zuverlässig |
 | 2026-03-16 | Frontend embedded: **go:embed** | Single Binary, keine Abhängigkeiten, maximale Einfachheit für Techniker |
 | 2026-03-16 | Storage: **JSON-Files** | Einfach, lesbar, kein Setup – wie Node-RED |
-| 2026-03-16 | Flow-Format: **Eigenes Flint-Format** | Sauber designt, typisiert, erweiterbar, keine Kompromisse durch Node-RED Kompatibilität |
+| 2026-03-16 | Flow-Format: **Eigenes LOOPZE-Format** | Sauber designt, typisiert, erweiterbar, keine Kompromisse durch Node-RED Kompatibilität |
 | 2026-03-16 | Zielplattformen: **Alle** | Linux x64/ARM64/ARM32, Windows x64, macOS – Go Cross-Compile out-of-the-box |
-| 2026-03-16 | Lizenz Flint Hub: **Proprietär** | Closed Source, volle Kontrolle, klares kommerzielles Modell |
+| 2026-03-16 | Lizenz LOOPZE Hub: **Proprietär** | Closed Source, volle Kontrolle, klares kommerzielles Modell |
 | 2026-03-16 | NATS Hybrid-Modell | LeafNode+KV+JetStream für Hub/Context/Debug – Go Channels für internes Node/Flow Handling |
 | 2026-03-17 | Node-Ports: **Single Input, Multiple Outputs** | Klares Signalfluss-Modell wie in SPS/FBD – kein Merge-Ambiguity |
 | 2026-03-17 | **Universelles Node-Debugging** | Jeder Node kann per Icon in Debug-Modus versetzt werden – zeigt IN + OUT Messages |

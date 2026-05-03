@@ -6,8 +6,8 @@ package nodes_test
 import (
 	"testing"
 
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/nodes"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/nodes"
 )
 
 func newFunctionGoNode(t *testing.T, code string, outputs int) (flow.NodeInstance, *capturedDebug) {
@@ -141,9 +141,9 @@ func TestFunctionGoNode_NodeSend_MultiPort(t *testing.T) {
 	n, _ := newFunctionGoNode(t, `
 package main
 
-import "flintnode"
+import "loopzenode"
 
-func handle(payload any, node flintnode.Node) {
+func handle(payload any, node loopzenode.Node) {
 	if v, ok := payload.(int); ok && v > 50 {
 		node.Send(0, payload)
 	} else {
@@ -173,9 +173,9 @@ func TestFunctionGoNode_NodeContext(t *testing.T) {
 	n, _ := newFunctionGoNode(t, `
 package main
 
-import "flintnode"
+import "loopzenode"
 
-func handle(payload any, node flintnode.Node) any {
+func handle(payload any, node loopzenode.Node) any {
 	prev := node.Get("count")
 	if prev == nil {
 		prev = 0
@@ -221,9 +221,9 @@ func TestFunctionGoNode_VoidReturn_NoSend_NoOutput(t *testing.T) {
 	n, _ := newFunctionGoNode(t, `
 package main
 
-import "flintnode"
+import "loopzenode"
 
-func handle(payload any, node flintnode.Node) {
+func handle(payload any, node loopzenode.Node) {
 	// No send, no return — message dropped.
 	_ = payload
 }
@@ -305,7 +305,7 @@ func TestFunctionGoNode_NodeStatus(t *testing.T) {
 		ID:   "fgo-status",
 		Type: "function-go",
 		Properties: map[string]any{
-			"code":    "package main\n\nimport \"flintnode\"\n\nfunc handle(payload any, node flintnode.Node) any { node.Status(\"green\", \"ok\"); return payload }\n",
+			"code":    "package main\n\nimport \"loopzenode\"\n\nfunc handle(payload any, node loopzenode.Node) any { node.Status(\"green\", \"ok\"); return payload }\n",
 			"outputs": float64(1),
 		},
 	}
@@ -364,9 +364,9 @@ func TestFunctionGoNode_NodeLog(t *testing.T) {
 	n, capt := newFunctionGoNode(t, `
 package main
 
-import "flintnode"
+import "loopzenode"
 
-func handle(payload any, node flintnode.Node) any {
+func handle(payload any, node loopzenode.Node) any {
 	node.Log("hello from go")
 	return payload
 }

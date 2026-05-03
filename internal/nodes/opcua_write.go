@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gopcua/opcua/ua"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // writeSpec describes a single write operation either resolved from the static

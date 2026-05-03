@@ -41,7 +41,7 @@ func FormatOpcuaNodeID(id *ua.NodeID) string {
 	return id.String()
 }
 
-// opcuaScalarTypes maps Flint's stable string names to gopcua TypeIDs for
+// opcuaScalarTypes maps LOOPZE's stable string names to gopcua TypeIDs for
 // scalar Value-encoding. ExtensionObject is a sentinel that requires extra
 // schema lookup and is handled separately by the type resolver.
 var opcuaScalarTypes = map[string]ua.TypeID{
@@ -74,14 +74,14 @@ var opcuaTypeNames = func() map[ua.TypeID]string {
 	return m
 }()
 
-// OpcuaTypeIDFromName resolves a Flint-stable type name to a gopcua TypeID.
+// OpcuaTypeIDFromName resolves a LOOPZE-stable type name to a gopcua TypeID.
 // Returns false for unknown names; callers fall back to Variant.
 func OpcuaTypeIDFromName(name string) (ua.TypeID, bool) {
 	t, ok := opcuaScalarTypes[name]
 	return t, ok
 }
 
-// OpcuaTypeName returns a stable Flint string for a TypeID, or "Unknown" if
+// OpcuaTypeName returns a stable LOOPZE string for a TypeID, or "Unknown" if
 // the TypeID is not in the well-known set. Used in flow message metadata.
 func OpcuaTypeName(t ua.TypeID) string {
 	if name, ok := opcuaTypeNames[t]; ok {
@@ -90,7 +90,7 @@ func OpcuaTypeName(t ua.TypeID) string {
 	return "Unknown"
 }
 
-// opcuaAttributeIDs lists the attributes Flint exposes by name in flow messages
+// opcuaAttributeIDs lists the attributes LOOPZE exposes by name in flow messages
 // and config. Other attributes can still be requested by passing the numeric
 // AttributeID, but the named ones cover the operational subset.
 var opcuaAttributeIDs = map[string]ua.AttributeID{

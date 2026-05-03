@@ -104,12 +104,12 @@ func TestOpcuaParseAndFormatNodeID(t *testing.T) {
 
 // TestOpcuaSpike validates the gopcua/opcua client end-to-end against an
 // external test server (the Deno-based server lives in a separate project).
-// Skipped unless FLINT_OPCUA_TEST_ENDPOINT is set so plain `go test ./...`
+// Skipped unless LOOPZE_OPCUA_TEST_ENDPOINT is set so plain `go test ./...`
 // stays green on contributor machines without the test server.
 func TestOpcuaSpike(t *testing.T) {
-	endpoint := os.Getenv("FLINT_OPCUA_TEST_ENDPOINT")
+	endpoint := os.Getenv("LOOPZE_OPCUA_TEST_ENDPOINT")
 	if endpoint == "" {
-		t.Skip("set FLINT_OPCUA_TEST_ENDPOINT to run (e.g. opc.tcp://localhost:4840)")
+		t.Skip("set LOOPZE_OPCUA_TEST_ENDPOINT to run (e.g. opc.tcp://localhost:4840)")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

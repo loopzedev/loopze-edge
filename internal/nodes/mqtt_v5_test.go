@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // Test that mqtt-in's onMessage handler maps MQTT v5 publish properties into
@@ -433,7 +433,7 @@ func TestMqttOut_MergeV5PublishProperties_WithDefaults(t *testing.T) {
 
 	defaults := func() *MqttOutNode {
 		return &MqttOutNode{
-			defaultUserProperties: map[string]string{"app": "flint", "shared": "config"},
+			defaultUserProperties: map[string]string{"app": "loopze", "shared": "config"},
 			defaultContentType:    "application/json",
 			defaultResponseTopic:  "default/reply",
 			defaultMessageExpiry:  &expiry,
@@ -458,8 +458,8 @@ func TestMqttOut_MergeV5PublishProperties_WithDefaults(t *testing.T) {
 		if props.PayloadFormat == nil || *props.PayloadFormat != 1 {
 			t.Errorf("PayloadFormat = %v, want 1", props.PayloadFormat)
 		}
-		if got := props.User.Get("app"); got != "flint" {
-			t.Errorf("User[app] = %q, want flint", got)
+		if got := props.User.Get("app"); got != "loopze" {
+			t.Errorf("User[app] = %q, want loopze", got)
 		}
 	})
 
@@ -482,7 +482,7 @@ func TestMqttOut_MergeV5PublishProperties_WithDefaults(t *testing.T) {
 	t.Run("user properties merge — msg overrides matching keys, non-overlapping survive", func(t *testing.T) {
 		msg := flow.NewMessage()
 		msg.Set("userProperties", map[string]string{
-			"app":     "override",     // overrides default "flint"
+			"app":     "override",     // overrides default "loopze"
 			"request": "msg-specific", // new key from msg
 		})
 		props := defaults().mergeV5PublishProperties(msg)

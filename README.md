@@ -1,10 +1,10 @@
-# Flint
+# LOOPZE
 
 **Industrial Flow Automation**
 
-Flint is a lightweight, high-performance flow automation platform built for industrial environments. Think Node-RED, but written in Go — compiled to a single binary with zero dependencies.
+LOOPZE is a lightweight, high-performance flow automation platform built for industrial environments. Think Node-RED, but written in Go — compiled to a single binary with zero dependencies.
 
-Designed for automation technicians, PLC programmers, and engineers who think in signal flows and function blocks. Flint brings visual flow-based programming to the edge — with first-class support for industrial protocols like MQTT, Modbus, and OPC-UA.
+Designed for automation technicians, PLC programmers, and engineers who think in signal flows and function blocks. LOOPZE brings visual flow-based programming to the edge — with first-class support for industrial protocols like MQTT, Modbus, and OPC-UA.
 
 ## Features
 
@@ -29,8 +29,8 @@ Designed for automation technicians, PLC programmers, and engineers who think in
 
 ```
 # Clone the repository
-git clone https://github.com/niceclouds/flint.git
-cd flint
+git clone https://github.com/niceclouds/loopze.git
+cd loopze
 
 # Build everything (frontend + backend)
 make build-all
@@ -38,8 +38,8 @@ make build-all
 # Or just the backend (uses embedded frontend placeholder)
 make build
 
-# Run Flint
-./bin/flint --port 1880 --data-dir ./data
+# Run LOOPZE
+./bin/loopze --port 1880 --data-dir ./data
 
 # Open your browser
 # http://localhost:1880
@@ -55,12 +55,12 @@ make build
 | `--port`                   | `1880`             | HTTP port for the web interface                              |
 | `--data-dir`               | `./data`           | Directory for flows and data                                 |
 | `--users-file`             | `users.json`       | User records file (in `--data-dir`)                          |
-| `--session-key-file`       | `flint.session.key`| HMAC signing key for session cookies (auto-generated)        |
+| `--session-key-file`       | `loopze.session.key`| HMAC signing key for session cookies (auto-generated)        |
 | `--session-ttl`            | `12h`              | Sliding-window session lifetime                              |
 | `--auth-insecure-cookies`  | `false`            | Drop `Secure` flag on cookies — only use over plain HTTP/dev |
 | `--auth-disable`           | `false`            | Skip authentication entirely (development only)              |
 
-All flags are mirrored as `FLINT_*` environment variables (e.g. `FLINT_AUTH_DISABLE=1`).
+All flags are mirrored as `LOOPZE_*` environment variables (e.g. `LOOPZE_AUTH_DISABLE=1`).
 
 ### Development
 
@@ -80,11 +80,11 @@ make cross-compile
 
 ## Architecture
 
-Flint follows a clean, modular architecture:
+LOOPZE follows a clean, modular architecture:
 
 ```
-flint/
-├── cmd/flint/          # Application entry point
+loopze/
+├── cmd/loopze/          # Application entry point
 ├── internal/
 │   ├── api/            # REST API handlers and routes
 │   ├── auth/           # User identity, sessions, role-based middleware
@@ -106,15 +106,15 @@ All architectural decisions, technology choices, and design rationale are docume
 
 ## License
 
-Flint is licensed under the [Elastic License 2.0 (ELv2)](LICENSE).
+LOOPZE is licensed under the [Elastic License 2.0 (ELv2)](LICENSE).
 
 - ✅ Free to use for any purpose
 - ✅ Free to modify for internal use
-- ❌ Cannot provide Flint as a managed service to third parties
+- ❌ Cannot provide LOOPZE as a managed service to third parties
 - ❌ Cannot remove or circumvent the license key functionality
 
 **Licensor:** NiceClouds GmbH
 
 ---
 
-*Flint — Small, hard, reliable. Like the stone that sparks the fire.*
+*LOOPZE — Small, hard, reliable. Like the stone that sparks the fire.*

@@ -4,11 +4,11 @@
 
 ## Problembeschreibung
 
-Flint hat aktuell **keinerlei Zugriffsschutz** — wer den Editor im Browser öffnet, kann Flows deployen, Connector-Konfigurationen ändern und Context-Daten löschen. Für jeden Einsatz außerhalb eines abgeschotteten Lab-Netzes ist das nicht tragbar.
+LOOPZE hat aktuell **keinerlei Zugriffsschutz** — wer den Editor im Browser öffnet, kann Flows deployen, Connector-Konfigurationen ändern und Context-Daten löschen. Für jeden Einsatz außerhalb eines abgeschotteten Lab-Netzes ist das nicht tragbar.
 
 Dieses Issue entwirft das Konzept für eine **Benutzer-Authentifizierung** mit den folgenden Eckpfeilern:
 
-1. **First-Run-Setup**: Beim erstmaligen Start fragt Flint per Popup nach den Daten für einen initialen Admin-Account. Vorher ist das UI gesperrt.
+1. **First-Run-Setup**: Beim erstmaligen Start fragt LOOPZE per Popup nach den Daten für einen initialen Admin-Account. Vorher ist das UI gesperrt.
 2. **Lokale Benutzerverwaltung**: Der Admin kann weitere Benutzer mit den Rollen **Editor** oder **Viewer** anlegen.
 3. **SSO-Erweiterbarkeit**: Spätere Einbindung von OAuth2 / Azure AD / OIDC ohne Bruch des bestehenden Modells.
 
@@ -18,9 +18,9 @@ Das Issue beschreibt das **Konzept**, nicht den Code. Ziel ist Alignment, bevor 
 
 **Nicht Teil dieses Issues:**
 
-- **Connector-Passwörter** (MQTT-Broker, später HTTP/DB-Connectors). Die werden bereits über `internal/credentials/credentials.go` (AES-256-GCM, Master-Key in `data/flint.key`) verwaltet — das ist ein separates Thema mit eigener Krypto und eigenem Lifecycle. **Berührungspunkt nur**: Beide Mechanismen brauchen Server-seitige Geheimnisse auf der Platte (siehe „Offene Fragen"). Tracker für Connector-Credentials → eigenes Issue.
+- **Connector-Passwörter** (MQTT-Broker, später HTTP/DB-Connectors). Die werden bereits über `internal/credentials/credentials.go` (AES-256-GCM, Master-Key in `data/loopze.key`) verwaltet — das ist ein separates Thema mit eigener Krypto und eigenem Lifecycle. **Berührungspunkt nur**: Beide Mechanismen brauchen Server-seitige Geheimnisse auf der Platte (siehe „Offene Fragen"). Tracker für Connector-Credentials → eigenes Issue.
 - **Audit-Log** (wer hat wann was geändert). Sinnvolle Erweiterung, aber separat.
-- **Multi-Tenancy** / Mandanten-Trennung. Flint bleibt vorerst Single-Tenant.
+- **Multi-Tenancy** / Mandanten-Trennung. LOOPZE bleibt vorerst Single-Tenant.
 
 ## Anforderungen
 
@@ -65,10 +65,10 @@ Drei Rollen, **flach** (nicht hierarchisch — Admin ist *nicht* automatisch Edi
 - **Logout-Endpoint**: `POST /api/v1/auth/logout` → invalidiert die Session.
 - **Me-Endpoint**: `GET /api/v1/auth/me` → liefert den aktuell eingeloggten User oder `401`.
 - **Session-Speicherung**: Server-seitig in einem NATS-KV-Bucket `auth-sessions` (TTL: 12 h sliding). Vorteil: Konsistent mit der bestehenden Persistenz, kein zusätzlicher State.
-- **Session-Signing-Key**: 256-bit Random Key, beim ersten Start in `data/flint.session.key` generiert (analog zu `flint.key`). Rotation = manuelles Löschen der Datei, alle Sessions ungültig.
+- **Session-Signing-Key**: 256-bit Random Key, beim ersten Start in `data/loopze.session.key` generiert (analog zu `loopze.key`). Rotation = manuelles Löschen der Datei, alle Sessions ungültig.
 - **Brute-Force-Schutz**: Pro Username max. 5 Fehlversuche / 15 min, danach Sperre auf weitere 15 min. Einfache In-Memory-Map reicht — keine externe Rate-Limit-Lösung.
 
-**Bewusste Entscheidung — Cookie statt JWT:** Server-seitige Sessions sind einfacher (Logout funktioniert sofort, Token-Revocation kein Problem) und Flint hat ohnehin eine zentrale Instanz. JWT wäre Over-Engineering für ein Single-Node-System.
+**Bewusste Entscheidung — Cookie statt JWT:** Server-seitige Sessions sind einfacher (Logout funktioniert sofort, Token-Revocation kein Problem) und LOOPZE hat ohnehin eine zentrale Instanz. JWT wäre Over-Engineering für ein Single-Node-System.
 
 ### 4. WebSocket-Authentifizierung
 
@@ -147,7 +147,7 @@ V1 implementiert **nur** lokale User. Aber das Modell muss SSO **architektonisch
 - Provider-Konfigurations-UI
 - OAuth2 / OIDC Library-Integration
 - Account-Linking lokal ↔ SSO
-- Group-Mapping „Azure-AD-Group X → Flint-Rolle Editor"
+- Group-Mapping „Azure-AD-Group X → LOOPZE-Rolle Editor"
 
 Das wird in einem **separaten V2-Issue** entworfen, sobald V1 läuft und ein konkreter SSO-Bedarf da ist.
 
@@ -169,11 +169,11 @@ Das wird in einem **separaten V2-Issue** entworfen, sobald V1 läuft und ein kon
 
 ## Offene Fragen
 
-1. **Master-Key-Beziehung**: Soll der Connector-Credentials-Master-Key (`flint.key`) optional an den eingeloggten Admin gekoppelt werden (z. B. „Connector-Passwörter sind nur entschlüsselbar, wenn ein Admin angemeldet ist")? — **Vorschlag: Nein.** Der Server muss Flows auch ohne angemeldeten User ausführen (Boot-Time Deploy). Master-Key bleibt ein reines Server-Geheimnis. User-Auth schützt nur den UI-/API-Zugang.
+1. **Master-Key-Beziehung**: Soll der Connector-Credentials-Master-Key (`loopze.key`) optional an den eingeloggten Admin gekoppelt werden (z. B. „Connector-Passwörter sind nur entschlüsselbar, wenn ein Admin angemeldet ist")? — **Vorschlag: Nein.** Der Server muss Flows auch ohne angemeldeten User ausführen (Boot-Time Deploy). Master-Key bleibt ein reines Server-Geheimnis. User-Auth schützt nur den UI-/API-Zugang.
 2. **Passwort-Policy**: Mindestlänge / Komplexität? — **Vorschlag**: Nur Mindestlänge 8 Zeichen, keine Komplexitätsregeln (NIST 800-63B-konform).
 3. **Session-Dauer**: 12 h sliding ist ein Start. Konfigurierbar? — **Vorschlag**: Vorerst hartcodiert, später Setting.
 4. **HTTPS-Erzwingung**: Cookie ist `Secure` — funktioniert dann nicht über HTTP. Akzeptabel oder brauchen wir einen „Insecure-Dev-Modus"? — **Vorschlag**: Setting `auth.requireSecureCookies` (Default: an, abschaltbar nur per Flag/Env).
-5. **Default-Login bei laufendem Dev-Server**: Soll es einen Dev-Modus geben, der die Auth komplett aushebelt (`FLINT_DISABLE_AUTH=1`)? — **Vorschlag**: Ja, aber mit dickem Warn-Log bei Start. Nützlich für lokale Entwicklung und Tests.
+5. **Default-Login bei laufendem Dev-Server**: Soll es einen Dev-Modus geben, der die Auth komplett aushebelt (`LOOPZE_DISABLE_AUTH=1`)? — **Vorschlag**: Ja, aber mit dickem Warn-Log bei Start. Nützlich für lokale Entwicklung und Tests.
 
 ## Implementierungsplan (Skizze, vor Detailplan)
 

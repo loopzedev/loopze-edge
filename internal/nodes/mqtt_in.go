@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // MqttInNode subscribes to MQTT topics and emits received messages into the flow.

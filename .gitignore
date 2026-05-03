@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-/flint
+/loopze
 
 # Test binary, built with `go test -c`
 *.test
@@ -29,13 +29,13 @@ vendor/
 .DS_Store
 Thumbs.db
 
-# Flint build artifacts
+# LOOPZE build artifacts
 /bin/
 /build/
 /dist/
 /tmp/
 
-# Flint data directory (runtime)
+# LOOPZE data directory (runtime)
 /data/
 
 # Encryption key files – NEVER commit these

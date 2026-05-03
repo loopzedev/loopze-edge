@@ -3,7 +3,7 @@
 //
 // Encryption scheme (planned):
 //   - Algorithm: AES-256-GCM (authenticated encryption)
-//   - Key: 256-bit key stored in a separate key file (flint.key)
+//   - Key: 256-bit key stored in a separate key file (loopze.key)
 //   - Nonce: 96-bit random nonce prepended to each ciphertext
 //   - Format: nonce (12 bytes) || ciphertext || GCM tag (16 bytes)
 //

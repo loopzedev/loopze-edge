@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Modbus-demo is a small Modbus TCP slave for testing the Flint modbus-read
+// Modbus-demo is a small Modbus TCP slave for testing the LOOPZE modbus-read
 // and modbus-write nodes (and any other Modbus client). It pre-fills its
 // register space with a few well-known values and continuously simulates a
 // handful of "live" measurements so polling clients see motion.
@@ -15,7 +15,7 @@
 //	  4..5   float32   Pressure (bar)          — random walk around 1.0
 //	  6      int16     Setpoint                — RW; default 200
 //	  7      uint16    Mode                    — RW; default 1
-//	  10..14 string    "FLINT-DEMO"            — 5 registers, 10 ASCII chars
+//	  10..14 string    "LOOPZE-DEMO"            — 5 registers, 10 ASCII chars
 //	  20..21 float32   Energy (kWh)            — monotonically increasing
 //
 //	Input Registers (FC4, RO)
@@ -88,8 +88,8 @@ func newDataStore() *dataStore {
 
 // preload writes the static demo string and seeds initial values.
 func (d *dataStore) preload() {
-	// "FLINT-DEMO" → 10 ASCII bytes, packed 2 chars/register, big-endian.
-	demoStr := "FLINT-DEMO"
+	// "LOOPZE-DEMO" → 10 ASCII bytes, packed 2 chars/register, big-endian.
+	demoStr := "LOOPZE-DEMO"
 	for i := 0; i < len(demoStr); i += 2 {
 		hi := byte(demoStr[i])
 		var lo byte

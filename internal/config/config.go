@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package config provides configuration management for the Flint runtime.
+// Package config provides configuration management for the LOOPZE runtime.
 // It reads configuration from command-line flags and environment variables,
 // applying sensible defaults for standalone edge deployment.
 package config
@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// Config holds the runtime configuration for the Flint application.
+// Config holds the runtime configuration for the LOOPZE application.
 type Config struct {
 	// Host is the address the HTTP server binds to.
 	Host string
@@ -86,14 +86,14 @@ const (
 	defaultFlowFile        = "workspace.json"
 	defaultCredentialsFile = "credentials.json"
 	defaultUsersFile       = "users.json"
-	defaultKeyFile         = "flint.key"
-	defaultSessionKeyFile  = "flint.session.key"
+	defaultKeyFile         = "loopze.key"
+	defaultSessionKeyFile  = "loopze.session.key"
 	defaultNATSPort        = 4222
 	defaultLogLevel        = "info"
 	defaultLogBufferSize   = 1000
 	defaultSessionTTL      = 12 * time.Hour
 
-	envPrefix = "FLINT_"
+	envPrefix = "LOOPZE_"
 )
 
 // Load reads configuration from command-line flags and environment variables.
@@ -129,7 +129,7 @@ func Load() *Config {
 	return cfg
 }
 
-// applyEnvOverrides checks for FLINT_* environment variables and applies them
+// applyEnvOverrides checks for LOOPZE_* environment variables and applies them
 // when the corresponding flag was not explicitly provided on the command line.
 func applyEnvOverrides(cfg *Config) {
 	if v, ok := getenv("HOST"); ok && !flagProvided("host") {
@@ -241,7 +241,7 @@ func (c *Config) ParseLogLevel() slog.Level {
 	}
 }
 
-// getenv looks up a FLINT_-prefixed environment variable.
+// getenv looks up a LOOPZE_-prefixed environment variable.
 func getenv(key string) (string, bool) {
 	return os.LookupEnv(envPrefix + key)
 }

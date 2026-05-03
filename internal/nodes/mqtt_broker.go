@@ -16,7 +16,7 @@ import (
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // BrokerMessageHandler is invoked by the broker for each incoming MQTT publish
@@ -120,7 +120,7 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		if len(suffix) > 8 {
 			suffix = suffix[:8]
 		}
-		clientID = fmt.Sprintf("flint-%s", suffix)
+		clientID = fmt.Sprintf("loopze-%s", suffix)
 	}
 
 	protocolVersion, _ := props["protocolVersion"].(string)

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref, toRaw, watch } from "vue";
 import { useUiStore } from "./uiStore";
 import type {
-  Node as FlintNode,
+  Node as LoopzeNode,
   Flow,
   ConfigNode,
   NodeCatalogEntry,
@@ -66,7 +66,7 @@ export const useFlowStore = defineStore("flow", () => {
   const deploying = ref(false);
 
   // Deploy mode: persisted in localStorage
-  const savedMode = localStorage.getItem('flint-deploy-mode');
+  const savedMode = localStorage.getItem('loopze-deploy-mode');
   const deployMode = ref<DeployModeType>(
     savedMode && ['nodes', 'flows', 'full', 'restart'].includes(savedMode)
       ? (savedMode as DeployModeType)
@@ -127,7 +127,7 @@ export const useFlowStore = defineStore("flow", () => {
 
   function revertNode(nodeId: string): void {
     // Find node in deployed snapshot
-    let deployedNode: FlintNode | undefined;
+    let deployedNode: LoopzeNode | undefined;
     for (const flow of deployedFlows.value) {
       deployedNode = flow.nodes.find((n) => n.id === nodeId);
       if (deployedNode) break;
@@ -158,7 +158,7 @@ export const useFlowStore = defineStore("flow", () => {
 
     const flow = flows.value.find((f) => f.id === flowId);
     if (flow) {
-      nodes.value = flow.nodes.map(flintNodeToVueFlowNode);
+      nodes.value = flow.nodes.map(loopzeNodeToVueFlowNode);
       edges.value = buildEdgesFromFlow(flow);
     } else {
       nodes.value = [];
@@ -318,12 +318,12 @@ export const useFlowStore = defineStore("flow", () => {
     // Search active flow nodes first
     let node = nodes.value.find((n) => n.id === nodeId);
 
-    // If not in active flow, search across all flows and update the raw Flint node
+    // If not in active flow, search across all flows and update the raw LOOPZE node
     if (!node) {
       for (const flow of flows.value) {
-        const flintNode = flow.nodes.find((n) => n.id === nodeId);
-        if (flintNode) {
-          flintNode.status = { fill: status.fill as any, shape: 'dot', text: status.text };
+        const loopzeNode = flow.nodes.find((n) => n.id === nodeId);
+        if (loopzeNode) {
+          loopzeNode.status = { fill: status.fill as any, shape: 'dot', text: status.text };
           return;
         }
       }
@@ -564,19 +564,19 @@ export const useFlowStore = defineStore("flow", () => {
 
   // --------------- Internal Converters ---------------
 
-  function flintNodeToVueFlowNode(flintNode: FlintNode): FlowNode {
+  function loopzeNodeToVueFlowNode(loopzeNode: LoopzeNode): FlowNode {
     return {
-      id: flintNode.id,
-      type: flintNode.type,
-      position: { x: flintNode.x, y: flintNode.y },
+      id: loopzeNode.id,
+      type: loopzeNode.type,
+      position: { x: loopzeNode.x, y: loopzeNode.y },
       data: {
-        label: flintNode.name ?? flintNode.label ?? '',
-        nodeType: flintNode.type,
-        config: flintNode.config ?? {},
-        status: flintNode.status ?? null,
-        inputs: flintNode.inputs,
-        outputs: flintNode.outputs,
-        disabled: flintNode.disabled ?? false,
+        label: loopzeNode.name ?? loopzeNode.label ?? '',
+        nodeType: loopzeNode.type,
+        config: loopzeNode.config ?? {},
+        status: loopzeNode.status ?? null,
+        inputs: loopzeNode.inputs,
+        outputs: loopzeNode.outputs,
+        disabled: loopzeNode.disabled ?? false,
       },
     };
   }
@@ -703,7 +703,7 @@ export const useFlowStore = defineStore("flow", () => {
 
   function setDeployMode(mode: DeployModeType): void {
     deployMode.value = mode;
-    localStorage.setItem('flint-deploy-mode', mode);
+    localStorage.setItem('loopze-deploy-mode', mode);
   }
 
   async function loadNodeCatalog(): Promise<void> {

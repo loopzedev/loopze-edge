@@ -69,7 +69,7 @@ func registerRawExtObjType(encodingID *ua.NodeID) {
 	extObjRegistered[key] = struct{}{}
 }
 
-// StructDef is Flint's in-memory rendering of a server-side
+// StructDef is LOOPZE's in-memory rendering of a server-side
 // ua.StructureDefinition. It carries everything the binary codec needs to
 // decode / encode a value without further server round-trips.
 type StructDef struct {

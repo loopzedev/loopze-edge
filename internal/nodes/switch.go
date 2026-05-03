@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // SwitchRule represents one routing rule. Each rule corresponds to one output

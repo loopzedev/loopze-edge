@@ -6,7 +6,7 @@ package nodes
 import (
 	"testing"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 func TestCatchNode_InitParsesScope(t *testing.T) {

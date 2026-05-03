@@ -1,14 +1,14 @@
-# Flint OPC UA Demo Server – Default Configuration
+# LOOPZE OPC UA Demo Server – Default Configuration
 #
-# Override per environment via FLINT_OPCUA_DEMO_CONFIG=path/to/file.yaml
+# Override per environment via LOOPZE_OPCUA_DEMO_CONFIG=path/to/file.yaml
 
 endpoint:
   port: 4840
   hostname: 0.0.0.0
-  resourcePath: /flint-demo
-  applicationName: Flint OPC UA Demo Server
-  applicationUri: urn:flint:demo-server
-  productUri: urn:flint:demo-server
+  resourcePath: /loopze-demo
+  applicationName: LOOPZE OPC UA Demo Server
+  applicationUri: urn:loopze:demo-server
+  productUri: urn:loopze:demo-server
 
 # All combinations of policy x mode listed here are advertised as endpoints.
 # (None/None is forced if "None" is included in policies.)

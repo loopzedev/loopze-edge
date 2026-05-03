@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/niceclouds/flint/internal/storage"
+	"github.com/niceclouds/loopze/internal/storage"
 )
 
 // usersFile is the on-disk JSON envelope for user records. It exists so we
@@ -22,7 +22,7 @@ type usersFile struct {
 // FileStore is a UserStore backed by a storage.Storage implementation. It
 // keeps an in-memory copy of all users for fast lookups and rewrites the
 // entire users file on every mutation. Suitable for the small user counts
-// (tens, maybe low hundreds) we expect in a Flint deployment.
+// (tens, maybe low hundreds) we expect in a LOOPZE deployment.
 type FileStore struct {
 	storage storage.Storage
 

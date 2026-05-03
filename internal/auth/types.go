@@ -3,7 +3,7 @@
 // See LICENSE file for details.
 
 // Package auth provides user identity, role-based authorization, password
-// hashing, and session management for the Flint editor. It is the security
+// hashing, and session management for the LOOPZE editor. It is the security
 // boundary between the HTTP/WebSocket layer and the rest of the runtime.
 //
 // V1 supports only local users with Argon2id-hashed passwords. The data model

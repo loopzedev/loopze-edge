@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // ModbusWriteNode publishes incoming flow messages onto a Modbus device.

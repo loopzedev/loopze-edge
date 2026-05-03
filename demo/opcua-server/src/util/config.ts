@@ -55,7 +55,7 @@ const projectRoot = resolve(here, "..", "..");
 
 export function loadConfig(): DemoConfig {
   const configPath =
-    process.env.FLINT_OPCUA_DEMO_CONFIG ??
+    process.env.LOOPZE_OPCUA_DEMO_CONFIG ??
     resolve(projectRoot, "config", "default.yaml");
   const raw = readFileSync(configPath, "utf8");
   const parsed = parseYaml(raw) as Record<string, unknown> & {

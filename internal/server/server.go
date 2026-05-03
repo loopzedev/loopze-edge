@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package server provides the core HTTP server for the Flint application.
+// Package server provides the core HTTP server for the LOOPZE application.
 // It wires together the Chi router, REST API routes, WebSocket endpoint,
 // and the embedded Vue 3 frontend into a single, cohesive server.
 package server
@@ -21,16 +21,16 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nats-io/nats.go"
 
-	"github.com/niceclouds/flint/internal/api"
-	"github.com/niceclouds/flint/internal/auth"
-	"github.com/niceclouds/flint/internal/config"
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/logbuffer"
-	flintnats "github.com/niceclouds/flint/internal/nats"
-	"github.com/niceclouds/flint/internal/nodes"
-	"github.com/niceclouds/flint/internal/storage"
-	"github.com/niceclouds/flint/internal/ws"
-	"github.com/niceclouds/flint/web"
+	"github.com/niceclouds/loopze/internal/api"
+	"github.com/niceclouds/loopze/internal/auth"
+	"github.com/niceclouds/loopze/internal/config"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/logbuffer"
+	loopzenats "github.com/niceclouds/loopze/internal/nats"
+	"github.com/niceclouds/loopze/internal/nodes"
+	"github.com/niceclouds/loopze/internal/storage"
+	"github.com/niceclouds/loopze/internal/ws"
+	"github.com/niceclouds/loopze/web"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 	ShutdownTimeout = 15 * time.Second
 )
 
-// Server is the main HTTP server for Flint. It holds the Chi router,
+// Server is the main HTTP server for LOOPZE. It holds the Chi router,
 // application configuration, the flow runtime engine, and the WebSocket hub.
 type Server struct {
 	// router is the Chi multiplexer that handles all HTTP routing.
@@ -58,7 +58,7 @@ type Server struct {
 	hub *ws.Hub
 
 	// broker is the embedded NATS server with JetStream for persistence and messaging.
-	broker *flintnats.Broker
+	broker *loopzenats.Broker
 
 	// store is the persistent storage for flows and credentials.
 	store storage.Storage
@@ -86,7 +86,7 @@ type Server struct {
 // array and no log events are broadcast.
 func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	// Start the embedded NATS broker with JetStream before anything else.
-	broker, err := flintnats.New(flintnats.Config{
+	broker, err := loopzenats.New(loopzenats.Config{
 		DataDir: cfg.DataDir,
 		Port:    cfg.NATSPort,
 	})
@@ -128,7 +128,7 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		CookieSecure: !cfg.AuthInsecureCookies,
 	}
 	if cfg.AuthDisable {
-		slog.Warn("⚠ FLINT_AUTH_DISABLE is set — authentication is bypassed; do NOT use in production")
+		slog.Warn("⚠ LOOPZE_AUTH_DISABLE is set — authentication is bypassed; do NOT use in production")
 		authMW.DevUser = &auth.User{
 			ID:           "dev-bypass",
 			Username:     "dev",
@@ -217,7 +217,7 @@ func (s *Server) setupRoutes() {
 
 // wsAuthFunc returns the AuthFunc the WebSocket hub uses to validate
 // upgrade requests. It honours the same dev-bypass that the HTTP
-// middleware uses, so FLINT_AUTH_DISABLE turns off WS auth too.
+// middleware uses, so LOOPZE_AUTH_DISABLE turns off WS auth too.
 func (s *Server) wsAuthFunc() ws.AuthFunc {
 	return func(r *http.Request) (string, error) {
 		if s.authMW.DevUser != nil {
@@ -299,8 +299,8 @@ func (s *Server) Start() error {
 		slog.Error("failed to setup global context KV", "error", err)
 	} else {
 		s.engine.SetContextStores(
-			flintnats.NewKVContextStore(memKV),
-			flintnats.NewKVContextStore(persKV),
+			loopzenats.NewKVContextStore(memKV),
+			loopzenats.NewKVContextStore(persKV),
 		)
 	}
 
@@ -312,7 +312,7 @@ func (s *Server) Start() error {
 			slog.Error("failed to create flow context KV", "flow_id", flowID, "error", err)
 			return nil, nil
 		}
-		return flintnats.NewKVContextStore(memKV), flintnats.NewKVContextStore(persKV)
+		return loopzenats.NewKVContextStore(memKV), loopzenats.NewKVContextStore(persKV)
 	})
 
 	// Wire engine's debug publish to NATS.
@@ -380,7 +380,7 @@ func (s *Server) Start() error {
 		}
 	}
 
-	slog.Info("flint server starting",
+	slog.Info("loopze server starting",
 		"host", s.cfg.Host,
 		"port", s.cfg.Port,
 		"data_dir", s.cfg.DataDir,
@@ -399,7 +399,7 @@ func (s *Server) Start() error {
 // to complete within the given context deadline. It also stops the flow engine
 // and the WebSocket hub.
 func (s *Server) Shutdown(ctx context.Context) error {
-	slog.Info("flint server shutting down…")
+	slog.Info("loopze server shutting down…")
 
 	// Stop the flow engine first to prevent new messages.
 	if err := s.engine.Stop(); err != nil {
@@ -416,7 +416,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.broker.Shutdown()
 	}
 
-	slog.Info("flint server stopped")
+	slog.Info("loopze server stopped")
 	return nil
 }
 
@@ -436,7 +436,7 @@ func (s *Server) Engine() *flow.Engine {
 }
 
 // Broker returns the embedded NATS broker.
-func (s *Server) Broker() *flintnats.Broker {
+func (s *Server) Broker() *loopzenats.Broker {
 	return s.broker
 }
 

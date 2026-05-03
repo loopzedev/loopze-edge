@@ -1,8 +1,8 @@
-# Flint – Industrial Flow Automation
+# LOOPZE – Industrial Flow Automation
 # Build & Development Makefile
 
-BINARY_NAME := flint
-MODULE      := github.com/niceclouds/flint
+BINARY_NAME := loopze
+MODULE      := github.com/niceclouds/loopze
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME  ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -24,12 +24,12 @@ all: build
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 
-## build: Build the Flint binary for the current platform
+## build: Build the LOOPZE binary for the current platform
 .PHONY: build
 build:
 	@echo "▸ Building $(BINARY_NAME) $(VERSION)…"
 	@mkdir -p $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/flint
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/loopze
 
 ## build-frontend: Build the Vue 3 frontend (requires Node.js / npm)
 .PHONY: build-frontend
@@ -50,7 +50,7 @@ build-all: build-frontend build
 
 .PHONY: dev
 dev:
-	@echo "▸ Starting Flint backend + frontend with hot reload…"
+	@echo "▸ Starting LOOPZE backend + frontend with hot reload…"
 	@if ! command -v air >/dev/null 2>&1; then \
 		echo "⚠ air not found. Install: go install github.com/air-verse/air@latest"; \
 		exit 1; \
@@ -119,7 +119,7 @@ cross-compile:
 		echo "  → $${GOOS}/$${GOARCH}"; \
 		GOOS=$${GOOS} GOARCH=$${GOARCH} $(GO) build $(GOFLAGS) \
 			-ldflags "$(LDFLAGS)" \
-			-o $${output} ./cmd/flint || exit 1; \
+			-o $${output} ./cmd/loopze || exit 1; \
 	done
 	@echo "▸ All binaries written to $(BUILD_DIR)/"
 
@@ -137,7 +137,7 @@ clean:
 ## help: Show this help message
 .PHONY: help
 help:
-	@echo "Flint – Industrial Flow Automation"
+	@echo "LOOPZE – Industrial Flow Automation"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make <target>"

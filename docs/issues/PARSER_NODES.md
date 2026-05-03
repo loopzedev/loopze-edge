@@ -4,7 +4,7 @@
 
 ## Problembeschreibung
 
-Flint-Flows tauschen Daten mit der Außenwelt aus: MQTT-Topics liefern
+LOOPZE-Flows tauschen Daten mit der Außenwelt aus: MQTT-Topics liefern
 Sensorwerte als JSON-Strings, HTTP-APIs antworten mit XML, Industrie-Tools
 exportieren CSV, Modbus liefert rohe Bytes. Damit nachgelagerte Nodes
 (Switch, Change, Function, Template …) sinnvoll arbeiten können, muss die

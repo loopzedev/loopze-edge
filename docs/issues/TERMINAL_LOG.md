@@ -4,7 +4,7 @@
 
 ## Problembeschreibung
 
-Der Application-Log läuft derzeit ausschließlich auf **stdout** des Flint-Prozesses (`cmd/flint/main.go`, `slog.NewTextHandler(os.Stdout, …)`). Wer den Log sehen will, braucht Zugriff auf das Terminal in dem Flint gestartet wurde — bei deployten Instanzen also SSH, `journalctl`, Docker-Logs o.ä.
+Der Application-Log läuft derzeit ausschließlich auf **stdout** des LOOPZE-Prozesses (`cmd/loopze/main.go`, `slog.NewTextHandler(os.Stdout, …)`). Wer den Log sehen will, braucht Zugriff auf das Terminal in dem LOOPZE gestartet wurde — bei deployten Instanzen also SSH, `journalctl`, Docker-Logs o.ä.
 
 Für den Bediener im Browser ist der Log damit unsichtbar. Typische Fragen wie *"warum ist mein Deploy fehlgeschlagen?"*, *"kommt mein MQTT-Connect durch?"* oder *"warum loggt der Server gerade so viel?"* erfordern jedes Mal einen Wechsel auf die Server-Konsole.
 
@@ -84,7 +84,7 @@ Eingefärbt wird mindestens das **Level-Tag**; die Message bleibt im Standard-Fo
 Eine Log-Zeile rendert sich als monospace-Text:
 
 ```
-10:23:14.428 [INFO ] starting Flint version=0.1.0 commit=abc123 log_level=info
+10:23:14.428 [INFO ] starting LOOPZE version=0.1.0 commit=abc123 log_level=info
 10:23:14.512 [WARN ] websocket broadcast channel full type=debug
 10:23:15.001 [ERROR] failed to connect mqtt broker error="connection refused"
 ```
@@ -122,7 +122,7 @@ func (b *Buffer) Add(e LogEntry) LogEntry // gibt Entry mit gesetzter Seq zurüc
 func (b *Buffer) Last(n int) []LogEntry   // oldest-first slice der letzten min(n, len) Einträge
 ```
 
-Capacity: konfigurierbar über `cfg.LogBufferSize` mit Default `1000`. Wert wird beim Start in `cmd/flint/main.go` an `logbuffer.New` übergeben. UI-Maximum bleibt `1000` (der Dropdown-Cap), die Backend-Capacity darf größer sein wenn z.B. eine externe API künftig mehr abrufen soll. Validierung in `config`: Minimum `1`, kein Maximum erzwungen.
+Capacity: konfigurierbar über `cfg.LogBufferSize` mit Default `1000`. Wert wird beim Start in `cmd/loopze/main.go` an `logbuffer.New` übergeben. UI-Maximum bleibt `1000` (der Dropdown-Cap), die Backend-Capacity darf größer sein wenn z.B. eine externe API künftig mehr abrufen soll. Validierung in `config`: Minimum `1`, kein Maximum erzwungen.
 
 Die `Seq`-ID wird beim `Add` vom Buffer vergeben und sowohl in den Buffer geschrieben als auch im zurückgegebenen Entry an den Notify-Callback durchgereicht — damit haben REST-Antwort und WebSocket-Stream **dieselben** Seq-Werte für denselben Eintrag.
 
@@ -154,7 +154,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 
 Wichtig: **stdout-Verhalten bleibt 1:1 erhalten** — wer heute mit `journalctl` arbeitet, merkt nichts. Der Wrapper ist additiv.
 
-### Backend — Wiring in `cmd/flint/main.go`
+### Backend — Wiring in `cmd/loopze/main.go`
 
 ```go
 buf := logbuffer.New(cfg.LogBufferSize) // Default 1000, konfigurierbar
@@ -307,12 +307,12 @@ Reine Präsentation, keine eigene State.
 - `internal/logbuffer/buffer.go` (neu) — Ring-Buffer + `LogEntry` mit `Seq`-Vergabe
 - `internal/logbuffer/handler.go` (neu) — `slog.Handler`-Wrapper mit `SetNotify`
 - `internal/logbuffer/buffer_test.go` (neu) — Wraparound, Last(n), Seq-Monotonie, Concurrency
-- `internal/config/config.go` — neues Feld `LogBufferSize int` (Default `1000`, Min-Validierung), Flag `--log-buffer-size`, Env `FLINT_LOG_BUFFER_SIZE`
+- `internal/config/config.go` — neues Feld `LogBufferSize int` (Default `1000`, Min-Validierung), Flag `--log-buffer-size`, Env `LOOPZE_LOG_BUFFER_SIZE`
 - `internal/ws/hub.go` — `EventLog = "log"` Konstante ergänzen
 - `internal/server/server.go` — `New(cfg, buf)`-Signatur, `Hub()`-Getter, REST-Routing-Aufruf reicht den Buffer in `api.NewHandler` durch
 - `internal/api/handlers.go` — `GetLogs` Handler, `logBuffer`-Feld im Handler-Struct
 - `internal/api/routes.go` — `r.Get("/logs", h.GetLogs)`
-- `cmd/flint/main.go` — Buffer mit `cfg.LogBufferSize` + Wrapper-Handler instantiieren, nach `server.New` `SetNotify` mit Hub-Broadcast verdrahten
+- `cmd/loopze/main.go` — Buffer mit `cfg.LogBufferSize` + Wrapper-Handler instantiieren, nach `server.New` `SetNotify` mit Hub-Broadcast verdrahten
 
 ### Frontend
 - `frontend/src/stores/uiStore.ts` — `logsPanelOpen`, `logsLimit`, Toggle-Actions, localStorage-Persistenz für `logsLimit`
@@ -338,7 +338,7 @@ Keine externen. Nutzt:
 - **Volltextsuche im Frontend** — kann später als Browser-typisches Ctrl+F bzw. Such-Inputfeld nachgerüstet werden
 - **Download/Export** des aktuellen Log-Inhalts — denkbar als "Copy as text"-Button in Phase 2
 - **Source-Filter** (nur Logs aus bestimmten Packages) — slog-Records tragen keine zuverlässige Quelle ohne `AddSource`, das treiben wir erst wenn Bedarf entsteht
-- **Mehrere Server / Cluster-Logs** — Flint ist single-instance, jeder Browser sieht den Log seines verbundenen Servers
+- **Mehrere Server / Cluster-Logs** — LOOPZE ist single-instance, jeder Browser sieht den Log seines verbundenen Servers
 - **ANSI-Color-Codes aus stdout in HTML übersetzen** — slog produziert keine ANSI-Codes, also nicht relevant
 - **Hintergrund-Tinte für ERROR-Zeilen** — wenn der Wunsch konkret entsteht, leicht ergänzbar
 

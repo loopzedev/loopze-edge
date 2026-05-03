@@ -274,4 +274,4 @@ func SwitchTypeInfo() flow.NodeTypeInfo {
 3. **`is of type`** — Welche Typen werden tatsächlich unterstützt (Buffer? Date?).
 4. **Strikte Vergleiche** (`===`/`!==`) — gewünscht oder bewusst weglassen?
 
-> Sequenz-bezogene Operatoren (`head`/`tail`/`index between`) wurden bewusst weggelassen — siehe `SPLIT_JOIN_NODE.md`. Die setzen ein `msg.parts`-Konzept voraus, das Flint heute nicht hat.
+> Sequenz-bezogene Operatoren (`head`/`tail`/`index between`) wurden bewusst weggelassen — siehe `SPLIT_JOIN_NODE.md`. Die setzen ein `msg.parts`-Konzept voraus, das LOOPZE heute nicht hat.

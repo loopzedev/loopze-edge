@@ -1,16 +1,16 @@
-// Benchmark comparing the candidate scripting engines for a Flint Function-Node:
+// Benchmark comparing the candidate scripting engines for a LOOPZE Function-Node:
 // - Native Go (baseline; what a dedicated Go-Node would do)
 // - Goja        (current Function-Node engine)
 // - expr        (compiled bytecode VM, pipeline-style)
 // - Yaegi       (Go interpreter)
-// - Python      (persistent subprocess worker — realistic for a Flint
+// - Python      (persistent subprocess worker — realistic for a LOOPZE
 //                Python-Function-Node implementation. cgo-embedding would be
 //                ~5-10x faster but isn't viable without python3-dev installed.)
 //
 // Two data shapes are exercised:
 //
 //   - "map":    []map[string]any   — current flow.Message storage shape
-//   - "typed":  []Record           — what we'd get if Flint introduced typed
+//   - "typed":  []Record           — what we'd get if LOOPZE introduced typed
 //                                    payloads. Lets each engine's compiler
 //                                    skip runtime type-asserts.
 //
@@ -18,7 +18,7 @@
 // (especially Goja's vm.ToValue) scales relative to the actual work.
 //
 // Run:  go test -bench=. -benchmem -benchtime=1s
-package flintbench
+package loopzebench
 
 import (
 	"bufio"
@@ -121,7 +121,7 @@ func BenchmarkNative(b *testing.B) {
 
 // ── Goja ─────────────────────────────────────────────────────────────────────
 
-// Wrapped as a function — Flint's actual Function-Node pattern, so per-call
+// Wrapped as a function — LOOPZE's actual Function-Node pattern, so per-call
 // `let` declarations don't pollute the VM globals.
 const gojaCode = `(function(records){
     let sum = 0;
@@ -231,14 +231,14 @@ func Handle(records []map[string]any) float64 {
 
 // To run yaegi'd code against a typed []Record from this package, we have to
 // expose the type into the interpreter's import space. Yaegi sees the type
-// under the import path "flintbench/flintbench" → so the user code does
-// `import "flintbench"` and uses `flintbench.Record`.
+// under the import path "loopzebench/loopzebench" → so the user code does
+// `import "loopzebench"` and uses `loopzebench.Record`.
 const yaegiSourceTyped = `
 package main
 
-import "flintbench"
+import "loopzebench"
 
-func Handle(records []flintbench.Record) float64 {
+func Handle(records []loopzebench.Record) float64 {
 	sum := 0.0
 	for _, r := range records {
 		if r.Temperature > 20 {
@@ -250,7 +250,7 @@ func Handle(records []flintbench.Record) float64 {
 `
 
 var yaegiTypedExports = interp.Exports{
-	"flintbench/flintbench": map[string]reflect.Value{
+	"loopzebench/loopzebench": map[string]reflect.Value{
 		"Record": reflect.ValueOf((*Record)(nil)),
 	},
 }
@@ -317,7 +317,7 @@ func BenchmarkYaegi(b *testing.B) {
 // Honest per-message benchmark: each iteration JSON-encodes the records on the
 // Go side, writes them through the pipe, the Python worker decodes the JSON,
 // runs the compute, and sends the float result back. This mirrors what a real
-// Flint Python-Function-Node would have to do — every flow message arrives
+// LOOPZE Python-Function-Node would have to do — every flow message arrives
 // fresh on the Go side and has to cross the process boundary.
 //
 // Symmetry with the other engines:

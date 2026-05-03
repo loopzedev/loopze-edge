@@ -6,7 +6,7 @@ package nodes
 import (
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // LinkOutNode is a sink node that forwards messages to configured link-in nodes

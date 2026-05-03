@@ -2,7 +2,7 @@
 
 ## Kontext
 
-Flint speichert Context-Daten in vier NATS JetStream KV-Buckets (siehe `internal/nats/context_store.go` und `internal/nats/broker.go`):
+LOOPZE speichert Context-Daten in vier NATS JetStream KV-Buckets (siehe `internal/nats/context_store.go` und `internal/nats/broker.go`):
 
 - **Global Memory** — `context-global-memory` (volatil)
 - **Global Persistent** — `context-global-persistent` (datei-backed)

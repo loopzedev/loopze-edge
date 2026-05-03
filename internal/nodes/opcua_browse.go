@@ -12,7 +12,7 @@ import (
 
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/ua"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // OpcuaBrowseChild is the wire form of one browse-result child as the editor

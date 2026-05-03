@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package web provides the embedded frontend assets for the Flint editor.
+// Package web provides the embedded frontend assets for the LOOPZE editor.
 // The Vue 3 frontend is built into the dist/ directory and embedded into
 // the Go binary at compile time using go:embed.
 package web

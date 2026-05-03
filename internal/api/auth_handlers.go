@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niceclouds/flint/internal/auth"
+	"github.com/niceclouds/loopze/internal/auth"
 )
 
 // authDeps holds the auth-specific dependencies. It is embedded into the
@@ -227,7 +227,7 @@ func (d *Deps) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	user, authed := auth.WithUser(r)
 	// An authenticated request implies setup is complete from the
-	// caller's perspective — including the FLINT_AUTH_DISABLE dev
+	// caller's perspective — including the LOOPZE_AUTH_DISABLE dev
 	// bypass, which short-circuits the user store entirely. Without
 	// this, the dev bypass flow would report needsSetup=true alongside
 	// authenticated=true, sending the frontend into the Setup modal.

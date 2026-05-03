@@ -1,7 +1,7 @@
 // Copyright 2024 NiceClouds GmbH. All rights reserved.
 // Licensed under the Elastic License 2.0 (ELv2).
 
-// Package flow implements the Flint flow runtime engine and core types.
+// Package flow implements the LOOPZE flow runtime engine and core types.
 package flow
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 // Flow represents a single flow (tab) containing a set of interconnected nodes.
-// Each flow is an independent unit of execution within the Flint runtime.
+// Each flow is an independent unit of execution within the LOOPZE runtime.
 type Flow struct {
 	// ID is the unique identifier for this flow.
 	ID string `json:"id"`

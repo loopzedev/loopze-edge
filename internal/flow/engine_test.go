@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/flint/internal/config"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/config"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // ─── errNode ────────────────────────────────────────────────────────────────

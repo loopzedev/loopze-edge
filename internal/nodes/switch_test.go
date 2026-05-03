@@ -6,7 +6,7 @@ package nodes
 import (
 	"testing"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // newSwitchNode builds a SwitchNode with the given top-level config.

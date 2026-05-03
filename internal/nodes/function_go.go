@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
-	scriptingyaegi "github.com/niceclouds/flint/internal/scripting/yaegi"
+	"github.com/niceclouds/loopze/internal/flow"
+	scriptingyaegi "github.com/niceclouds/loopze/internal/scripting/yaegi"
 )
 
 // FunctionGoNode runs user-supplied Go code (interpreted by Yaegi) for each
@@ -21,7 +21,7 @@ import (
 //	func handle(payload any) any
 //	func handle(payload []map[string]any) []map[string]any
 //	func handle(payload []SomeStruct) any                  // typed, JSON boundary
-//	func handle(payload any, node flintnode.Node)          // multi-output via node.Send
+//	func handle(payload any, node loopzenode.Node)          // multi-output via node.Send
 //
 // See internal/scripting/yaegi for the full Node interface and supported
 // stdlib subset.

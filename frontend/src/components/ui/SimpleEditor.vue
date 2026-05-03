@@ -39,13 +39,13 @@ function unwrap(full: string): string {
   return lines.slice(PREFIX_LINES, lines.length - 1).join('\n')
 }
 
-// Reuse flint-dark theme if already defined, otherwise define it.
+// Reuse loopze-dark theme if already defined, otherwise define it.
 let themeConfigured = false
 function ensureTheme() {
   if (themeConfigured) return
   themeConfigured = true
   try {
-    monaco.editor.defineTheme('flint-dark', {
+    monaco.editor.defineTheme('loopze-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -92,12 +92,12 @@ onMounted(() => {
   ensureTheme()
 
   const ext = props.language === 'json' ? 'json' : 'js'
-  const uri = monaco.Uri.parse(`file:///flint-sm-${props.language}-${Date.now()}.${ext}`)
+  const uri = monaco.Uri.parse(`file:///loopze-sm-${props.language}-${Date.now()}.${ext}`)
   const model = monaco.editor.createModel(wrap(props.modelValue), props.language, uri)
 
   editor.value = monaco.editor.create(container.value, {
     model,
-    theme: 'flint-dark',
+    theme: 'loopze-dark',
     readOnly: props.readonly,
     fontSize: 12,
     fontFamily: "'IBM Plex Mono', monospace",
@@ -161,7 +161,7 @@ onMounted(() => {
         if (change.range.startLineNumber <= PREFIX_LINES ||
             change.range.startLineNumber >= model.getLineCount()) {
           internalUpdate = true
-          ed.trigger('flint', 'undo', null)
+          ed.trigger('loopze', 'undo', null)
           internalUpdate = false
           return
         }

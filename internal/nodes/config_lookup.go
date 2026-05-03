@@ -7,7 +7,7 @@ package nodes
 import (
 	"fmt"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // resolveConfigParams describes the human-readable strings that

@@ -30,7 +30,7 @@ Eine einfache Go-Map in der Engine speichert den **jeweils letzten Status** pro 
 
 ### Warum Go-Map statt NATS KV?
 
-- Flint läuft als **einzelner Prozess** — kein verteiltes System das KV bräuchte
+- LOOPZE läuft als **einzelner Prozess** — kein verteiltes System das KV bräuchte
 - Der Status ist **flüchtig** — geht bei Server-Neustart sowieso verloren (Engine startet neu, Nodes haben keinen Status)
 - Die Engine hat bereits die `nodes`-Map — der Status-Cache lebt im selben Scope
 - **Zero Overhead**: Kein Netzwerk-Roundtrip, kein Serialisieren, direkter Map-Zugriff

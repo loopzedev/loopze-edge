@@ -6,7 +6,7 @@
 
 In der industriellen Automatisierung kommunizieren SPSen, Modbus-Geraete und OPC-UA-Server ueber **Byte-Arrays**. Temperaturwerte stecken als Float32 in Register 0-1, Druckwerte als UInt16 in Register 2, Statusbits in einzelnen Bytes. Node.js bietet dafuer die `Buffer`-Klasse — in Node-RED ist sie allgegenwaertig.
 
-Flint nutzt Goja (Go-native JS Engine) fuer den Function Node. Goja hat kein `Buffer`. Ohne Buffer-API koennen Anwender keine Byte-Daten aus Industrie-Connectoren (Modbus, S7, OPC-UA) im Function Node verarbeiten.
+LOOPZE nutzt Goja (Go-native JS Engine) fuer den Function Node. Goja hat kein `Buffer`. Ohne Buffer-API koennen Anwender keine Byte-Daten aus Industrie-Connectoren (Modbus, S7, OPC-UA) im Function Node verarbeiten.
 
 ## Architektur: Shared Go Package + JS Wrapper
 

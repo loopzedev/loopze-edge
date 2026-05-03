@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/scripting"
-	scriptingexpr "github.com/niceclouds/flint/internal/scripting/expr"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/scripting"
+	scriptingexpr "github.com/niceclouds/loopze/internal/scripting/expr"
 )
 
 // FunctionExprNode evaluates a single expr-lang expression for each incoming

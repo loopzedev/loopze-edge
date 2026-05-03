@@ -6,7 +6,7 @@ async function main(): Promise<void> {
   const cfg = loadConfig();
   setLogLevel(cfg.logging.level);
 
-  log.info("starting Flint OPC UA Demo Server");
+  log.info("starting LOOPZE OPC UA Demo Server");
   log.info(
     `policies=${cfg.security.policies.join(",")} modes=${cfg.security.modes.join(",")} anon=${cfg.security.allowAnonymous}`,
   );

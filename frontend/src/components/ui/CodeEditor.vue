@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import '@/lib/monaco/setup-workers'
 import * as monaco from 'monaco-editor'
-import { flintTypeDefinitions } from '@/lib/monaco/flint-types'
+import { loopzeTypeDefinitions } from '@/lib/monaco/loopze-types'
 import { registerExprLanguage } from '@/lib/monaco/expr-language'
 import { registerGoCompletions } from '@/lib/monaco/go-language'
 
@@ -41,7 +41,7 @@ function configureMonaco() {
   if (configured) return
   configured = true
 
-  monaco.editor.defineTheme('flint-dark', {
+  monaco.editor.defineTheme('loopze-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [
@@ -113,10 +113,10 @@ function configureMonaco() {
       lib: ['es2020'],
     })
 
-    // Add Flint API type definitions
+    // Add LOOPZE API type definitions
     ts.javascriptDefaults.addExtraLib(
-      flintTypeDefinitions,
-      'ts:flint-runtime.d.ts'
+      loopzeTypeDefinitions,
+      'ts:loopze-runtime.d.ts'
     )
   }
 }
@@ -161,13 +161,13 @@ onMounted(() => {
   // sees `return` as valid. Other languages are used as-is.
   const ext = FILE_EXT[props.language] ?? 'txt'
   const uri = monaco.Uri.parse(
-    `file:///flint-${props.language}-${Date.now()}.${ext}`,
+    `file:///loopze-${props.language}-${Date.now()}.${ext}`,
   )
   const model = monaco.editor.createModel(wrap(props.modelValue), props.language, uri)
 
   editor.value = monaco.editor.create(container.value, {
     model,
-    theme: 'flint-dark',
+    theme: 'loopze-dark',
     readOnly: props.readonly,
     fontSize: 12,
     fontFamily: "'IBM Plex Mono', monospace",
@@ -232,7 +232,7 @@ onMounted(() => {
             change.range.startLineNumber >= model.getLineCount()) {
           // Undo wrapper modifications
           internalUpdate = true
-          ed.trigger('flint', 'undo', null)
+          ed.trigger('loopze', 'undo', null)
           internalUpdate = false
           return
         }

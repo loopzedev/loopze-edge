@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // startDelay wires up a DelayNode with a collector and runs through the lifecycle.

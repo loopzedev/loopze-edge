@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package nats provides an embedded NATS server with JetStream for the Flint
+// Package nats provides an embedded NATS server with JetStream for the LOOPZE
 // runtime. It is used for debug message persistence (streams), shared state
 // (KV stores), and future fleet communication — but NOT for internal
 // node-to-node message routing (which uses Go channels).
@@ -44,7 +44,7 @@ func New(cfg Config) (*Broker, error) {
 	storeDir := filepath.Join(cfg.DataDir, "jetstream")
 
 	opts := &server.Options{
-		ServerName: "flint-embedded",
+		ServerName: "loopze-embedded",
 		Port:       cfg.Port,
 		DontListen: cfg.Port == -1,
 		NoSigs:     true,

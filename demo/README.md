@@ -1,6 +1,6 @@
-# Flint Demo Servers
+# LOOPZE Demo Servers
 
-Sammlung externer Demo-Server zum Testen der Flint-Nodes gegen reale Protokolle.
+Sammlung externer Demo-Server zum Testen der LOOPZE-Nodes gegen reale Protokolle.
 
 ## Verfügbar
 
@@ -16,4 +16,4 @@ Sammlung externer Demo-Server zum Testen der Flint-Nodes gegen reale Protokolle.
 
 Jeder Demo-Server lebt in einem eigenen Subfolder mit eigener `README.md`,
 eigenem Build/Tooling und – wo sinnvoll – einem `Dockerfile`. Sie sind
-**nicht** Teil des Flint-Hauptbinaries und werden separat gestartet.
+**nicht** Teil des LOOPZE-Hauptbinaries und werden separat gestartet.

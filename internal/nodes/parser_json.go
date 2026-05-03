@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // errJSONTypeMismatch marks errors caused by an input value that does not

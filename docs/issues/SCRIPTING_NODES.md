@@ -460,7 +460,7 @@ Aus dem Benchmark (`benchmark/bench_test.go`, AMD Ryzen 7 5800H, 1k bis 100k Rec
 ## Abgrenzung / Nicht im Scope
 
 - **WASM-Function-Node** — eine vierte Engine via wazero für maximale Performance bei Compute-Heavy-Workloads. Sinnvoll, aber separater Issue mit eigener UX (Upload `.wasm`, kein Editor)
-- **V8-Bindings (cgo)** — widerspricht dem Single-Binary-Charakter von Flint
+- **V8-Bindings (cgo)** — widerspricht dem Single-Binary-Charakter von LOOPZE
 - **Node.js Subprocess** — gibt Self-Contained-Deployment auf
 - **Reactive Expressions** — expr-Programs, die bei Änderung einer Source-Variable neu evaluiert werden ohne Trigger-Message. Interessant für Live-UI-Bindungen, aber nicht das Function-Node-Modell
 - **Hot-Reload von User-Code ohne Re-Deploy** — wäre ein editor-experience-Boost, ist aber technisch komplex (engine-Lifecycle, Subscription-Re-Wiring, State-Migration)

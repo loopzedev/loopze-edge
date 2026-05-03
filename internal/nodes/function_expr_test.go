@@ -6,8 +6,8 @@ package nodes_test
 import (
 	"testing"
 
-	"github.com/niceclouds/flint/internal/flow"
-	"github.com/niceclouds/flint/internal/nodes"
+	"github.com/niceclouds/loopze/internal/flow"
+	"github.com/niceclouds/loopze/internal/nodes"
 )
 
 func newFunctionExprNode(t *testing.T, expression string, outputProperty string, passThrough bool) flow.NodeInstance {

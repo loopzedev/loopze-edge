@@ -9,7 +9,7 @@
  */
 import { AttributeIds, OPCUAClient, resolveNodeId } from "node-opcua";
 
-const endpoint = process.env.FLINT_OPCUA_TEST_ENDPOINT ?? "opc.tcp://localhost:4840/flint-demo";
+const endpoint = process.env.LOOPZE_OPCUA_TEST_ENDPOINT ?? "opc.tcp://localhost:4840/loopze-demo";
 
 async function main(): Promise<void> {
   const client = OPCUAClient.create({

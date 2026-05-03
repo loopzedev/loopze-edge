@@ -29,7 +29,7 @@ const SCALAR_TYPES: ReadonlyArray<{ name: string; dt: DataType; sample: unknown 
   { name: "UInt64", dt: DataType.UInt64, sample: [0, 42] },
   { name: "Float", dt: DataType.Float, sample: 3.1415927 },
   { name: "Double", dt: DataType.Double, sample: 2.718281828459045 },
-  { name: "String", dt: DataType.String, sample: "hello flint" },
+  { name: "String", dt: DataType.String, sample: "hello loopze" },
   { name: "DateTime", dt: DataType.DateTime, sample: new Date("2026-01-01T00:00:00Z") },
   { name: "ByteString", dt: DataType.ByteString, sample: Buffer.from([0xde, 0xad, 0xbe, 0xef]) },
 ];

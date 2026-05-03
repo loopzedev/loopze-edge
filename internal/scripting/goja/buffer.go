@@ -1,7 +1,7 @@
 // Copyright 2025 NiceClouds GmbH
 // Licensed under the Elastic License 2.0 (ELv2).
 
-// Package goja contains the Goja-specific bridge between Flint's flow.Message
+// Package goja contains the Goja-specific bridge between LOOPZE's flow.Message
 // world and JavaScript. The most substantial piece is the Node.js-compatible
 // Buffer API exposed to user scripts — extracted here so the function-node
 // implementation in internal/nodes stays focused on lifecycle and dispatch.
@@ -12,7 +12,7 @@ import (
 
 	"github.com/dop251/goja"
 
-	"github.com/niceclouds/flint/internal/buffer"
+	"github.com/niceclouds/loopze/internal/buffer"
 )
 
 // BufferWrapper bundles the Buffer global registration and the wrapBuffer

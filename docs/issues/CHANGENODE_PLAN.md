@@ -231,7 +231,7 @@ cd frontend && npm run type-check
 ```
 
 ### End-to-End
-1. Flint starten (`make build-all && ./bin/flint`)
+1. LOOPZE starten (`make build-all && ./bin/loopze`)
 2. Change Node in Flow ziehen
 3. Properties öffnen → Regeln konfigurieren:
    - Setze msg.payload auf "Hello"

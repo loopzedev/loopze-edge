@@ -1,11 +1,11 @@
 /**
- * TypeScript declaration for the Flint Function Node runtime.
+ * TypeScript declaration for the LOOPZE Function Node runtime.
  * These type definitions are injected into Monaco's JavaScript language service
- * so that the editor provides IntelliSense for the Flint API.
+ * so that the editor provides IntelliSense for the LOOPZE API.
  */
-export const flintTypeDefinitions = `
+export const loopzeTypeDefinitions = `
 /** The incoming message object. */
-interface FlintMessage {
+interface LoopzeMessage {
   /** The message payload (any type). */
   payload?: any;
   /** Message topic string. */
@@ -19,7 +19,7 @@ interface FlintMessage {
 }
 
 /** Node API for sending messages, logging, and setting status. */
-interface FlintNodeAPI {
+interface LoopzeNodeAPI {
   /**
    * Send message(s) to output ports.
    * Pass a single message object to send on port 0,
@@ -27,7 +27,7 @@ interface FlintNodeAPI {
    * @example node.send({ payload: "hello" })
    * @example node.send([{ payload: "port0" }, { payload: "port1" }])
    */
-  send(msg: FlintMessage | Array<FlintMessage | null>): void;
+  send(msg: LoopzeMessage | Array<LoopzeMessage | null>): void;
   /** Log a debug message. */
   log(value: any): void;
   /** Log a warning message. */
@@ -62,7 +62,7 @@ interface FlintNodeAPI {
 }
 
 /** Key-value context store. */
-interface FlintContextStore {
+interface LoopzeContextStore {
   /**
    * Read a value from the context store.
    * @param key The key to look up.
@@ -90,7 +90,7 @@ interface FlintContextStore {
 }
 
 /** A byte buffer for binary data manipulation (Node.js Buffer compatible). */
-interface FlintBuffer {
+interface LoopzeBuffer {
   /** Number of bytes in the buffer. */
   readonly length: number;
 
@@ -148,11 +148,11 @@ interface FlintBuffer {
 
   // ── Swap ──
   /** Swap byte order in 16-bit pairs. */
-  swap16(): FlintBuffer;
+  swap16(): LoopzeBuffer;
   /** Swap byte order in 32-bit groups. */
-  swap32(): FlintBuffer;
+  swap32(): LoopzeBuffer;
   /** Swap byte order in 64-bit groups. */
-  swap64(): FlintBuffer;
+  swap64(): LoopzeBuffer;
 
   // ── Conversion ──
   /**
@@ -163,18 +163,18 @@ interface FlintBuffer {
   /** Return buffer as byte-value array, e.g. [72, 101, 108]. */
   toJSON(): number[];
   /** Return a copy of bytes from start to end. */
-  slice(start: number, end?: number): FlintBuffer;
+  slice(start: number, end?: number): LoopzeBuffer;
   /** Copy bytes into target buffer. Returns number of bytes copied. */
-  copy(target: FlintBuffer, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
+  copy(target: LoopzeBuffer, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
 }
 
 /** Static methods for creating Buffer instances. */
-interface FlintBufferConstructor {
+interface LoopzeBufferConstructor {
   /**
    * Create a zero-filled buffer of the given size.
    * @example Buffer.alloc(8)
    */
-  alloc(size: number): FlintBuffer;
+  alloc(size: number): LoopzeBuffer;
   /**
    * Create a buffer from data.
    * @example Buffer.from([0x48, 0x65, 0x6C])
@@ -182,19 +182,19 @@ interface FlintBufferConstructor {
    * @example Buffer.from("48656c6c6f", "hex")
    * @example Buffer.from("SGVsbG8=", "base64")
    */
-  from(data: number[] | string, encoding?: 'hex' | 'base64'): FlintBuffer;
+  from(data: number[] | string, encoding?: 'hex' | 'base64'): LoopzeBuffer;
   /** Concatenate multiple buffers into one. */
-  concat(list: FlintBuffer[]): FlintBuffer;
+  concat(list: LoopzeBuffer[]): LoopzeBuffer;
 }
 
 /** The incoming message. */
-declare var msg: FlintMessage;
+declare var msg: LoopzeMessage;
 /** Node API: send messages, log, set status. */
-declare var node: FlintNodeAPI;
+declare var node: LoopzeNodeAPI;
 /** Global context store — shared across all flows. */
-declare var global: FlintContextStore;
+declare var global: LoopzeContextStore;
 /** Flow-scoped context store — shared within the current flow. */
-declare var flow: FlintContextStore;
+declare var flow: LoopzeContextStore;
 /** Buffer API for byte manipulation (Node.js compatible). */
-declare var Buffer: FlintBufferConstructor;
+declare var Buffer: LoopzeBufferConstructor;
 `

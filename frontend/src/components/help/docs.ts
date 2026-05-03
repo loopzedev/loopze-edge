@@ -212,7 +212,7 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       },
       {
         title: 'Multi-output via node.Send',
-        config: 'package main\n\nimport "flintnode"\n\nfunc handle(payload any, node flintnode.Node) {\n    if v, ok := payload.(int); ok && v > 50 {\n        node.Send(0, payload)\n    } else {\n        node.Send(1, payload)\n    }\n}',
+        config: 'package main\n\nimport "loopzenode"\n\nfunc handle(payload any, node loopzenode.Node) {\n    if v, ok := payload.(int); ok && v > 50 {\n        node.Send(0, payload)\n    } else {\n        node.Send(1, payload)\n    }\n}',
         result: 'Routes high values to port 0, low values to port 1.',
       },
     ],
@@ -220,7 +220,7 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       'Allowed imports: bytes, encoding/{binary,base64,hex,json}, errors, fmt, math, math/big, math/bits, math/rand, regexp, sort, strconv, strings, time (no Sleep), unicode, unicode/utf8, unicode/utf16. Imports outside this list cause a compile error.',
       'For typed payloads, JSON tags drive the boundary conversion — make sure your struct fields have matching `json:"…"` tags.',
       '[]byte input maps to mqtt-in\'s buffer wire format ([]int) automatically; returning []byte converts back transparently.',
-      'flintnode.Node also exposes Get/Set/Delete (node-scope), Flow{Get,Set,Delete}/FlowGetP (flow scope, P = persistent), and Global{Get,Set,Delete}/GlobalGetP (global scope).',
+      'loopzenode.Node also exposes Get/Set/Delete (node-scope), Flow{Get,Set,Delete}/FlowGetP (flow scope, P = persistent), and Global{Get,Set,Delete}/GlobalGetP (global scope).',
     ],
   },
 

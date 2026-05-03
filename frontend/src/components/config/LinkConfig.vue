@@ -42,11 +42,11 @@ const availableNodes = computed(() => {
         }
       }
     } else {
-      for (const flintNode of flow.nodes) {
-        if (flintNode.type === targetType.value) {
+      for (const loopzeNode of flow.nodes) {
+        if (loopzeNode.type === targetType.value) {
           results.push({
-            nodeId: flintNode.id,
-            nodeName: flintNode.name || flintNode.id.slice(0, 12),
+            nodeId: loopzeNode.id,
+            nodeName: loopzeNode.name || loopzeNode.id.slice(0, 12),
             flowLabel: flow.label,
           })
         }

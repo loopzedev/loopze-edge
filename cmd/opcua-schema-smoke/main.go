@@ -3,13 +3,13 @@
 // See LICENSE file for details.
 
 // opcua-schema-smoke probes whether a server exposes the schema metadata
-// that Flint's ExtensionObject decoder relies on:
+// that LOOPZE's ExtensionObject decoder relies on:
 //
 //  1. DataType attribute of the variable (gives us the DataType NodeID)
 //  2. DataTypeDefinition attribute of the DataType (gives us the
 //     StructureDefinition / EnumDefinition with field layout and encoding ID)
 //
-// If step 2 fails, Flint can't decode the ExtensionObject body even with
+// If step 2 fails, LOOPZE can't decode the ExtensionObject body even with
 // the marker-type registered, because we have no schema to drive the binary
 // codec.
 //
@@ -90,7 +90,7 @@ func main() {
 	fmt.Printf("Variable DataType:   %s\n", dataType.String())
 
 	// Step 2: read the DataTypeDefinition attribute of the DataType node
-	// itself. This is what Flint's resolver leans on.
+	// itself. This is what LOOPZE's resolver leans on.
 	defResp, err := client.Read(ctx, &ua.ReadRequest{
 		NodesToRead: []*ua.ReadValueID{
 			{NodeID: dataType, AttributeID: ua.AttributeIDDataTypeDefinition, DataEncoding: &ua.QualifiedName{}},
@@ -114,7 +114,7 @@ func main() {
 	if def.Status != ua.StatusOK {
 		fmt.Println()
 		fmt.Println("⚠ Server does not expose DataTypeDefinition for this DataType.")
-		fmt.Println("  Flint's schema-driven decoder cannot work without it.")
+		fmt.Println("  LOOPZE's schema-driven decoder cannot work without it.")
 		fmt.Println("  Options: ask the server to expose DataTypeDefinition (1.04+ requirement)")
 		fmt.Println("  or implement the browse-fallback path (Phase-5 issue, deferred).")
 		os.Exit(2)
@@ -149,7 +149,7 @@ func dumpStruct(sd *ua.StructureDefinition) {
 	if sd.DefaultEncodingID != nil {
 		fmt.Printf("  DefaultEncoding:  %s\n", sd.DefaultEncodingID.String())
 	} else {
-		fmt.Println("  ⚠ DefaultEncodingID is nil — Flint cannot register the marker type without it.")
+		fmt.Println("  ⚠ DefaultEncodingID is nil — LOOPZE cannot register the marker type without it.")
 	}
 	if sd.BaseDataType != nil {
 		fmt.Printf("  BaseDataType:     %s\n", sd.BaseDataType.String())

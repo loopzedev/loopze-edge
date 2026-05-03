@@ -1,4 +1,4 @@
-# Flint – Implementierungsplan
+# LOOPZE – Implementierungsplan
 
 > Dieser Plan beschreibt die schrittweise Umsetzung vom aktuellen Stand zum lauffähigen MVP.
 > Jede Phase baut auf der vorherigen auf. Innerhalb einer Phase sind die Schritte sequenziell.
@@ -112,7 +112,7 @@ Messages vom Node bis ins Frontend durchschleusen.
 
 ### 2.3 Universelles Node-Debugging
 
-Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
+Das Alleinstellungsmerkmal von LOOPZE (siehe DECISIONS.md §5.1.2 / §5.1.3).
 
 - [ ] **Debug-Tap pro Node** – Wenn aktiviert: IN + OUT Messages auf `debug.{nodeID}` publizieren
 - [ ] **Debug-Tap pro Wire** – Wenn aktiviert: Messages auf `debug.wire.{sourceID}.{targetID}` publizieren
@@ -133,7 +133,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 
 ## Phase 3 – Netzwerk & Industrie: Die Außenwelt anbinden
 
-> **Ziel:** Flint kann mit externen Systemen kommunizieren.
+> **Ziel:** LOOPZE kann mit externen Systemen kommunizieren.
 
 ### 3.1 HTTP Nodes
 
@@ -161,7 +161,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 - [ ] **WebSocket In/Out** – WebSocket Client/Server
 - [ ] **UDP In/Out** – UDP Datagramme
 
-**Ergebnis Phase 3:** Flint spricht HTTP, MQTT, Modbus, Serial – industrietauglich.
+**Ergebnis Phase 3:** LOOPZE spricht HTTP, MQTT, Modbus, Serial – industrietauglich.
 
 ---
 
@@ -202,7 +202,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 
 ## Phase 5 – Production Readiness
 
-> **Ziel:** Flint ist stabil, sicher und deploybar.
+> **Ziel:** LOOPZE ist stabil, sicher und deploybar.
 
 ### 5.1 Sicherheit
 
@@ -232,7 +232,7 @@ Das Alleinstellungsmerkmal von Flint (siehe DECISIONS.md §5.1.2 / §5.1.3).
 - [ ] **Frontend Tests** – Component Tests für kritische UI-Teile
 - [ ] **E2E Test** – Inject → Function → Debug als Smoke Test
 
-**Ergebnis Phase 5:** Flint ist production-ready, getestet und paketiert.
+**Ergebnis Phase 5:** LOOPZE ist production-ready, getestet und paketiert.
 
 ---
 

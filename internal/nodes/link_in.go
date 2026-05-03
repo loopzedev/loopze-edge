@@ -6,7 +6,7 @@ package nodes
 import (
 	"log/slog"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // LinkInNode is a source node that receives messages from link-out or link-call

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 const settings = ref({
   flowFile: 'flows.json',
-  userDir: '~/.flint',
+  userDir: '~/.loopze',
   httpAdminRoot: '/',
   httpNodeRoot: '/',
   debugMaxLength: 1000,
@@ -42,7 +42,7 @@ function handleReset(): void {
         ⚙ Settings
       </h1>
       <p class="text-terminal-text-dim text-xs mt-1">
-        Runtime configuration for the Flint engine
+        Runtime configuration for the LOOPZE engine
       </p>
       <div class="border-b border-terminal-border mt-3"></div>
     </div>

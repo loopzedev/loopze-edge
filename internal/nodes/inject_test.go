@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
 // collector is a test helper that captures messages sent via SendFunc.
@@ -206,13 +206,13 @@ func TestInjectPayloadBool(t *testing.T) {
 }
 
 func TestInjectPayloadEnv(t *testing.T) {
-	os.Setenv("FLINT_TEST_INJECT", "env-value")
-	defer os.Unsetenv("FLINT_TEST_INJECT")
+	os.Setenv("LOOPZE_TEST_INJECT", "env-value")
+	defer os.Unsetenv("LOOPZE_TEST_INJECT")
 
 	c, node := startInject(t, map[string]any{
 		"once": true,
 		"props": makeProps(
-			map[string]any{"p": "payload", "vt": "env", "v": "FLINT_TEST_INJECT"},
+			map[string]any{"p": "payload", "vt": "env", "v": "LOOPZE_TEST_INJECT"},
 		),
 	})
 	defer node.Stop()

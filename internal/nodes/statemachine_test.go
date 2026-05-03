@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/niceclouds/flint/internal/nodes"
+	"github.com/niceclouds/loopze/internal/nodes"
 )
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

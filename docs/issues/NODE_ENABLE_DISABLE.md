@@ -11,7 +11,7 @@ Aktuell muss eine Node, die im Flow temporär nicht laufen soll, **gelöscht** w
 - **Wartung**: einen Inject-Trigger pausieren, während der Backend-Zielservice gerade neu gestartet wird
 - **Schrittweises Einschalten** beim Aufbau eines Flows: Nodes deaktiviert anlegen, später aktivieren
 
-In Node-RED ist das `disable`/`enable` über Properties-Panel und Rechtsklick eine der meistgenutzten Editor-Operationen. Für Flint fehlt sie komplett, obwohl die Datenstruktur und der Engine-Skip-Pfad bereits vorbereitet sind.
+In Node-RED ist das `disable`/`enable` über Properties-Panel und Rechtsklick eine der meistgenutzten Editor-Operationen. Für LOOPZE fehlt sie komplett, obwohl die Datenstruktur und der Engine-Skip-Pfad bereits vorbereitet sind.
 
 ## Sichtweise / Begründung
 

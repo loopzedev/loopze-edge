@@ -7,11 +7,11 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "Flint: Run",
+        "name": "LOOPZE: Run",
         "type": "go",
         "request": "launch",
         "mode": "debug",
-        "program": "${workspaceFolder}/cmd/flint",
+        "program": "${workspaceFolder}/cmd/loopze",
         "args": ["--port", "1880", "--data-dir", "${workspaceFolder}/data"],
         "env": {},
       },

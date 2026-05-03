@@ -10,7 +10,7 @@ import (
 )
 
 // MemorySessionStore is an in-memory SessionStore. It is used by tests
-// and by the FLINT_DISABLE_AUTH dev-bypass mode (where session state
+// and by the LOOPZE_DISABLE_AUTH dev-bypass mode (where session state
 // does not need to survive a restart). Not suitable for production —
 // sessions are lost on shutdown and not shared across instances.
 type MemorySessionStore struct {

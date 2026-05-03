@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================
-   FLINT — Refined Dark Theme
+   LOOPZE — Refined Dark Theme
    Dual-font system: Inter (UI) + IBM Plex Mono (code/data)
    ============================================ */
 
@@ -248,9 +248,9 @@
   }
 
   /* ── Node Base ── */
-  /* Visual styling for .flint-node lives inline in BaseNode.vue so the
+  /* Visual styling for .loopze-node lives inline in BaseNode.vue so the
      per-node accent token can drive border, glow, and selected state. */
-  .flint-node {
+  .loopze-node {
     @apply text-terminal-text text-xs select-none;
     font-family: 'Inter', system-ui, sans-serif;
   }

@@ -19,7 +19,7 @@ var (
 
 	// ErrLastAdmin is returned by Update when the caller would deactivate
 	// the last active admin or downgrade them out of the admin role.
-	// Flint refuses this to prevent locking everyone out of user
+	// LOOPZE refuses this to prevent locking everyone out of user
 	// management.
 	ErrLastAdmin = errors.New("auth: refuses to remove the last active admin")
 )

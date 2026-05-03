@@ -2,7 +2,7 @@
 // Licensed under the Elastic License 2.0 (ELv2).
 // See LICENSE file for details.
 
-// Package main is the entry point for the Flint industrial flow automation platform.
+// Package main is the entry point for the LOOPZE industrial flow automation platform.
 // It parses command-line flags, initializes the runtime, and starts the HTTP server
 // with graceful shutdown support.
 package main
@@ -14,10 +14,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/niceclouds/flint/internal/config"
-	"github.com/niceclouds/flint/internal/logbuffer"
-	"github.com/niceclouds/flint/internal/server"
-	"github.com/niceclouds/flint/internal/ws"
+	"github.com/niceclouds/loopze/internal/config"
+	"github.com/niceclouds/loopze/internal/logbuffer"
+	"github.com/niceclouds/loopze/internal/server"
+	"github.com/niceclouds/loopze/internal/ws"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	logHandler := logbuffer.NewHandler(textHandler, logBuf)
 	slog.SetDefault(slog.New(logHandler))
 
-	slog.Info("starting Flint",
+	slog.Info("starting LOOPZE",
 		"version", config.Version,
 		"commit", config.Commit,
 		"log_level", cfg.LogLevel,
@@ -78,7 +78,7 @@ func main() {
 		}
 	}()
 
-	slog.Info("Flint is running", "address", cfg.ListenAddr())
+	slog.Info("LOOPZE is running", "address", cfg.ListenAddr())
 
 	// Wait for interrupt signal for graceful shutdown.
 	quit := make(chan os.Signal, 1)
@@ -96,5 +96,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("Flint stopped gracefully")
+	slog.Info("LOOPZE stopped gracefully")
 }

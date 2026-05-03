@@ -17,7 +17,7 @@ import (
 
 // Argon2id parameters following the OWASP Password Storage Cheat Sheet
 // (2024 recommendation for "second choice" memory-constrained environments,
-// which suits Flint's edge-deployable single-binary footprint).
+// which suits LOOPZE's edge-deployable single-binary footprint).
 //
 // memory = 19 MiB, iterations = 2, parallelism = 1, hash length = 32 bytes,
 // salt length = 16 bytes.

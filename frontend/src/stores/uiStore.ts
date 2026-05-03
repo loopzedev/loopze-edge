@@ -9,7 +9,7 @@ export type LogsLimit = 100 | 200 | 500 | 1000
 const ALLOWED_LOGS_LIMITS = [100, 200, 500, 1000] as const
 
 function loadLogsLimit(): LogsLimit {
-  const raw = parseInt(localStorage.getItem('flint-logs-limit') ?? '200', 10)
+  const raw = parseInt(localStorage.getItem('loopze-logs-limit') ?? '200', 10)
   return (ALLOWED_LOGS_LIMITS as readonly number[]).includes(raw) ? (raw as LogsLimit) : 200
 }
 export type PropertiesContext =
@@ -28,7 +28,7 @@ export const useUiStore = defineStore('ui', () => {
   const infoPanelWidth = ref<number>(320)
   const activeInfoTab = ref<InfoTab>('debug')
   const contextAutoRefresh = ref<boolean>(
-    localStorage.getItem('flint-context-auto-refresh') === 'true',
+    localStorage.getItem('loopze-context-auto-refresh') === 'true',
   )
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
@@ -108,7 +108,7 @@ export const useUiStore = defineStore('ui', () => {
 
   function setContextAutoRefresh(v: boolean) {
     contextAutoRefresh.value = v
-    localStorage.setItem('flint-context-auto-refresh', v ? 'true' : 'false')
+    localStorage.setItem('loopze-context-auto-refresh', v ? 'true' : 'false')
   }
 
   function setConnectionStatus(status: ConnectionStatus) {
@@ -129,7 +129,7 @@ export const useUiStore = defineStore('ui', () => {
 
   function setLogsLimit(n: LogsLimit) {
     logsLimit.value = n
-    localStorage.setItem('flint-logs-limit', String(n))
+    localStorage.setItem('loopze-logs-limit', String(n))
   }
 
   function setDeployStatus(status: DeployStatus) {

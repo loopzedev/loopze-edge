@@ -16,7 +16,7 @@ import (
 // CookieName is the name of the session cookie set by the auth handlers
 // and read by Authenticate. It is exported so tests and the HTTP layer
 // can construct cookies without duplicating the literal.
-const CookieName = "flint_session"
+const CookieName = "loopze_session"
 
 // ctxKey is an unexported type used as the key for the user value in the
 // request context. Using a private type prevents collisions with keys
@@ -52,7 +52,7 @@ type Middleware struct {
 
 	// DevUser, if non-nil, replaces the cookie-based authentication: the
 	// user is injected into every request and the setup gate is skipped.
-	// Used by FLINT_DISABLE_AUTH for local development.
+	// Used by LOOPZE_DISABLE_AUTH for local development.
 	DevUser *User
 
 	// CookieSecure controls the Secure flag on session cookies. Should be

@@ -12,13 +12,13 @@ import (
 	"sort"
 
 	"github.com/go-chi/chi/v5"
-	flintnats "github.com/niceclouds/flint/internal/nats"
+	loopzenats "github.com/niceclouds/loopze/internal/nats"
 )
 
 // resolveContextStore returns a KVContextStore for the given scope/storage.
 // flowID is required when scope == "flow" and ignored otherwise.
 // Both scope and storage are validated; unknown values yield ("", err).
-func (d *Deps) resolveContextStore(r *http.Request, scope, flowID, storage string) (*flintnats.KVContextStore, int, error) {
+func (d *Deps) resolveContextStore(r *http.Request, scope, flowID, storage string) (*loopzenats.KVContextStore, int, error) {
 	if storage != "memory" && storage != "persistent" {
 		return nil, http.StatusBadRequest, errors.New("invalid storage type, must be 'memory' or 'persistent'")
 	}
@@ -32,9 +32,9 @@ func (d *Deps) resolveContextStore(r *http.Request, scope, flowID, storage strin
 			return nil, http.StatusInternalServerError, err
 		}
 		if storage == "memory" {
-			return flintnats.NewKVContextStore(mem), 0, nil
+			return loopzenats.NewKVContextStore(mem), 0, nil
 		}
-		return flintnats.NewKVContextStore(pers), 0, nil
+		return loopzenats.NewKVContextStore(pers), 0, nil
 
 	case "flow":
 		if flowID == "" {
@@ -58,9 +58,9 @@ func (d *Deps) resolveContextStore(r *http.Request, scope, flowID, storage strin
 			return nil, http.StatusInternalServerError, err
 		}
 		if storage == "memory" {
-			return flintnats.NewKVContextStore(mem), 0, nil
+			return loopzenats.NewKVContextStore(mem), 0, nil
 		}
-		return flintnats.NewKVContextStore(pers), 0, nil
+		return loopzenats.NewKVContextStore(pers), 0, nil
 
 	default:
 		return nil, http.StatusBadRequest, errors.New("invalid scope, must be 'global' or 'flow'")

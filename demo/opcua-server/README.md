@@ -1,6 +1,6 @@
-# Flint OPC UA Demo Server
+# LOOPZE OPC UA Demo Server
 
-Ein Node.js / `node-opcua` basierter OPC UA Server für das Testen der Flint
+Ein Node.js / `node-opcua` basierter OPC UA Server für das Testen der LOOPZE
 OPC-UA-Nodes (`opcua-server`, `opcua-read`, `opcua-subscribe`, `opcua-write`).
 
 Er stellt alle OPC-UA Security-Konzepte, Extension Objects (UDTs) und simulierte
@@ -22,7 +22,7 @@ npm start
 Der Server bindet standardmäßig auf:
 
 ```
-opc.tcp://localhost:4840/flint-demo
+opc.tcp://localhost:4840/loopze-demo
 ```
 
 Beim ersten Start wird automatisch ein Self-Signed Server-Zertifikat in
@@ -42,7 +42,7 @@ SecurityPolicies × SecurityModes. Default (siehe `config/default.yaml`):
 | Aes128_Sha256_RsaOaep      | Sign / SignAndEncrypt    |
 | Aes256_Sha256_RsaPss       | Sign / SignAndEncrypt    |
 
-So lässt sich **eine** Flint-Konfiguration durch alle Varianten testen, ohne
+So lässt sich **eine** LOOPZE-Konfiguration durch alle Varianten testen, ohne
 den Server umzustellen.
 
 ## Authentication
@@ -66,7 +66,7 @@ Die Demo-Rollen mappen auf die OPC UA WellKnownRoles (`Operator`, `Engineer`,
 
 ## Adressraum
 
-Alle Demo-Daten leben im Namespace `urn:flint:demo` (Namespace-Index `2`).
+Alle Demo-Daten leben im Namespace `urn:loopze:demo` (Namespace-Index `2`).
 
 ```
 Objects/
@@ -105,11 +105,11 @@ Objects/
 | `RecipeStepType`    | StepNo (UInt16), Duration (Double), Setpoint (Double) |
 | `RecipeType`        | Name (String), Version (UInt32), Steps (Array of `RecipeStepType`) |
 
-Jeder UDT-DataType-Knoten trägt eine `DataTypeDefinition`, sodass Flints
+Jeder UDT-DataType-Knoten trägt eine `DataTypeDefinition`, sodass LOOPZE's
 Type-Resolver die Felder automatisch erkennt und JSON ↔ ExtensionObject
 mappen kann.
 
-## Testszenarien für Flint
+## Testszenarien für LOOPZE
 
 ### 1. opcua-read · Scalars
 
@@ -122,7 +122,7 @@ werden gepusht, kleines Rauschen wird gefiltert.
 
 ### 3. opcua-read · ExtensionObject (Read-Pfad)
 
-NodeID: `ns=2;s=Demo.Structures.MotorStatus` – Flint sollte das als JSON-Objekt
+NodeID: `ns=2;s=Demo.Structures.MotorStatus` – LOOPZE sollte das als JSON-Objekt
 ausgeben (`{ Speed, Torque, FaultCode, Running, Mode }`) plus `structureType`,
 `structureName`.
 
@@ -160,17 +160,17 @@ npm run verify
 
 Liefert eine Zeile pro NodeID mit Statuscode und Wert (UDTs als JSON).
 
-### 6. Flint Backend-Tests
+### 6. LOOPZE Backend-Tests
 
 Die OPC-UA-Tests in `internal/nodes/opcua_*_test.go` aktivieren sich, wenn
-`FLINT_OPCUA_TEST_ENDPOINT` gesetzt ist:
+`LOOPZE_OPCUA_TEST_ENDPOINT` gesetzt ist:
 
 ```bash
 # Terminal 1
 cd demo/opcua-server && npm start
 
 # Terminal 2
-FLINT_OPCUA_TEST_ENDPOINT=opc.tcp://localhost:4840/flint-demo \
+LOOPZE_OPCUA_TEST_ENDPOINT=opc.tcp://localhost:4840/loopze-demo \
   go test ./internal/nodes/...
 ```
 
@@ -180,7 +180,7 @@ Die Default-Konfiguration ist in `config/default.yaml`. Eigene Konfig per
 Env-Variable:
 
 ```bash
-FLINT_OPCUA_DEMO_CONFIG=/path/to/my-config.yaml npm start
+LOOPZE_OPCUA_DEMO_CONFIG=/path/to/my-config.yaml npm start
 ```
 
 Wichtige Felder:
@@ -195,8 +195,8 @@ Wichtige Felder:
 ## Docker
 
 ```bash
-docker build -t flint-opcua-demo .
-docker run --rm -p 4840:4840 flint-opcua-demo
+docker build -t loopze-opcua-demo .
+docker run --rm -p 4840:4840 loopze-opcua-demo
 ```
 
 ## Troubleshooting

@@ -15,14 +15,14 @@ import (
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/debug"
 	"github.com/gopcua/opcua/ua"
-	"github.com/niceclouds/flint/internal/flow"
+	"github.com/niceclouds/loopze/internal/flow"
 )
 
-// init turns on gopcua's verbose debug logging when FLINT_OPCUA_DEBUG=1 is
+// init turns on gopcua's verbose debug logging when LOOPZE_OPCUA_DEBUG=1 is
 // set in the environment. The library prints to stderr; combined with our
 // own slog Debug level it gives a full request/response trace per session.
 func init() {
-	if os.Getenv("FLINT_OPCUA_DEBUG") != "" {
+	if os.Getenv("LOOPZE_OPCUA_DEBUG") != "" {
 		debug.Enable = true
 	}
 }
@@ -33,7 +33,7 @@ func init() {
 //
 // The underlying gopcua client owns the reconnect loop (AutoReconnect=true).
 // We subscribe to its state-change channel to translate ConnState into the
-// Flint status colour scheme and to broadcast it to every registered node.
+// LOOPZE status colour scheme and to broadcast it to every registered node.
 //
 // Implements flow.ConfigInstance.
 type OpcuaServer struct {
@@ -115,11 +115,11 @@ func NewOpcuaServer(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 
 	applicationURI, _ := props["applicationUri"].(string)
 	if applicationURI == "" {
-		applicationURI = "urn:flint:client"
+		applicationURI = "urn:loopze:client"
 	}
 	applicationName, _ := props["applicationName"].(string)
 	if applicationName == "" {
-		applicationName = "Flint OPC UA Client"
+		applicationName = "LOOPZE OPC UA Client"
 	}
 
 	sessionTimeout := 60 * time.Second
@@ -190,8 +190,8 @@ func OpcuaServerConfigTypeInfo() flow.ConfigTypeInfo {
 			"password":          "",
 			"clientCertFile":    "",
 			"clientKeyFile":     "",
-			"applicationUri":    "urn:flint:client",
-			"applicationName":   "Flint OPC UA Client",
+			"applicationUri":    "urn:loopze:client",
+			"applicationName":   "LOOPZE OPC UA Client",
 			"sessionTimeout":    60000,
 			"requestTimeout":    5000,
 			"keepaliveInterval": 10000,
@@ -202,7 +202,7 @@ func OpcuaServerConfigTypeInfo() flow.ConfigTypeInfo {
 
 // Start opens the OPC UA connection asynchronously: the gopcua client owns
 // the reconnect loop; we run a goroutine that translates ConnState into the
-// Flint status colour scheme and fires reconnect callbacks for nodes that
+// LOOPZE status colour scheme and fires reconnect callbacks for nodes that
 // need to recreate server-side state.
 func (s *OpcuaServer) Start() error {
 	s.mu.Lock()
@@ -378,7 +378,7 @@ func (s *OpcuaServer) setStatusLocked(fill, text string) {
 	}
 }
 
-// mapConnState turns a gopcua ConnState into a Flint (fill, text) pair.
+// mapConnState turns a gopcua ConnState into a LOOPZE (fill, text) pair.
 func mapConnState(state opcua.ConnState) (string, string) {
 	switch state {
 	case opcua.Connected:

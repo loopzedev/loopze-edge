@@ -247,7 +247,7 @@ liefert `msg.bytes` mit 44 Bytes.
     "counter": 1284,
     "pressure": 1.024,
     "setpoint": 200,
-    "tag": "FLINT-DEMO",
+    "tag": "LOOPZE-DEMO",
     "energy": 0.214
   },
   "modbus": { ... }

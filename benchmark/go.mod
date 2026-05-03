@@ -1,4 +1,4 @@
-module flintbench
+module loopzebench
 
 go 1.25.0
 

@@ -1,4 +1,4 @@
-module github.com/niceclouds/flint
+module github.com/niceclouds/loopze
 
 go 1.25.0
 

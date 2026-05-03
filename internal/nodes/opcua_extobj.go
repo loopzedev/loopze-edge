@@ -1,5 +1,5 @@
-// Copyright 2025 NiceClouds GmbH
-// Licensed under the Elastic License 2.0 (ELv2).
+// Copyright (C) 2026 Dennis Bleul
+// Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
 package nodes
@@ -114,7 +114,7 @@ func DecodeStructBinary(body []byte, def *StructDef) (map[string]any, error) {
 	return decodeStructIntoBuffer(buf, def)
 }
 
-// decodeStructIntoBuffer is the rekursionsfähige Variante: nested structs in
+// decodeStructIntoBuffer is the recursive variant: nested structs in
 // OPC UA's binary encoding are inlined (no length prefix), so they share a
 // single buffer with the parent.
 func decodeStructIntoBuffer(buf *ua.Buffer, def *StructDef) (map[string]any, error) {

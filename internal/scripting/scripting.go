@@ -1,5 +1,6 @@
-// Copyright 2025 NiceClouds GmbH
-// Licensed under the Elastic License 2.0 (ELv2).
+// Copyright (C) 2026 Dennis Bleul
+// Licensed under the GNU Affero General Public License v3.0 or later.
+// See LICENSE file for details.
 
 // Package scripting provides shared utilities for the three function-node
 // engines (Goja JS, expr, Yaegi Go). Each engine lives in its own sub-package

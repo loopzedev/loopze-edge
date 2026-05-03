@@ -1,5 +1,6 @@
-// Copyright 2024 NiceClouds GmbH. All rights reserved.
-// Licensed under the Elastic License 2.0 (ELv2).
+// Copyright (C) 2026 Dennis Bleul
+// Licensed under the GNU Affero General Public License v3.0 or later.
+// See LICENSE file for details.
 
 // Package flow implements the LOOPZE flow runtime engine and core types.
 package flow

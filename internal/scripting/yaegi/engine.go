@@ -1,5 +1,6 @@
-// Copyright 2025 NiceClouds GmbH
-// Licensed under the Elastic License 2.0 (ELv2).
+// Copyright (C) 2026 Dennis Bleul
+// Licensed under the GNU Affero General Public License v3.0 or later.
+// See LICENSE file for details.
 
 // Package yaegi wraps github.com/traefik/yaegi as the function-go node's
 // scripting engine. The user writes a `package main` with a `handle` function;

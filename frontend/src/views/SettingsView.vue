@@ -217,7 +217,40 @@ function handleReset(): void {
             <span class="text-terminal-text-dim w-28">Node Types</span>
             <span class="text-terminal-text">—</span>
           </div>
+          <div class="flex gap-4">
+            <span class="text-terminal-text-dim w-28">License</span>
+            <a
+              href="https://www.gnu.org/licenses/agpl-3.0.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-accent hover:underline"
+            >
+              AGPL-3.0-or-later
+            </a>
+          </div>
+          <div class="flex gap-4">
+            <span class="text-terminal-text-dim w-28">Source Code</span>
+            <a
+              href="https://github.com/loopzedev/loopze-edge"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-accent hover:underline"
+            >
+              github.com/loopzedev/loopze-edge
+            </a>
+          </div>
+          <div class="flex gap-4">
+            <span class="text-terminal-text-dim w-28">Copyright</span>
+            <span class="text-terminal-text">© 2026 Dennis Bleul</span>
+          </div>
         </div>
+
+        <p class="pl-4 mt-3 text-[10px] text-terminal-text-dim leading-relaxed max-w-prose">
+          LOOPZE is free software released under the GNU Affero General Public
+          License v3.0 or later. If you run a modified version on a server and
+          let users interact with it over a network, you must offer those users
+          the corresponding source code.
+        </p>
       </section>
     </div>
   </div>

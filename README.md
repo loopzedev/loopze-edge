@@ -106,14 +106,22 @@ All architectural decisions, technology choices, and design rationale are docume
 
 ## License
 
-LOOPZE is licensed under the [Elastic License 2.0 (ELv2)](LICENSE).
+LOOPZE is licensed under the [GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)](LICENSE).
 
-- ✅ Free to use for any purpose
-- ✅ Free to modify for internal use
-- ❌ Cannot provide LOOPZE as a managed service to third parties
-- ❌ Cannot remove or circumvent the license key functionality
+- ✅ Free to use, study, modify, and redistribute
+- ✅ Free for commercial and private internal use
+- ⚠️ Modifications and derivative works **must** be released under AGPL-3.0-or-later
+- ⚠️ If you run a modified version on a server and let users interact with it over a network,
+     you **must** offer those users the corresponding source code (AGPL § 13)
 
-**Licensor:** NiceClouds GmbH
+A copy of the license is included in [LICENSE](LICENSE); the copyright and
+source-availability notice is in [NOTICE](NOTICE).
+
+For use cases that are incompatible with AGPL (e.g. embedding LOOPZE into a
+proprietary product), a separate commercial license can be negotiated with the
+copyright holder.
+
+**Copyright © 2026 Dennis Bleul**
 
 ---
 

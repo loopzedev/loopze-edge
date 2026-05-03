@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-05-03
+
+### Added
+- **Reverse-proxy friendliness.** The runtime is now production-ready behind nginx, Caddy, Traefik & co.:
+  - `--base-path` / `LOOPZE_BASE_PATH` mounts the entire app (UI, API, WebSocket) under a configurable URL prefix (e.g. `/loopze`) without rebuilding the frontend. The backend injects a `<base href>` and a `window.__LOOPZE_BASE__` global into `index.html` at request time; the SPA reads them to derive Vue-Router base, API URLs and WebSocket URL.
+  - `--trusted-proxies` / `LOOPZE_TRUSTED_PROXIES` — CIDR/IP allowlist whose `Forwarded` (RFC 7239), `X-Forwarded-For`, `X-Real-IP` headers are honoured. Default empty means "trust no upstream", so spoofed headers from the open internet are ignored.
+  - `--trusted-origins` / `LOOPZE_TRUSTED_ORIGINS` — WebSocket origin allowlist with `*.example.com` wildcard support. Default falls back to same-origin.
+- **CSRF protection on the REST API** via the double-submit-cookie pattern. A random `loopze_csrf` token is issued on every request; mutating methods (POST/PUT/PATCH/DELETE) must echo it back as `X-CSRF-Token`. The SPA does this automatically.
+- `/health` endpoint is now reachable both at the root (`/health`) and under the configured base path (`/<basepath>/health`), so probe configuration stays simple.
+- Startup log line now includes the configured base path.
+
+### Changed
+- `Secure` attribute on session and CSRF cookies is now decided **per request** based on `r.TLS != nil` or `X-Forwarded-Proto: https`. This removes the boot-time choice between secure and insecure cookies — the same binary works on `http://localhost`, in a LAN over plain HTTP, and behind a TLS-terminating proxy without configuration.
+- WebSocket `CheckOrigin` is no longer permissive; it enforces same-origin (default) or the configured origin allowlist.
+- Frontend asset URLs are now relative (`base: './'` in Vite + relative `<link>`/`<script>` hrefs in `index.html`), so `<base href>` rewriting works correctly under any subpath.
+- `flowStore.deploy()` now goes through the central `useApi` request helper (was a raw `fetch` that bypassed the CSRF header).
+
+### Removed
+- `--auth-insecure-cookies` flag and `LOOPZE_AUTH_INSECURE_COOKIES` env var. Replaced by per-request scheme detection (see above).
+
+## [0.0.2] - 2026-05-03
+
+### Added
+- `--version` / `-v` flag: prints version, commit hash and build time, then exits.
+- ASCII-art startup banner showing version and commit, printed before the structured logger is wired up.
+
+### Changed
+- Embedded NATS broker logs at debug level (was info), so default-level output stays focused on application events.
+- CI workflow (`.github/workflows/ci.yml`) triggers tightened; release archives now disambiguate ARM v6/v7 by name.
+- CI runs the Go race detector; `DelayNode` status update locking fixed accordingly.
+
+## [0.0.1] - 2026-05-03
+
+Initial public release.
+
 ### Changed
 - **License: relicensed from Elastic License 2.0 (ELv2) to AGPL-3.0-or-later.** Strong copyleft + § 13 (SaaS clause) prevents embedding into proprietary products. Copyright transferred to Dennis Bleul personally.
 - All Go source-file headers updated to the new license.

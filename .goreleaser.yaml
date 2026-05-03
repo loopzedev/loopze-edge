@@ -1,0 +1,90 @@
+version: 2
+
+project_name: loopze-edge
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: loopze
+    main: ./cmd/loopze
+    binary: loopze
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - '386'
+    goarm:
+      - '6'
+      - '7'
+    ignore:
+      - goos: darwin
+        goarch: '386'
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/loopzedev/loopze-edge/internal/config.Version={{.Version}}
+      - -X github.com/loopzedev/loopze-edge/internal/config.Commit={{.ShortCommit}}
+      - -X github.com/loopzedev/loopze-edge/internal/config.BuildTime={{.Date}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))?!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))?!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  draft: false
+  prerelease: auto
+  header: |
+    ## LOOPZE Edge {{ .Tag }}
+
+    Industrial flow automation runtime — single binary with embedded Vue 3 editor.
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/loopzedev/loopze-edge/compare/{{ .PreviousTag }}...{{ .Tag }}

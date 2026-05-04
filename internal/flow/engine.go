@@ -114,7 +114,14 @@ type Engine struct {
 	errorListenerSeq uint64
 	errorListeners   map[uint64]ErrorListenerFunc
 
-	running      bool
+	// HTTP flow-endpoint integration. Nil when no server is configured
+	// (e.g. unit tests of the engine). responseRegistry is engine-owned
+	// so handles survive Link-Out → Link-In hops across flows.
+	responseRegistry *ResponseRegistry
+	httpMuxBuilder   HTTPMuxBuilder
+	httpRoot         string
+
+	running bool
 }
 
 // NewEngine creates a new flow runtime engine with the given configuration
@@ -127,9 +134,10 @@ func NewEngine(cfg *config.Config) *Engine {
 		nodes:           make(map[string]*runningNode),
 		wires:           make(map[string][][]string),
 		linkRegistry:    make(map[string]*runningNode),
-		statusCache:     statusCache{entries: make(map[string]StatusMessage)},
-		statusListeners: make(map[uint64]StatusListenerFunc),
-		errorListeners:  make(map[uint64]ErrorListenerFunc),
+		statusCache:      statusCache{entries: make(map[string]StatusMessage)},
+		statusListeners:  make(map[uint64]StatusListenerFunc),
+		errorListeners:   make(map[uint64]ErrorListenerFunc),
+		responseRegistry: NewResponseRegistry(),
 	}
 }
 
@@ -166,6 +174,24 @@ func (e *Engine) Registry() *NodeRegistry {
 	return e.registry
 }
 
+// SetHTTPMuxBuilder wires the engine to the server-owned flow-endpoint
+// mux. The builder is invoked once per deploy with the route specs
+// collected from every HTTPInProvider node; it atomically swaps the
+// live route table and reports any conflicts. root is the configured
+// URL prefix (e.g. "/endpoint") and is forwarded to HTTPMuxProvider
+// nodes for use in status text. Must be called before Deploy.
+func (e *Engine) SetHTTPMuxBuilder(builder HTTPMuxBuilder, root string) {
+	e.httpMuxBuilder = builder
+	e.httpRoot = root
+}
+
+// ResponseRegistry returns the engine-owned response registry. The
+// server uses this to publish slot lifecycle events; tests use it to
+// inspect slot counts. Always non-nil.
+func (e *Engine) ResponseRegistry() *ResponseRegistry {
+	return e.responseRegistry
+}
+
 // Start initialises the engine and prepares it for flow deployment.
 // It does not deploy any flows — call Deploy() to activate flows.
 func (e *Engine) Start() error {
@@ -181,6 +207,12 @@ func (e *Engine) Start() error {
 	)
 
 	e.running = true
+
+	// Start the response-registry sweeper so http-in slots can be
+	// reaped on timeout. No-op if Run has already been called.
+	if e.responseRegistry != nil {
+		e.responseRegistry.Run()
+	}
 
 	slog.Info("flow engine started")
 	return nil
@@ -200,6 +232,18 @@ func (e *Engine) Stop() error {
 	slog.Info("flow engine stopping", "active_nodes", len(e.nodes))
 
 	e.stopAllNodes()
+
+	// Cancel any HTTP routes still registered with the server-side mux,
+	// drain in-flight slots with a 503, and stop the sweeper. Order:
+	// swap to an empty router first so new requests get a 404, then
+	// drain so any handler still blocked on <-done returns immediately.
+	if e.httpMuxBuilder != nil {
+		_ = e.httpMuxBuilder(nil)
+	}
+	if e.responseRegistry != nil {
+		e.responseRegistry.DrainAll()
+		e.responseRegistry.Stop()
+	}
 
 	e.running = false
 	e.flows = nil
@@ -271,6 +315,7 @@ func (e *Engine) deployFull(flows []Flow, configs []ConfigNode) error {
 	// Wire and start all nodes.
 	e.wireAllNodes()
 	e.startAllNodeLoops()
+	e.rebuildHTTPMux()
 
 	e.flows = flows
 	e.configs = configs
@@ -353,6 +398,7 @@ func (e *Engine) deployModifiedFlows(flows []Flow, configs []ConfigNode) error {
 	// Rewire all nodes (including unchanged ones whose targets may have been replaced).
 	e.wireAllNodes()
 	e.startAllNodeLoops()
+	e.rebuildHTTPMux()
 
 	e.flows = flows
 	e.configs = configs
@@ -445,6 +491,8 @@ func (e *Engine) deployModifiedNodes(flows []Flow, configs []ConfigNode) error {
 		}
 		go e.nodeLoop(nodeID, rn)
 	}
+
+	e.rebuildHTTPMux()
 
 	e.flows = flows
 	e.configs = configs
@@ -606,6 +654,56 @@ func (e *Engine) wireAllNodes() {
 			elp.SetErrorListener(e.registerErrorListener)
 		}
 	}
+
+	// Inject the response registry and configured prefix into HTTP
+	// nodes (http-in for slot registration; http-response for slot
+	// resolution). When the engine has no response registry (defensive,
+	// it normally always has one), nodes still receive nil and can
+	// no-op — but that's an unsupported deployment.
+	for _, rn := range e.nodes {
+		if hp, ok := rn.instance.(HTTPMuxProvider); ok {
+			hp.SetHTTPMux(e.responseRegistry, e.httpRoot)
+		}
+	}
+}
+
+// rebuildHTTPMux collects the HTTP route specs from every HTTPInProvider
+// node and asks the server's builder to atomically swap the live route
+// table. After the swap, any in-flight request slots from the previous
+// route table are drained with a 503 so blocked handlers return.
+//
+// No-op when no builder has been injected (engine-only unit tests).
+func (e *Engine) rebuildHTTPMux() {
+	if e.httpMuxBuilder == nil {
+		return
+	}
+
+	specs := make([]HTTPRouteSpec, 0)
+	for nodeID, rn := range e.nodes {
+		hp, ok := rn.instance.(HTTPInProvider)
+		if !ok {
+			continue
+		}
+		spec := hp.HTTPRoute()
+		spec.NodeID = nodeID
+		specs = append(specs, spec)
+	}
+
+	conflicts := e.httpMuxBuilder(specs)
+
+	// Drain in-flight slots from the previous route table so any
+	// handlers still blocked on <-done return with a 503.
+	if e.responseRegistry != nil {
+		e.responseRegistry.DrainAll()
+	}
+
+	for _, c := range conflicts {
+		rn, ok := e.nodes[c.NodeID]
+		if !ok || rn.errorFn == nil {
+			continue
+		}
+		rn.errorFn(fmt.Errorf("http-in route conflict: %s", c.Reason), nil)
+	}
 }
 
 // startAllNodeLoops starts a goroutine for every node whose goroutine
@@ -676,6 +774,9 @@ func (e *Engine) stopAndRemoveNodes(nodeIDs []string) {
 	// Step 2: rewire the remaining nodes so their cached SendFuncs forget
 	// the removed targets. After this, no SendFunc resolves to a removed node.
 	e.wireAllNodes()
+
+	// Refresh the flow-endpoint mux so removed http-in routes go away.
+	e.rebuildHTTPMux()
 
 	// Step 3: stop instances — terminates source goroutines (Inject tickers,
 	// MQTT subscribers, …) so nothing new is enqueued anywhere.

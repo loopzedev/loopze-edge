@@ -24,6 +24,26 @@ func TestNormalizeBasePath(t *testing.T) {
 	}
 }
 
+func TestNormalizeHTTPNodeRoot(t *testing.T) {
+	tests := map[string]string{
+		"":              "/endpoint",
+		"/":             "/endpoint",
+		"  ":            "/endpoint",
+		"endpoint":      "/endpoint",
+		"/endpoint":     "/endpoint",
+		"/endpoint/":    "/endpoint",
+		"/hooks":        "/hooks",
+		"/public/api/":  "/public/api",
+		"  /hooks  ":    "/hooks",
+		"//":            "/endpoint",
+	}
+	for in, want := range tests {
+		if got := NormalizeHTTPNodeRoot(in); got != want {
+			t.Errorf("NormalizeHTTPNodeRoot(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestSplitCSV(t *testing.T) {
 	tests := map[string][]string{
 		"":                          nil,

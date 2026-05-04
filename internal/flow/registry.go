@@ -4,7 +4,10 @@
 
 package flow
 
-import "sync"
+import (
+	"net/http"
+	"sync"
+)
 
 // SendFunc is a callback that nodes use to asynchronously send messages
 // to a specific output port. The engine provides this function via SetSend
@@ -102,6 +105,54 @@ type ErrorListenerProvider interface {
 // HandleMessage has returned). The engine injects the callback during wiring.
 type ErrorProvider interface {
 	SetError(fn ErrorFunc)
+}
+
+// HTTPRouteSpec is one route an http-in node wants to expose under the
+// flow-endpoint prefix. The engine collects these from every
+// HTTPInProvider node after wireAllNodes and hands them to the
+// server-supplied HTTPMuxBuilder for atomic publication.
+//
+// Method may be a concrete verb ("GET", "POST", …) or "*" / "" for
+// any-verb. Path is chi-style (must start with "/"; supports ":name"
+// params and "*" catch-all). Handler is invoked by the flow-endpoint
+// router for every matching request.
+type HTTPRouteSpec struct {
+	NodeID  string
+	Method  string
+	Path    string
+	Handler http.HandlerFunc
+}
+
+// HTTPRouteConflict reports a spec that the builder could not install
+// (typically a duplicate method+path pair). The engine surfaces these
+// to the affected nodes via their errorFn so they can flag themselves
+// red without a hard deploy failure.
+type HTTPRouteConflict struct {
+	NodeID string
+	Method string
+	Path   string
+	Reason string
+}
+
+// HTTPMuxBuilder is provided by the server to the engine. The engine
+// invokes it once per deploy with the full set of route specs; the
+// builder atomically swaps the live flow-endpoint route table and
+// returns any conflicts it dropped.
+type HTTPMuxBuilder func(specs []HTTPRouteSpec) []HTTPRouteConflict
+
+// HTTPInProvider is implemented by nodes that contribute one route to
+// the flow-endpoint mux (typically the http-in node). The engine calls
+// HTTPRoute() once per deploy after wireAllNodes.
+type HTTPInProvider interface {
+	HTTPRoute() HTTPRouteSpec
+}
+
+// HTTPMuxProvider is implemented by nodes that need the engine-owned
+// response registry and the configured flow-endpoint prefix. http-in
+// uses both (registry to register live request slots; root for status
+// text). http-response only uses the registry to resolve handles.
+type HTTPMuxProvider interface {
+	SetHTTPMux(registry *ResponseRegistry, root string)
 }
 
 // DebugFunc is a callback that nodes use to emit debug messages.

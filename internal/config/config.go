@@ -90,6 +90,13 @@ type Config struct {
 	// any subdomain. Empty falls back to same-origin checks against the
 	// request Host header.
 	TrustedOrigins []string
+
+	// HTTPNodeRoot is the URL prefix under which flow-defined HTTP
+	// endpoints (http-in nodes) are mounted. Routes here bypass auth and
+	// CSRF — the user is responsible for any in-flow authentication.
+	// Must start with "/" and must not be empty or a bare "/" (that
+	// would collide with the management UI). Default: "/endpoint".
+	HTTPNodeRoot string
 }
 
 // Build-time variables injected via ldflags.
@@ -113,6 +120,7 @@ const (
 	defaultLogLevel        = "info"
 	defaultLogBufferSize   = 1000
 	defaultSessionTTL      = 12 * time.Hour
+	defaultHTTPNodeRoot    = "/endpoint"
 
 	envPrefix = "LOOPZE_"
 )
@@ -139,6 +147,7 @@ func Load() *Config {
 	flag.BoolVar(&cfg.ShowVersion, "version", false, "print version information and exit")
 	flag.BoolVar(&cfg.ShowVersion, "v", false, "print version information and exit (shorthand)")
 	flag.StringVar(&cfg.BasePath, "base-path", "", "URL prefix the app is served under (e.g. /loopze); empty for root")
+	flag.StringVar(&cfg.HTTPNodeRoot, "http-node-root", defaultHTTPNodeRoot, "URL prefix for flow-defined HTTP endpoints (must not be empty or '/')")
 	var trustedProxies, trustedOrigins string
 	flag.StringVar(&trustedProxies, "trusted-proxies", "", "comma-separated CIDRs/IPs whose X-Forwarded-* headers are honoured")
 	flag.StringVar(&trustedOrigins, "trusted-origins", "", "comma-separated WebSocket origins to accept (e.g. https://app.example.com); empty = same-origin only")
@@ -156,6 +165,7 @@ func Load() *Config {
 	}
 
 	cfg.BasePath = NormalizeBasePath(cfg.BasePath)
+	cfg.HTTPNodeRoot = NormalizeHTTPNodeRoot(cfg.HTTPNodeRoot)
 
 	return cfg
 }
@@ -173,6 +183,25 @@ func NormalizeBasePath(p string) string {
 		p = "/" + p
 	}
 	p = strings.TrimRight(p, "/")
+	return p
+}
+
+// NormalizeHTTPNodeRoot cleans the flow-endpoint mount prefix to the form
+// "/segment[/segment...]" with no trailing slash. Empty / bare "/" inputs
+// fall back to the default ("/endpoint") because mounting flow endpoints
+// at the root would collide with the management UI and frontend SPA.
+func NormalizeHTTPNodeRoot(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" || p == "/" {
+		return defaultHTTPNodeRoot
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	p = strings.TrimRight(p, "/")
+	if p == "" {
+		return defaultHTTPNodeRoot
+	}
 	return p
 }
 
@@ -246,6 +275,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v, ok := getenv("BASE_PATH"); ok && !flagProvided("base-path") {
 		cfg.BasePath = v
+	}
+	if v, ok := getenv("HTTP_NODE_ROOT"); ok && !flagProvided("http-node-root") {
+		cfg.HTTPNodeRoot = v
 	}
 	if v, ok := getenv("TRUSTED_PROXIES"); ok && !flagProvided("trusted-proxies") {
 		cfg.TrustedProxies = splitCSV(v)

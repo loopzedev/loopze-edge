@@ -79,6 +79,11 @@ type Server struct {
 	// proxyChecker decides which TCP peers are allowed to set
 	// X-Forwarded-* headers. Empty allowlist disables header rewriting.
 	proxyChecker *trustedProxyChecker
+
+	// flowEndpointMux holds the live route table for HTTP endpoints
+	// defined by http-in flow nodes. The router is rebuilt and
+	// atomically swapped on every engine deploy.
+	flowEndpointMux *FlowEndpointMux
 }
 
 // New creates a new Server with the given configuration. It sets up the Chi
@@ -145,18 +150,28 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	}
 
 	s := &Server{
-		router:       chi.NewRouter(),
-		cfg:          cfg,
-		engine:       engine,
-		hub:          ws.NewHub(cfg.TrustedOrigins),
-		broker:       broker,
-		store:        store,
-		logBuffer:    logBuffer,
-		users:        users,
-		sessions:     sessions,
-		authMW:       authMW,
-		proxyChecker: proxyChecker,
+		router:          chi.NewRouter(),
+		cfg:             cfg,
+		engine:          engine,
+		hub:             ws.NewHub(cfg.TrustedOrigins),
+		broker:          broker,
+		store:           store,
+		logBuffer:       logBuffer,
+		users:           users,
+		sessions:        sessions,
+		authMW:          authMW,
+		proxyChecker:    proxyChecker,
+		flowEndpointMux: NewFlowEndpointMux(),
 	}
+
+	// Wire the engine to the flow-endpoint mux so http-in nodes can
+	// register routes on every deploy. The closure adapts the chi-free
+	// flow.HTTPRouteSpec to the server-internal RouteSpec, swaps the
+	// router atomically, and translates any conflicts back into the
+	// engine-facing form.
+	engine.SetHTTPMuxBuilder(func(specs []flow.HTTPRouteSpec) []flow.HTTPRouteConflict {
+		return s.swapFlowEndpointRoutes(specs)
+	}, cfg.HTTPNodeRoot)
 
 	s.setupMiddleware()
 	s.setupRoutes()
@@ -206,8 +221,48 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(middleware.Recoverer)
 }
 
+// swapFlowEndpointRoutes is the engine-facing builder closure. It
+// translates flow.HTTPRouteSpec into the server's RouteSpec, asks the
+// FlowEndpointMux to atomically replace its current router, and
+// translates any returned conflicts back so the engine can route them
+// to the affected nodes' errorFn.
+func (s *Server) swapFlowEndpointRoutes(specs []flow.HTTPRouteSpec) []flow.HTTPRouteConflict {
+	if s.flowEndpointMux == nil {
+		return nil
+	}
+	internal := make([]RouteSpec, len(specs))
+	for i, sp := range specs {
+		internal[i] = RouteSpec{
+			NodeID:  sp.NodeID,
+			Method:  sp.Method,
+			Path:    sp.Path,
+			Handler: sp.Handler,
+		}
+	}
+	conflicts := s.flowEndpointMux.Swap(internal)
+	if len(conflicts) == 0 {
+		return nil
+	}
+	out := make([]flow.HTTPRouteConflict, len(conflicts))
+	for i, c := range conflicts {
+		out[i] = flow.HTTPRouteConflict{
+			NodeID: c.Spec.NodeID,
+			Method: c.Spec.Method,
+			Path:   c.Spec.Path,
+			Reason: c.Reason,
+		}
+	}
+	return out
+}
+
 // setupRoutes configures all HTTP routes: API endpoints, WebSocket, and frontend.
 func (s *Server) setupRoutes() {
+	// Mount the flow-endpoint mux BEFORE the management routes so its
+	// reduced middleware (no auth, no CSRF) cannot accidentally inherit
+	// any session/CSRF guard. Routes here are deliberately public — the
+	// flow author is responsible for any in-flow authentication.
+	s.router.Mount(s.cfg.HTTPNodeRoot, s.flowEndpointMux)
+
 	// Mount REST API routes under /api/v1/.
 	deps := &api.Deps{
 		Engine:    s.engine,

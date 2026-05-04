@@ -52,3 +52,10 @@ Thumbs.db
 
 # Debug logs
 *.log
+
+# mkdocs build output and venv
+/site/
+/.venv-docs/
+
+# Ignore Claude config
+/.claude/

@@ -1,0 +1,126 @@
+site_name: LOOPZE Docs
+site_description: LOOPZE — Industrial Flow Automation. Documentation, references and how-tos.
+site_url: https://docs.loopze.dev
+site_author: Dennis Bleul
+
+repo_url: https://github.com/loopzedev/loopze-edge
+repo_name: loopzedev/loopze-edge
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2026 Dennis Bleul
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/favicon.ico
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+    - toc.follow
+  # Dark-only — matches the LOOPZE app and loopze.dev marketing site.
+  palette:
+    scheme: slate
+    primary: custom
+    accent: custom
+  font:
+    text: Inter
+    code: IBM Plex Mono
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/loopze.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+# Internal planning notes that live alongside user-facing docs are excluded
+# from the published site. Keep them in the repo for development context.
+exclude_docs: |
+  FEATURES.md
+  MISSING_FUNCTIONALITY.md
+  issues/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/installation.md
+      - getting-started/quickstart.md
+      - getting-started/concepts.md
+  - Nodes:
+      - nodes/index.md
+  - Scripting:
+      - scripting/index.md
+  - Deployment:
+      - deployment/index.md
+  - Reference:
+      - reference/cli.md
+      - reference/architecture.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/loopzedev/loopze-edge
+    - icon: fontawesome/solid/globe
+      link: https://loopze.dev
+
+  # ─── Versioned docs (inactive) ──────────────────────────────────────────
+  # `mike` is installed via docs/requirements.txt but not yet wired up.
+  # To activate multi-version docs:
+  #
+  #   1. Uncomment the `version:` block below — Material then renders a
+  #      version selector dropdown in the header.
+  #   2. In the GitHub repo Settings → Pages, switch the Source from
+  #      "GitHub Actions" to "Deploy from a branch" → branch `gh-pages`.
+  #   3. Disable the current .github/workflows/docs.yml (rename to
+  #      `docs.yml.disabled`) and enable the template at
+  #      `.github/workflows/docs-versioned.yml.disabled` (rename it to
+  #      `docs-versioned.yml`). That workflow uses `mike` to push each
+  #      release tag as its own versioned subfolder on `gh-pages`.
+  #   4. First-time bootstrap from a developer machine:
+  #        make docs-deploy VERSION=0.5 ALIAS=latest
+  #        make docs-set-default VERSION=latest
+  #
+  # version:
+  #   provider: mike
+  #   default: latest

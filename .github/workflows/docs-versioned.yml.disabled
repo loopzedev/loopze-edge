@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Versioned docs deployment via `mike` — INACTIVE TEMPLATE.
+#
+# To activate:
+#   1. Rename this file:    docs-versioned.yml.disabled → docs-versioned.yml
+#   2. Disable the single-version workflow:
+#                           docs.yml → docs.yml.disabled
+#   3. Repo Settings → Pages → Source: "Deploy from a branch" → gh-pages
+#   4. Uncomment the `version:` block in mkdocs.yml under `extra.version`.
+#   5. Bootstrap once from a developer machine:
+#         make docs-deploy VERSION=0.5 ALIAS=latest
+#         make docs-set-default VERSION=latest
+#
+# After that, every push of a `v*` tag publishes a new version, and every
+# push to main updates a rolling `dev` build.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Docs (versioned)
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs-versioned.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label (e.g. 0.5)"
+        required: true
+      alias:
+        description: "Alias to set (e.g. latest) — leave empty for none"
+        required: false
+        default: ""
+
+permissions:
+  contents: write   # mike needs to push to gh-pages
+
+concurrency:
+  group: docs-versioned
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Configure git for mike
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Determine version label and alias
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "alias=${{ inputs.alias }}"      >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            # v0.5.1 → version label "0.5" (minor-version granularity)
+            tag="${GITHUB_REF#refs/tags/v}"
+            ver="${tag%.*}"
+            echo "version=${ver}" >> "$GITHUB_OUTPUT"
+            echo "alias=latest"   >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+            echo "alias="      >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy with mike
+        run: |
+          set -euo pipefail
+          if [ -n "${{ steps.ver.outputs.alias }}" ]; then
+            mike deploy --push --update-aliases \
+              "${{ steps.ver.outputs.version }}" \
+              "${{ steps.ver.outputs.alias }}"
+          else
+            mike deploy --push "${{ steps.ver.outputs.version }}"
+          fi

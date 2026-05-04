@@ -96,6 +96,78 @@ demo-modbus:
 	@echo "▸ Starting Modbus TCP demo on :5502…"
 	$(GO) run ./demo/modbus-server -listen :5502 -v
 
+# ─── Documentation ───────────────────────────────────────────────────────────
+
+DOCS_VENV := .venv-docs
+DOCS_BIN  := $(DOCS_VENV)/bin/mkdocs
+DOCS_PORT ?= 8001
+
+$(DOCS_BIN): docs/requirements.txt
+	@echo "▸ Setting up docs venv at $(DOCS_VENV)…"
+	@if ! command -v python3 >/dev/null 2>&1; then \
+		echo "⚠ python3 not found. Install Python 3.10+."; exit 1; \
+	fi
+	@python3 -m venv $(DOCS_VENV) 2>/dev/null || { \
+		echo "⚠ Failed to create venv. On Debian/Ubuntu: sudo apt install python3-venv"; \
+		exit 1; \
+	}
+	@$(DOCS_VENV)/bin/pip install --quiet --upgrade pip
+	@$(DOCS_VENV)/bin/pip install --quiet -r docs/requirements.txt
+	@touch $(DOCS_BIN)
+
+## docs-install: Install mkdocs-material into a local venv (.venv-docs/)
+.PHONY: docs-install
+docs-install: $(DOCS_BIN)
+	@echo "▸ Docs toolchain ready."
+
+## docs-serve: Serve the docs locally with live reload (override port: DOCS_PORT=9000)
+.PHONY: docs-serve
+docs-serve: $(DOCS_BIN)
+	@echo "▸ Serving docs at http://localhost:$(DOCS_PORT) (Ctrl-C to stop)…"
+	@$(DOCS_VENV)/bin/mkdocs serve --dev-addr 127.0.0.1:$(DOCS_PORT)
+
+## docs-build: Build the static documentation site into site/
+.PHONY: docs-build
+docs-build: $(DOCS_BIN)
+	@echo "▸ Building docs into site/…"
+	@$(DOCS_VENV)/bin/mkdocs build --strict
+	@echo "▸ Done. Output: site/"
+
+## docs-clean: Remove the built docs (site/) and the docs venv (.venv-docs/)
+.PHONY: docs-clean
+docs-clean:
+	@echo "▸ Cleaning docs build output and venv…"
+	@rm -rf site $(DOCS_VENV)
+	@echo "▸ Done."
+
+# ─── Versioned docs (mike) ────────────────────────────────────────────────
+# Inactive by default — see the comment in mkdocs.yml under `extra.version`
+# for how to switch from single-version to multi-version mode.
+
+## docs-deploy: Push a versioned docs build to gh-pages (e.g. VERSION=0.5 ALIAS=latest)
+.PHONY: docs-deploy
+docs-deploy: $(DOCS_BIN)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "⚠ Set VERSION, e.g. make docs-deploy VERSION=0.5 ALIAS=latest"; \
+		exit 1; \
+	fi
+	@echo "▸ Deploying docs version $(VERSION)$(if $(ALIAS), (alias: $(ALIAS)))…"
+	@$(DOCS_VENV)/bin/mike deploy --push --update-aliases $(VERSION) $(ALIAS)
+
+## docs-versions: List deployed documentation versions on gh-pages
+.PHONY: docs-versions
+docs-versions: $(DOCS_BIN)
+	@$(DOCS_VENV)/bin/mike list
+
+## docs-set-default: Set the default version visitors land on (e.g. VERSION=latest)
+.PHONY: docs-set-default
+docs-set-default: $(DOCS_BIN)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "⚠ Set VERSION, e.g. make docs-set-default VERSION=latest"; \
+		exit 1; \
+	fi
+	@$(DOCS_VENV)/bin/mike set-default --push $(VERSION)
+
 # ─── Cross Compilation ───────────────────────────────────────────────────────
 
 PLATFORMS := \

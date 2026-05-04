@@ -1,0 +1,5 @@
+mkdocs-material>=9.5.0,<10.0.0
+
+# Versioned-docs support (kept installed, but inactive until activated —
+# see comments in mkdocs.yml under `extra.version`).
+mike>=2.1.0,<3.0.0

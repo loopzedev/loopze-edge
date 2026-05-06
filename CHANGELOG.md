@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **HTTP nodes** — `http-in`, `http-response`, and `http-request`, enabling flows to act as HTTP endpoints (webhooks, REST APIs) and to call external HTTP services:
+  - `http-in` registers a route (method + path) on the flow endpoint mux. Supports path parameters, query strings, and configurable body parsing.
+  - `http-response` writes the reply for a matching `http-in` request, with at-most-once semantics enforced by a `ResponseRegistry` (`sync.Once` per handle, deadline sweeper, and `DrainAll` on engine shutdown / redeploy).
+  - `http-request` performs outbound HTTP calls with configurable method, headers, body, and timeout.
+  - Frontend config panels for all three node types and FlowEditor rendering with method/path/status badges.
+- **Flow endpoint mux.** `FlowEndpointMux` in `internal/server` is backed by `atomic.Pointer[chi.Router]`: in-flight handlers continue on the captured pointer while new requests hit the post-swap router. Detects (method, path) conflicts at deploy time and reports both sides via `errorFn`.
+- **`/endpoint` mount.** The configured HTTP node root (`/endpoint` by default, configurable via `--http-node-root` / `LOOPZE_HTTP_NODE_ROOT`) is mounted before `/api/v1` with no auth and no CSRF, so flow-defined HTTP endpoints can act as public webhooks.
+- **Documentation site.** New `docs/` tree built with MkDocs Material, served from a custom domain via GitHub Pages. Includes getting-started guide, node reference, architecture notes, and deployment guide. Makefile targets (`docs-build`, `docs-serve`, versioned deploy) and a `.github/workflows/docs.yml` workflow.
+
+### Changed
+- Engine rebuilds the flow endpoint mux after every `wireAllNodes` call (deploy, partial deploy, node removal); the registry is drained on `Stop`.
+- Internal node/feature specifications moved from `docs/issues/` to `specifications/issues/` so the public docs tree only contains user-facing content.
+
 ## [0.0.3] - 2026-05-03
 
 ### Added

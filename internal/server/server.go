@@ -564,6 +564,9 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())
 	registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
 	registry.Register("template", nodes.NewTemplateNode, nodes.TemplateTypeInfo())
+	registry.Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
+	registry.Register("http-response", nodes.NewHTTPResponseNode, nodes.HTTPResponseTypeInfo())
+	registry.Register("http-request", nodes.NewHTTPRequestNode, nodes.HTTPRequestTypeInfo())
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())

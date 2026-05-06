@@ -140,11 +140,22 @@ type HTTPRouteConflict struct {
 // returns any conflicts it dropped.
 type HTTPMuxBuilder func(specs []HTTPRouteSpec) []HTTPRouteConflict
 
-// HTTPInProvider is implemented by nodes that contribute one route to
-// the flow-endpoint mux (typically the http-in node). The engine calls
-// HTTPRoute() once per deploy after wireAllNodes.
+// HTTPInProvider is implemented by nodes that contribute one or more
+// routes to the flow-endpoint mux (typically the http-in node, which
+// may register a second OPTIONS route for CORS preflight). The engine
+// calls HTTPRoutes() once per deploy after wireAllNodes.
 type HTTPInProvider interface {
-	HTTPRoute() HTTPRouteSpec
+	HTTPRoutes() []HTTPRouteSpec
+}
+
+// HTTPInConflictReporter is an optional companion interface a node can
+// implement to receive a callback when one of its routes was rejected
+// at mux build time (typically a duplicate method+path with another
+// node). Nodes use this to flip their status to red. The engine still
+// also dispatches the conflict via the standard ErrorFunc pipeline so
+// it surfaces in the debug stream and to Catch nodes.
+type HTTPInConflictReporter interface {
+	OnHTTPRouteConflict(reason string)
 }
 
 // HTTPMuxProvider is implemented by nodes that need the engine-owned

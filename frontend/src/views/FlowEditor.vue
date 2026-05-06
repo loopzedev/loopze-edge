@@ -343,15 +343,58 @@ onMounted(async () => {
             </template>
 
             <template #node-http-in="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="http-in"
+                    :selected="nodeProps.selected"
+                    :inputs="0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${(nodeProps.data?.config?.method || 'GET')} ${nodeProps.data?.config?.path || '/'}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-http-response="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="http-response"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{ nodeProps.data?.config?.statusCode ?? 200 }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-http-request="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="http-request"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${(nodeProps.data?.config?.method || 'GET')} ${nodeProps.data?.config?.url || ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-mqtt-in="nodeProps">

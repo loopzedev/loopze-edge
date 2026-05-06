@@ -29,6 +29,9 @@ import StatusConfig from '@/components/config/StatusConfig.vue'
 import CatchConfig from '@/components/config/CatchConfig.vue'
 import TemplateConfig from '@/components/config/TemplateConfig.vue'
 import JSONParserConfig from '@/components/config/JSONParserConfig.vue'
+import HttpInConfig from '@/components/config/HttpInConfig.vue'
+import HttpResponseConfig from '@/components/config/HttpResponseConfig.vue'
+import HttpRequestConfig from '@/components/config/HttpRequestConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 import { getNodeSummary } from '@/components/help'
@@ -283,6 +286,9 @@ function onResizeEnd() {
               <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
               <TemplateConfig v-else-if="selectedNode?.type === 'template'" />
               <JSONParserConfig v-else-if="selectedNode?.type === 'json'" />
+              <HttpInConfig v-else-if="selectedNode?.type === 'http-in'" />
+              <HttpResponseConfig v-else-if="selectedNode?.type === 'http-response'" />
+              <HttpRequestConfig v-else-if="selectedNode?.type === 'http-request'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

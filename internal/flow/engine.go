@@ -684,9 +684,10 @@ func (e *Engine) rebuildHTTPMux() {
 		if !ok {
 			continue
 		}
-		spec := hp.HTTPRoute()
-		spec.NodeID = nodeID
-		specs = append(specs, spec)
+		for _, sp := range hp.HTTPRoutes() {
+			sp.NodeID = nodeID
+			specs = append(specs, sp)
+		}
 	}
 
 	conflicts := e.httpMuxBuilder(specs)
@@ -699,10 +700,15 @@ func (e *Engine) rebuildHTTPMux() {
 
 	for _, c := range conflicts {
 		rn, ok := e.nodes[c.NodeID]
-		if !ok || rn.errorFn == nil {
+		if !ok {
 			continue
 		}
-		rn.errorFn(fmt.Errorf("http-in route conflict: %s", c.Reason), nil)
+		if rn.errorFn != nil {
+			rn.errorFn(fmt.Errorf("http-in route conflict: %s", c.Reason), nil)
+		}
+		if reporter, ok := rn.instance.(HTTPInConflictReporter); ok {
+			reporter.OnHTTPRouteConflict(c.Reason)
+		}
 	}
 }
 

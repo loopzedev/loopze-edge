@@ -308,6 +308,12 @@ func (rg *ResponseRegistry) Len() int {
 	return len(rg.slots)
 }
 
+// SetNowForTest overrides the registry's clock source. Test-only escape
+// hatch so the sweeper can be exercised without real-time waits.
+func (rg *ResponseRegistry) SetNowForTest(fn func() time.Time) {
+	rg.now = fn
+}
+
 // newHandleID returns 16 random hex characters. Collision probability
 // is negligible for the per-engine slot map (a handle's lifetime is at
 // most a few seconds).

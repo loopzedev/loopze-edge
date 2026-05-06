@@ -200,7 +200,7 @@ func TestResponseRegistrySweeperExpiresSlot(t *testing.T) {
 	// past the deadline ourselves.
 	var nowVal atomic.Int64
 	nowVal.Store(time.Now().UnixNano())
-	rg.now = func() time.Time { return time.Unix(0, nowVal.Load()) }
+	rg.SetNowForTest(func() time.Time { return time.Unix(0, nowVal.Load()) })
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)

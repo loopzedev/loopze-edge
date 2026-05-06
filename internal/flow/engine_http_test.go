@@ -41,12 +41,12 @@ func (n *httpInStub) SetHTTPMux(registry *flow.ResponseRegistry, root string) {
 	n.mu.Unlock()
 }
 
-func (n *httpInStub) HTTPRoute() flow.HTTPRouteSpec {
-	return flow.HTTPRouteSpec{
+func (n *httpInStub) HTTPRoutes() []flow.HTTPRouteSpec {
+	return []flow.HTTPRouteSpec{{
 		Method:  n.method,
 		Path:    n.path,
 		Handler: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) },
-	}
+	}}
 }
 
 func TestEngineCallsHTTPMuxBuilderOnDeploy(t *testing.T) {

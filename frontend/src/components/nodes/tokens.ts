@@ -274,6 +274,7 @@ const TYPE_CATEGORY: Record<string, string> = {
 
   debug:           'debug',
   'mqtt-out':      'mqtt',
+  'mqtt-request':  'mqtt',
   'http-response': 'http',
   'http-request':  'http',
   'tcp-out':       'tcp',

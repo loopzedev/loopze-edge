@@ -17,6 +17,7 @@ export type NodeType =
   | 'http-request'
   | 'mqtt-in'
   | 'mqtt-out'
+  | 'mqtt-request'
   | 'tcp-in'
   | 'tcp-out'
   | 'tcp-request'

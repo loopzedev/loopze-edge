@@ -68,9 +68,10 @@ func TestTopicMatchesPattern(t *testing.T) {
 func newOfflineBroker(t *testing.T) *MqttBroker {
 	t.Helper()
 	return &MqttBroker{
-		id:               "broker-test",
-		subscribers:      make(map[string]map[string]muxKey),
-		muxSubscriptions: make(map[muxKey]*muxEntry),
+		id:                  "broker-test",
+		subscribers:         make(map[string]map[string]muxKey),
+		muxSubscriptions:    make(map[muxKey]*muxEntry),
+		connectionDownFuncs: make(map[string]func()),
 	}
 }
 
@@ -175,6 +176,64 @@ func TestUnsubscribe_LastPeer_RemovesEntry(t *testing.T) {
 	}
 	if got := len(b.subscribers); got != 0 {
 		t.Errorf("expected subscribers cleared, got %d", got)
+	}
+}
+
+func TestRegisterConnectionDownFunc_FiresAllOnDisconnect(t *testing.T) {
+	b := newOfflineBroker(t)
+
+	var fired []string
+	b.RegisterConnectionDownFunc("node-A", func() { fired = append(fired, "A") })
+	b.RegisterConnectionDownFunc("node-B", func() { fired = append(fired, "B") })
+
+	b.onConnectionDown()
+
+	if len(fired) != 2 {
+		t.Fatalf("expected 2 callbacks to fire, got %d (%v)", len(fired), fired)
+	}
+	// Order is map-iteration-dependent; just check both entries are present.
+	hasA, hasB := false, false
+	for _, e := range fired {
+		if e == "A" {
+			hasA = true
+		}
+		if e == "B" {
+			hasB = true
+		}
+	}
+	if !hasA || !hasB {
+		t.Errorf("expected both A and B to fire, got %v", fired)
+	}
+}
+
+func TestUnregisterConnectionDownFunc_RemovesCallback(t *testing.T) {
+	b := newOfflineBroker(t)
+
+	var fired bool
+	b.RegisterConnectionDownFunc("node-A", func() { fired = true })
+	b.UnregisterConnectionDownFunc("node-A")
+
+	b.onConnectionDown()
+
+	if fired {
+		t.Errorf("expected unregistered callback NOT to fire")
+	}
+}
+
+func TestRegisterConnectionDownFunc_ReplacesExisting(t *testing.T) {
+	b := newOfflineBroker(t)
+
+	var firstFired, secondFired bool
+	b.RegisterConnectionDownFunc("node-A", func() { firstFired = true })
+	b.RegisterConnectionDownFunc("node-A", func() { secondFired = true })
+
+	b.onConnectionDown()
+
+	if firstFired {
+		t.Errorf("expected the first callback to be replaced")
+	}
+	if !secondFired {
+		t.Errorf("expected the second callback to fire")
 	}
 }
 

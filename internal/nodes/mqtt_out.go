@@ -5,6 +5,7 @@
 package nodes
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,7 @@ type MqttOutNode struct {
 	configLookup flow.ConfigLookupFunc
 
 	brokerID string
+	target   string // "topic" (default) | "responseTopic"
 	topic    string
 	qos      byte
 	retain   bool
@@ -51,8 +53,18 @@ func (n *MqttOutNode) Init() error {
 		return fmt.Errorf("mqtt-out %s: no broker configured", n.config.ID)
 	}
 
+	n.target, _ = props["target"].(string)
+	switch n.target {
+	case "", "topic":
+		n.target = "topic"
+	case "responseTopic":
+		// publishes to msg.responseTopic; static topic is ignored at runtime
+	default:
+		return fmt.Errorf("mqtt-out %s: invalid target %q (expected topic|responseTopic)", n.config.ID, n.target)
+	}
+
 	n.topic, _ = props["topic"].(string)
-	// topic is optional — can come from msg.topic at runtime
+	// topic is optional — can come from msg.topic at runtime (target=topic only)
 
 	n.qos = extractQoS(props["qos"], 0)
 
@@ -123,12 +135,9 @@ func (n *MqttOutNode) Start() error {
 }
 
 func (n *MqttOutNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
-	topic := n.topic
-	if topic == "" {
-		topic = msg.Topic()
-	}
-	if topic == "" {
-		return nil, fmt.Errorf("mqtt-out %s: no topic configured and msg.topic is empty", n.config.ID)
+	topic, err := n.effectiveTopic(msg)
+	if err != nil {
+		return nil, err
 	}
 
 	payload, err := toBytes(msg.Payload())
@@ -144,6 +153,30 @@ func (n *MqttOutNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error
 	}
 
 	return nil, nil // sink node, no output
+}
+
+// effectiveTopic resolves the target topic of an outbound publish according
+// to the configured target mode:
+//
+//   - target=topic (default): config.topic, falling back to msg.topic
+//   - target=responseTopic: msg.responseTopic only — config.topic and msg.topic
+//     are ignored. Pairs with mqtt-request and any inbound v5 publish that
+//     carries a Response Topic property
+func (n *MqttOutNode) effectiveTopic(msg *flow.Message) (string, error) {
+	if n.target == "responseTopic" {
+		rt, _ := msg.Get("responseTopic").(string)
+		if rt == "" {
+			return "", fmt.Errorf("mqtt-out %s: target=responseTopic but msg.responseTopic is missing", n.config.ID)
+		}
+		return rt, nil
+	}
+	if n.topic != "" {
+		return n.topic, nil
+	}
+	if t := msg.Topic(); t != "" {
+		return t, nil
+	}
+	return "", fmt.Errorf("mqtt-out %s: no topic configured and msg.topic is empty", n.config.ID)
 }
 
 // mergeV5PublishProperties combines the node's configured v5 defaults with
@@ -191,17 +224,8 @@ func (n *MqttOutNode) mergeV5PublishProperties(msg *flow.Message) *paho.PublishP
 		ensure().ResponseTopic = responseTopic
 	}
 
-	if cd := msg.Get("correlationData"); cd != nil {
-		switch v := cd.(type) {
-		case []byte:
-			if len(v) > 0 {
-				ensure().CorrelationData = v
-			}
-		case string:
-			if v != "" {
-				ensure().CorrelationData = []byte(v)
-			}
-		}
+	if cd := decodeCorrelationData(msg.Get("correlationData")); len(cd) > 0 {
+		ensure().CorrelationData = cd
 	}
 
 	if me, ok := readUint32(msg.Get("messageExpiry")); ok {
@@ -219,6 +243,54 @@ func (n *MqttOutNode) mergeV5PublishProperties(msg *flow.Message) *paho.PublishP
 	}
 
 	return props
+}
+
+// decodeCorrelationData normalises the various wire-format representations
+// of correlationData into the raw byte slice expected by paho. The field is
+// usually set on the input message in one of three shapes:
+//
+//   - []byte — passed through unchanged (the natural in-process form, set by
+//     mqtt-in directly from the inbound paho.Publish.Properties.CorrelationData).
+//   - string — typically arrives after a JSON round-trip (function node /
+//     NATS routing / external API) because Go's encoding/json encodes []byte
+//     as a base64 string. We try base64 decode first; on failure we fall back
+//     to treating the string's bytes literally so users who deliberately set
+//     a printable correlation marker still get the literal bytes on the wire.
+//   - []any of numbers — the JSON shape of an []int payload, e.g. when the
+//     value travelled through a JS function node that converted bytes to a
+//     numeric array. Each element is clamped to a byte.
+//
+// Any other shape returns nil (treated as "not set").
+func decodeCorrelationData(v any) []byte {
+	switch x := v.(type) {
+	case nil:
+		return nil
+	case []byte:
+		if len(x) == 0 {
+			return nil
+		}
+		return x
+	case string:
+		if x == "" {
+			return nil
+		}
+		if decoded, err := base64.StdEncoding.DecodeString(x); err == nil && len(decoded) > 0 {
+			return decoded
+		}
+		return []byte(x)
+	case []int:
+		if buf := intsToBytes(x); len(buf) > 0 {
+			return buf
+		}
+		return nil
+	case []any:
+		if buf, ok := anyToBytes(x); ok && len(buf) > 0 {
+			return buf
+		}
+		return nil
+	default:
+		return nil
+	}
 }
 
 // mergeUserProperties returns a single map that has all keys from defaults,
@@ -348,6 +420,7 @@ func MqttOutTypeInfo() flow.NodeTypeInfo {
 		Icon:        "wifi",
 		Defaults: map[string]any{
 			"broker":                "",
+			"target":                "topic",
 			"topic":                 "",
 			"qos":                   0,
 			"retain":                false,

@@ -330,14 +330,16 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
 
   'mqtt-out': {
     overview:
-      'Publishes incoming messages as MQTT publishes on the configured broker.',
+      'Publishes incoming messages as MQTT publishes on the configured broker.\n\nTwo target modes:\n• Topic — publish to the configured topic (or msg.topic).\n• Response to responseTopic — publish to msg.responseTopic and forward msg.correlationData as the v5 Correlation Data property. Pairs with mqtt-request on the requester side.',
     inputs: [
       'msg.payload is sent as the publish body.',
-      'If the configured Topic is empty, msg.topic is used as a fallback. If both are empty, the publish fails.',
+      'Target=Topic: if the configured Topic is empty, msg.topic is used as fallback.',
+      'Target=responseTopic: msg.responseTopic must be set (typically delivered by an upstream mqtt-in carrying a v5 Response Topic property). msg.correlationData is forwarded automatically.',
     ],
     properties: [
       { key: 'broker',  desc: 'MQTT Broker config node.' },
-      { key: 'topic',   desc: 'Fixed publish topic. Leave empty to use msg.topic from the incoming message.' },
+      { key: 'target',  desc: 'topic (default) or responseTopic. In responseTopic mode the static topic is ignored and the publish targets msg.responseTopic.' },
+      { key: 'topic',   desc: 'Fixed publish topic (Topic mode only). Leave empty to use msg.topic from the incoming message.' },
       { key: 'qos',     desc: 'Publish QoS (0/1/2).' },
       { key: 'retain',  desc: 'Set retained flag — broker keeps the last value for late subscribers.' },
     ],
@@ -345,6 +347,38 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       'Leave Topic empty when the upstream flow already sets msg.topic — useful for routing where the topic is computed at runtime.',
       'Retained messages are great for "last known state" topics like device shadows.',
       'JSON payloads are auto-stringified; pass a Buffer for raw binary publishes.',
+      'Response mode requires MQTT v5 — the responder reads msg.responseTopic / msg.correlationData from a paired mqtt-in.',
+    ],
+  },
+
+  'mqtt-request': {
+    overview:
+      'Implements the MQTT v5 request/response pattern. For each input message it generates a unique response topic and 16-byte correlation data, subscribes to the response topic, publishes the request with v5 Response Topic + Correlation Data properties, and waits for the matching response or for the timeout. Multiple inflight requests are supported in parallel.',
+    inputs: [
+      'msg.payload — the request body (encoded the same way as mqtt-out).',
+      'msg.topic — overrides the configured request topic.',
+      'msg.qos — overrides the configured QoS for this single request and its response subscription.',
+      'msg.userProperties / msg.contentType / msg.messageExpiry / msg.payloadFormat override the configured defaults.',
+      'msg.responseTopic and msg.correlationData are IGNORED — the node always generates them itself.',
+    ],
+    outputs: [
+      'On response: the input message is forwarded with msg.payload replaced by the decoded response, msg.topic set to the response topic, msg.requestTopic preserved, plus msg.qos / msg.retain / msg.correlationData and any v5 properties from the response.',
+      'On timeout (passthrough mode): the input message with msg.timedOut=true; in error mode no message is emitted (a catchable error is raised instead).',
+    ],
+    properties: [
+      { key: 'broker',              desc: 'MQTT Broker config node. MQTT v5 is required for the request/response properties.' },
+      { key: 'topic',               desc: 'Request topic. Falls back to msg.topic when empty.' },
+      { key: 'qos',                 desc: 'QoS for both the request publish and the response subscription.' },
+      { key: 'retain',              desc: 'Retain flag on the request publish (rare to retain a request).' },
+      { key: 'responseTopicPrefix', desc: 'Prefix used to build the random response topic. Default: loopze/response. Full topic: <prefix>/<random>.' },
+      { key: 'timeout',             desc: 'How long to wait for the response, in seconds. 0 = no timeout.' },
+      { key: 'timeoutMode',         desc: 'error (default) — emit a catchable error on timeout; passthrough — emit msg.timedOut=true on the regular output.' },
+      { key: 'responseFormat',      desc: 'string (default) | json | buffer — how msg.payload is decoded for the response.' },
+    ],
+    tips: [
+      'Pair with a remote responder built from mqtt-in → function → mqtt-out (target=Response to responseTopic). The mqtt-out node forwards msg.correlationData automatically so the response matches the request.',
+      'Catch errors with a Catch node downstream when timeoutMode=error — the error type is "mqtt-request: timeout".',
+      'Use timeoutMode=passthrough to keep request/response and timeout flows on the same wire — a Switch node downstream can branch on msg.timedOut.',
     ],
   },
 

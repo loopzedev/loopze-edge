@@ -119,23 +119,34 @@ func (n *MqttInNode) Init() error {
 // round-trips and is human-readable in the inspector. mqtt-out's payload
 // converter accepts the array form and reconstructs the bytes when publishing.
 func setPayload(msg *flow.Message, raw []byte, format string) {
+	value, parseErr := decodeMqttPayload(raw, format)
+	msg.Set("payload", value)
+	if parseErr != "" {
+		msg.Set("parseError", parseErr)
+	}
+}
+
+// decodeMqttPayload converts a raw MQTT byte payload into the requested
+// flow-side representation. Returns the decoded value and, for JSON parse
+// failures, a non-empty parseError string (callers attach it as
+// msg.parseError). The function never errors — JSON failure falls back to
+// the raw string, just like setPayload's previous inline behaviour.
+func decodeMqttPayload(raw []byte, format string) (any, string) {
 	switch format {
 	case "buffer":
 		buf := make([]int, len(raw))
 		for i, b := range raw {
 			buf[i] = int(b)
 		}
-		msg.Set("payload", buf)
+		return buf, ""
 	case "json":
 		var v any
 		if err := json.Unmarshal(raw, &v); err != nil {
-			msg.Set("payload", string(raw))
-			msg.Set("parseError", err.Error())
-			return
+			return string(raw), err.Error()
 		}
-		msg.Set("payload", v)
+		return v, ""
 	default: // "string" or unknown
-		msg.Set("payload", string(raw))
+		return string(raw), ""
 	}
 }
 

@@ -554,6 +554,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
 	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
 	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
+	registry.Register("mqtt-request", nodes.NewMqttRequestNode, nodes.MqttRequestTypeInfo())
 	registry.Register("modbus-read", nodes.NewModbusReadNode, nodes.ModbusReadTypeInfo())
 	registry.Register("modbus-write", nodes.NewModbusWriteNode, nodes.ModbusWriteTypeInfo())
 	registry.Register("modbus-parser", nodes.NewModbusParserNode, nodes.ModbusParserTypeInfo())

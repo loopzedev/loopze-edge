@@ -12,7 +12,7 @@ import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import UserPropertiesEditor from '@/components/ui/UserPropertiesEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 import { useStructuralProperty } from '@/composables/useStructuralProperty'
-import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS } from '@/components/config/enums'
+import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS, MQTT_OUT_TARGETS } from '@/components/config/enums'
 
 const flowStore = useFlowStore()
 const { options: brokerOptions, openNewConfig, openEditConfig } = useConfigSelector('mqtt-broker')
@@ -21,6 +21,7 @@ const node = computed(() => flowStore.selectedNode)
 const isMqttOut = computed(() => (node.value?.data?.nodeType ?? node.value?.type) === 'mqtt-out')
 
 const broker = useNodeProperty<string>('broker', '')
+const target = useNodeProperty<string>('target', 'topic')
 const topic = useNodeProperty<string>('topic', '')
 const qos = useNodeProperty<number>('qos', 0)
 const retain = useNodeProperty<boolean>('retain', false)
@@ -53,7 +54,11 @@ const modePresets = [
 ]
 
 const isDynamic = computed(() => !isMqttOut.value && mode.value === 'dynamic')
-const showTopic = computed(() => isMqttOut.value || mode.value === 'static')
+const isResponseTopicTarget = computed(() => isMqttOut.value && target.value === 'responseTopic')
+const showTopic = computed(() => {
+  if (isMqttOut.value) return !isResponseTopicTarget.value
+  return mode.value === 'static'
+})
 const topicError = computed(() =>
   !topic.value && !isMqttOut.value && mode.value === 'static'
     ? 'Topic required for subscription'
@@ -85,6 +90,25 @@ const topicError = computed(() =>
     <FormField v-if="!isMqttOut" label="Mode">
       <ToggleGroup v-model="mode" :options="modePresets" />
     </FormField>
+
+    <FormField v-if="isMqttOut" label="Publish target">
+      <ToggleGroup v-model="target" :options="MQTT_OUT_TARGETS" />
+    </FormField>
+
+    <div
+      v-if="isResponseTopicTarget"
+      class="text-[10px] text-terminal-text-dim leading-relaxed border border-terminal-border bg-terminal-bg p-2 rounded space-y-1"
+    >
+      <p class="m-0">
+        Publishes to <span class="font-mono text-accent">msg.responseTopic</span>; the configured topic
+        and <span class="font-mono text-accent">msg.topic</span> are ignored.
+      </p>
+      <p class="m-0">
+        <span class="font-mono text-accent">msg.correlationData</span> is forwarded as the v5
+        Correlation Data property — pair with an inbound <span class="font-mono">mqtt-in</span>
+        carrying both fields from a remote <span class="font-mono">mqtt-request</span>.
+      </p>
+    </div>
 
     <div
       v-if="isDynamic"

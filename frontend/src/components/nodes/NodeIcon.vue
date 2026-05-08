@@ -18,8 +18,9 @@ const MQTT_LOGO: BrandIcon = {
 }
 
 const brandIcons: Record<string, BrandIcon> = {
-  'mqtt-in':  MQTT_LOGO,
-  'mqtt-out': MQTT_LOGO,
+  'mqtt-in':      MQTT_LOGO,
+  'mqtt-out':     MQTT_LOGO,
+  'mqtt-request': MQTT_LOGO,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -393,13 +393,45 @@ func TestMqttOut_MergeV5PublishProperties_NoDefaults(t *testing.T) {
 		}
 	})
 
-	t.Run("correlationData as string", func(t *testing.T) {
+	t.Run("correlationData as string (non-base64 fallback)", func(t *testing.T) {
 		n := &MqttOutNode{}
 		msg := flow.NewMessage()
-		msg.Set("correlationData", "abc")
+		msg.Set("correlationData", "abc") // 3 chars → invalid base64 (needs padding) → literal fallback
 		props := n.mergeV5PublishProperties(msg)
 		if props == nil || string(props.CorrelationData) != "abc" {
-			t.Errorf("CorrelationData = %v, want \"abc\"", props)
+			t.Errorf("CorrelationData = %v, want \"abc\" (literal fallback)", props)
+		}
+	})
+
+	t.Run("correlationData as base64 string is decoded", func(t *testing.T) {
+		// Repro of the round-trip path: mqtt-in sets correlationData as []byte,
+		// the msg goes through a function node (or NATS routing) that JSON-
+		// roundtrips it, Go encodes []byte as base64 → mqtt-out must decode
+		// back to the original bytes so mqtt-request can match the response.
+		n := &MqttOutNode{}
+		original := []byte{0x3a, 0xad, 0xe5, 0xfc, 0xce, 0x06, 0x6f, 0x85, 0x6b, 0x4f, 0xa3, 0x09, 0x0d, 0xed, 0x9d, 0x9c}
+		msg := flow.NewMessage()
+		msg.Set("correlationData", "Oq3l/M4Gb4VrT6MJDe2dnA==") // base64 of `original`
+		props := n.mergeV5PublishProperties(msg)
+		if props == nil {
+			t.Fatal("expected non-nil props")
+		}
+		if !reflect.DeepEqual(props.CorrelationData, original) {
+			t.Errorf("CorrelationData = %x, want %x", props.CorrelationData, original)
+		}
+	})
+
+	t.Run("correlationData as []any (numeric array round-trip)", func(t *testing.T) {
+		// JSON-roundtrip of an []int from JS function-node decoding.
+		n := &MqttOutNode{}
+		msg := flow.NewMessage()
+		msg.Set("correlationData", []any{float64(0xDE), float64(0xAD), float64(0xBE), float64(0xEF)})
+		props := n.mergeV5PublishProperties(msg)
+		if props == nil {
+			t.Fatal("expected non-nil props")
+		}
+		if !reflect.DeepEqual(props.CorrelationData, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+			t.Errorf("CorrelationData = %x, want DEADBEEF", props.CorrelationData)
 		}
 	})
 

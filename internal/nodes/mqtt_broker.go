@@ -83,13 +83,14 @@ type MqttBroker struct {
 	onConnectMsg    *presenceMessage
 	onDisconnectMsg *presenceMessage
 
-	mu               sync.RWMutex
-	cm               *autopaho.ConnectionManager
-	subscribers      map[string]map[string]muxKey // subscriberID → topic → muxKey of the entry that holds this subscriber's handler
-	muxSubscriptions map[muxKey]*muxEntry         // wire-level subscriptions
-	statusFuncs      []flow.StatusFunc            // broadcast status to all referencing nodes
-	currentFill      string
-	currentText      string
+	mu                  sync.RWMutex
+	cm                  *autopaho.ConnectionManager
+	subscribers         map[string]map[string]muxKey // subscriberID → topic → muxKey of the entry that holds this subscriber's handler
+	muxSubscriptions    map[muxKey]*muxEntry         // wire-level subscriptions
+	statusFuncs         []flow.StatusFunc            // broadcast status to all referencing nodes
+	connectionDownFuncs map[string]func()            // subscriberID → callback fired on broker disconnect
+	currentFill         string
+	currentText         string
 }
 
 // presenceMessage holds the configuration for the onConnect / onDisconnect publishes.
@@ -164,15 +165,16 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 	}
 
 	b := &MqttBroker{
-		id:               cfg.ID,
-		name:             cfg.Name,
-		subscribers:      make(map[string]map[string]muxKey),
-		muxSubscriptions: make(map[muxKey]*muxEntry),
-		currentFill:      "grey",
-		currentText:      "disconnected",
-		stopTimeout:      2 * time.Second,
-		onConnectMsg:     readPresenceMessage(props, "onConnect"),
-		onDisconnectMsg:  readPresenceMessage(props, "onDisconnect"),
+		id:                  cfg.ID,
+		name:                cfg.Name,
+		subscribers:         make(map[string]map[string]muxKey),
+		muxSubscriptions:    make(map[muxKey]*muxEntry),
+		connectionDownFuncs: make(map[string]func()),
+		currentFill:         "grey",
+		currentText:         "disconnected",
+		stopTimeout:         2 * time.Second,
+		onConnectMsg:        readPresenceMessage(props, "onConnect"),
+		onDisconnectMsg:     readPresenceMessage(props, "onDisconnect"),
 	}
 
 	clientCfg := autopaho.ClientConfig{
@@ -541,6 +543,27 @@ func (b *MqttBroker) RegisterStatusFunc(fn flow.StatusFunc) {
 	fn(fill, text)
 }
 
+// RegisterConnectionDownFunc registers a callback that fires whenever the
+// broker connection drops (after the status broadcast). Used by stateful
+// nodes such as mqtt-request that must fail inflight contexts on disconnect.
+// Re-registering for the same subscriberID replaces the previous callback.
+func (b *MqttBroker) RegisterConnectionDownFunc(subscriberID string, fn func()) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.connectionDownFuncs == nil {
+		b.connectionDownFuncs = make(map[string]func())
+	}
+	b.connectionDownFuncs[subscriberID] = fn
+}
+
+// UnregisterConnectionDownFunc removes the callback for the given subscriber.
+// Safe to call when no callback is registered.
+func (b *MqttBroker) UnregisterConnectionDownFunc(subscriberID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.connectionDownFuncs, subscriberID)
+}
+
 // onPublishReceived is the single mux handler registered at the paho client.
 // It dispatches each incoming publish to every subscriber whose pattern matches
 // the concrete topic. We iterate muxSubscriptions (one entry per unique
@@ -632,6 +655,17 @@ func (b *MqttBroker) onConnectError(err error) {
 func (b *MqttBroker) onConnectionDown() bool {
 	slog.Warn("mqtt broker connection down", "id", b.id)
 	b.setStatus("yellow", "reconnecting...")
+
+	b.mu.RLock()
+	callbacks := make([]func(), 0, len(b.connectionDownFuncs))
+	for _, fn := range b.connectionDownFuncs {
+		callbacks = append(callbacks, fn)
+	}
+	b.mu.RUnlock()
+
+	for _, fn := range callbacks {
+		fn()
+	}
 	return true
 }
 

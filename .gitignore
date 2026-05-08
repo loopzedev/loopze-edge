@@ -6,6 +6,10 @@
 *.dylib
 /loopze
 
+# Generated Windows resource files (icon + version info).
+# The .ico is committed; .syso files are produced by goversioninfo on each build.
+*.syso
+
 # Test binary, built with `go test -c`
 *.test
 

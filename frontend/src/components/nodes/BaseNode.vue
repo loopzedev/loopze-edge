@@ -83,6 +83,7 @@ const typeLabel = computed(() => {
         "link-call": "Link Call",
         "mqtt-in": "MQTT Subscribe",
         "mqtt-out": "MQTT Publish",
+        "mqtt-request": "MQTT Request",
         "modbus-read": "Modbus Read",
         "modbus-write": "Modbus Write",
         "modbus-parser": "Modbus Parser",

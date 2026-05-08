@@ -1,21 +1,22 @@
-# Issue: MQTT Nodes – Subscribe & Publish with Broker Configuration
+# Issue: MQTT Nodes – Subscribe, Publish & Request/Response with Broker Configuration
 
 ## Status: Open
 
 ## Problem Description
 
-LOOPZE needs its first **Data Connector** — MQTT. Two new node types (`mqtt-in` and `mqtt-out`) enable receiving and sending MQTT messages. Central to this is the concept of a **broker configuration**, managed as a standalone, reusable entity. Each MQTT node references exactly one broker, but different brokers can be configured across multiple nodes.
+LOOPZE needs its first **Data Connector** — MQTT. Three new node types (`mqtt-in`, `mqtt-out`, `mqtt-request`) enable receiving, sending, and request/response patterns over MQTT. Central to this is the concept of a **broker configuration**, managed as a standalone, reusable entity. Each MQTT node references exactly one broker, but different brokers can be configured across multiple nodes.
 
 This issue simultaneously introduces the new concept of **Config Nodes** — configurable entities that do not appear on the canvas but can be referenced by multiple nodes (e.g., server connections, authentication). The MQTT broker is the first config node in LOOPZE.
 
-**Scope**: **MQTT v5 is mandatory.** The broker client must speak v5. v3.1.1 remains available as an alternatively selectable protocol version — the user picks it deliberately per broker config, there is no automatic fallback. Focus is on a working broker configuration and instantiation. The subscribe/publish configuration is intentionally minimal — v5-specific features (User Properties, Message Expiry, Shared Subscriptions) are supported in a lean first tier.
+**Scope**: **MQTT v5 is mandatory.** The broker client must speak v5. v3.1.1 remains available as an alternatively selectable protocol version — the user picks it deliberately per broker config, there is no automatic fallback. Focus is on a working broker configuration and instantiation. The subscribe/publish configuration is intentionally minimal — v5-specific features (User Properties, Message Expiry, Shared Subscriptions, Response Topic, Correlation Data) are supported in a lean first tier. The request/response pattern relies on the v5 `Response Topic` + `Correlation Data` properties; with a v3.1.1 broker the request node degrades (see § 4).
 
 ## Overview
 
 | Node Type | Type ID | Canvas Inputs | Canvas Outputs | Description |
 |---|---|---|---|---|
 | **MQTT Subscribe** | `mqtt-in` | 0 | 1 | Receives messages from an MQTT broker via subscription |
-| **MQTT Publish** | `mqtt-out` | 1 | 0 | Sends messages to an MQTT broker |
+| **MQTT Publish** | `mqtt-out` | 1 | 0 | Sends messages to an MQTT broker (configurable target: fixed topic or `msg.responseTopic`) |
+| **MQTT Request** | `mqtt-request` | 1 | 1 | Sends a request publish with a temporary response topic and correlation data, emits the matching response (or timeout) on the output |
 
 ```
                           MQTT Broker (external)
@@ -38,7 +39,31 @@ Flow B                            │       │
 │      ↓               │          │       │
 │  [MQTT Out] ──────────────────→│       │
 │                      │   │              │
-└─────────────────────┘   └──────────────┘
+└─────────────────────┘   │              │
+                          │              │
+Flow C — request side     │              │
+┌──────────────────────┐  │              │
+│                       │  │              │
+│  [Inject] → [MQTT Request]──→ rpc/foo  │
+│                ↑    ↓ │  │              │
+│                │    └─────── loopze/    │
+│                │      │  │   response/  │
+│                │      │  │   <uuid>     │
+│             [Debug]   │  │              │
+└──────────────────────┘  │              │
+                          │              │
+Flow D — responder side   │              │
+┌──────────────────────┐  │              │
+│                       │  │              │
+│  [MQTT In rpc/foo] ──────┘              │
+│         ↓             │                 │
+│  [Function: handle]   │                 │
+│         ↓             │                 │
+│  [MQTT Out target=    │                 │
+│   responseTopic] ─────────→ loopze/    │
+│                       │   response/    │
+└──────────────────────┘   <uuid>         │
+                          └──────────────┘
 ```
 
 ## Requirements
@@ -284,10 +309,13 @@ In dynamic mode the v5 subscription options can additionally be overridden per `
 ### 3. MQTT Publish Node (`mqtt-out`)
 
 - **Canvas**: 1 input, 0 outputs (sink node)
-- **Function**: Publishes incoming messages via the configured broker to an MQTT topic
+- **Function**: Publishes incoming messages via the configured broker. The target topic is either a configured/`msg.topic` value (default) or the `msg.responseTopic` carried by an inbound request — see `target` below.
 - **Base configuration**:
   - `broker` (string) — ID of the referenced `mqtt-broker` config node
-  - `topic` (string, optional) — MQTT topic to publish to. If empty, `msg.topic` is used
+  - `target` (string) — `topic` (default) or `responseTopic`:
+    - `topic` — publishes to the configured `topic`, falling back to `msg.topic` (current default behavior)
+    - `responseTopic` — publishes to `msg.responseTopic` (the v5 Response Topic of an inbound request, typically delivered via `mqtt-in` § 2 or paired with `mqtt-request` § 4 on the requester side). The configured `topic` and `msg.topic` are **ignored** in this mode. If `msg.responseTopic` is missing or empty the node sets the catchable error `"mqtt-out: target=responseTopic but msg.responseTopic is missing"` and discards the message. When the inbound message also carries `msg.correlationData`, it is automatically forwarded as the v5 `Correlation Data` property on the publish — this is what pairs the response with the original request on the requester side. The mode requires v5 on the broker; with v3.1.1 the inbound `mqtt-in` will have no `responseTopic` at all and the node will always error
+  - `topic` (string, optional) — MQTT topic to publish to. If empty, `msg.topic` is used. Ignored when `target = responseTopic`
   - `qos` (number) — Quality of Service: 0, 1, or 2. Default: 0
   - `retain` (boolean) — retain flag. Default: false
 
@@ -328,10 +356,23 @@ In dynamic mode the v5 subscription options can additionally be overridden per `
 │  └────────────────────────────────────┘ └───┘│
 │  Edit broker config                           │
 │                                               │
-│  Topic                                        │
+│  Publish target                               │
+│  ( • ) Topic                                  │
+│  (   ) Response to responseTopic (v5)         │
+│                                               │
+│  Topic                          (Topic mode)  │
 │  ┌────────────────────────────────────────┐   │
 │  │ actuator/command                       │   │
 │  └────────────────────────────────────────┘   │
+│  ℹ Falls back to msg.topic if empty.          │
+│                                               │
+│  ℹ When "Response to responseTopic" is set,   │
+│    the topic field is ignored. The node       │
+│    publishes to msg.responseTopic and         │
+│    forwards msg.correlationData as the v5     │
+│    Correlation Data property. Pair with an    │
+│    mqtt-in carrying responseTopic / correlat- │
+│    ionData from a remote mqtt-request.        │
 │                                               │
 │  QoS                                          │
 │  ┌────────────────────────────────────────┐   │
@@ -361,7 +402,128 @@ In dynamic mode the v5 subscription options can additionally be overridden per `
 └──────────────────────────────────────────────┘
 ```
 
-### 4. Config Node Concept (new in LOOPZE)
+### 4. MQTT Request Node (`mqtt-request`)
+
+- **Canvas**: 1 input, 1 output
+- **Function**: Implements the **MQTT v5 request/response pattern** end-to-end. On every incoming message the node:
+  1. generates a unique `responseTopic` and a fresh `correlationData`,
+  2. starts a one-shot subscription on the `responseTopic`,
+  3. publishes the request to the configured target topic with v5 `Response Topic` and `Correlation Data` properties set,
+  4. waits for a matching response or for the timeout,
+  5. unsubscribes and emits the response on the output (or raises a catchable error on timeout).
+
+  The Subscribe + Publish pair could be wired manually, but the bookkeeping (random topic, correlation, parallel inflight requests, timeout, cleanup on stop / disconnect) is non-trivial and would be re-built by every flow that talks to MQTT request handlers — the dedicated node owns it once.
+
+- **Base configuration**:
+  - `broker` (string) — ID of the referenced `mqtt-broker` config node. **Should target an MQTT v5 broker** — the node relies on the v5 `Response Topic` and `Correlation Data` properties; with a v3.1.1 broker the node degrades to a warning at deploy time (see *v3.1.1 fallback* below)
+  - `topic` (string, optional) — target topic for the request publish. If empty, `msg.topic` is used; if both are missing the node sets the catchable error `"mqtt-request: no target topic"` and discards the message
+  - `qos` (number) — QoS for **both** the request publish and the response subscription. Default: 0
+  - `retain` (boolean) — retain flag on the request publish. Default: false (rare to retain a request — usually wrong)
+  - `responseTopicPrefix` (string, optional) — prefix used to build the random response topic. Default: `loopze/response`. The full topic is `<prefix>/<random-uuid>`. A trailing slash is normalized
+  - `timeout` (number, seconds) — how long to wait for the response before giving up. Default: 30. `0` disables the timeout (the request stays inflight until response, broker disconnect, or node stop — risky)
+  - `timeoutMode` (string) — what happens on timeout:
+    - `error` (default) — emits the catchable error `"mqtt-request: timeout"`; **no** message goes out the regular output
+    - `passthrough` — emits a message on the regular output with `msg.timedOut = true` and the original `msg.payload` preserved — lets a downstream Switch decide
+  - `responseFormat` (string) — same options as `mqtt-in` (`string` / `json` / `buffer`), default `string`. Applies to `msg.payload` of the response message
+
+- **MQTT v5 Default Properties on the request publish** (optional, all merged with `msg.*` overrides — same semantics as `mqtt-out`):
+  - `defaultUserProperties` (object)
+  - `defaultContentType` (string)
+  - `defaultMessageExpiry` (number, seconds)
+  - `defaultPayloadFormat` (number, 0 or 1)
+
+  **Deliberately not configurable**: `responseTopic` and `correlationData` are always generated by the node. Any `msg.responseTopic` / `msg.correlationData` on the input is **ignored** — the request/response correlation is owned by the node.
+
+- **Incoming message** (the request):
+  - `msg.payload` — request payload (encoded the same way as `mqtt-out`)
+  - `msg.topic` (optional) — overrides the configured target topic
+  - `msg.qos` (optional, 0/1/2) — overrides the configured QoS for this single request and its response subscription
+  - v5 message overrides analogous to `mqtt-out`: `msg.userProperties`, `msg.contentType`, `msg.messageExpiry`, `msg.payloadFormat`. **`msg.responseTopic` and `msg.correlationData` are ignored** (see above)
+
+- **Outgoing message** (on response):
+  The original message is forwarded with the response merged in:
+  - `msg.payload` — response payload, decoded per `responseFormat`
+  - `msg.topic` — the random response topic (visible in Debug); the original request topic is preserved as `msg.requestTopic`
+  - `msg.qos`, `msg.retain` — from the response publish
+  - `msg.correlationData` — the bytes the responder echoed back (matches the bytes the node generated)
+  - v5 fields if present on the response: `msg.userProperties`, `msg.contentType`, `msg.messageExpiry`, `msg.payloadFormat`
+
+  On `timeoutMode = passthrough` the original payload is preserved unchanged and `msg.timedOut = true` is added; no response fields are set.
+
+- **Behavior**:
+  1. On every incoming message the node creates a fresh correlation context: `responseTopic = <prefix>/<uuid4>` and `correlationData = <16 random bytes>`
+  2. It subscribes to `responseTopic` via the shared broker manager (`Subscribe(nodeID, topic, qos, handler)`) — `noLocal = false`, `retainHandling = 2`. **`noLocal` must be `false`**: requester and responder may share the same broker connection (e.g., when both `mqtt-request` and the paired `mqtt-out target=responseTopic` live in the same LOOPZE instance), and MQTT v5 §3.8.3.1 says the broker filters publishes from a connection with the same Client ID when `noLocal=true`. Echo-loop is not a concern because the response topic is a random UUID
+  3. After SUBACK it publishes the request to the target topic with `Properties.ResponseTopic = responseTopic`, `Properties.CorrelationData = correlationData`, and any additional v5 properties merged from config + msg
+  4. A timer starts (`timeout`)
+  5. On the first incoming publish on `responseTopic` whose `Properties.CorrelationData` equals the recorded value, the node:
+     - cancels the timer,
+     - unsubscribes from `responseTopic`,
+     - emits the response message on output `0`
+  6. If the timer fires first, the node unsubscribes and either raises a catch error or emits a `timedOut` message according to `timeoutMode`
+  7. Publishes that arrive on `responseTopic` but with a *non-matching* `correlationData` are silently dropped (defensive — should not happen because the topic is unique per request)
+
+  **Multiple inflight requests** are supported — every incoming message has its own `responseTopic` + correlation, tracked in an internal map keyed by `correlationData`. On stop / re-deploy / broker disconnect all pending contexts are unsubscribed, timers cleared, and (for an unclean broker disconnect) every pending context is failed according to `timeoutMode`.
+
+- **v3.1.1 fallback**: the v5 `Response Topic` / `Correlation Data` properties don't exist on the wire in v3.1.1. The node still subscribes to the random topic and publishes the user payload **as-is**, but it can only correlate by topic uniqueness — the responder must know the response topic by some out-of-band convention. In practice the node is intended for v5; on v3.1.1 the node logs a warning at deploy (`"mqtt-request: full request/response pattern requires MQTT v5; broker speaks 3.1.1"`) and remains functional with the documented limitation. Pairing with the `mqtt-out` *Response to responseTopic* mode requires v5 on both ends because that mode reads `msg.responseTopic` / `msg.correlationData` from a v5 inbound publish.
+
+- **Status display** (via `SetStatus`):
+  - Green: `idle` when no request is inflight, or `n inflight` when one or more requests are pending
+  - Yellow: broker reconnecting (inherited from broker manager)
+  - Red: broker disconnected; on broker disconnect all inflight contexts are failed (catch error or `timedOut` message depending on `timeoutMode`)
+
+- **Properties panel**:
+
+```
+┌──────────────────────────────────────────────┐
+│  MQTT Request                                 │
+├──────────────────────────────────────────────┤
+│                                               │
+│  Broker                                       │
+│  ┌────────────────────────────────────┐ ┌───┐│
+│  │ Production Broker              ▼  │ │ + ││
+│  └────────────────────────────────────┘ └───┘│
+│  Edit broker config                           │
+│                                               │
+│  Request topic                                │
+│  ┌────────────────────────────────────────┐   │
+│  │ rpc/devices/42/getState                │   │
+│  └────────────────────────────────────────┘   │
+│  ℹ Falls back to msg.topic if empty.          │
+│                                               │
+│  QoS    Retain  Timeout (s)   On timeout      │
+│  [0 ▼]   ☐      [    30    ]  ( • ) Error     │
+│                               (   ) Passthrough│
+│                                               │
+│  Response topic prefix                        │
+│  ┌────────────────────────────────────────┐   │
+│  │ loopze/response                        │   │
+│  └────────────────────────────────────────┘   │
+│  ℹ Full topic: <prefix>/<random-uuid>         │
+│                                               │
+│  Response format                              │
+│  ┌────────────────────────────────────────┐   │
+│  │ String                            ▼   │   │
+│  └────────────────────────────────────────┘   │
+│                                               │
+│  ▼ MQTT v5 Default Properties (optional)      │
+│  Content Type    [application/json         ]  │
+│  Message Expiry  [    ] sec                   │
+│  Payload Format  [0 — bytes              ▼]   │
+│                                               │
+│  User Properties:                             │
+│  ┌──────────────┐ ┌──────────────┐ ┌───┐     │
+│  │ key          │ │ value        │ │ × │     │
+│  └──────────────┘ └──────────────┘ └───┘     │
+│  [+ Add property]                             │
+│                                               │
+│  ℹ correlationData is generated by the node;  │
+│    msg.correlationData / msg.responseTopic    │
+│    are ignored.                               │
+│                                               │
+└──────────────────────────────────────────────┘
+```
+
+### 5. Config Node Concept (new in LOOPZE)
 
 Config nodes are a new architectural concept introduced with this issue:
 
@@ -371,7 +533,7 @@ Config nodes are a new architectural concept introduced with this issue:
 - **Shared instance**: Multiple nodes can reference the same config node — the engine creates only **one** instance per config node (e.g., one MQTT connection) and shares it among all referencing nodes
 - **Lifecycle**: Config node instances are created on deploy and stopped on re-deploy/stop
 
-### 5. Broker Connection Sharing
+### 6. Broker Connection Sharing
 
 When multiple MQTT nodes reference the same broker, **a single MQTT connection** is shared:
 
@@ -444,9 +606,48 @@ The engine must provide a **broker manager** that:
           "wires": [],
           "config": {
             "broker": "broker-1",
+            "target": "topic",
             "topic": "actuator/command",
             "qos": 1,
             "retain": false
+          }
+        },
+        {
+          "id": "node-mqtt-out-response-1",
+          "type": "mqtt-out",
+          "name": "RPC Reply",
+          "x": 800,
+          "y": 400,
+          "z": "flow-1",
+          "inputs": 1,
+          "outputs": 0,
+          "wires": [],
+          "config": {
+            "broker": "broker-1",
+            "target": "responseTopic",
+            "qos": 1,
+            "retain": false
+          }
+        },
+        {
+          "id": "node-mqtt-request-1",
+          "type": "mqtt-request",
+          "name": "Get Device State",
+          "x": 400,
+          "y": 500,
+          "z": "flow-1",
+          "inputs": 1,
+          "outputs": 1,
+          "wires": [["node-debug-1"]],
+          "config": {
+            "broker": "broker-1",
+            "topic": "rpc/devices/42/getState",
+            "qos": 1,
+            "retain": false,
+            "responseTopicPrefix": "loopze/response",
+            "timeout": 30,
+            "timeoutMode": "error",
+            "responseFormat": "json"
           }
         }
       ]
@@ -495,11 +696,12 @@ The engine must provide a **broker manager** that:
 
 - `internal/nodes/mqtt_broker.go` — MQTT Broker config node: connection setup, reconnect logic, subscription management. Encapsulates the `paho.mqtt.golang` client
 - `internal/nodes/mqtt_in.go` — MQTT Subscribe node: registers subscription with the shared broker client, receives messages, and sends them via `SendFunc` into the flow
-- `internal/nodes/mqtt_out.go` — MQTT Publish node: publishes incoming flow messages via the shared broker client
+- `internal/nodes/mqtt_out.go` — MQTT Publish node: publishes incoming flow messages via the shared broker client. Honors `target = topic | responseTopic`
+- `internal/nodes/mqtt_request.go` — MQTT Request node: per-message random response topic + correlation data, one-shot subscribe, publish, timeout/cleanup. Owns an inflight map keyed by correlationData
 
 ### Backend – Adjustments
 
-- `internal/server/server.go` — registration of `mqtt-in` and `mqtt-out` in `registerNodes()`
+- `internal/server/server.go` — registration of `mqtt-in`, `mqtt-out`, and `mqtt-request` in `registerNodes()`
 - `internal/flow/engine.go` — config node lifecycle:
   - New section in `Deploy()`: instantiate config nodes before the regular nodes
   - Provide config node instances to the referencing nodes via a new provider interface
@@ -523,13 +725,14 @@ The engine must provide a **broker manager** that:
 
 ### Frontend – New Files
 
-- `frontend/src/components/config/MqttNodeConfig.vue` — shared config component for `mqtt-in` and `mqtt-out` with broker dropdown + "+" button, topic input, QoS dropdown, retain toggle (mqtt-out only)
+- `frontend/src/components/config/MqttNodeConfig.vue` — shared config component for `mqtt-in` and `mqtt-out` with broker dropdown + "+" button, topic input, QoS dropdown, retain toggle (mqtt-out only). Renders the `target = topic | responseTopic` selector for `mqtt-out` and disables/hides the topic field in responseTopic mode
+- `frontend/src/components/config/MqttRequestConfig.vue` — config component for `mqtt-request`: broker dropdown, request topic, QoS, retain, timeout + timeoutMode, response topic prefix, response format, v5 default properties block. Reuses the broker dropdown subcomponent from `MqttNodeConfig.vue`
 - `frontend/src/components/config/MqttBrokerConfig.vue` — Broker config dialog: form for host, port, client ID, credentials, TLS, keep-alive. Opens as a standalone properties panel via the "+" button
 
 ### Frontend – Adjustments
 
-- `frontend/src/components/PropertyPanel.vue` — dispatch for `mqtt-in` and `mqtt-out` to `MqttNodeConfig`. Additionally: support for config node dialogs (broker configuration as a nested panel)
-- `frontend/src/components/nodes/tokens.ts` — already present: `mqtt-in` → input (green), `mqtt-out` → output (orange). No change needed
+- `frontend/src/components/PropertyPanel.vue` — dispatch for `mqtt-in` and `mqtt-out` to `MqttNodeConfig`, and `mqtt-request` to `MqttRequestConfig`. Additionally: support for config node dialogs (broker configuration as a nested panel)
+- `frontend/src/components/nodes/tokens.ts` — already present: `mqtt-in` → input (green), `mqtt-out` → output (orange). Add `mqtt-request` (function/orange — request node, paired symbology with `http-request`)
 - `frontend/src/stores/flowStore.ts` — manage config nodes: CRUD operations for `configs[]` in the workspace, API calls for persistence
 - `frontend/src/types/flow.ts` — TypeScript types for config nodes and MQTT broker config
 
@@ -672,11 +875,190 @@ The publish node reads `msg.payload` and converts it for the MQTT publish:
 - `map`/`slice` → JSON-serialized
 - `number`/`bool` → string conversion
 
+### Request / Response Pattern (mqtt-request ↔ mqtt-out target=responseTopic)
+
+The request/response pair leans on two MQTT v5 properties on the wire:
+
+- **Response Topic** — set by the requester on the request publish; the responder reads it and publishes the reply to that topic
+- **Correlation Data** — opaque bytes set by the requester; the responder copies them onto the reply, allowing the requester to match reply ↔ request even when topics are reused
+
+End-to-end lifecycle:
+
+```
+  ┌──────────────┐                              ┌─────────────────┐
+  │ mqtt-request │                              │ Responder side  │
+  │  (requester) │                              │  (mqtt-in →     │
+  │              │                              │   mqtt-out      │
+  │              │                              │   target=       │
+  │              │                              │   responseTopic)│
+  └──────────────┘                              └─────────────────┘
+
+  1. msg in
+  2. generate responseTopic = loopze/response/<uuid>
+     generate correlationData = <16 random bytes>
+  3. SUBSCRIBE responseTopic ─────────►  (broker)
+     ◄──────────── SUBACK
+  4. PUBLISH target_topic
+       Properties.ResponseTopic   = responseTopic
+       Properties.CorrelationData = correlationData
+       Payload                    = msg.payload
+                                       ──────────►   mqtt-in receives
+                                                     msg.responseTopic
+                                                     msg.correlationData
+
+                                                     [user flow]
+
+                                                     mqtt-out target=
+                                                       responseTopic
+                                                     PUBLISH
+                                                       msg.responseTopic
+                                                       Properties.
+                                                         CorrelationData
+                                                         = msg.correlation
+                                                           Data
+                                       ◄──────────
+  5. publish on responseTopic with matching correlationData →
+     - cancel timeout
+     - UNSUBSCRIBE responseTopic
+     - emit response on output 0
+```
+
+The `mqtt-request` node implementation sketch:
+
+```go
+type inflight struct {
+    correlation []byte
+    responseTopic string
+    timer       *time.Timer
+    inMsg       Message // original input msg for passthrough on timeout
+}
+
+type MqttRequestNode struct {
+    // … broker, topic, qos, retain, prefix, timeout, timeoutMode, format, defaults
+    pending map[string]*inflight // key = hex(correlation)
+    mu      sync.Mutex
+}
+
+func (n *MqttRequestNode) OnInput(msg Message) {
+    topic, ok := pickTopic(n.topic, msg) // configured else msg.topic
+    if !ok {
+        n.catchError(msg, "mqtt-request: no target topic")
+        return
+    }
+
+    rt := n.prefix + "/" + uuid.NewString()
+    cd := randBytes(16)
+    key := hex.EncodeToString(cd)
+
+    ctx := &inflight{correlation: cd, responseTopic: rt, inMsg: msg}
+    n.mu.Lock()
+    n.pending[key] = ctx
+    n.mu.Unlock()
+
+    // 1) one-shot subscription on rt (noLocal=true, retainHandling=2)
+    if err := n.broker.Subscribe(n.id, rt, n.qosFor(msg), n.onResponse); err != nil {
+        n.cleanup(key)
+        n.catchError(msg, "mqtt-request: subscribe failed: "+err.Error())
+        return
+    }
+
+    // 2) publish with v5 ResponseTopic + CorrelationData
+    props := mergeProps(n.defaults, msg)
+    props.ResponseTopic = rt
+    props.CorrelationData = cd
+    if err := n.broker.Publish(topic, msg.Get("payload"), n.qosFor(msg), n.retain, props); err != nil {
+        n.broker.Unsubscribe(n.id, rt)
+        n.cleanup(key)
+        n.catchError(msg, "mqtt-request: publish failed: "+err.Error())
+        return
+    }
+
+    // 3) timer
+    if n.timeout > 0 {
+        ctx.timer = time.AfterFunc(n.timeout, func() { n.onTimeout(key) })
+    }
+}
+
+func (n *MqttRequestNode) onResponse(p *paho.Publish) {
+    if p.Properties == nil || len(p.Properties.CorrelationData) == 0 {
+        return // no correlation → cannot match, ignore (defensive)
+    }
+    key := hex.EncodeToString(p.Properties.CorrelationData)
+
+    n.mu.Lock()
+    ctx, ok := n.pending[key]
+    if !ok { n.mu.Unlock(); return } // unknown / late response — drop
+    delete(n.pending, key)
+    n.mu.Unlock()
+
+    if ctx.timer != nil { ctx.timer.Stop() }
+    n.broker.Unsubscribe(n.id, ctx.responseTopic)
+
+    out := ctx.inMsg.Clone()
+    out.Set("requestTopic", out.Get("topic"))
+    out.Set("topic", p.Topic)
+    out.Set("payload", decode(p.Payload, n.responseFormat))
+    out.Set("qos", int(p.QoS))
+    out.Set("retain", p.Retain)
+    out.Set("correlationData", p.Properties.CorrelationData)
+    mergeV5IntoMsg(out, p.Properties)
+    n.send(0, out)
+}
+
+func (n *MqttRequestNode) onTimeout(key string) {
+    n.mu.Lock()
+    ctx, ok := n.pending[key]
+    if !ok { n.mu.Unlock(); return }
+    delete(n.pending, key)
+    n.mu.Unlock()
+
+    n.broker.Unsubscribe(n.id, ctx.responseTopic)
+
+    if n.timeoutMode == "passthrough" {
+        out := ctx.inMsg.Clone()
+        out.Set("timedOut", true)
+        n.send(0, out)
+        return
+    }
+    n.catchError(ctx.inMsg, "mqtt-request: timeout")
+}
+```
+
+Important:
+
+- On `Stop()` the node iterates `pending`, stops every timer, unsubscribes every response topic, and depending on `timeoutMode` either emits `timedOut` passthrough messages or raises catch errors so flow callers don't hang silently.
+- On broker disconnect the broker manager invokes a per-subscriber callback that the request node uses to fail all inflight contexts the same way.
+- `Subscribe` for the response topic must use the v5 options `noLocal=false`, `retainHandling=2`. The default in mqtt-in (`noLocal=false`) is the right choice here too — `true` would cause the broker to drop the response when requester and responder share a connection (single LOOPZE instance, both nodes referencing the same broker config). `retainHandling=2` keeps the temporary topic from receiving stale retained junk.
+
+### mqtt-out — `target = responseTopic`
+
+The publish node has two target modes that route to different topics:
+
+- `target = "topic"` (default) — `effectiveTopic = config.topic || msg.topic` (current behavior)
+- `target = "responseTopic"` — `effectiveTopic = msg.responseTopic` only; `config.topic` and `msg.topic` are ignored. If `msg.responseTopic` is empty/missing → catchable error, no publish
+
+When `target = "responseTopic"`, the node also forwards `msg.correlationData` (if present) as the v5 `Correlation Data` property on the publish — which is what makes the round-trip with `mqtt-request` work. All other v5 property merge rules from § 3 apply unchanged.
+
+```go
+func (n *MqttOutNode) effectiveTopic(msg Message) (string, error) {
+    if n.target == "responseTopic" {
+        rt, _ := msg.GetString("responseTopic")
+        if rt == "" {
+            return "", errors.New("mqtt-out: target=responseTopic but msg.responseTopic is missing")
+        }
+        return rt, nil
+    }
+    if n.topic != "" { return n.topic, nil }
+    if t, _ := msg.GetString("topic"); t != "" { return t, nil }
+    return "", errors.New("mqtt-out: no topic")
+}
+```
+
 ## Dependencies
 
 - **No dependencies** on existing issues — this is a standalone feature
 - Introduces the **config node concept** that will be reused by future connector nodes (HTTP, TCP, Modbus, OPC UA, databases, etc.)
-- Frontend tokens for `mqtt-in` and `mqtt-out` are already defined in `tokens.ts` — they appear in the palette automatically once the backend registers them
+- Frontend tokens for `mqtt-in` and `mqtt-out` are already defined in `tokens.ts` — they appear in the palette automatically once the backend registers them. A new token for `mqtt-request` must be added (function-class, paired symbology with `http-request`)
 
 ## Out of Scope / Not in Scope
 
@@ -690,5 +1072,6 @@ The publish node reads `msg.payload` and converts it for the MQTT publish:
     - **Request/Response Information** in CONNECT (`Request Response Information`, `Request Problem Information`): default true for Problem Information, otherwise not configurable
     - **CONNECT User Properties**: not in the UI currently; can be set via library API if anyone needs them (extension later)
 - **Wildcard topics**: `+` and `#` wildcards in topics are not explicitly validated for the first cut, but they work transparently via the MQTT client
+- **Request/response on v3.1.1**: the `mqtt-request` node and `mqtt-out target = responseTopic` mode rely on the v5 `Response Topic` and `Correlation Data` properties. With a v3.1.1 broker, request/response is **degraded** — the request node logs a warning at deploy and works only by topic-uniqueness convention; the `mqtt-out responseTopic` mode will always error because v3.1.1 inbound publishes carry no `responseTopic`. A custom v3.1.1 envelope (e.g., embedding `responseTopic` and `correlationData` in the payload) is **deliberately not** implemented in v1
 - **Extended TLS configuration**: client certificates, CA bundle, etc. — not in v1
 - **Credential encryption**: passwords are stored in plaintext in the config for now. Encryption is addressed separately via a credential system

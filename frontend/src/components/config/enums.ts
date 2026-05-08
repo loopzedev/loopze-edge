@@ -97,6 +97,20 @@ export const MQTT_IN_OUTPUT_FORMATS: OptionEntry<string>[] = [
   { value: 'buffer', label: 'Buffer (raw bytes)' },
 ]
 
+// ── mqtt-out publish target ──────────────────────────────────────────
+
+export const MQTT_OUT_TARGETS: OptionEntry<string>[] = [
+  { value: 'topic',         label: 'Topic' },
+  { value: 'responseTopic', label: 'Response to responseTopic' },
+]
+
+// ── mqtt-request timeout mode ────────────────────────────────────────
+
+export const MQTT_REQUEST_TIMEOUT_MODES: OptionEntry<string>[] = [
+  { value: 'error',       label: 'Error (catchable)' },
+  { value: 'passthrough', label: 'Passthrough (msg.timedOut=true)' },
+]
+
 // ── Modbus function codes ────────────────────────────────────────────
 
 export const MODBUS_READ_FCS: OptionEntry<number>[] = [

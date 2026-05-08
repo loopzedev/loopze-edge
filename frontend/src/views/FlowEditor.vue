@@ -430,6 +430,27 @@ onMounted(async () => {
                     :disabled="nodeProps.data?.disabled"
                 >
                     <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.target === 'responseTopic'
+                                ? '→ msg.responseTopic'
+                                : (nodeProps.data?.config?.topic || '')
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-mqtt-request="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="mqtt-request"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
                         <span class="truncate">{{ nodeProps.data?.config?.topic || '' }}</span>
                     </template>
                 </BaseNode>

@@ -90,6 +90,9 @@ nav:
   - Nodes:
       - nodes/index.md
       - Network:
+          - nodes/mqtt-in.md
+          - nodes/mqtt-out.md
+          - nodes/mqtt-request.md
           - nodes/tcp-in.md
           - nodes/tcp-out.md
           - nodes/tcp-request.md

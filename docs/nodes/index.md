@@ -7,7 +7,6 @@ LOOPZE ships a curated set of built-in nodes grouped by purpose.
 | Node    | What it does                              |
 |---------|-------------------------------------------|
 | Inject  | Manually or periodically send a message.  |
-| MQTT In | Subscribe to an MQTT topic.               |
 | Modbus  | Read / poll Modbus TCP or RTU registers.  |
 | OPC UA  | Read / subscribe to OPC UA nodes.         |
 
@@ -16,19 +15,21 @@ LOOPZE ships a curated set of built-in nodes grouped by purpose.
 | Node     | What it does                              |
 |----------|-------------------------------------------|
 | Debug    | Stream messages to the editor sidebar.    |
-| MQTT Out | Publish to an MQTT topic.                 |
 | OPC UA   | Write to an OPC UA node.                  |
 
 ## Network
 
-| Node                                | What it does                                                     |
-|-------------------------------------|------------------------------------------------------------------|
-| HTTP In / Response / Request        | Define HTTP endpoints in a flow, or call out to external HTTP services. |
-| [TCP Receive](tcp-in.md)            | Listen on a TCP port (server) or dial a remote (client).         |
-| [TCP Send](tcp-out.md)              | Reply on a session, broadcast to many, or dial a remote.         |
-| [TCP Request](tcp-request.md)       | Synchronous TCP round-trip (dial → send → read → close).         |
-| [UDP Receive](udp-in.md)            | Bind a UDP port (with optional multicast).                       |
-| [UDP Send](udp-out.md)              | Send a UDP datagram (unicast / broadcast / multicast).           |
+| Node                                  | What it does                                                     |
+|---------------------------------------|------------------------------------------------------------------|
+| HTTP In / Response / Request          | Define HTTP endpoints in a flow, or call out to external HTTP services. |
+| [MQTT Subscribe](mqtt-in.md)          | Subscribe to MQTT topics (static or dynamic, MQTT v5).           |
+| [MQTT Publish](mqtt-out.md)           | Publish to an MQTT topic, including v5 response-topic replies.   |
+| [MQTT Request](mqtt-request.md)       | Synchronous MQTT v5 request/response in one node.                |
+| [TCP Receive](tcp-in.md)              | Listen on a TCP port (server) or dial a remote (client).         |
+| [TCP Send](tcp-out.md)                | Reply on a session, broadcast to many, or dial a remote.         |
+| [TCP Request](tcp-request.md)         | Synchronous TCP round-trip (dial → send → read → close).         |
+| [UDP Receive](udp-in.md)              | Bind a UDP port (with optional multicast).                       |
+| [UDP Send](udp-out.md)                | Send a UDP datagram (unicast / broadcast / multicast).           |
 
 Cross-cutting reference:
 

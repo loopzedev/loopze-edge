@@ -5,6 +5,21 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-05-08
+
+### Added
+- **`mqtt-request` node** — synchronous MQTT v5 request/response in a single node. For each input message the node generates a unique response topic (`<prefix>/<uuid>`) plus 16 random bytes of correlation data, opens a one-shot subscription, publishes the request with v5 `Response Topic` + `Correlation Data` properties, and waits for the matching reply or for the timeout. Two timeout modes: `error` (catchable error) and `passthrough` (msg with `msg.timedOut=true`). Multiple inflight requests are tracked in parallel via an internal map keyed by hex-encoded correlation data; on broker disconnect or `Stop()` every pending context is drained cleanly. Default v5 publish properties (user properties, content type, message expiry, payload format) can be configured and per-message-overridden the same way as on `mqtt-out`.
+- **`mqtt-out` `target` selector** — new `target` field with values `topic` (default, current behaviour) and `responseTopic`. In response-topic mode the node publishes to `msg.responseTopic` (ignoring the configured topic and `msg.topic`) and forwards `msg.correlationData` as the v5 Correlation Data property. Pairs with a remote `mqtt-request` to close the round-trip with a single line of glue (`[mqtt-in] → [Function] → [mqtt-out target=responseTopic]`).
+- **Per-subscriber connection-down callbacks on the MQTT broker manager.** New `RegisterConnectionDownFunc(subscriberID, fn)` / `UnregisterConnectionDownFunc(subscriberID)` API on `MqttBroker`. Used by `mqtt-request` to fail every inflight context the moment the broker drops, instead of waiting for each individual timer.
+- **Documentation.** Three new node reference pages — [MQTT Subscribe](https://docs.loopze.dev/nodes/mqtt-in/), [MQTT Publish](https://docs.loopze.dev/nodes/mqtt-out/) (with the new target selector), and [MQTT Request](https://docs.loopze.dev/nodes/mqtt-request/). MkDocs nav and the nodes overview index updated.
+- **Frontend.** New `MqttRequestConfig.vue` properties panel; `MqttNodeConfig.vue` extended with the publish-target toggle and a hint block when "Response to responseTopic" is selected; `mqtt-request` palette token + canvas rendering with MQTT brand icon; `BaseNode.vue` default label.
+
+### Changed
+- `mqtt-out` `correlationData` accepts three wire formats. `[]byte` is passed through as before; **base64-encoded strings** are decoded back to the original bytes (Go's default `[]byte → JSON` shape — surfaces when a msg has travelled through a function node or NATS routing); `[]int` / `[]any` of numbers are byte-packed (the JSON shape of an `[]int` payload from `mqtt-in` buffer mode). The previous string path interpreted the base64 ASCII as literal bytes, breaking request/response correlation through any JSON-serializing intermediate.
+
+### Fixed
+- **`mqtt-request` timed out even when the responder published the reply correctly.** The internal response-topic subscription was opened with `NoLocal=true`. Per MQTT v5 §3.8.3.1 the broker filters messages from a connection with the same Client ID — and request and responder share the broker connection in any single LOOPZE instance, so the response was being filtered out. Fixed by setting `NoLocal=false`; the random response topic already prevents echo loops.
+
 ## [0.0.6] - 2026-05-08
 
 ### Added

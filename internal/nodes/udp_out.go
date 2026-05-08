@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"golang.org/x/net/ipv4"
 
@@ -261,9 +260,11 @@ func (n *UDPOutNode) openSocket() (*net.UDPConn, *ipv4.PacketConn, error) {
 }
 
 // setBroadcast enables SO_BROADCAST on the given connection so the
-// kernel will allow writes to broadcast addresses (255.255.255.255 and
-// per-subnet directed broadcasts). Cross-platform: syscall.SO_BROADCAST
-// is defined on linux/darwin/windows.
+// kernel will allow writes to broadcast addresses (255.255.255.255
+// and per-subnet directed broadcasts). The setsockopt call differs
+// between unix-style platforms (fd is an int) and Windows (fd is a
+// syscall.Handle), so the implementation lives in
+// udp_out_unix.go and udp_out_windows.go behind build tags.
 func setBroadcast(c *net.UDPConn) error {
 	rc, err := c.SyscallConn()
 	if err != nil {
@@ -271,7 +272,7 @@ func setBroadcast(c *net.UDPConn) error {
 	}
 	var opErr error
 	cerr := rc.Control(func(fd uintptr) {
-		opErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
+		opErr = setBroadcastFD(fd)
 	})
 	if cerr != nil {
 		return cerr

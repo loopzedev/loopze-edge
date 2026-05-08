@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type InfoTab = 'help' | 'config' | 'context' | 'debug'
+export type InfoTab = 'help' | 'config' | 'context' | 'state-machines' | 'debug'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 export type DeployStatus = 'idle' | 'deploying' | 'deployed' | 'failed'
 export type LogsLimit = 100 | 200 | 500 | 1000
@@ -30,6 +30,10 @@ export const useUiStore = defineStore('ui', () => {
   const contextAutoRefresh = ref<boolean>(
     localStorage.getItem('loopze-context-auto-refresh') === 'true',
   )
+  const stateMachineAutoRefresh = ref<boolean>(
+    localStorage.getItem('loopze-state-machine-auto-refresh') === 'true',
+  )
+  const selectedStateMachineNodeID = ref<string | null>(null)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
   const propertiesContext = ref<PropertiesContext>(null)
@@ -111,6 +115,15 @@ export const useUiStore = defineStore('ui', () => {
     localStorage.setItem('loopze-context-auto-refresh', v ? 'true' : 'false')
   }
 
+  function setStateMachineAutoRefresh(v: boolean) {
+    stateMachineAutoRefresh.value = v
+    localStorage.setItem('loopze-state-machine-auto-refresh', v ? 'true' : 'false')
+  }
+
+  function setSelectedStateMachineNodeID(id: string | null) {
+    selectedStateMachineNodeID.value = id
+  }
+
   function setConnectionStatus(status: ConnectionStatus) {
     connectionStatus.value = status
   }
@@ -156,6 +169,8 @@ export const useUiStore = defineStore('ui', () => {
     infoPanelWidth,
     activeInfoTab,
     contextAutoRefresh,
+    stateMachineAutoRefresh,
+    selectedStateMachineNodeID,
     connectionStatus,
     deployStatus,
     logsPanelOpen,
@@ -181,6 +196,8 @@ export const useUiStore = defineStore('ui', () => {
     closeInfoPanel,
     setInfoTab,
     setContextAutoRefresh,
+    setStateMachineAutoRefresh,
+    setSelectedStateMachineNodeID,
     setConnectionStatus,
     setDeployStatus,
     toggleLogsPanel,

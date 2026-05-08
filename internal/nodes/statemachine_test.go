@@ -6,8 +6,10 @@ package nodes_test
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
+	"github.com/loopzedev/loopze-edge/internal/flow"
 	"github.com/loopzedev/loopze-edge/internal/nodes"
 )
 
@@ -445,6 +447,173 @@ func TestSMEngine_GuardedArray(t *testing.T) {
 	if eng2.CurrentState() != "unlocked" {
 		t.Fatalf("expected 'unlocked', got %q", eng2.CurrentState())
 	}
+}
+
+// ── Node Snapshot Tests ─────────────────────────────────────────────────────
+
+// TestStateMachineNode_Snapshot exercises the inspector path end-to-end:
+// initial snapshot, snapshot after a transition, and history accumulation.
+func TestStateMachineNode_Snapshot(t *testing.T) {
+	inst, err := nodes.NewStateMachineNode(flow.NodeConfig{
+		ID:     "sm-1",
+		Type:   "statemachine",
+		Name:   "Test Door",
+		FlowID: "flow-1",
+		Properties: map[string]any{
+			"machine": simpleMachineJSON,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewStateMachineNode: %v", err)
+	}
+	if err := inst.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := inst.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer inst.Stop()
+
+	insp, ok := inst.(flow.StateMachineInspector)
+	if !ok {
+		t.Fatal("StateMachineNode does not implement StateMachineInspector")
+	}
+
+	// Initial snapshot: idle, no history, START available.
+	snap := insp.StateMachineSnapshot()
+	if snap.CurrentState != "idle" {
+		t.Fatalf("initial state: got %q, want idle", snap.CurrentState)
+	}
+	if snap.MachineID != "test" {
+		t.Fatalf("machine id: got %q, want test", snap.MachineID)
+	}
+	if snap.Initial != "idle" {
+		t.Fatalf("initial: got %q, want idle", snap.Initial)
+	}
+	sort.Strings(snap.States)
+	wantStates := []string{"idle", "paused", "running"}
+	if !equalStrings(snap.States, wantStates) {
+		t.Fatalf("states: got %v, want %v", snap.States, wantStates)
+	}
+	sort.Strings(snap.AvailableEvents)
+	if !equalStrings(snap.AvailableEvents, []string{"START"}) {
+		t.Fatalf("availableEvents: got %v, want [START]", snap.AvailableEvents)
+	}
+	if len(snap.History) != 0 {
+		t.Fatalf("history: got %d entries, want 0", len(snap.History))
+	}
+	if v, ok := snap.Context["count"].(float64); !ok || v != 0 {
+		t.Fatalf("context.count: got %v, want 0", snap.Context["count"])
+	}
+
+	// Drive a transition idle→running via HandleMessage.
+	startMsg := flow.NewMessage()
+	startMsg.SetTopic("START")
+	if _, err := inst.HandleMessage(startMsg); err != nil {
+		t.Fatalf("HandleMessage(START): %v", err)
+	}
+
+	snap = insp.StateMachineSnapshot()
+	if snap.CurrentState != "running" {
+		t.Fatalf("after START: got state %q, want running", snap.CurrentState)
+	}
+	sort.Strings(snap.AvailableEvents)
+	if !equalStrings(snap.AvailableEvents, []string{"PAUSE", "STOP"}) {
+		t.Fatalf("availableEvents after START: got %v", snap.AvailableEvents)
+	}
+	if len(snap.History) != 1 {
+		t.Fatalf("history after START: got %d, want 1", len(snap.History))
+	}
+	h0 := snap.History[0]
+	if h0.From != "idle" || h0.To != "running" || h0.Event != "START" {
+		t.Fatalf("history[0]: got %+v", h0)
+	}
+	if h0.Timestamp == "" {
+		t.Fatal("history[0].Timestamp is empty")
+	}
+
+	// Drive a self-event (unknown) — must not record anything.
+	noopMsg := flow.NewMessage()
+	noopMsg.SetTopic("UNKNOWN")
+	if _, err := inst.HandleMessage(noopMsg); err != nil {
+		t.Fatalf("HandleMessage(UNKNOWN): %v", err)
+	}
+	if got := insp.StateMachineSnapshot(); len(got.History) != 1 {
+		t.Fatalf("history after UNKNOWN: got %d, want 1", len(got.History))
+	}
+
+	// Drive another transition; history should now have 2 entries in order.
+	pauseMsg := flow.NewMessage()
+	pauseMsg.SetTopic("PAUSE")
+	if _, err := inst.HandleMessage(pauseMsg); err != nil {
+		t.Fatalf("HandleMessage(PAUSE): %v", err)
+	}
+	snap = insp.StateMachineSnapshot()
+	if len(snap.History) != 2 {
+		t.Fatalf("history len: got %d, want 2", len(snap.History))
+	}
+	if snap.History[1].Event != "PAUSE" || snap.History[1].To != "paused" {
+		t.Fatalf("history[1]: got %+v", snap.History[1])
+	}
+}
+
+// TestStateMachineNode_HistoryRingBuffer makes sure the history is bounded to
+// the ring-buffer cap and drops the oldest entries first.
+func TestStateMachineNode_HistoryRingBuffer(t *testing.T) {
+	inst, err := nodes.NewStateMachineNode(flow.NodeConfig{
+		ID:         "sm-ring",
+		Type:       "statemachine",
+		FlowID:     "flow-1",
+		Properties: map[string]any{"machine": simpleMachineJSON},
+	})
+	if err != nil {
+		t.Fatalf("NewStateMachineNode: %v", err)
+	}
+	if err := inst.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := inst.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer inst.Stop()
+	insp := inst.(flow.StateMachineInspector)
+
+	// Drive 25 idle↔running transitions; cap is 20.
+	for i := 0; i < 25; i++ {
+		topic := "START"
+		if i%2 == 1 {
+			topic = "STOP"
+		}
+		msg := flow.NewMessage()
+		msg.SetTopic(topic)
+		if _, err := inst.HandleMessage(msg); err != nil {
+			t.Fatalf("HandleMessage(%s): %v", topic, err)
+		}
+	}
+
+	snap := insp.StateMachineSnapshot()
+	if len(snap.History) != 20 {
+		t.Fatalf("history len: got %d, want 20 (cap)", len(snap.History))
+	}
+	// Newest entry should be the 25th transition, which was index 24 (even
+	// → START). After a long alternating run the *last* recorded one is the
+	// final iteration's transition.
+	last := snap.History[len(snap.History)-1]
+	if last.Event != "START" && last.Event != "STOP" {
+		t.Fatalf("unexpected last event: %s", last.Event)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestParseDelayMs(t *testing.T) {

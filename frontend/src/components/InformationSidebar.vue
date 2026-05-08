@@ -7,6 +7,7 @@ import DebugPanel from '@/components/DebugPanel.vue'
 import HelpPanel from '@/components/HelpPanel.vue'
 import ConfigPanel from '@/components/ConfigPanel.vue'
 import ContextPanel from '@/components/ContextPanel.vue'
+import StateMachinePanel from '@/components/StateMachinePanel.vue'
 
 const ui = useUiStore()
 
@@ -14,6 +15,7 @@ const tabs: { id: InfoTab; label: string }[] = [
   { id: 'help', label: 'Help' },
   { id: 'config', label: 'Config' },
   { id: 'context', label: 'Context' },
+  { id: 'state-machines', label: 'SM' },
   { id: 'debug', label: 'Debug' },
 ]
 
@@ -84,6 +86,7 @@ function onResizeEnd() {
       <HelpPanel v-if="ui.activeInfoTab === 'help'" />
       <ConfigPanel v-else-if="ui.activeInfoTab === 'config'" />
       <ContextPanel v-else-if="ui.activeInfoTab === 'context'" />
+      <StateMachinePanel v-else-if="ui.activeInfoTab === 'state-machines'" />
       <DebugPanel v-else />
     </div>
   </div>

@@ -44,6 +44,40 @@ export interface ContextStoreResponse {
   entries: ContextEntry[]
 }
 
+export interface StateMachineListItem {
+  nodeID: string
+  label: string
+  currentState: string
+}
+
+export interface StateMachineListResponse {
+  flowID: string
+  machines: StateMachineListItem[] | null
+}
+
+export interface StateMachineTransitionEntry {
+  ts: string
+  from: string
+  to: string
+  event: string
+}
+
+export interface StateMachineSnapshot {
+  machineId: string
+  currentState: string
+  states: string[]
+  initial: string
+  context: Record<string, unknown>
+  availableEvents: string[]
+  history: StateMachineTransitionEntry[]
+}
+
+export interface StateMachineSnapshotResponse {
+  flowID: string
+  nodeID: string
+  snapshot: StateMachineSnapshot
+}
+
 export interface OpcuaDataTypeInfo {
   nodeId: string
   name?: string
@@ -322,6 +356,23 @@ export function useApi() {
     })
   }
 
+  // ── State Machine inspector ──────────────────────────────────────────────
+
+  async function listStateMachines(flowId: string): Promise<StateMachineListResponse> {
+    return request<StateMachineListResponse>(
+      `/state-machines/flow/${encodeURIComponent(flowId)}`,
+    )
+  }
+
+  async function getStateMachineSnapshot(
+    flowId: string,
+    nodeId: string,
+  ): Promise<StateMachineSnapshotResponse> {
+    return request<StateMachineSnapshotResponse>(
+      `/state-machines/flow/${encodeURIComponent(flowId)}/${encodeURIComponent(nodeId)}`,
+    )
+  }
+
   // ── Auth endpoints ───────────────────────────────────────────────────────
 
   async function setupAdmin(username: string, password: string): Promise<User> {
@@ -473,6 +524,8 @@ export function useApi() {
     getContextKey,
     deleteContextKey,
     clearContext,
+    listStateMachines,
+    getStateMachineSnapshot,
     setupAdmin,
     login,
     logout,

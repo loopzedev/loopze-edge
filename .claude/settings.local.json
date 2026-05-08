@@ -188,7 +188,15 @@
       "Bash(wait)",
       "Bash(rm -rf /tmp/loopze-rp-test/*)",
       "Bash(/tmp/loopze-test --data-dir /tmp/loopze-rp-test --port 29999 --auth-disable --nats-port -1 --base-path /loopze)",
-      "Bash(rm -rf /tmp/loopze-rp-test /tmp/loopze-test)"
+      "Bash(rm -rf /tmp/loopze-rp-test /tmp/loopze-test)",
+      "Bash(docker --version)",
+      "Bash(docker buildx *)",
+      "Bash(docker run *)",
+      "Bash(curl -sf http://127.0.0.1:1881/health)",
+      "Bash(docker stop *)",
+      "Bash(.venv-docs/bin/mkdocs build *)",
+      "Bash(make help *)",
+      "Bash(make docker-build *)"
     ]
   }
 }

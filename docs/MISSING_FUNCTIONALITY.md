@@ -119,7 +119,7 @@ Focus on platform features, not individual node types.
 ### 5.2 Runtime API
 - [ ] HTTP In/Out nodes (define HTTP endpoints in the flow)
 - [ ] WebSocket In/Out nodes (own WS endpoints in the flow)
-- [ ] TCP/UDP In/Out nodes
+- [ ] TCP/UDP In/Out nodes – see `specifications/issues/NODE_TCP_UDP.md`
 - [ ] Webhook support
 
 ## 6. Configuration & operation

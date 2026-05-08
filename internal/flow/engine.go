@@ -1268,6 +1268,105 @@ func (e *Engine) Flows() []Flow {
 	return result
 }
 
+// StateMachineList is a lightweight summary of a single state machine node
+// returned to the UI to populate the inspector dropdown.
+type StateMachineList struct {
+	NodeID       string `json:"nodeID"`
+	Label        string `json:"label"`
+	CurrentState string `json:"currentState"`
+}
+
+// ListStateMachines returns one entry per running state machine node in the
+// given flow, ordered by node id for stable rendering. Returns ErrFlowNotFound
+// when the flow id is unknown.
+func (e *Engine) ListStateMachines(flowID string) ([]StateMachineList, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var flow *Flow
+	for i := range e.flows {
+		if e.flows[i].ID == flowID {
+			flow = &e.flows[i]
+			break
+		}
+	}
+	if flow == nil {
+		return nil, ErrFlowNotFound
+	}
+
+	var out []StateMachineList
+	for _, node := range flow.Nodes {
+		if node.Type != "statemachine" {
+			continue
+		}
+		rn, ok := e.nodes[node.ID]
+		if !ok {
+			continue
+		}
+		insp, ok := rn.instance.(StateMachineInspector)
+		if !ok {
+			continue
+		}
+		snap := insp.StateMachineSnapshot()
+		label := node.Name
+		if label == "" {
+			label = snap.MachineID
+		}
+		if label == "" {
+			label = node.ID
+		}
+		out = append(out, StateMachineList{
+			NodeID:       node.ID,
+			Label:        label,
+			CurrentState: snap.CurrentState,
+		})
+	}
+	return out, nil
+}
+
+// StateMachineSnapshot returns a snapshot of a single state machine node.
+// Returns ErrFlowNotFound, ErrNodeNotFound, or ErrNotStateMachine for the
+// respective failure modes so the API layer can map them to status codes.
+func (e *Engine) StateMachineSnapshot(flowID, nodeID string) (StateMachineSnapshot, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var flow *Flow
+	for i := range e.flows {
+		if e.flows[i].ID == flowID {
+			flow = &e.flows[i]
+			break
+		}
+	}
+	if flow == nil {
+		return StateMachineSnapshot{}, ErrFlowNotFound
+	}
+
+	var node *Node
+	for i := range flow.Nodes {
+		if flow.Nodes[i].ID == nodeID {
+			node = &flow.Nodes[i]
+			break
+		}
+	}
+	if node == nil {
+		return StateMachineSnapshot{}, ErrNodeNotFound
+	}
+	if node.Type != "statemachine" {
+		return StateMachineSnapshot{}, ErrNotStateMachine
+	}
+
+	rn, ok := e.nodes[nodeID]
+	if !ok {
+		return StateMachineSnapshot{}, ErrNodeNotFound
+	}
+	insp, ok := rn.instance.(StateMachineInspector)
+	if !ok {
+		return StateMachineSnapshot{}, ErrNotStateMachine
+	}
+	return insp.StateMachineSnapshot(), nil
+}
+
 // IsRunning reports whether the engine is currently started and ready for deployment.
 func (e *Engine) IsRunning() bool {
 	e.mu.RLock()

@@ -56,6 +56,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 			r.Get("/context/global/{storage}/{key}", deps.handleGetContextKey)
 			r.Get("/context/flow/{flowID}/{storage}", deps.handleGetContextStore)
 			r.Get("/context/flow/{flowID}/{storage}/{key}", deps.handleGetContextKey)
+
+			r.Get("/state-machines/flow/{flowID}", deps.handleListStateMachines)
+			r.Get("/state-machines/flow/{flowID}/{nodeID}", deps.handleGetStateMachineSnapshot)
 		})
 
 		// Mutating routes — editor or higher.

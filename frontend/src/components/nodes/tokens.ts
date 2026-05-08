@@ -93,6 +93,19 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#155a6b',
     textSub:    '#5a9eb0',
   },
+  // HTTP palette: electric indigo — web/internet cue, distinct from
+  // the cooler blue family (process/change) and the cyan family (OPC UA).
+  http: {
+    accent:     '#7c83fd',
+    accentDim:  '#7c83fd12',
+    accentBdr:  '#7c83fd2a',
+    accentGlow: '#7c83fd14',
+    bg:         '#070713',
+    bgHdr:      '#0e1024',
+    bgIcon:     '#13152e',
+    border:     '#2a2e5c',
+    textSub:    '#7682cc',
+  },
   // Tech-specific palette: MQTT brand magenta-purple from the mqtt.org logo,
   // brightened so it reads on a dark surface.
   mqtt: {
@@ -201,7 +214,7 @@ export const TOKENS: Record<string, NodeTokens> = {
 const TYPE_CATEGORY: Record<string, string> = {
   inject:          'inject',
   'mqtt-in':       'mqtt',
-  'http-in':       'input',
+  'http-in':       'http',
   'tcp-in':        'input',
   'udp-in':        'input',
   'modbus-read':   'rust',
@@ -234,8 +247,8 @@ const TYPE_CATEGORY: Record<string, string> = {
 
   debug:           'debug',
   'mqtt-out':      'mqtt',
-  'http-response': 'output',
-  'http-request':  'output',
+  'http-response': 'http',
+  'http-request':  'http',
   'tcp-out':       'output',
   'udp-out':       'output',
   'modbus-write':  'rust',

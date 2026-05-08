@@ -62,7 +62,14 @@ type StateMachineNode struct {
 	// used so guard/action error reports carry the originating message.
 	// nil for events triggered by after-timers.
 	currentMsg *flow.Message
+
+	// history is a ring buffer of recent transitions exposed via
+	// StateMachineSnapshot for the inspector UI.
+	history []flow.StateMachineTransition
 }
+
+// stateMachineHistoryCap bounds the per-node transition history buffer.
+const stateMachineHistoryCap = 20
 
 // NewStateMachineNode is the NodeFactory for the statemachine node type.
 func NewStateMachineNode(config flow.NodeConfig) (flow.NodeInstance, error) {
@@ -293,6 +300,8 @@ func (n *StateMachineNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 		if n.persist && n.flowPers != nil {
 			n.persistState()
 		}
+
+		n.recordTransition(result)
 	}
 
 	// Port 0: state change message.
@@ -317,6 +326,68 @@ func (n *StateMachineNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 	}
 
 	return outputs, nil
+}
+
+// StateMachineSnapshot returns a read-only view of the current state, context
+// and recent transitions for the inspector UI. Implements
+// flow.StateMachineInspector.
+func (n *StateMachineNode) StateMachineSnapshot() flow.StateMachineSnapshot {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.engine == nil {
+		return flow.StateMachineSnapshot{}
+	}
+
+	def := n.engine.def
+	current := n.engine.CurrentState()
+
+	states := make([]string, 0, len(def.States))
+	for name := range def.States {
+		states = append(states, name)
+	}
+
+	available := []string{}
+	if stateDef, ok := def.States[current]; ok {
+		for ev := range stateDef.On {
+			available = append(available, ev)
+		}
+		for ms := range stateDef.After {
+			available = append(available, "__AFTER_"+ms)
+		}
+	}
+
+	hist := make([]flow.StateMachineTransition, len(n.history))
+	copy(hist, n.history)
+
+	return flow.StateMachineSnapshot{
+		MachineID:       def.ID,
+		CurrentState:    current,
+		States:          states,
+		Initial:         def.Initial,
+		Context:         n.engine.Context(),
+		AvailableEvents: available,
+		History:         hist,
+	}
+}
+
+// recordTransition appends a transition to the bounded history buffer. The
+// caller must hold n.mu.
+func (n *StateMachineNode) recordTransition(result *TransitionResult) {
+	if result == nil || !result.Changed {
+		return
+	}
+	entry := flow.StateMachineTransition{
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		From:      result.From,
+		To:        result.To,
+		Event:     result.Event,
+	}
+	if len(n.history) >= stateMachineHistoryCap {
+		// Drop oldest, shift left. Cap is small (20) so the cost is trivial.
+		n.history = append(n.history[:0], n.history[1:]...)
+	}
+	n.history = append(n.history, entry)
 }
 
 // Stop cancels all timers and releases the Goja runtime.
@@ -443,6 +514,8 @@ func (n *StateMachineNode) handleAfterTimer(delayMs string) {
 	if result == nil || !result.Changed {
 		return
 	}
+
+	n.recordTransition(result)
 
 	// Cancel old timers and start new ones for the new state.
 	n.cancelDelayTimers()

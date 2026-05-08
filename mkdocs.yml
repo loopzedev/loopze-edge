@@ -93,6 +93,7 @@ nav:
       - scripting/index.md
   - Deployment:
       - deployment/index.md
+      - deployment/docker.md
   - Reference:
       - reference/cli.md
       - reference/architecture.md

@@ -168,6 +168,40 @@ docs-set-default: $(DOCS_BIN)
 	fi
 	@$(DOCS_VENV)/bin/mike set-default --push $(VERSION)
 
+# ─── Docker ───────────────────────────────────────────────────────────────────
+
+DOCKER_IMAGE ?= loopze-edge
+DOCKER_TAG   ?= local
+
+## docker-build: Build the Docker image (uses demo/Dockerfile, repo root as context)
+.PHONY: docker-build
+docker-build:
+	@echo "▸ Building $(DOCKER_IMAGE):$(DOCKER_TAG)…"
+	@docker build \
+		-f demo/Dockerfile \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
+		.
+
+## docker-up: Start the demo compose stack (build if needed, detached)
+.PHONY: docker-up
+docker-up:
+	@echo "▸ Starting LOOPZE via docker compose…"
+	@docker compose -f demo/docker-compose.yml up -d --build
+	@echo "▸ Open http://localhost:1880"
+
+## docker-down: Stop the demo compose stack (state in demo/data is kept)
+.PHONY: docker-down
+docker-down:
+	@docker compose -f demo/docker-compose.yml down
+
+## docker-logs: Follow logs of the running compose stack
+.PHONY: docker-logs
+docker-logs:
+	@docker compose -f demo/docker-compose.yml logs -f loopze
+
 # ─── Cross Compilation ───────────────────────────────────────────────────────
 
 PLATFORMS := \

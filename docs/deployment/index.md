@@ -48,8 +48,17 @@ service installer.
 
 ## Docker
 
-A minimal `Dockerfile` and `docker-compose.yml` live in the repo's
-`/demo` directory. Mount a volume for `--data-dir`.
+A multi-stage `Dockerfile` and a `docker-compose.yml` live in the
+repo's `demo/` directory.
+
+```bash
+cd demo
+docker compose up -d
+# → http://localhost:1880, state under ./data
+```
+
+See the dedicated [Docker guide](docker.md) for image layout, build
+args, multi-arch builds, healthcheck and production notes.
 
 ## Reverse proxy / TLS
 

@@ -1,0 +1,31 @@
+# LOOPZE — local development / demo stack.
+#
+#   cd demo
+#   docker compose up -d           # build + start, persist state under ./data
+#   docker compose logs -f loopze  # follow logs
+#   docker compose down            # stop (state in ./data is kept)
+#
+# Open http://localhost:1880 — first launch prompts you to create the
+# initial admin account.
+
+services:
+  loopze:
+    container_name: loopze
+    image: loopze-edge:local
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+      args:
+        VERSION: docker
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    environment:
+      LOOPZE_LOG_LEVEL: info
+      # Every flag in `loopze --help` is mirrored as a LOOPZE_* env var.
+      # See docs/reference/cli.md for the full list.
+      # LOOPZE_AUTH_DISABLE: "false"
+      # LOOPZE_BASE_PATH: /loopze
+      # LOOPZE_TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12
+    volumes:
+      - ./data:/data

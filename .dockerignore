@@ -1,0 +1,48 @@
+# .dockerignore — applied to the build context for demo/Dockerfile
+# (the build context is the repo root).
+
+# Git / CI metadata
+.git
+.gitignore
+.gitattributes
+.github
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Build output / caches
+/bin
+/build
+/dist
+/site
+/.venv-docs
+*.test
+*.out
+*.prof
+*.log
+coverage.out
+
+# Frontend dependencies and outputs — rebuilt fresh inside the image
+frontend/node_modules
+frontend/dist
+web/dist
+
+# Runtime data and secrets — must never enter the image
+/data
+demo/data
+*.key
+.env
+.env.*
+
+# Documentation — not needed by the LOOPZE binary
+/docs
+mkdocs.yml
+
+# Sibling demo servers (their own Node/Go projects, not LOOPZE itself)
+demo/modbus-server
+demo/opcua-server

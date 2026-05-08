@@ -106,6 +106,33 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#2a2e5c',
     textSub:    '#7682cc',
   },
+  // TCP palette: deep teal — transport-layer cue, deliberately darker
+  // and greener than OPC-UA's bright cyan and distinct from HTTP indigo.
+  tcp: {
+    accent:     '#3da99a',
+    accentDim:  '#3da99a12',
+    accentBdr:  '#3da99a2a',
+    accentGlow: '#3da99a14',
+    bg:         '#04120f',
+    bgHdr:      '#0a2520',
+    bgIcon:     '#0e2d28',
+    border:     '#155449',
+    textSub:    '#5a9e90',
+  },
+  // UDP palette: warm amber — counterpart to TCP teal. The warm/cool
+  // pairing makes the two transport families immediately distinguishable
+  // on the canvas without competing with template's softer peach.
+  udp: {
+    accent:     '#d6a04b',
+    accentDim:  '#d6a04b12',
+    accentBdr:  '#d6a04b2a',
+    accentGlow: '#d6a04b14',
+    bg:         '#100b04',
+    bgHdr:      '#241a0a',
+    bgIcon:     '#2c200c',
+    border:     '#54401a',
+    textSub:    '#a8895a',
+  },
   // Tech-specific palette: MQTT brand magenta-purple from the mqtt.org logo,
   // brightened so it reads on a dark surface.
   mqtt: {
@@ -215,8 +242,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   inject:          'inject',
   'mqtt-in':       'mqtt',
   'http-in':       'http',
-  'tcp-in':        'input',
-  'udp-in':        'input',
+  'tcp-in':        'tcp',
+  'udp-in':        'udp',
   'modbus-read':   'rust',
   'file-in':       'input',
   'link-in':       'link',
@@ -249,8 +276,9 @@ const TYPE_CATEGORY: Record<string, string> = {
   'mqtt-out':      'mqtt',
   'http-response': 'http',
   'http-request':  'http',
-  'tcp-out':       'output',
-  'udp-out':       'output',
+  'tcp-out':       'tcp',
+  'tcp-request':   'tcp',
+  'udp-out':       'udp',
   'modbus-write':  'rust',
   'modbus-parser': 'rust',
   'file-out':      'output',

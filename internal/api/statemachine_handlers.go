@@ -15,6 +15,21 @@ import (
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
+// handleListAllStateMachines returns every running state machine node across
+// every deployed flow, used by the inspector dropdown to support cross-flow
+// selection.
+//
+// GET /api/v1/state-machines
+func (d *Deps) handleListAllStateMachines(w http.ResponseWriter, _ *http.Request) {
+	machines := d.Engine.ListAllStateMachines()
+	if machines == nil {
+		machines = []flow.StateMachineListEntry{}
+	}
+	jsonResponse(w, http.StatusOK, map[string]any{
+		"machines": machines,
+	})
+}
+
 // handleListStateMachines returns one entry per running state machine node in
 // the given flow, used to populate the inspector dropdown.
 //

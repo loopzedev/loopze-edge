@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -346,6 +347,7 @@ func (n *StateMachineNode) StateMachineSnapshot() flow.StateMachineSnapshot {
 	for name := range def.States {
 		states = append(states, name)
 	}
+	sort.Strings(states)
 
 	available := []string{}
 	if stateDef, ok := def.States[current]; ok {
@@ -356,6 +358,7 @@ func (n *StateMachineNode) StateMachineSnapshot() flow.StateMachineSnapshot {
 			available = append(available, "__AFTER_"+ms)
 		}
 	}
+	sort.Strings(available)
 
 	hist := make([]flow.StateMachineTransition, len(n.history))
 	copy(hist, n.history)

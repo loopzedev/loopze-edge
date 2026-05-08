@@ -196,7 +196,9 @@
       "Bash(docker stop *)",
       "Bash(.venv-docs/bin/mkdocs build *)",
       "Bash(make help *)",
-      "Bash(make docker-build *)"
+      "Bash(make docker-build *)",
+      "Bash(grep -A8 \"^.PHONY: dev$\" /home/dennisbleul/git/loopze-edge/Makefile)",
+      "Bash(/home/dennisbleul/git/loopze-edge/.venv-docs/bin/mkdocs build *)"
     ]
   }
 }

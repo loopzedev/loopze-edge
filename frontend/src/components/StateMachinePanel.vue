@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watchEffect } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useStateMachineStore } from '@/stores/stateMachineStore'
@@ -9,42 +9,61 @@ const flow = useFlowStore()
 const ui = useUiStore()
 const sm = useStateMachineStore()
 
-// Mirror the active flow into the store and reload list on change.
-watch(
-  () => flow.activeFlowId,
-  (id) => {
-    sm.setFlowId(id)
-    if (id) {
-      // Restore last selection from uiStore once we have a flow.
-      if (ui.selectedStateMachineNodeID) {
-        sm.selectedNodeId = ui.selectedStateMachineNodeID
-      }
-      void sm.loadList().then(() => {
-        // Persist the resolved selection (loadList may have picked the first).
-        ui.setSelectedStateMachineNodeID(sm.selectedNodeId)
-        if (sm.selectedNodeId) void sm.loadSnapshot()
-      })
-    }
-  },
-  { immediate: false },
+// Encode/decode flowID + nodeID into a single dropdown value so a single
+// <select> can drive a cross-flow selection.
+function encodeKey(flowID: string, nodeID: string): string {
+  return `${flowID}::${nodeID}`
+}
+
+function decodeKey(value: string): { flowID: string; nodeID: string } | null {
+  const idx = value.indexOf('::')
+  if (idx < 0) return null
+  return { flowID: value.slice(0, idx), nodeID: value.slice(idx + 2) }
+}
+
+const selectedKey = computed(() =>
+  sm.selectedFlowId && sm.selectedNodeId
+    ? encodeKey(sm.selectedFlowId, sm.selectedNodeId)
+    : '',
 )
 
-onMounted(() => {
-  sm.setFlowId(flow.activeFlowId ?? null)
-  if (ui.selectedStateMachineNodeID) {
+onMounted(async () => {
+  // Restore the last selection from uiStore before the first load.
+  if (ui.selectedStateMachineFlowID && ui.selectedStateMachineNodeID) {
+    sm.selectedFlowId = ui.selectedStateMachineFlowID
     sm.selectedNodeId = ui.selectedStateMachineNodeID
   }
-  void sm.loadList().then(() => {
-    ui.setSelectedStateMachineNodeID(sm.selectedNodeId)
-    if (sm.selectedNodeId) void sm.loadSnapshot()
-  })
+
+  await sm.loadList()
+
+  // If no selection survived, default to a machine in the active flow if any,
+  // otherwise the first machine overall.
+  if (!sm.selectedFlowId || !sm.selectedNodeId) {
+    const preferred = flow.activeFlowId
+      ? sm.machines.find(m => m.flowID === flow.activeFlowId)
+      : undefined
+    const pick = preferred ?? sm.machines[0]
+    if (pick) {
+      sm.selectedFlowId = pick.flowID
+      sm.selectedNodeId = pick.nodeID
+    }
+  }
+
+  ui.setSelectedStateMachine(sm.selectedFlowId, sm.selectedNodeId)
+  if (sm.selectedFlowId && sm.selectedNodeId) {
+    await sm.loadSnapshot()
+  }
 })
 
-const machineOptions = computed(() => sm.machines)
-
-function handleSelectMachine(nodeId: string) {
-  ui.setSelectedStateMachineNodeID(nodeId || null)
-  void sm.selectMachine(nodeId || null)
+async function handleSelectChange(value: string) {
+  const decoded = decodeKey(value)
+  if (decoded) {
+    ui.setSelectedStateMachine(decoded.flowID, decoded.nodeID)
+    await sm.selectMachine(decoded.flowID, decoded.nodeID)
+  } else {
+    ui.setSelectedStateMachine(null, null)
+    await sm.selectMachine(null, null)
+  }
 }
 
 async function handleRefresh() {
@@ -87,23 +106,29 @@ function shortTime(ts: string): string {
   <div class="flex flex-col h-full bg-terminal-bg text-xs">
     <!-- Toolbar -->
     <div class="px-3 py-2 border-b border-terminal-border space-y-2 shrink-0">
-      <!-- Machine dropdown -->
+      <!-- Machine dropdown — grouped by flow so selection works across flows -->
       <div class="flex items-center gap-2">
         <label class="text-[10px] uppercase tracking-wider text-terminal-text-dim shrink-0">Machine</label>
         <select
-          :value="sm.selectedNodeId ?? ''"
+          :value="selectedKey"
           class="flex-1 bg-terminal-surface border border-terminal-border rounded px-2 py-1 text-[11px] text-terminal-text"
-          :disabled="machineOptions.length === 0"
-          @change="handleSelectMachine(($event.target as HTMLSelectElement).value)"
+          :disabled="sm.machines.length === 0"
+          @change="handleSelectChange(($event.target as HTMLSelectElement).value)"
         >
-          <option v-if="machineOptions.length === 0" value="">— no state machine in this flow —</option>
-          <option
-            v-for="m in machineOptions"
-            :key="m.nodeID"
-            :value="m.nodeID"
+          <option v-if="sm.machines.length === 0" value="">— no state machines deployed —</option>
+          <optgroup
+            v-for="g in sm.grouped"
+            :key="g.flowID"
+            :label="g.flowLabel"
           >
-            {{ m.label }} ({{ m.currentState }})
-          </option>
+            <option
+              v-for="m in g.machines"
+              :key="m.nodeID"
+              :value="encodeKey(m.flowID, m.nodeID)"
+            >
+              {{ m.label }} ({{ m.currentState }})
+            </option>
+          </optgroup>
         </select>
       </div>
 
@@ -137,18 +162,12 @@ function shortTime(ts: string): string {
       {{ sm.error }}
     </div>
 
-    <!-- Empty state: no flow / no machines -->
+    <!-- Empty state -->
     <div
-      v-if="!sm.flowId"
-      class="flex-1 flex items-center justify-center"
-    >
-      <span class="text-terminal-text-dim text-[11px]">Select a flow to inspect its state machines.</span>
-    </div>
-    <div
-      v-else-if="machineOptions.length === 0 && !sm.loadingList"
+      v-if="sm.machines.length === 0 && !sm.loadingList"
       class="flex-1 flex items-center justify-center px-4 text-center"
     >
-      <span class="text-terminal-text-dim text-[11px]">This flow has no state machine nodes.</span>
+      <span class="text-terminal-text-dim text-[11px]">No deployed flow has a state machine node.</span>
     </div>
 
     <!-- Detail -->

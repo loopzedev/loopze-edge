@@ -46,6 +46,7 @@ const icons: Record<string, string[]> = {
   // ── Transport ─────────────────────────────
   'tcp-in':      ['M5 4v16', 'M5 12h10a4 4 0 0 0 0-8H9', 'M11 8l-4 4 4 4'],          // plug in
   'tcp-out':     ['M19 4v16', 'M19 12H9a4 4 0 0 1 0-8h6', 'M13 8l4 4-4 4'],          // plug out
+  'tcp-request': ['M3 12h12', 'M11 8l4 4-4 4', 'M21 8v8', 'M19 6l2 2-2 2', 'M19 14l2 2-2 2'], // request/response
   'udp-in':      ['M5 4v16', 'M5 12h10a4 4 0 0 0 0-8H9', 'M11 8l-4 4 4 4'],
   'udp-out':     ['M19 4v16', 'M19 12H9a4 4 0 0 1 0-8h6', 'M13 8l4 4-4 4'],
 

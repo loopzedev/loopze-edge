@@ -121,6 +121,13 @@ type Engine struct {
 	httpMuxBuilder   HTTPMuxBuilder
 	httpRoot         string
 
+	// TCP session registry — engine-owned so msg.session handles
+	// survive Link-Out → Link-In hops across flows. Always non-nil
+	// after NewEngine; tcp-in nodes register accepted conns here,
+	// tcp-out (reply / server-broadcast) resolves handles back to a
+	// writable net.Conn.
+	sessionRegistry *SessionRegistry
+
 	running bool
 }
 
@@ -138,6 +145,7 @@ func NewEngine(cfg *config.Config) *Engine {
 		statusListeners:  make(map[uint64]StatusListenerFunc),
 		errorListeners:   make(map[uint64]ErrorListenerFunc),
 		responseRegistry: NewResponseRegistry(),
+		sessionRegistry:  NewSessionRegistry(),
 	}
 }
 
@@ -192,6 +200,13 @@ func (e *Engine) ResponseRegistry() *ResponseRegistry {
 	return e.responseRegistry
 }
 
+// SessionRegistry returns the engine-owned TCP session registry. tcp-*
+// nodes receive it via SessionRegistryProvider; tests use it to
+// inspect live session counts. Always non-nil.
+func (e *Engine) SessionRegistry() *SessionRegistry {
+	return e.sessionRegistry
+}
+
 // Start initialises the engine and prepares it for flow deployment.
 // It does not deploy any flows — call Deploy() to activate flows.
 func (e *Engine) Start() error {
@@ -243,6 +258,16 @@ func (e *Engine) Stop() error {
 	if e.responseRegistry != nil {
 		e.responseRegistry.DrainAll()
 		e.responseRegistry.Stop()
+	}
+
+	// Tear down every TCP session still registered. stopAllNodes above
+	// has already called each node's Stop() (which calls
+	// CloseByOwner for its own sessions), but a defensive sweep here
+	// catches any slot a misbehaving node failed to close. Closing the
+	// underlying net.Conn unblocks any goroutine still parked on a
+	// blocking Read.
+	if e.sessionRegistry != nil {
+		e.sessionRegistry.CloseAll()
 	}
 
 	e.running = false
@@ -663,6 +688,15 @@ func (e *Engine) wireAllNodes() {
 	for _, rn := range e.nodes {
 		if hp, ok := rn.instance.(HTTPMuxProvider); ok {
 			hp.SetHTTPMux(e.responseRegistry, e.httpRoot)
+		}
+	}
+
+	// Inject the engine-owned session registry into TCP nodes
+	// (tcp-in for accept-side registration; tcp-out reply /
+	// server-broadcast for handle resolution).
+	for _, rn := range e.nodes {
+		if sp, ok := rn.instance.(SessionRegistryProvider); ok {
+			sp.SetSessionRegistry(e.sessionRegistry)
 		}
 	}
 }
@@ -1274,6 +1308,61 @@ type StateMachineList struct {
 	NodeID       string `json:"nodeID"`
 	Label        string `json:"label"`
 	CurrentState string `json:"currentState"`
+}
+
+// StateMachineListEntry adds the owning flow id+label to a list entry so the
+// UI can group machines from every flow into a single dropdown.
+type StateMachineListEntry struct {
+	FlowID       string `json:"flowID"`
+	FlowLabel    string `json:"flowLabel"`
+	NodeID       string `json:"nodeID"`
+	Label        string `json:"label"`
+	CurrentState string `json:"currentState"`
+}
+
+// ListAllStateMachines returns one entry per running state machine node
+// across every deployed flow. Order matches the flow ordering in e.flows;
+// within a flow entries are returned in node-id order so renders are stable.
+func (e *Engine) ListAllStateMachines() []StateMachineListEntry {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var out []StateMachineListEntry
+	for _, f := range e.flows {
+		flowLabel := f.Label
+		if flowLabel == "" {
+			flowLabel = f.ID
+		}
+		for _, node := range f.Nodes {
+			if node.Type != "statemachine" {
+				continue
+			}
+			rn, ok := e.nodes[node.ID]
+			if !ok {
+				continue
+			}
+			insp, ok := rn.instance.(StateMachineInspector)
+			if !ok {
+				continue
+			}
+			snap := insp.StateMachineSnapshot()
+			label := node.Name
+			if label == "" {
+				label = snap.MachineID
+			}
+			if label == "" {
+				label = node.ID
+			}
+			out = append(out, StateMachineListEntry{
+				FlowID:       f.ID,
+				FlowLabel:    flowLabel,
+				NodeID:       node.ID,
+				Label:        label,
+				CurrentState: snap.CurrentState,
+			})
+		}
+	}
+	return out
 }
 
 // ListStateMachines returns one entry per running state machine node in the

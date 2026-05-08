@@ -89,6 +89,15 @@ nav:
       - getting-started/concepts.md
   - Nodes:
       - nodes/index.md
+      - Network:
+          - nodes/tcp-in.md
+          - nodes/tcp-out.md
+          - nodes/tcp-request.md
+          - nodes/udp-in.md
+          - nodes/udp-out.md
+      - Reference:
+          - nodes/framing.md
+          - nodes/tls.md
   - Scripting:
       - scripting/index.md
   - Deployment:

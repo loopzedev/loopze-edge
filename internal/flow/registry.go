@@ -166,6 +166,15 @@ type HTTPMuxProvider interface {
 	SetHTTPMux(registry *ResponseRegistry, root string)
 }
 
+// SessionRegistryProvider is implemented by nodes that need access to
+// the engine-owned TCP session registry. tcp-in (server mode) uses it
+// to register every accepted connection and to publish msg.session
+// handles into the flow; tcp-out (reply / server-broadcast modes)
+// uses it to resolve those handles back to a writable net.Conn.
+type SessionRegistryProvider interface {
+	SetSessionRegistry(registry *SessionRegistry)
+}
+
 // DebugFunc is a callback that nodes use to emit debug messages.
 // The engine provides this function via SetDebug before calling Start().
 // The debug node uses this to publish captured messages; any node can

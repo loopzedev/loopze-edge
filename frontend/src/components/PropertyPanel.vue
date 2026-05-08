@@ -32,6 +32,11 @@ import JSONParserConfig from '@/components/config/JSONParserConfig.vue'
 import HttpInConfig from '@/components/config/HttpInConfig.vue'
 import HttpResponseConfig from '@/components/config/HttpResponseConfig.vue'
 import HttpRequestConfig from '@/components/config/HttpRequestConfig.vue'
+import TcpInConfig from '@/components/config/TcpInConfig.vue'
+import TcpOutConfig from '@/components/config/TcpOutConfig.vue'
+import TcpRequestConfig from '@/components/config/TcpRequestConfig.vue'
+import UdpInConfig from '@/components/config/UdpInConfig.vue'
+import UdpOutConfig from '@/components/config/UdpOutConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
 import { getNodeSummary } from '@/components/help'
@@ -289,6 +294,11 @@ function onResizeEnd() {
               <HttpInConfig v-else-if="selectedNode?.type === 'http-in'" />
               <HttpResponseConfig v-else-if="selectedNode?.type === 'http-response'" />
               <HttpRequestConfig v-else-if="selectedNode?.type === 'http-request'" />
+              <TcpInConfig v-else-if="selectedNode?.type === 'tcp-in'" />
+              <TcpOutConfig v-else-if="selectedNode?.type === 'tcp-out'" />
+              <TcpRequestConfig v-else-if="selectedNode?.type === 'tcp-request'" />
+              <UdpInConfig v-else-if="selectedNode?.type === 'udp-in'" />
+              <UdpOutConfig v-else-if="selectedNode?.type === 'udp-out'" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

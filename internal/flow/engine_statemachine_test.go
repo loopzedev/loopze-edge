@@ -62,6 +62,57 @@ func TestEngine_ListStateMachines(t *testing.T) {
 	}
 }
 
+func TestEngine_ListAllStateMachines(t *testing.T) {
+	rig := newCatchRig(t)
+	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+
+	rig.deploy([]flow.Flow{
+		{
+			ID:    "flow-a",
+			Label: "Flow A",
+			Nodes: []flow.Node{
+				{ID: "src-a", Type: "test-source", Z: "flow-a", Wires: [][]string{}},
+				{ID: "sm-a1", Type: "statemachine", Z: "flow-a", Name: "Door A1",
+					Config: map[string]any{"machine": inspectorMachineJSON},
+					Wires:  [][]string{{}, {}}},
+			},
+		},
+		{
+			ID:    "flow-b",
+			Label: "",
+			Nodes: []flow.Node{
+				{ID: "sm-b1", Type: "statemachine", Z: "flow-b",
+					Config: map[string]any{"machine": inspectorMachineJSON},
+					Wires:  [][]string{{}, {}}},
+			},
+		},
+	})
+
+	got := rig.engine.ListAllStateMachines()
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+
+	byNodeID := map[string]flow.StateMachineListEntry{}
+	for _, e := range got {
+		byNodeID[e.NodeID] = e
+	}
+
+	a := byNodeID["sm-a1"]
+	if a.FlowID != "flow-a" || a.FlowLabel != "Flow A" || a.Label != "Door A1" {
+		t.Errorf("sm-a1 entry: %+v", a)
+	}
+
+	b := byNodeID["sm-b1"]
+	// flow-b has empty Label → fall back to flow id.
+	if b.FlowID != "flow-b" || b.FlowLabel != "flow-b" {
+		t.Errorf("sm-b1 entry: %+v", b)
+	}
+	if b.Label != "door" {
+		t.Errorf("sm-b1 label: got %q, want door", b.Label)
+	}
+}
+
 func TestEngine_ListStateMachines_UnknownFlow(t *testing.T) {
 	rig := newCatchRig(t)
 	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())

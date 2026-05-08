@@ -436,11 +436,102 @@ onMounted(async () => {
             </template>
 
             <template #node-tcp-in="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="tcp-in"
+                    :selected="nodeProps.selected"
+                    :inputs="0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${nodeProps.data?.config?.mode === 'client' ? '→ ' : ':'}${nodeProps.data?.config?.host || '0.0.0.0'}:${nodeProps.data?.config?.port ?? ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-tcp-out="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="tcp-out"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'reply'
+                                ? 'reply'
+                                : nodeProps.data?.config?.mode === 'server-broadcast'
+                                ? `broadcast → ${nodeProps.data?.config?.targetTcpIn || '?'}`
+                                : `→ ${nodeProps.data?.config?.host || '?'}:${nodeProps.data?.config?.port ?? ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-tcp-request="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="tcp-request"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${nodeProps.data?.config?.host || ''}${nodeProps.data?.config?.port ? ':' + nodeProps.data?.config?.port : ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-udp-in="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="udp-in"
+                    :selected="nodeProps.selected"
+                    :inputs="0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `:${nodeProps.data?.config?.port ?? ''}${(nodeProps.data?.config?.multicastGroups?.length ?? 0) > 0 ? ' · mcast' : ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-udp-out="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="udp-out"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${nodeProps.data?.config?.mode || 'unicast'} → ${nodeProps.data?.config?.host || '?'}:${nodeProps.data?.config?.port ?? ''}`
+                        }}</span>
+                    </template>
+                </BaseNode>
             </template>
 
             <template #node-modbus-read="nodeProps">

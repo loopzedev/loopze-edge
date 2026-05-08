@@ -567,6 +567,11 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
 	registry.Register("http-response", nodes.NewHTTPResponseNode, nodes.HTTPResponseTypeInfo())
 	registry.Register("http-request", nodes.NewHTTPRequestNode, nodes.HTTPRequestTypeInfo())
+	registry.Register("tcp-in", nodes.NewTCPInNode, nodes.TCPInTypeInfo())
+	registry.Register("tcp-out", nodes.NewTCPOutNode, nodes.TCPOutTypeInfo())
+	registry.Register("tcp-request", nodes.NewTCPRequestNode, nodes.TCPRequestTypeInfo())
+	registry.Register("udp-in", nodes.NewUDPInNode, nodes.UDPInTypeInfo())
+	registry.Register("udp-out", nodes.NewUDPOutNode, nodes.UDPOutTypeInfo())
 
 	// Config node types.
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())

@@ -1,48 +1,57 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   useApi,
-  type StateMachineListItem,
+  type StateMachineListEntry,
   type StateMachineSnapshot,
 } from '@/composables/useApi'
+
+export interface StateMachineFlowGroup {
+  flowID: string
+  flowLabel: string
+  machines: StateMachineListEntry[]
+}
 
 export const useStateMachineStore = defineStore('stateMachine', () => {
   const api = useApi()
 
-  const flowId = ref<string | null>(null)
-  const machines = ref<StateMachineListItem[]>([])
+  const machines = ref<StateMachineListEntry[]>([])
+  const selectedFlowId = ref<string | null>(null)
   const selectedNodeId = ref<string | null>(null)
   const snapshot = ref<StateMachineSnapshot | null>(null)
   const loadingList = ref(false)
   const loadingSnapshot = ref(false)
   const error = ref<string | null>(null)
 
-  function setFlowId(id: string | null) {
-    if (flowId.value === id) return
-    flowId.value = id
-    machines.value = []
-    snapshot.value = null
-    selectedNodeId.value = null
-  }
+  // Group the flat list by flow for the dropdown's <optgroup>s.
+  const grouped = computed<StateMachineFlowGroup[]>(() => {
+    const groups = new Map<string, StateMachineFlowGroup>()
+    for (const m of machines.value) {
+      let g = groups.get(m.flowID)
+      if (!g) {
+        g = { flowID: m.flowID, flowLabel: m.flowLabel, machines: [] }
+        groups.set(m.flowID, g)
+      }
+      g.machines.push(m)
+    }
+    return Array.from(groups.values())
+  })
 
   async function loadList() {
     error.value = null
-    if (!flowId.value) {
-      machines.value = []
-      return
-    }
     loadingList.value = true
     try {
-      const res = await api.listStateMachines(flowId.value)
+      const res = await api.listAllStateMachines()
       machines.value = res.machines ?? []
 
-      // Keep selection if still present, otherwise pick the first.
-      if (selectedNodeId.value && !machines.value.some(m => m.nodeID === selectedNodeId.value)) {
+      // Drop selection if it no longer exists.
+      const stillExists = machines.value.some(
+        m => m.flowID === selectedFlowId.value && m.nodeID === selectedNodeId.value,
+      )
+      if (!stillExists) {
+        selectedFlowId.value = null
         selectedNodeId.value = null
         snapshot.value = null
-      }
-      if (!selectedNodeId.value && machines.value.length > 0) {
-        selectedNodeId.value = machines.value[0].nodeID
       }
     } catch (err) {
       error.value = api.isApiError(err) ? err.message : 'Failed to load state machines'
@@ -54,17 +63,19 @@ export const useStateMachineStore = defineStore('stateMachine', () => {
 
   async function loadSnapshot() {
     error.value = null
-    if (!flowId.value || !selectedNodeId.value) {
+    if (!selectedFlowId.value || !selectedNodeId.value) {
       snapshot.value = null
       return
     }
     loadingSnapshot.value = true
     try {
-      const res = await api.getStateMachineSnapshot(flowId.value, selectedNodeId.value)
+      const res = await api.getStateMachineSnapshot(selectedFlowId.value, selectedNodeId.value)
       snapshot.value = res.snapshot
 
       // Reflect current state in the dropdown label.
-      const idx = machines.value.findIndex(m => m.nodeID === selectedNodeId.value)
+      const idx = machines.value.findIndex(
+        m => m.flowID === selectedFlowId.value && m.nodeID === selectedNodeId.value,
+      )
       if (idx >= 0 && machines.value[idx].currentState !== res.snapshot.currentState) {
         machines.value[idx] = {
           ...machines.value[idx],
@@ -82,30 +93,31 @@ export const useStateMachineStore = defineStore('stateMachine', () => {
     }
   }
 
-  async function selectMachine(nodeId: string | null) {
+  async function selectMachine(flowId: string | null, nodeId: string | null) {
+    selectedFlowId.value = flowId
     selectedNodeId.value = nodeId
     snapshot.value = null
-    if (nodeId) {
+    if (flowId && nodeId) {
       await loadSnapshot()
     }
   }
 
   async function refresh() {
     await loadList()
-    if (selectedNodeId.value) {
+    if (selectedFlowId.value && selectedNodeId.value) {
       await loadSnapshot()
     }
   }
 
   return {
-    flowId,
     machines,
+    grouped,
+    selectedFlowId,
     selectedNodeId,
     snapshot,
     loadingList,
     loadingSnapshot,
     error,
-    setFlowId,
     loadList,
     loadSnapshot,
     selectMachine,

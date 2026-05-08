@@ -33,6 +33,7 @@ export const useUiStore = defineStore('ui', () => {
   const stateMachineAutoRefresh = ref<boolean>(
     localStorage.getItem('loopze-state-machine-auto-refresh') === 'true',
   )
+  const selectedStateMachineFlowID = ref<string | null>(null)
   const selectedStateMachineNodeID = ref<string | null>(null)
   const connectionStatus = ref<ConnectionStatus>('disconnected')
   const deployStatus = ref<DeployStatus>('idle')
@@ -124,6 +125,11 @@ export const useUiStore = defineStore('ui', () => {
     selectedStateMachineNodeID.value = id
   }
 
+  function setSelectedStateMachine(flowId: string | null, nodeId: string | null) {
+    selectedStateMachineFlowID.value = flowId
+    selectedStateMachineNodeID.value = nodeId
+  }
+
   function setConnectionStatus(status: ConnectionStatus) {
     connectionStatus.value = status
   }
@@ -170,6 +176,7 @@ export const useUiStore = defineStore('ui', () => {
     activeInfoTab,
     contextAutoRefresh,
     stateMachineAutoRefresh,
+    selectedStateMachineFlowID,
     selectedStateMachineNodeID,
     connectionStatus,
     deployStatus,
@@ -198,6 +205,7 @@ export const useUiStore = defineStore('ui', () => {
     setContextAutoRefresh,
     setStateMachineAutoRefresh,
     setSelectedStateMachineNodeID,
+    setSelectedStateMachine,
     setConnectionStatus,
     setDeployStatus,
     toggleLogsPanel,

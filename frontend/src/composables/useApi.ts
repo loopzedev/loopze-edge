@@ -50,9 +50,21 @@ export interface StateMachineListItem {
   currentState: string
 }
 
+export interface StateMachineListEntry {
+  flowID: string
+  flowLabel: string
+  nodeID: string
+  label: string
+  currentState: string
+}
+
 export interface StateMachineListResponse {
   flowID: string
   machines: StateMachineListItem[] | null
+}
+
+export interface StateMachineAllListResponse {
+  machines: StateMachineListEntry[] | null
 }
 
 export interface StateMachineTransitionEntry {
@@ -364,6 +376,10 @@ export function useApi() {
     )
   }
 
+  async function listAllStateMachines(): Promise<StateMachineAllListResponse> {
+    return request<StateMachineAllListResponse>('/state-machines')
+  }
+
   async function getStateMachineSnapshot(
     flowId: string,
     nodeId: string,
@@ -525,6 +541,7 @@ export function useApi() {
     deleteContextKey,
     clearContext,
     listStateMachines,
+    listAllStateMachines,
     getStateMachineSnapshot,
     setupAdmin,
     login,

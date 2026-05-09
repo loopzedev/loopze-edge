@@ -22,6 +22,11 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true },
   },
   {
+    path: '/certs',
+    name: 'Certificates',
+    component: () => import('@/views/CertsView.vue'),
+  },
+  {
     path: '/design-preview',
     name: 'DesignPreview',
     component: () => import('@/views/DesignPreview.vue'),

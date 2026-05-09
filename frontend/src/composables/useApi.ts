@@ -7,6 +7,7 @@ import type {
 } from '@/types/flow'
 import type { LogEntry } from '@/types/events'
 import type { Role, User } from '@/types/auth'
+import type { CertEntryInput, CertEntrySummary } from '@/types/cert'
 import { basePathNoSlash, readCookie } from '@/runtime'
 
 export interface ApiError {
@@ -511,6 +512,57 @@ export function useApi() {
     })
   }
 
+  // ── Certificate store ────────────────────────────────────────────────────
+
+  /**
+   * Fetch every stored cert as a wire-safe summary. PEM material and
+   * private keys are intentionally never included in the response.
+   */
+  async function listCerts(): Promise<CertEntrySummary[]> {
+    const res = await request<{ certs: CertEntrySummary[] }>('/certs')
+    return res.certs ?? []
+  }
+
+  /** Fetch a single cert summary by ID. */
+  async function getCert(id: string): Promise<CertEntrySummary> {
+    return request<CertEntrySummary>(`/certs/${encodeURIComponent(id)}`)
+  }
+
+  /** Create a new cert entry. The backend validates and parses the PEM
+   *  (for inline source) or reads the file (for file source). */
+  async function createCert(entry: CertEntryInput): Promise<CertEntrySummary> {
+    return request<CertEntrySummary>('/certs', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    })
+  }
+
+  /** Replace an existing cert entry. The URL ID wins over any id field on
+   *  the body — used to refresh PEM, change name, or rotate the file path. */
+  async function updateCert(id: string, entry: CertEntryInput): Promise<CertEntrySummary> {
+    return request<CertEntrySummary>(`/certs/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(entry),
+    })
+  }
+
+  /** Delete a cert entry. Throws ApiError(409) when the workspace still
+   *  references the cert; the error.details payload carries the
+   *  references list so the UI can show the operator where to untangle. */
+  async function deleteCert(id: string): Promise<void> {
+    return request<void>(`/certs/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  /** Probe an entry without persisting. Returns the parsed metadata (
+   *  fingerprint, subject, expiry) so the editor can preview a PEM blob
+   *  or file path before the operator commits. */
+  async function validateCert(entry: CertEntryInput): Promise<CertEntrySummary> {
+    return request<CertEntrySummary>('/certs/validate', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    })
+  }
+
   /**
    * Check if an error is an ApiError.
    */
@@ -555,6 +607,12 @@ export function useApi() {
     testOpcuaConnection,
     browseOpcua,
     readOpcua,
+    listCerts,
+    getCert,
+    createCert,
+    updateCert,
+    deleteCert,
+    validateCert,
     isApiError,
   }
 }

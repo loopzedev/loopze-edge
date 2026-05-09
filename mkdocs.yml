@@ -106,6 +106,8 @@ nav:
   - Deployment:
       - deployment/index.md
       - deployment/docker.md
+  - Operations:
+      - operations/cert-store.md
   - Reference:
       - reference/cli.md
       - reference/architecture.md

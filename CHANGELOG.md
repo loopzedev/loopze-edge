@@ -5,6 +5,28 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Central TLS certificate store.** A new shared catalogue of TLS material that every network node (TCP, HTTP, MQTT, OPC UA) can reference by ID instead of embedding PEM inline. Two source modes per entry: `inline` (PEM stored encrypted at rest in `credentials.json`) and `file` (the store keeps the absolute path and re-reads the contents on every connection init, so cert-manager / Let's Encrypt / Kubernetes-mounted-secret rotations take effect without a redeploy). Entries are typed (`ca-bundle` / `client-pair` / `server-pair`); type-mismatched references fail at deploy time. The leaf certificate's fingerprint, subject, issuer and `notAfter` are derived at save time and surfaced in the UI.
+- **`tls.caBundleRef` / `tls.clientPairRef` on every TLS-capable node.** Nodes now accept either inline PEM (unchanged) or a reference to a stored entry; mixing the two for the same slot is a hard error. Inline and reference can be mixed across slots (e.g. CA via ref + client cert inline). The engine injects the cert store into every node implementing the new `flow.CertStoreProvider` interface BEFORE `Init()` runs, so configuration is validated against the live catalogue at deploy time.
+- **REST API for the cert store** — `GET/POST/PUT/DELETE /api/v1/certs` plus `POST /api/v1/certs/validate` for "test-before-save". Viewer reads, Editor mutates. `GET` responses never include PEM material or private keys; only paths and parsed metadata are surfaced. `DELETE` is rejected with `409 Conflict` and a list of referencing nodes when the workspace still depends on the entry.
+- **Cert manager UI.** New `/certs` view (Editor+) with a sortable list, create/edit modal supporting both source modes, slug validation matching the backend regex, parse-preview button hitting `/validate`, and a delete dialog that surfaces the workspace references blocking a removal. `TlsConfigSection.vue` gains a source-mode toggle so node properties offer either inline PEM textareas or a typed cert selector.
+- **Auto-migration for OPC UA configs.** On first boot after upgrade, every `opcua-server` config node with legacy `clientCertFile` / `clientKeyFile` properties is converted into a `Source: file` cert-store entry with deterministic ID `opcua-<configNodeID>`, and the legacy properties are removed so the deprecation WARN does not fire on subsequent deploys. Idempotent.
+- **Documentation** — new [Operations → Cert store](https://docs.loopze.dev/operations/cert-store/) page (operator-facing rotation guide with cert-manager / Let's Encrypt / plain-disk recipes); [TLS configuration](https://docs.loopze.dev/nodes/tls/) extended with the reference-mode schema and the legacy-fields deprecation table.
+
+### Changed
+- **`http-request` `tlsInsecure` is deprecated** in favour of the structured `tls` block. It keeps working for two minor releases with a WARN log on every deploy.
+- **`mqtt-broker` `useTLS` is deprecated** in favour of the structured `tls` block. Same two-release deprecation window.
+- **`opcua-server` `clientCertFile` / `clientKeyFile` are deprecated** in favour of `certRef` against a `client-pair` entry in the cert store. The auto-migrator handles existing flows; manual rewrites are unnecessary.
+- **`credentials.json` schema is now v2** with a top-level envelope `{version, credentials, certs}`. Legacy v1 files (a bare credentials map) are auto-upgraded on first read; the file is rewritten in v2 shape on the next save. Future versions are rejected with a clear error so an older binary never silently drops fields written by a newer one.
+
+### Internal
+- New `internal/credentials/cert_entry.go`, `cert_store.go`, `cert_summary.go`, `envelope.go` — `CertEntry` type with `Validate()` / `parseAndPopulate()` / `loadMaterial()`, the `CertStore` itself with concurrency-safe CRUD (mutations roll back on save failure), `BuildTLSConfig` / `LoadMaterial` resolvers re-reading file-source entries fresh per call.
+- New `flow.CertStoreProvider` interface; the engine injects the store before `Init` for `NodeInstance` and before `Start` for `ConfigInstance`.
+- New `flow.ScanCertReferences(ws, certID)` walks flows + config nodes and returns every `tls.caBundleRef` / `tls.clientPairRef` match — used by the API's 409 reference list.
+- `OpcuaTestConnect` signature extended with `*credentials.CertStore` so the `/api/v1/opcua/test-connection` endpoint resolves cert refs the same way the runtime does.
+
 ## [0.0.7] - 2026-05-08
 
 ### Added

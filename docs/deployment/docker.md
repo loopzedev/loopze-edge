@@ -83,7 +83,7 @@ Inside the volume:
 ```
 data/
 ├── flows.json            # the flow graph
-├── credentials.json      # AES-256-GCM-encrypted secrets
+├── credentials.json      # AES-256-GCM-encrypted secrets + stored certs
 ├── users.json            # local user accounts (Argon2id hashes)
 ├── loopze.session.key    # session-cookie HMAC key
 └── *.key                 # credential encryption key
@@ -96,6 +96,26 @@ data/
 
 If you bind-mount from the host, ensure ownership permits the container
 UID/GID (`chown -R 1000:1000 ./data` works in most cases).
+
+## File-source certificates
+
+The [cert store](../operations/cert-store.md) supports `Source: file`
+entries that point at PEM files outside `credentials.json`. In
+containerised deployments mount the cert directory read-only inside
+the container at the same absolute path you stored:
+
+```yaml
+services:
+  loopze:
+    image: ghcr.io/loopzedev/loopze-edge:latest
+    volumes:
+      - ./data:/data
+      - /etc/loopze/certs:/etc/loopze/certs:ro
+```
+
+Cert-manager / Let's Encrypt rotations swap the file in place; LOOPZE
+re-reads the contents at every connection init, so no container
+restart is required.
 
 ## Healthcheck
 

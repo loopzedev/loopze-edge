@@ -21,6 +21,7 @@ export type AuthAction =
   | 'inject'
   | 'manageUsers'
   | 'mutateContext'
+  | 'manageCerts'
 
 const ROLE_RANK: Record<Role, number> = {
   viewer: 1,
@@ -33,6 +34,7 @@ const ACTION_MIN_RANK: Record<AuthAction, number> = {
   inject: ROLE_RANK.editor,
   mutateContext: ROLE_RANK.editor,
   manageUsers: ROLE_RANK.admin,
+  manageCerts: ROLE_RANK.editor,
 }
 
 export function roleHasAction(role: Role, action: AuthAction): boolean {

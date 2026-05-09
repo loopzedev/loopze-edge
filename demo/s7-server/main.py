@@ -44,12 +44,14 @@ import logging
 import math
 import random
 import signal
+import struct
 import sys
 import threading
 import time
 
 from snap7 import util
 from snap7.server import Server, SrvArea
+from snap7.server import ServerISOConnection
 
 DB1_SIZE = 200
 DB10_SIZE = 50
@@ -60,6 +62,41 @@ PA_SIZE = 16
 DEFAULT_PORT = 1102
 
 log = logging.getLogger("s7-demo")
+
+
+def _patched_build_cotp_cc(self):
+    """Snap7-compatible COTP CC.
+
+    python-snap7 1.4's pure-Python S7 server emits a minimal 11-byte CC
+    response (TPKT + 7-byte COTP). The Snap7 reference (and our gos7 client)
+    require the CC to carry the standard COTP parameters — TPDU size, calling
+    TSAP, called TSAP — for a total wire length of 22 bytes. The python-snap7
+    *client* doesn't validate CC length so the upstream tests don't catch
+    this; our gos7 integration does.
+
+    This monkey-patch produces the 18-byte COTP body that wraps to a 22-byte
+    TPKT frame. We echo back the canonical TSAP defaults — gos7 doesn't
+    validate the values, only the frame length and PDU type byte. Filed for
+    upstream contribution: https://github.com/gijzelaerr/python-snap7
+    """
+    cotp_cc = struct.pack(
+        ">BBHHB",
+        17,                              # COTP header length (excludes itself)
+        ServerISOConnection.COTP_CC,    # PDU type 0xD0
+        self.dst_ref,                    # destination ref (client's src ref)
+        self.src_ref,                    # source ref
+        0x00,                            # class / option
+    )
+    # Standard COTP parameters that Snap7-class tooling expects in a CC.
+    params = (
+        b"\xC0\x01\x0A"                 # TPDU size code + len + value (1024)
+        b"\xC1\x02\x01\x00"             # Calling TSAP (rack/slot encoded)
+        b"\xC2\x02\x01\x02"             # Called TSAP
+    )
+    return cotp_cc + params
+
+
+ServerISOConnection._build_cotp_cc = _patched_build_cotp_cc
 
 
 def make_buf(size: int) -> bytearray:

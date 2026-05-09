@@ -10,14 +10,21 @@ Two new node types (`s7-read` and `s7-write`) enable reading from and writing to
 
 **Guiding principle of this issue**: All operation-relevant fields — area, address, data type, length — can be controlled both **statically in the node config** and **dynamically per message**. **Only the PLC target (host/rack/slot) is exclusively static** and is maintained once in the config node.
 
+**Read shape**: two complementary operational patterns are supported, each with its own UX, both backed by the same connection manager:
+
+1. **Variables mode** (`mode=static|dynamic`) — the user lists named variables (`DB10.DBD0`, `M0.0`, …) with data types. The node reads them via S7 multi-read (`AGReadMulti`) and emits decoded values. Right choice for sparse layouts (a couple of values across different areas) and for casual development reads.
+2. **Block mode** (`mode=block`) — the user picks one contiguous byte range (e.g. *DB1, bytes 0..200*). The node fetches that block in a **single** `AGReadArea` call per poll and emits the raw `[]byte`. Decoding happens downstream in an [`s7-parser`](./PARSER_S7_NODE.md) node. Right choice for tightly packed DBs typical of a Siemens project — it reduces round-trips dramatically (one block read of 200 bytes vs. ~50 individual reads with 12-byte item headers each), and the parse layout is shared between read and write paths via the parser node.
+
+The **PLC manager** transparently auto-coalesces nearby individual variables in *variables* mode into a single block read where it can — see [Out of Scope](#out-of-scope) for the planned Phase 3 implementation.
+
 **Scope**: S7 over RFC1006 (ISO-on-TCP, port 102) for S7-300 / S7-400 / S7-1200 / S7-1500. LOGO! (TSAP-based) is supported via an explicit `connection=logo` toggle with manual TSAP fields. S7 Optimized DBs (`Optimized block access` checkbox in TIA Portal, only on 1200/1500) are **not** addressable via the S7 protocol — those DBs require OPC UA. The user must un-tick "Optimized" on DBs they want to access from LOOPZE; this is documented prominently. Supported areas: **DB**, **M (Merker / Flags)**, **I (Inputs / PE)**, **Q (Outputs / PA)**, **C (Counters)**, **T (Timers)**. Common data types: BOOL, BYTE, WORD, DWORD, INT, DINT, REAL, STRING.
 
 ## Overview
 
 | Node type | Type ID | Canvas inputs | Canvas outputs | Description |
 |---|---|---|---|---|
-| **S7 Read** | `s7-read` | 0 or 1 | 1 | Reads variables from one or more areas of the PLC |
-| **S7 Write** | `s7-write` | 1 | 0 or 1 | Writes values to one or more variables in the PLC |
+| **S7 Read** | `s7-read` | 0 or 1 | 1 | Reads variables from one or more areas of the PLC, **or** a contiguous byte block (raw `[]byte`) for downstream parsing |
+| **S7 Write** | `s7-write` | 1 | 0 or 1 | Writes values to one or more variables in the PLC, **or** writes a raw `[]byte` block in one call |
 
 ```
                           SIEMENS PLC (e.g. S7-1500)
@@ -121,24 +128,31 @@ The **Test Connection** button performs a one-shot connect (`ISO-TSAP CR/CC` + `
 ### 2. S7 Read Node (`s7-read`)
 
 - **Canvas**:
-  - Static mode (cyclic poll): 0 inputs, 1 output
-  - Dynamic mode (on demand): 1 input, 1 output — the input triggers the read
-- **Function**: Reads one or more configured variables from the PLC and emits the result(s) as a flow message. In dynamic mode all parameters can be overridden via `msg`.
+  - Static mode (cyclic poll of the variables list): 0 inputs, 1 output
+  - Dynamic mode (variables list, on demand): 1 input, 1 output — the input triggers the read
+  - Block mode (cyclic poll of one contiguous byte block): 0 inputs (default) or 1 input when `triggerOnInput=true`, 1 output. Returns raw `[]byte`; downstream decoding happens in [`s7-parser`](./PARSER_S7_NODE.md)
+- **Function**: Reads one or more configured variables (or one contiguous byte block in `block` mode) from the PLC and emits the result(s) as a flow message. In dynamic mode all parameters can be overridden via `msg`.
 
 - **Base configuration**:
   - `plc` (string) — ID of the referenced `s7-plc` config node
-  - `mode` (string) — `static` (default) or `dynamic`
-  - `variables` (object[]) — list of variables to read in one round-trip:
+  - `mode` (string) — `static` (default) | `dynamic` | `block`
+  - `variables` (object[], used when `mode=static|dynamic`) — list of variables to read in one round-trip:
     - `name` (string) — user-defined display name (e.g. "Boiler Temperature"), used as key in the output object and as `topic` in per-item mode
     - `address` (string) — Siemens-style address, see "Address Syntax" below (e.g. `DB10.DBD0`, `M0.0`, `IB4`, `DB1.STRING50.20`)
     - `dataType` (string) — `bool` | `byte` | `word` | `dword` | `int` | `dint` | `real` | `string` | `raw`. For BOOL the address must contain a bit (e.g. `M0.3`); for STRING the encoded length comes from the address (`DB1.STRING50.20` = STRING starting at byte 50, max length 20)
     - `scale` (number, optional) — multiplicative scaling factor; default 1
     - `offset` (number, optional) — additive offset; applied **after** scaling
-  - `outputShape` (string) — `single` | `array` | `object` (default for >1):
+  - `block` (object, used when `mode=block`) — single contiguous byte block to read:
+    - `area` (string) — `DB` (default) | `M` | `I` | `Q`
+    - `db` (number) — DB number, required when `area=DB`
+    - `start` (number) — start byte offset within the area (0-based)
+    - `length` (number) — byte count to read. Hard upper bound: negotiated PDU size minus 22 bytes header (≈ 460 bytes on S7-1500 with default PDU 480, ≈ 220 bytes on S7-300 with PDU 240). The PLC manager auto-splits oversized blocks into multiple `AGReadArea` calls and concatenates the results
+    - `triggerOnInput` (boolean, default `false`) — adds an input port that triggers an extra read on every message (additive on top of the cyclic poll). Useful for "read on demand without waiting for the next tick" patterns
+  - `outputShape` (string, used when `mode=static|dynamic`) — `single` | `array` | `object` (default for >1):
     - `single`: scalar in `msg.payload` (only if `variables.length === 1`)
     - `array`: `[{name, address, dataType, value}, …]` in `msg.payload`
     - `object`: `{ "<name>": <value>, … }` in `msg.payload` — fastest for downstream Function/Switch nodes
-  - `topicTemplate` (string, optional) — default `s7/<plc-name>/<address>`. Variables `<plc-name>`, `<address>`, `<name>` are substituted
+  - `topicTemplate` (string, optional) — default `s7/<plc-name>/<address>` (variables mode) or `s7/<plc-name>/<area><db>` (block mode). Variables `<plc-name>`, `<address>`, `<name>`, `<area>`, `<db>`, `<start>`, `<length>` are substituted
 - **Polling (static mode)**:
   - `pollInterval` (number) — interval in milliseconds between reads. Default: 1000
   - `emitOnChange` (boolean) — if `true`, only emits when **any** value changes. Default: `false`
@@ -147,6 +161,10 @@ The **Test Connection** button performs a one-shot connect (`ISO-TSAP CR/CC` + `
   - `msg.variables` (object[]) — full override of the variable list
   - `msg.address` + `msg.dataType` (strings) — convenience form for a single read; equivalent to `msg.variables=[{address, dataType, name: "value"}]`
   - An input message without `msg.action` triggers a read with the effective parameters. Incoming messages are **not** passed through to the output — the output contains only the read result
+
+- **Block mode + `triggerOnInput=true`** — overrides via `msg`:
+  - `msg.s7.area` / `msg.s7.db` / `msg.s7.start` / `msg.s7.length` — override the configured block per message. Useful for variable-length payload fetches (e.g. read the DB header byte 0 first, parse the length, then read the rest in a follow-up message)
+  - Incoming messages are **not** forwarded — the output contains only the raw block bytes plus metadata
 
 - **Outgoing message** (example, `outputShape=object`):
   ```json
@@ -171,8 +189,25 @@ The **Test Connection** button performs a one-shot connect (`ISO-TSAP CR/CC` + `
   - `msg.payload` — depending on `outputShape` (scalar / array / object)
   - `msg.s7` — metadata block with the effective read parameters and per-variable values; useful for debugging and round-trip workflows
 
+- **Outgoing message** (block mode):
+  ```json
+  {
+    "payload": [/* raw byte array, e.g. 200 bytes from DB1 */],
+    "topic": "s7/press-line-2/db1",
+    "s7": {
+      "plc": "Press Line 2",
+      "area": "DB",
+      "db": 1,
+      "start": 0,
+      "length": 200
+    }
+  }
+  ```
+
+  In block mode `msg.payload` is a raw `[]byte` ready to be piped into an [`s7-parser`](./PARSER_S7_NODE.md) node. No per-variable decoding happens here — the parser owns the layout, which keeps read and write sharing one schema.
+
 - **Status display**:
-  - Green: `connected · <interval>` (static) or `connected · idle` (dynamic)
+  - Green: `connected · <interval>` (static / block) or `connected · idle` (dynamic)
   - Yellow: `connecting…` / `reconnecting…`
   - Red: error message with S7 error code, e.g. `Item not available (0x05)` — typical when an Optimized DB is addressed
 
@@ -190,7 +225,9 @@ The **Test Connection** button performs a one-shot connect (`ISO-TSAP CR/CC` + `
 │  Edit PLC config                              │
 │                                               │
 │  Mode                                         │
-│  ( • ) Static (poll)   ( ) Dynamic (on input) │
+│  ( • ) Static (variables, poll)               │
+│  ( ) Dynamic (variables, on input)            │
+│  ( ) Block (raw bytes, poll)                  │
 │                                               │
 │  Variables                                    │
 │  ┌─────────────────────────────────────────┐  │
@@ -222,18 +259,40 @@ In dynamic mode the variables editor is replaced by a hint block:
    for a single read.
 ```
 
+In block mode the variables editor is replaced by a single block configuration:
+
+```
+┌──────────────────────────────────────────────┐
+│  Block                                        │
+│  Area  [ DB ▼ ]   DB Number [ 1 ]             │
+│  Start [ 0  ]     Length    [ 200 ] bytes     │
+│  ☐ Trigger on input (additive to poll)        │
+│                                               │
+│  ℹ  Output is raw msg.payload = []byte.       │
+│     Pipe into an `s7-parser` node to decode.  │
+│     Block size is capped by the negotiated    │
+│     PDU; oversized blocks are auto-split.     │
+└──────────────────────────────────────────────┘
+```
+
 ### 3. S7 Write Node (`s7-write`)
 
 - **Canvas**:
   - 1 input
   - 0 outputs (default — sink)
   - **Optional**: 1 output when `emitAck=true` — emits an ACK message after a successful write
-- **Function**: Writes incoming values to one or more PLC variables. Static or dynamic per `msg`.
+- **Function**: Writes incoming values to one or more PLC variables, or — in `block` mode — writes a raw `[]byte` block in a single `AGWriteArea` call. Static or dynamic per `msg`.
 
 - **Base configuration**:
   - `plc` (string) — ID of the referenced `s7-plc` config node
-  - `mode` (string) — `static` (default) or `dynamic`
-  - `variables` (object[], static) — per write:
+  - `mode` (string) — `static` (default) | `dynamic` | `block`
+  - `block` (object, used when `mode=block`) — single contiguous byte block to write:
+    - `area` (string) — `DB` (default) | `M` | `Q` (writing to `I` is not allowed by the protocol on most CPUs and is rejected by the parser)
+    - `db` (number) — DB number, required when `area=DB`
+    - `start` (number) — start byte offset within the area
+    - `length` (number, optional) — expected byte count. If set, incoming `msg.payload` arrays of a different length are rejected with `BadTypeMismatch`. If omitted, the length of the incoming `msg.payload` is taken as-is
+    - `inputProperty` (string, default `payload`) — message field carrying the raw byte array. Switchable to e.g. `bytes` for direct chaining behind an [`s7-parser`](./PARSER_S7_NODE.md) `encode` action
+  - `variables` (object[], used when `mode=static|dynamic`) — per write:
     - `address` (string) — Siemens-style address
     - `dataType` (string) — analogous to `s7-read`
     - `valueSource` (string) — `static` | `msg`:
@@ -260,6 +319,7 @@ In dynamic mode the variables editor is replaced by a hint block:
     ```json
     { "address": "DB10.DBD0", "dataType": "real", "payload": 100.5 }
     ```
+  - **Block mode**: `msg.payload` (or whichever field `inputProperty` points to) is a `[]byte` and is written verbatim to the configured `area`/`db`/`start`. Override per message via `msg.s7.area` / `msg.s7.db` / `msg.s7.start`. The block is sent in **one** `AGWriteArea` call (or auto-split into multiple calls when it exceeds the negotiated PDU size). This is the natural counterpart to `s7-parser` `encode` action — no per-field protocol overhead
 
 - **Outgoing message** (only when `emitAck=true` or `passthrough=true`):
   ```json
@@ -295,7 +355,7 @@ In dynamic mode the variables editor is replaced by a hint block:
 │  │ Press Line 2               ▼  │ │ + │    │
 │  └────────────────────────────────┘ └───┘    │
 │                                               │
-│  Mode  ( • ) Static  ( ) Dynamic              │
+│  Mode  ( • ) Static  ( ) Dynamic  ( ) Block   │
 │                                               │
 │  Variables                                    │
 │  ┌─────────────────────────────────────────┐  │
@@ -320,6 +380,17 @@ In dynamic mode the variables editor is replaced by a hint block:
 └──────────────────────────────────────────────┘
 ```
 
+In block mode the variables editor is replaced by the same block configuration as `s7-read` (Area / DB / Start / Length / Input property), and the hint text changes to:
+
+```
+ℹ  Input is a raw msg.payload = []byte (or whatever
+   `inputProperty` points to — set to `bytes` to chain
+   directly behind an `s7-parser` encode). The block is
+   sent in one AGWriteArea call (or auto-split when it
+   exceeds the negotiated PDU). msg.s7.area/db/start
+   override the config per message.
+```
+
 ### 4. Connection Sharing & Multi-Variable Reads
 
 When multiple S7 nodes reference the same PLC, **one** TCP/RFC1006 connection is shared:
@@ -340,6 +411,10 @@ The engine provides a **PLC manager** that:
 **Per-PLC serialization**: In the S7 protocol only one job may run at a time on a connection. Multiple parallel polls on the same PLC are processed serially by the manager — via mutex or request queue. The PLC manager is **per PLC config**, not per node — so serialization spans across all nodes that share this PLC.
 
 **PDU bundling**: The `gos7` library exposes `ReadMultiVars` which packs N items into one telegram. The manager fills the buffer up to `(pduSize - header overhead)` bytes per request and chains the rest. This is the fundamental performance trick on S7: 50 single reads at 10 ms each is 500 ms; one bundled multi-read is ~15 ms.
+
+**Block-mode bundling**: In `mode=block` the node bypasses `ReadMultiVars` entirely and uses `AGReadArea` (single contiguous fetch). This is even cheaper than a multi-read — no per-item descriptors, the PLC just streams the byte range. For tightly-packed DBs (the typical Siemens project layout), block mode + downstream `s7-parser` is the fastest path and the recommended pattern for production polling. Each item header in a multi-read costs ~12 bytes; a 200-byte block read carries ~22 bytes of overhead total versus ~600 bytes for the equivalent 50-variable multi-read.
+
+**Auto-coalescing** (Phase 3, see [Out of Scope](#out-of-scope)): a planned later optimization detects clusters of individual variables that fall within the same DB and within a configurable byte gap, and silently rewrites those reads as one block fetch + client-side slicing — giving block-mode performance to flows that were authored in variables mode.
 
 **Polling stagger**: When multiple read nodes with the same `pollInterval` poll the same PLC, their tick times are offset (round-robin) so the load is distributed evenly. Optimization — not required for v1.
 
@@ -402,6 +477,31 @@ S7 addresses follow the Siemens engineering tool notation. The string in the `ad
           }
         },
         {
+          "id": "node-s7-read-block-1",
+          "type": "s7-read",
+          "name": "DB1 block (200 B)",
+          "x": 200,
+          "y": 250,
+          "z": "flow-1",
+          "inputs": 0,
+          "outputs": 1,
+          "wires": [["node-s7-parser-1"]],
+          "config": {
+            "plc": "plc-1",
+            "mode": "block",
+            "block": {
+              "area": "DB",
+              "db": 1,
+              "start": 0,
+              "length": 200,
+              "triggerOnInput": false
+            },
+            "pollInterval": 500,
+            "emitOnChange": true,
+            "emitOnError": false
+          }
+        },
+        {
           "id": "node-s7-write-1",
           "type": "s7-write",
           "name": "Set Setpoint",
@@ -424,6 +524,29 @@ S7 addresses follow the Siemens engineering tool notation. The string in the `ad
             ],
             "emitAck": false,
             "passthrough": false
+          }
+        },
+        {
+          "id": "node-s7-write-block-1",
+          "type": "s7-write",
+          "name": "Push DB10 block",
+          "x": 600,
+          "y": 400,
+          "z": "flow-1",
+          "inputs": 1,
+          "outputs": 0,
+          "wires": [],
+          "config": {
+            "plc": "plc-1",
+            "mode": "block",
+            "block": {
+              "area": "DB",
+              "db": 10,
+              "start": 0,
+              "length": 32,
+              "inputProperty": "bytes"
+            },
+            "emitAck": true
           }
         }
       ]
@@ -671,6 +794,13 @@ This endpoint is **read-only** and without persistence — it does not touch `co
 | `TestS7WritePassthrough` | Input message is forwarded with `msg.s7Write` enriched |
 | `TestS7TestConnectionHandler` | `/api/v1/s7/test-connection` returns CPU type + order code on a healthy PLC, error string on bad rack/slot |
 | `TestS7SharedConnection` | Multiple nodes with the same PLC reference share one connection |
+| `TestS7ReadBlockStatic` | Block mode with cyclic poll: emits `msg.payload = []byte` of the configured length, metadata in `msg.s7` |
+| `TestS7ReadBlockOversized` | Block size > negotiated PDU is auto-split into multiple `AGReadArea` calls and concatenated; consumer sees one contiguous block |
+| `TestS7ReadBlockTriggerOnInput` | With `triggerOnInput=true`, every input message produces an extra block read on top of the cyclic poll |
+| `TestS7ReadBlockDynamicOverride` | `msg.s7.area` / `db` / `start` / `length` overrides the configured block per message |
+| `TestS7WriteBlockStatic` | Block mode write: `msg.payload = []byte` is sent in one `AGWriteArea` call, contents read back match |
+| `TestS7WriteBlockLengthMismatch` | When `block.length` is set and `msg.payload` length differs, the write is rejected with `BadTypeMismatch` |
+| `TestS7WriteBlockInputProperty` | Custom `inputProperty=bytes` works (chains directly behind an `s7-parser` encode action) |
 
 **Test PLC**: a dedicated Snap7-based demo PLC is maintained under [`demo/s7-server/`](../../demo/s7-server/) (Python + `python-snap7`, libsnap7 bundled in the wheel — no native dependency setup required). It pre-fills DB1 / DB10, the Merker area, and inputs/outputs with well-known values and animates a handful of "live" measurements so polling tests see motion. By default it listens on the un-privileged port `:1102` (the LOOPZE PLC config simply uses `port=1102` in tests). Tests in this issue connect to it via `LOOPZE_S7_TEST_HOST` / `LOOPZE_S7_TEST_PORT` env vars and **skip** when those are unset (consistent with the OPC UA test pattern). The demo speaks the standard Snap7 surface (Connect / COMM-Setup / ReadArea / WriteArea / ReadMultiVars / WriteMultiVars); advanced services like `GetCpuInfo` / `GetOrderCode` return placeholder strings from the embedded Snap7 server — the LOOPZE Test-Connection endpoint must tolerate placeholder content here. For real-CPU parity tests (Optimized DB rejection, firmware-specific quirks) PLCSIM Advanced or actual hardware is required and lives outside CI.
 
@@ -688,6 +818,7 @@ This endpoint is **read-only** and without persistence — it does not touch `co
   - `ConfigProvider` interface
   - lifecycle order (start config nodes before regular nodes / stop them after)
 - **Modbus issue (`NODE_MODBUS.md`)** has hardened the pattern: server manager, request serialization, multi-variable read bundling. S7 follows the same blueprint, only the protocol changes
+- **`PARSER_S7_NODE.md`** — companion issue introducing the declarative byte-block parser/encoder. The S7 read/write `block` mode in this issue is the producer/consumer counterpart. The parser issue can be implemented in parallel; v1 of NODE_S7 is functionally complete without it (block mode still emits raw bytes that can be decoded in a Function node), but the typical production flow assumes both are present
 - **Catch node** for service-wide errors (connection drop) — already implemented
 - **Central TLS storage (`CENTRAL_TLS_STORAGE.md`)**: not relevant for v1 — S7 over RFC1006 is unencrypted per protocol; S7 communication runs in protected OT networks or behind VPN. If "Secure S7" via TLS comes later (S7-1500 firmware ≥ V3 supports it), the cert reference plugs in as in the other connection nodes
 
@@ -702,3 +833,4 @@ This endpoint is **read-only** and without persistence — it does not touch `co
 - **PROFINET / PROFIBUS network discovery**: out of scope — the user enters the IP address; for a discovery feature `dcp` would be needed, separate
 - **PUT/GET enable check on 1200/1500**: from S7-1500 onward "permit access via PUT/GET" must be activated on the CPU. LOOPZE cannot set this — operator's task. The error `Connection refused (CR)` in the test-connection points to this; the dialog shows a hint
 - **Block-level operations** (read DB list, upload DB definition): not in v1 — the read/write node only operates on already-known addresses
+- **Auto-coalescing of variables-mode reads into block fetches** (the "Phase 3" optimization): planned but not in v1. Detects clusters of individual variables in the same DB within a small byte gap and silently rewrites those reads as one `AGReadArea` + client-side slicing. Transparent — flows authored in variables mode would simply get faster on next deploy, no UI change needed. Deferred until block mode + the `s7-parser` node have shipped and seen real-world use, so the coalescer can be tuned against actual customer DB layouts. A config flag (`autoCoalesceBlockReads: bool`, default true once shipped) lets operators opt out for diagnostic comparisons

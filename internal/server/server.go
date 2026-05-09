@@ -607,6 +607,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("modbus-read", nodes.NewModbusReadNode, nodes.ModbusReadTypeInfo())
 	registry.Register("modbus-write", nodes.NewModbusWriteNode, nodes.ModbusWriteTypeInfo())
 	registry.Register("modbus-parser", nodes.NewModbusParserNode, nodes.ModbusParserTypeInfo())
+	registry.Register("s7-read", nodes.NewS7ReadNode, nodes.S7ReadTypeInfo())
 	registry.Register("opcua-read", nodes.NewOpcuaReadNode, nodes.OpcuaReadTypeInfo())
 	registry.Register("opcua-write", nodes.NewOpcuaWriteNode, nodes.OpcuaWriteTypeInfo())
 	registry.Register("opcua-subscribe", nodes.NewOpcuaSubscribeNode, nodes.OpcuaSubscribeTypeInfo())
@@ -627,6 +628,7 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())
 	registry.RegisterConfig("modbus-server", nodes.NewModbusServer, nodes.ModbusServerConfigTypeInfo())
 	registry.RegisterConfig("opcua-server", nodes.NewOpcuaServer, nodes.OpcuaServerConfigTypeInfo())
+	registry.RegisterConfig("s7-plc", nodes.NewS7PLC, nodes.S7PLCConfigTypeInfo())
 }
 
 // slogRequestLogger is a Chi-compatible middleware that logs each HTTP request

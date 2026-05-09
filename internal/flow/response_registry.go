@@ -128,7 +128,14 @@ type ResponseRegistry struct {
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
-	now    func() time.Time // injectable for tests
+
+	// `now` is the clock source used by Register (to compute deadlines)
+	// and by sweepExpired (to decide which slots have aged out). Tests
+	// swap it via SetNowForTest, which means the read sites and the
+	// write site need to coordinate; nowMu does that without coupling
+	// to the slot map's mutex.
+	nowMu sync.RWMutex
+	now   func() time.Time
 }
 
 // NewResponseRegistry returns a registry with default timeout / shutdown
@@ -157,7 +164,7 @@ func (rg *ResponseRegistry) Register(w http.ResponseWriter, r *http.Request, tim
 		flowID: flowID,
 	}
 	if timeout > 0 {
-		slot.deadline = rg.now().Add(timeout)
+		slot.deadline = rg.currentTime().Add(timeout)
 	}
 
 	rg.mu.Lock()
@@ -267,7 +274,7 @@ func (rg *ResponseRegistry) Stop() {
 
 // sweepExpired completes every slot whose deadline has elapsed.
 func (rg *ResponseRegistry) sweepExpired() {
-	now := rg.now()
+	now := rg.currentTime()
 	write := rg.TimeoutFallback
 	if write == nil {
 		write = defaultTimeoutFallback
@@ -309,9 +316,22 @@ func (rg *ResponseRegistry) Len() int {
 }
 
 // SetNowForTest overrides the registry's clock source. Test-only escape
-// hatch so the sweeper can be exercised without real-time waits.
+// hatch so the sweeper can be exercised without real-time waits. Safe
+// to call concurrently with sweepExpired / Register.
 func (rg *ResponseRegistry) SetNowForTest(fn func() time.Time) {
+	rg.nowMu.Lock()
 	rg.now = fn
+	rg.nowMu.Unlock()
+}
+
+// currentTime returns the registry's current wall-clock reading, taking
+// the nowMu read lock so a concurrent SetNowForTest swap is observed
+// atomically.
+func (rg *ResponseRegistry) currentTime() time.Time {
+	rg.nowMu.RLock()
+	fn := rg.now
+	rg.nowMu.RUnlock()
+	return fn()
 }
 
 // newHandleID returns 16 random hex characters. Collision probability

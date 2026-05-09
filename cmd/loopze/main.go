@@ -92,15 +92,17 @@ func main() {
 		srv.Hub().Broadcast(ws.EventLog, e)
 	})
 
-	// Start the server in a goroutine so we can listen for shutdown signals.
+	// Start the server in a goroutine so we can listen for shutdown
+	// signals. The "ready" indication comes from inside Start() (a
+	// "loopze server listening" structured log + a stdout welcome
+	// banner) once the HTTP listener has actually bound, so a failed
+	// bind never produces a misleading "running" message here.
 	go func() {
 		if err := srv.Start(); err != nil {
 			slog.Error("server failed", "error", err)
 			os.Exit(1)
 		}
 	}()
-
-	slog.Info("LOOPZE is running", "address", cfg.ListenAddr())
 
 	// Wait for interrupt signal for graceful shutdown.
 	quit := make(chan os.Signal, 1)

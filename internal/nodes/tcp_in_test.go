@@ -415,7 +415,7 @@ func TestTcpInClientReconnectAfterServerRestart(t *testing.T) {
 	})
 
 	waitForCount(t, h.col, 1, 2*time.Second)
-	if got, _ := h.col.msgs[0].Payload().(string); got != "first" {
+	if got, _ := h.col.snapshot()[0].Payload().(string); got != "first" {
 		t.Fatalf("first frame = %q", got)
 	}
 
@@ -439,8 +439,11 @@ func TestTcpInClientReconnectAfterServerRestart(t *testing.T) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		// look for a "second" frame in any msg
-		for _, m := range h.col.msgs {
+		// look for a "second" frame in any msg — the producer may
+		// still be active so iterate a snapshot rather than the live
+		// slice (race detector would otherwise flag the unsynchronised
+		// read against the collector's append).
+		for _, m := range h.col.snapshot() {
 			if s, _ := m.Payload().(string); s == "second" {
 				return
 			}

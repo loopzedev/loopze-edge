@@ -5,7 +5,7 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.8] - 2026-05-09
 
 ### Added
 - **Central TLS certificate store.** A new shared catalogue of TLS material that every network node (TCP, HTTP, MQTT, OPC UA) can reference by ID instead of embedding PEM inline. Two source modes per entry: `inline` (PEM stored encrypted at rest in `credentials.json`) and `file` (the store keeps the absolute path and re-reads the contents on every connection init, so cert-manager / Let's Encrypt / Kubernetes-mounted-secret rotations take effect without a redeploy). Entries are typed (`ca-bundle` / `client-pair` / `server-pair`); type-mismatched references fail at deploy time. The leaf certificate's fingerprint, subject, issuer and `notAfter` are derived at save time and surfaced in the UI.

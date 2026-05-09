@@ -40,6 +40,17 @@ func (c *collector) last() *flow.Message {
 	return c.msgs[len(c.msgs)-1]
 }
 
+// snapshot returns a copy of the messages captured so far. Use this
+// instead of reading c.msgs directly when a producer may still be
+// writing — direct reads race with collector.send.
+func (c *collector) snapshot() []*flow.Message {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]*flow.Message, len(c.msgs))
+	copy(out, c.msgs)
+	return out
+}
+
 func noopStatus(_ string, _ string) {}
 func noopDebug(_ flow.DebugMessage)  {}
 

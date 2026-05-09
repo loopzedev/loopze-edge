@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -519,10 +521,21 @@ func (s *Server) Start() error {
 		"data_dir", s.cfg.DataDir,
 		"address", s.cfg.ListenAddr(),
 	)
-	slog.Info(fmt.Sprintf("editor available at http://%s%s/", s.cfg.ListenAddr(), s.cfg.BasePath))
 
-	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	// Bind the HTTP listener up-front so we can print the welcome
+	// banner only AFTER the port is confirmed reachable. A bind error
+	// (port in use etc.) surfaces here as a normal startup error
+	// without the user ever seeing a banner that lies about a URL.
+	listener, err := net.Listen("tcp", s.cfg.ListenAddr())
+	if err != nil {
 		return fmt.Errorf("server: listen failed: %w", err)
+	}
+	slog.Info("loopze server listening", "address", listener.Addr().String())
+
+	s.printWelcomeBanner(os.Stdout, listener.Addr().String())
+
+	if err := s.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("server: serve failed: %w", err)
 	}
 
 	return nil

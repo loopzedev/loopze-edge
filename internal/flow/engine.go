@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/loopzedev/loopze-edge/internal/config"
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 )
 
 // PublishDebugFunc is a callback the server provides to the engine so that
@@ -128,6 +129,13 @@ type Engine struct {
 	// writable net.Conn.
 	sessionRegistry *SessionRegistry
 
+	// Shared TLS certificate store. Injected via SetCertStore before
+	// Deploy and propagated to every node implementing CertStoreProvider
+	// BEFORE Init runs, so nodes can resolve cert references while
+	// validating their TLS configuration. May be nil in lightweight
+	// engine-only unit tests.
+	certStore *credentials.CertStore
+
 	running bool
 }
 
@@ -174,6 +182,15 @@ func (e *Engine) SetContextStores(memory, persistent ContextStore) {
 // Must be called before Deploy.
 func (e *Engine) SetFlowContextFactory(fn FlowContextFactory) {
 	e.flowCtxFactory = fn
+}
+
+// SetCertStore wires the shared TLS certificate store into the engine.
+// Nodes implementing CertStoreProvider receive the store BEFORE Init so
+// their TLS configuration can be validated against the live cert
+// catalogue. Must be called before Deploy. Passing nil clears the
+// previously set store.
+func (e *Engine) SetCertStore(store *credentials.CertStore) {
+	e.certStore = store
 }
 
 // Registry returns the node type registry associated with this engine.
@@ -558,6 +575,13 @@ func (e *Engine) instantiateNode(n Node, flowID string) {
 		slog.Error("failed to create node instance",
 			"node_id", n.ID, "type", n.Type, "error", err)
 		return
+	}
+
+	// Inject construction-time dependencies before Init so nodes can
+	// reference shared catalogues (e.g. the TLS cert store) while
+	// validating their configuration.
+	if cp, ok := instance.(CertStoreProvider); ok {
+		cp.SetCertStore(e.certStore)
 	}
 
 	if err := instance.Init(); err != nil {
@@ -988,6 +1012,12 @@ func (e *Engine) startConfigNode(cfg ConfigNode) {
 		slog.Error("failed to create config node instance",
 			"config_id", cfg.ID, "type", cfg.Type, "error", err)
 		return
+	}
+
+	// Config nodes have no Init step (the factory does that work), so we
+	// inject construction-time dependencies between factory and Start.
+	if cp, ok := instance.(CertStoreProvider); ok {
+		cp.SetCertStore(e.certStore)
 	}
 
 	if err := instance.Start(); err != nil {

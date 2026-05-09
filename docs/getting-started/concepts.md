@@ -49,7 +49,7 @@ Three things live on disk under `--data-dir`:
 | File / dir              | What it stores                              |
 |-------------------------|---------------------------------------------|
 | `flows.json`            | The flow graph (nodes + wires + tabs)       |
-| `credentials.json`      | Encrypted secrets (AES-256-GCM)             |
+| `credentials.json`      | Encrypted secrets and stored certificates (AES-256-GCM) — see [cert store](../operations/cert-store.md) |
 | `users.json`            | Local user accounts (Argon2id-hashed)       |
 
 The encryption key for credentials is stored in a separate file

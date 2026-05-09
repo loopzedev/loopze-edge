@@ -1,7 +1,9 @@
 import {
+  makeRoles,
   MessageSecurityMode,
   OPCUAServer,
   SecurityPolicy,
+  type NodeId,
   type UserManagerOptions,
 } from "node-opcua";
 
@@ -43,19 +45,23 @@ function buildUserManager(users: DemoUser[]): UserManagerOptions {
       );
       return ok;
     },
-    getUserRoles: (username: string): string => {
+    // Newer node-opcua expects getUserRoles to return NodeId[] (a list
+    // of WellKnownRole NodeIds), not the legacy semicolon-separated
+    // string. makeRoles accepts the string form and turns it into the
+    // expected NodeId[].
+    getUserRoles: (username: string): NodeId[] => {
       const user = byName.get(username);
-      // node-opcua expects a semicolon-separated role list.
-      // Map demo roles onto the built-in WellKnownRoles.
       switch (user?.role) {
         case "Admin":
-          return "AuthenticatedUser;ConfigureAdmin;SecurityAdmin;Supervisor;Engineer;Operator";
+          return makeRoles(
+            "AuthenticatedUser;ConfigureAdmin;SecurityAdmin;Supervisor;Engineer;Operator",
+          );
         case "Engineer":
-          return "AuthenticatedUser;Engineer;Operator";
+          return makeRoles("AuthenticatedUser;Engineer;Operator");
         case "Operator":
-          return "AuthenticatedUser;Operator";
+          return makeRoles("AuthenticatedUser;Operator");
         default:
-          return "AuthenticatedUser";
+          return makeRoles("AuthenticatedUser");
       }
     },
   };

@@ -81,7 +81,7 @@ func TestOpcuaTestConnectE2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	info, err := OpcuaTestConnect(ctx, cfg)
+	info, err := OpcuaTestConnect(ctx, cfg, nil)
 	if err != nil {
 		t.Fatalf("OpcuaTestConnect: %v", err)
 	}

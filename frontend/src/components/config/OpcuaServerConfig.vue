@@ -8,6 +8,8 @@ import FormField from '@/components/ui/FormField.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
+import ToggleGroup from '@/components/ui/ToggleGroup.vue'
+import CertSelector from '@/components/config/CertSelector.vue'
 
 const props = defineProps<{
   configId?: string
@@ -47,6 +49,25 @@ const username = ref('')
 const password = ref('')
 const clientCertFile = ref('')
 const clientKeyFile = ref('')
+const certRef = ref('')
+
+// Cert source for the certificate auth mode. 'ref' references an entry
+// in the central cert store (preferred); 'file' is the legacy direct
+// path mode kept working for two releases. The backend rejects setting
+// both at the same time.
+type CertSource = 'ref' | 'file'
+const certSource = ref<CertSource>('ref')
+
+function setCertSource(next: CertSource) {
+  if (next === certSource.value) return
+  certSource.value = next
+  if (next === 'ref') {
+    clientCertFile.value = ''
+    clientKeyFile.value = ''
+  } else {
+    certRef.value = ''
+  }
+}
 const applicationUri = ref('urn:loopze:client')
 const applicationName = ref('LOOPZE OPC UA Client')
 const sessionTimeout = ref(60000)
@@ -87,6 +108,11 @@ onMounted(() => {
       password.value = (cfg.password as string) ?? ''
       clientCertFile.value = (cfg.clientCertFile as string) ?? ''
       clientKeyFile.value = (cfg.clientKeyFile as string) ?? ''
+      certRef.value = (cfg.certRef as string) ?? ''
+      // Infer the source from whichever fields are populated. Prefer
+      // ref when both are set (backend rejects the conflict on save).
+      certSource.value =
+        certRef.value || !(clientCertFile.value || clientKeyFile.value) ? 'ref' : 'file'
       applicationUri.value = (cfg.applicationUri as string) ?? applicationUri.value
       applicationName.value = (cfg.applicationName as string) ?? applicationName.value
       sessionTimeout.value = (cfg.sessionTimeout as number) ?? sessionTimeout.value
@@ -101,6 +127,12 @@ function generateId(): string {
 }
 
 function buildConfig() {
+  // Only one cert-source set of fields is sent at a time so the
+  // backend's mutual-exclusion check never fires. When the auth mode
+  // isn't certificate, both sets are dropped.
+  const certificateAuth = authMode.value === 'certificate'
+  const useRef = certificateAuth && certSource.value === 'ref'
+  const useFile = certificateAuth && certSource.value === 'file'
   return {
     endpointUrl: endpointUrl.value,
     securityPolicy: securityPolicy.value,
@@ -108,8 +140,9 @@ function buildConfig() {
     authMode: authMode.value,
     username: username.value,
     password: password.value,
-    clientCertFile: clientCertFile.value,
-    clientKeyFile: clientKeyFile.value,
+    certRef: useRef ? certRef.value : '',
+    clientCertFile: useFile ? clientCertFile.value : '',
+    clientKeyFile: useFile ? clientKeyFile.value : '',
     applicationUri: applicationUri.value,
     applicationName: applicationName.value,
     sessionTimeout: sessionTimeout.value,
@@ -209,12 +242,46 @@ function cancel() {
           </template>
 
           <template v-if="authMode === 'certificate'">
-            <FormField label="Client Cert File">
-              <FormInput v-model="clientCertFile" placeholder="/path/to/cert.pem" mono />
+            <FormField label="Cert source">
+              <ToggleGroup
+                :model-value="certSource"
+                :options="[
+                  { value: 'ref',  label: 'Stored cert' },
+                  { value: 'file', label: 'File path (legacy)' },
+                ]"
+                @update:model-value="(v) => setCertSource(v as CertSource)"
+              />
+              <div class="text-[10px] text-terminal-text-dim leading-tight">
+                Stored references resolve against the
+                <router-link to="/certs" class="text-accent hover:underline">
+                  central cert store
+                </router-link>
+                so the same client pair can back many configs and rotate
+                without editing flows. File-path mode is kept working for
+                two releases for legacy setups.
+              </div>
             </FormField>
-            <FormField label="Client Key File">
-              <FormInput v-model="clientKeyFile" placeholder="/path/to/key.pem" mono />
+
+            <FormField v-if="certSource === 'ref'" label="Client cert + key">
+              <CertSelector
+                v-model="certRef"
+                type="client-pair"
+                placeholder="— select stored client-pair —"
+              />
             </FormField>
+
+            <template v-else>
+              <FormField label="Client Cert File">
+                <FormInput v-model="clientCertFile" placeholder="/path/to/cert.pem" mono />
+              </FormField>
+              <FormField label="Client Key File">
+                <FormInput v-model="clientKeyFile" placeholder="/path/to/key.pem" mono />
+              </FormField>
+              <p class="text-[10px] text-status-warn leading-tight">
+                ⚠ File-path mode is deprecated; flows are auto-migrated to
+                stored entries on backend boot.
+              </p>
+            </template>
           </template>
         </div>
       </SectionHeader>

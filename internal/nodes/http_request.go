@@ -19,6 +19,7 @@ import (
 
 	"github.com/cbroglie/mustache"
 
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -75,6 +76,8 @@ type HTTPRequestNode struct {
 	followRedirects bool
 	tlsInsecure     bool
 	errorMode       string
+
+	certStore *credentials.CertStore
 
 	client *http.Client
 }
@@ -175,11 +178,22 @@ func (n *HTTPRequestNode) Init() error {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 	}
-	if n.tlsInsecure {
-		// nosec G402: deliberately user-controlled per the
-		// tlsInsecure config flag; logged at WARN on every deploy.
+
+	tlsCfg, err := ParseTLSBlock(props, n.cfg.ID, n.certStore)
+	if err != nil {
+		return fmt.Errorf("http-request %s: %w", n.cfg.ID, err)
+	}
+	switch {
+	case tlsCfg != nil:
+		transport.TLSClientConfig = tlsCfg
+	case n.tlsInsecure:
+		// Legacy path: tlsInsecure boolean without a tls block. Honoured
+		// for backwards compatibility but logged at WARN on every deploy
+		// so operators migrate to the structured tls block. Slated for
+		// removal after two minor releases (see CENTRAL_TLS_STORAGE.md).
+		// nosec G402: deliberately user-controlled.
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		slog.Warn("http-request: TLS verification disabled",
+		slog.Warn("http-request: tlsInsecure is deprecated, migrate to the tls block",
 			"node_id", n.cfg.ID, "url_template", n.urlTemplate,
 		)
 	}
@@ -203,6 +217,9 @@ func (n *HTTPRequestNode) SetSend(fn flow.SendFunc)     { n.send = fn }
 func (n *HTTPRequestNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
 func (n *HTTPRequestNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *HTTPRequestNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
+
+// SetCertStore implements flow.CertStoreProvider.
+func (n *HTTPRequestNode) SetCertStore(s *credentials.CertStore) { n.certStore = s }
 
 func (n *HTTPRequestNode) Start() error {
 	slog.Info("http-request started",

@@ -175,7 +175,7 @@ func (d *Deps) handleOpcuaTestConnection(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	info, err := nodes.OpcuaTestConnect(ctx, cfg)
+	info, err := nodes.OpcuaTestConnect(ctx, cfg, d.Certs)
 	if err != nil {
 		jsonResponse(w, http.StatusOK, opcuaTestConnectionResponse{
 			OK:    false,

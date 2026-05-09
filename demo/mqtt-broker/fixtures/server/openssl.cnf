@@ -1,0 +1,27 @@
+# OpenSSL config for the demo Mosquitto server certificate.
+# The SAN entries are what TLS clients verify when serverName /
+# applicationUri matches; keep this in sync with the LOOPZE config you
+# point at the broker.
+
+[req]
+distinguished_name = dn
+prompt             = no
+req_extensions     = v3_req
+
+[dn]
+CN = loopze-demo-broker
+O  = LOOPZE
+OU = Demo
+
+[v3_req]
+basicConstraints     = CA:FALSE
+keyUsage             = critical, digitalSignature, keyEncipherment
+extendedKeyUsage     = serverAuth
+subjectAltName       = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = loopze-demo-broker
+DNS.3 = mqtt-broker
+IP.1  = 127.0.0.1
+IP.2  = ::1

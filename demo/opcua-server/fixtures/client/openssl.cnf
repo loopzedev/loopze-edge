@@ -1,0 +1,37 @@
+# OpenSSL config used to generate the bundled LOOPZE OPC UA demo client
+# certificate. The cert is intentionally checked into the repo so any
+# developer can wire it up to the central cert store and connect to the
+# demo server with cert-based auth out of the box.
+#
+# Regenerate with `bash demo/opcua-server/fixtures/regenerate.sh`.
+#
+# DO NOT use this material against any production OPC UA server — the
+# private key is public.
+
+[req]
+distinguished_name = dn
+prompt             = no
+req_extensions     = v3_req
+x509_extensions    = v3_req
+
+[dn]
+CN = LOOPZE Demo Client
+O  = LOOPZE
+OU = Demo
+
+[v3_req]
+basicConstraints     = CA:FALSE
+keyUsage             = critical, digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+extendedKeyUsage     = clientAuth, serverAuth
+subjectAltName       = @alt_names
+
+[alt_names]
+# OPC UA requires the SAN URI to match the applicationUri the client
+# advertises in its OpenSession request. LOOPZE's opcua-server config
+# defaults to "urn:loopze:client", so this cert uses the same URI —
+# the demo "just works" without per-config tweaking. If you customise
+# applicationUri in LOOPZE, regenerate this cert with the matching URI.
+URI.1 = urn:loopze:client
+DNS.1 = loopze-demo-client
+DNS.2 = localhost
+IP.1  = 127.0.0.1

@@ -1,0 +1,24 @@
+# LOOPZE Mosquitto demo broker — three listeners (plain / TLS / mTLS).
+#
+#   cd demo/mqtt-broker
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose down       # state in ./data is kept
+#
+# Bundled certs live under fixtures/. Regenerate them with
+# fixtures/regenerate.sh; the broker re-reads on every restart.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: loopze-demo-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # plain MQTT
+      - "8883:8883"   # MQTT over TLS, anonymous
+      - "8884:8884"   # MQTT over mTLS, client must present a cert
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./fixtures:/mosquitto/certs:ro
+      - ./data:/mosquitto/data
+      - ./log:/mosquitto/log

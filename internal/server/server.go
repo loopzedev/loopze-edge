@@ -23,6 +23,7 @@ import (
 	"github.com/loopzedev/loopze-edge/internal/api"
 	"github.com/loopzedev/loopze-edge/internal/auth"
 	"github.com/loopzedev/loopze-edge/internal/config"
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 	"github.com/loopzedev/loopze-edge/internal/logbuffer"
 	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
@@ -61,6 +62,11 @@ type Server struct {
 
 	// store is the persistent storage for flows and credentials.
 	store storage.Storage
+
+	// certs is the shared TLS certificate store used by connection nodes
+	// (TCP, HTTP, MQTT, OPC UA) to resolve cert refs and by the API
+	// layer for CRUD operations.
+	certs *credentials.CertStore
 
 	// logBuffer holds recent application log entries for the Terminal Log panel.
 	logBuffer *logbuffer.Buffer
@@ -110,6 +116,34 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		return nil, fmt.Errorf("server: failed to create storage: %w", err)
 	}
 
+	credMgr := credentials.NewCredentialManager(cfg.KeyFilePath())
+	if err := credMgr.EnsureKeyFile(); err != nil {
+		return nil, fmt.Errorf("server: failed to ensure credential key: %w", err)
+	}
+	certs := credentials.NewCertStore(credMgr, store)
+	if err := certs.Load(); err != nil {
+		return nil, fmt.Errorf("server: failed to load cert store: %w", err)
+	}
+	engine.SetCertStore(certs)
+
+	// One-shot migration: convert legacy clientCertFile / clientKeyFile
+	// properties on opcua-server configs into proper cert-store entries.
+	// Idempotent — subsequent boots are no-ops once the workspace has
+	// been rewritten with certRef.
+	if ws, err := store.LoadWorkspace(); err == nil {
+		migrated, err := migrateOpcuaCertConfigs(&ws, certs)
+		if err != nil {
+			slog.Warn("opcua migration: continuing despite errors", "error", err)
+		}
+		if migrated > 0 {
+			if err := store.SaveWorkspace(ws); err != nil {
+				slog.Warn("opcua migration: failed to persist migrated workspace", "error", err)
+			} else {
+				slog.Info("opcua migration: workspace updated", "configs_migrated", migrated)
+			}
+		}
+	}
+
 	users, err := auth.NewFileStore(store)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load user store: %w", err)
@@ -156,6 +190,7 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		hub:             ws.NewHub(cfg.TrustedOrigins),
 		broker:          broker,
 		store:           store,
+		certs:           certs,
 		logBuffer:       logBuffer,
 		users:           users,
 		sessions:        sessions,
@@ -270,6 +305,7 @@ func (s *Server) setupRoutes() {
 		Broker:    s.broker,
 		Hub:       s.hub,
 		LogBuffer: s.logBuffer,
+		Certs:     s.certs,
 	}
 	deps.Users = s.users
 	deps.Sessions = s.sessions

@@ -7,6 +7,8 @@ package flow
 import (
 	"net/http"
 	"sync"
+
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 )
 
 // SendFunc is a callback that nodes use to asynchronously send messages
@@ -173,6 +175,20 @@ type HTTPMuxProvider interface {
 // uses it to resolve those handles back to a writable net.Conn.
 type SessionRegistryProvider interface {
 	SetSessionRegistry(registry *SessionRegistry)
+}
+
+// CertStoreProvider is implemented by nodes that need access to the
+// shared TLS certificate store. The engine injects the store BEFORE
+// Init runs so nodes can resolve cert references while validating
+// their TLS configuration. Nodes that operate without TLS may ignore
+// the injected value.
+//
+// The store may be nil in lightweight test setups; nodes must treat a
+// nil store as "no centrally-managed certs are available" and either
+// fall back to inline-only handling or surface a clear error if a
+// flow references a cert ID without a store wired in.
+type CertStoreProvider interface {
+	SetCertStore(store *credentials.CertStore)
 }
 
 // DebugFunc is a callback that nodes use to emit debug messages.

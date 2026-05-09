@@ -15,6 +15,8 @@ import (
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/debug"
 	"github.com/gopcua/opcua/ua"
+
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -45,6 +47,22 @@ type OpcuaServer struct {
 	endpointURL    string
 	clientOptions  []opcua.Option
 	requestTimeout time.Duration
+
+	// Certificate authentication state. Resolved during Start (after the
+	// engine has injected certStore) so a stored client-pair entry is
+	// applied to gopcua via CertificateFile / PrivateKeyFile. The legacy
+	// fields are honoured for one release of grace with a deprecation
+	// WARN; certRef and the legacy paths are mutually exclusive.
+	certRef              string
+	legacyClientCertFile string
+	legacyClientKeyFile  string
+	certStore            *credentials.CertStore
+
+	// tempCertPath / tempKeyPath are non-empty when an inline-source
+	// cert entry was materialised to disk for gopcua to consume; they
+	// are removed in Stop().
+	tempCertPath string
+	tempKeyPath  string
 
 	mu     sync.RWMutex
 	client *opcua.Client
@@ -141,34 +159,40 @@ func NewOpcuaServer(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		opcua.ReconnectInterval(2 * time.Second),
 	}
 
+	certRef, _ := props["certRef"].(string)
+	legacyClientCertFile, _ := props["clientCertFile"].(string)
+	legacyClientKeyFile, _ := props["clientKeyFile"].(string)
+	if certRef != "" && (legacyClientCertFile != "" || legacyClientKeyFile != "") {
+		return nil, fmt.Errorf("opcua-server %s: certRef and clientCertFile/clientKeyFile are mutually exclusive", cfg.ID)
+	}
+
 	switch authMode {
 	case "username":
 		username, _ := props["username"].(string)
 		password, _ := props["password"].(string)
 		opts = append(opts, opcua.AuthUsername(username, password))
 	case "certificate":
-		// Certificate-based auth requires CertificateFile / PrivateKeyFile.
-		// In v1 we plumb the option through; full TOFU/pinning lands in Phase 7.
-		if certFile, _ := props["clientCertFile"].(string); certFile != "" {
-			opts = append(opts, opcua.CertificateFile(certFile))
-		}
-		if keyFile, _ := props["clientKeyFile"].(string); keyFile != "" {
-			opts = append(opts, opcua.PrivateKeyFile(keyFile))
-		}
+		// Certificate auth still pairs with anonymous user identity in
+		// gopcua's option model — the actual cert/key options are added
+		// in Start() after SetCertStore has run, so a stored entry can
+		// be resolved (file source) or materialised (inline source).
 		opts = append(opts, opcua.AuthAnonymous())
 	default:
 		opts = append(opts, opcua.AuthAnonymous())
 	}
 
 	srv := &OpcuaServer{
-		id:             cfg.ID,
-		name:           cfg.Name,
-		endpointURL:    endpoint,
-		clientOptions:  opts,
-		requestTimeout: requestTimeout,
-		currentFill:    "grey",
-		currentText:    "disconnected",
-		typeCache:      newTypeCache(),
+		id:                   cfg.ID,
+		name:                 cfg.Name,
+		endpointURL:          endpoint,
+		clientOptions:        opts,
+		requestTimeout:       requestTimeout,
+		currentFill:          "grey",
+		currentText:          "disconnected",
+		typeCache:            newTypeCache(),
+		certRef:              certRef,
+		legacyClientCertFile: legacyClientCertFile,
+		legacyClientKeyFile:  legacyClientKeyFile,
 	}
 	srv.structResolver = newStructResolver(srv)
 	return srv, nil
@@ -200,6 +224,126 @@ func OpcuaServerConfigTypeInfo() flow.ConfigTypeInfo {
 	}
 }
 
+// SetCertStore implements flow.CertStoreProvider. Called by the engine
+// between the factory and Start so cert refs on the config can be
+// resolved against the live cert catalogue.
+func (s *OpcuaServer) SetCertStore(c *credentials.CertStore) {
+	s.certStore = c
+}
+
+// applyCertOptionsLocked resolves the configured cert reference (or the
+// legacy file paths) into gopcua's CertificateFile / PrivateKeyFile
+// options and returns the augmented option slice. For inline-source
+// cert entries the PEM material is materialised to a private temp file
+// in s.tempCertPath / s.tempKeyPath; Stop is responsible for removing
+// these.
+//
+// Caller must hold s.mu.
+func (s *OpcuaServer) applyCertOptionsLocked(base []opcua.Option) ([]opcua.Option, error) {
+	switch {
+	case s.certRef != "":
+		if s.certStore == nil {
+			return nil, fmt.Errorf("certRef %q is set but no cert store is wired in", s.certRef)
+		}
+		entry, ok := s.certStore.Get(s.certRef)
+		if !ok {
+			return nil, fmt.Errorf("certRef %q not found in cert store", s.certRef)
+		}
+		if entry.Type != credentials.TypeClientPair {
+			return nil, fmt.Errorf("certRef %q is type %q, want %q", s.certRef, entry.Type, credentials.TypeClientPair)
+		}
+		certPath, keyPath, err := s.materialiseCertEntryLocked(entry)
+		if err != nil {
+			return nil, err
+		}
+		base = append(base, opcua.CertificateFile(certPath), opcua.PrivateKeyFile(keyPath))
+
+	case s.legacyClientCertFile != "" || s.legacyClientKeyFile != "":
+		slog.Warn("opcua-server: clientCertFile/clientKeyFile are deprecated, migrate to certRef",
+			"id", s.id, "name", s.name,
+		)
+		if s.legacyClientCertFile != "" {
+			base = append(base, opcua.CertificateFile(s.legacyClientCertFile))
+		}
+		if s.legacyClientKeyFile != "" {
+			base = append(base, opcua.PrivateKeyFile(s.legacyClientKeyFile))
+		}
+	}
+	return base, nil
+}
+
+// materialiseCertEntryLocked returns disk paths suitable for gopcua's
+// CertificateFile / PrivateKeyFile options. File-source entries pass
+// through verbatim. Inline-source entries are written to private temp
+// files (0600) so gopcua can consume them; Stop deletes the temps.
+//
+// Caller must hold s.mu.
+func (s *OpcuaServer) materialiseCertEntryLocked(entry credentials.CertEntry) (certPath, keyPath string, err error) {
+	if entry.Source == credentials.SourceFile {
+		return entry.CertPath, entry.KeyPath, nil
+	}
+	// Inline source: materialise to disk for gopcua.
+	cleanup := func() {
+		if s.tempCertPath != "" {
+			_ = os.Remove(s.tempCertPath)
+			s.tempCertPath = ""
+		}
+		if s.tempKeyPath != "" {
+			_ = os.Remove(s.tempKeyPath)
+			s.tempKeyPath = ""
+		}
+	}
+	certFile, err := os.CreateTemp("", "loopze-opcua-cert-*.pem")
+	if err != nil {
+		return "", "", fmt.Errorf("create temp cert file: %w", err)
+	}
+	if _, err := certFile.WriteString(entry.CertPEM); err != nil {
+		certFile.Close()
+		_ = os.Remove(certFile.Name())
+		return "", "", fmt.Errorf("write temp cert: %w", err)
+	}
+	certFile.Close()
+	if err := os.Chmod(certFile.Name(), 0o600); err != nil {
+		_ = os.Remove(certFile.Name())
+		return "", "", fmt.Errorf("chmod temp cert: %w", err)
+	}
+	s.tempCertPath = certFile.Name()
+
+	keyFile, err := os.CreateTemp("", "loopze-opcua-key-*.pem")
+	if err != nil {
+		cleanup()
+		return "", "", fmt.Errorf("create temp key file: %w", err)
+	}
+	if _, err := keyFile.WriteString(entry.KeyPEM); err != nil {
+		keyFile.Close()
+		cleanup()
+		_ = os.Remove(keyFile.Name())
+		return "", "", fmt.Errorf("write temp key: %w", err)
+	}
+	keyFile.Close()
+	if err := os.Chmod(keyFile.Name(), 0o600); err != nil {
+		cleanup()
+		_ = os.Remove(keyFile.Name())
+		return "", "", fmt.Errorf("chmod temp key: %w", err)
+	}
+	s.tempKeyPath = keyFile.Name()
+
+	return s.tempCertPath, s.tempKeyPath, nil
+}
+
+// removeTempCertFilesLocked cleans up any per-deploy temp files left by
+// materialiseCertEntryLocked. Idempotent. Caller must hold s.mu.
+func (s *OpcuaServer) removeTempCertFilesLocked() {
+	if s.tempCertPath != "" {
+		_ = os.Remove(s.tempCertPath)
+		s.tempCertPath = ""
+	}
+	if s.tempKeyPath != "" {
+		_ = os.Remove(s.tempKeyPath)
+		s.tempKeyPath = ""
+	}
+}
+
 // Start opens the OPC UA connection asynchronously: the gopcua client owns
 // the reconnect loop; we run a goroutine that translates ConnState into the
 // LOOPZE status colour scheme and fires reconnect callbacks for nodes that
@@ -210,10 +354,16 @@ func (s *OpcuaServer) Start() error {
 
 	stateC := make(chan opcua.ConnState, 8)
 	opts := append([]opcua.Option{}, s.clientOptions...)
+	opts, err := s.applyCertOptionsLocked(opts)
+	if err != nil {
+		s.setStatusLocked("red", err.Error())
+		return fmt.Errorf("opcua-server %s: %w", s.id, err)
+	}
 	opts = append(opts, opcua.StateChangedCh(stateC))
 
 	client, err := opcua.NewClient(s.endpointURL, opts...)
 	if err != nil {
+		s.removeTempCertFilesLocked()
 		s.setStatusLocked("red", err.Error())
 		return fmt.Errorf("opcua-server %s: NewClient: %w", s.id, err)
 	}
@@ -236,6 +386,7 @@ func (s *OpcuaServer) Stop() error {
 	s.mu.Lock()
 	client := s.client
 	cancel := s.cancel
+	s.removeTempCertFilesLocked()
 	s.client = nil
 	s.cancel = nil
 	s.stateC = nil
@@ -420,15 +571,30 @@ type OpcuaServerInfo struct {
 // a wrapped error on failure (network, auth, security policy mismatch).
 //
 // Reuses NewOpcuaServer's parsing logic so the test path can never drift
-// from the deployed-runtime path.
-func OpcuaTestConnect(ctx context.Context, cfg flow.ConfigNode) (*OpcuaServerInfo, error) {
+// from the deployed-runtime path. certs may be nil when the caller knows
+// no cert ref is set on the config; otherwise the live cert store is
+// required to resolve the reference.
+func OpcuaTestConnect(ctx context.Context, cfg flow.ConfigNode, certs *credentials.CertStore) (*OpcuaServerInfo, error) {
 	inst, err := NewOpcuaServer(cfg)
 	if err != nil {
 		return nil, err
 	}
 	srv := inst.(*OpcuaServer)
+	srv.SetCertStore(certs)
 
-	client, err := opcua.NewClient(srv.endpointURL, srv.clientOptions...)
+	srv.mu.Lock()
+	opts, err := srv.applyCertOptionsLocked(append([]opcua.Option{}, srv.clientOptions...))
+	srv.mu.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cert options: %w", err)
+	}
+	defer func() {
+		srv.mu.Lock()
+		srv.removeTempCertFilesLocked()
+		srv.mu.Unlock()
+	}()
+
+	client, err := opcua.NewClient(srv.endpointURL, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}

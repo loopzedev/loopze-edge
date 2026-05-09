@@ -60,6 +60,9 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 			r.Get("/state-machines", deps.handleListAllStateMachines)
 			r.Get("/state-machines/flow/{flowID}", deps.handleListStateMachines)
 			r.Get("/state-machines/flow/{flowID}/{nodeID}", deps.handleGetStateMachineSnapshot)
+
+			r.Get("/certs", deps.handleListCerts)
+			r.Get("/certs/{id}", deps.handleGetCert)
 		})
 
 		// Mutating routes — editor or higher.
@@ -76,6 +79,11 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 			r.Delete("/context/global/{storage}/{key}", deps.handleDeleteContextKey)
 			r.Delete("/context/flow/{flowID}/{storage}", deps.handleClearContextStore)
 			r.Delete("/context/flow/{flowID}/{storage}/{key}", deps.handleDeleteContextKey)
+
+			r.Post("/certs", deps.handleCreateCert)
+			r.Put("/certs/{id}", deps.handleUpdateCert)
+			r.Delete("/certs/{id}", deps.handleDeleteCert)
+			r.Post("/certs/validate", deps.handleValidateCert)
 		})
 
 		// User management — admin only.

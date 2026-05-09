@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -53,7 +54,8 @@ type TCPOutNode struct {
 	errorFn flow.ErrorFunc
 
 	// Injected by the engine.
-	sessions *flow.SessionRegistry
+	sessions  *flow.SessionRegistry
+	certStore *credentials.CertStore
 
 	// Parsed configuration.
 	mode             string
@@ -151,7 +153,7 @@ func (n *TCPOutNode) Init() error {
 	}
 
 	if n.mode == tcpOutModeClient {
-		tlsCfg, err := ParseTLSBlock(props, n.cfg.ID)
+		tlsCfg, err := ParseTLSBlock(props, n.cfg.ID, n.certStore)
 		if err != nil {
 			return fmt.Errorf("tcp-out %s: %w", n.cfg.ID, err)
 		}
@@ -181,6 +183,10 @@ func (n *TCPOutNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetSessionRegistry implements flow.SessionRegistryProvider.
 func (n *TCPOutNode) SetSessionRegistry(r *flow.SessionRegistry) { n.sessions = r }
+
+// SetCertStore implements flow.CertStoreProvider. The store is consulted
+// during Init to resolve any caBundleRef / clientPairRef on the tls block.
+func (n *TCPOutNode) SetCertStore(s *credentials.CertStore) { n.certStore = s }
 
 func (n *TCPOutNode) Start() error {
 	if n.mode == tcpOutModeClient && n.keepConnection {

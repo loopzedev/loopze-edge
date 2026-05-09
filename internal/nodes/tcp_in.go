@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -91,6 +92,7 @@ type TCPInNode struct {
 	reconnectMax       time.Duration
 	dialTimeout        time.Duration
 	tlsConfig          *tls.Config // client-only; nil when tls is disabled
+	certStore          *credentials.CertStore
 
 	// Runtime state.
 	mu        sync.Mutex
@@ -199,7 +201,7 @@ func (n *TCPInNode) Init() error {
 		}
 		n.dialTimeout = time.Duration(ds) * time.Second
 
-		tlsCfg, err := ParseTLSBlock(props, n.cfg.ID)
+		tlsCfg, err := ParseTLSBlock(props, n.cfg.ID, n.certStore)
 		if err != nil {
 			return fmt.Errorf("tcp-in %s: %w", n.cfg.ID, err)
 		}
@@ -259,6 +261,9 @@ func (n *TCPInNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetSessionRegistry implements flow.SessionRegistryProvider.
 func (n *TCPInNode) SetSessionRegistry(r *flow.SessionRegistry) { n.sessions = r }
+
+// SetCertStore implements flow.CertStoreProvider.
+func (n *TCPInNode) SetCertStore(s *credentials.CertStore) { n.certStore = s }
 
 func (n *TCPInNode) Start() error {
 	switch n.mode {

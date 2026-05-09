@@ -20,6 +20,7 @@ import (
 
 	"github.com/cbroglie/mustache"
 
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -75,6 +76,7 @@ type TCPRequestNode struct {
 	dialTimeout     time.Duration
 	keepConnection  bool
 	tlsConfig       *tls.Config // nil when tls is disabled
+	certStore       *credentials.CertStore
 
 	// Persistent-connection state. Only used when keepConnection is
 	// true. HandleMessage runs serially per node so connMu is mostly
@@ -194,7 +196,7 @@ func (n *TCPRequestNode) Init() error {
 		return fmt.Errorf("tcp-request %s: terminator=close is incompatible with keepConnection (peer FIN ends the connection)", n.cfg.ID)
 	}
 
-	tlsCfg, err := ParseTLSBlock(props, n.cfg.ID)
+	tlsCfg, err := ParseTLSBlock(props, n.cfg.ID, n.certStore)
 	if err != nil {
 		return fmt.Errorf("tcp-request %s: %w", n.cfg.ID, err)
 	}
@@ -207,6 +209,9 @@ func (n *TCPRequestNode) SetSend(fn flow.SendFunc)     { n.send = fn }
 func (n *TCPRequestNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
 func (n *TCPRequestNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *TCPRequestNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
+
+// SetCertStore implements flow.CertStoreProvider.
+func (n *TCPRequestNode) SetCertStore(s *credentials.CertStore) { n.certStore = s }
 
 func (n *TCPRequestNode) Start() error {
 	slog.Info("tcp-request started",

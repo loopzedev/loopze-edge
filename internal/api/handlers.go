@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 	"github.com/loopzedev/loopze-edge/internal/logbuffer"
 	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
@@ -28,6 +29,7 @@ type Deps struct {
 	Broker    *loopzenats.Broker
 	Hub       *ws.Hub
 	LogBuffer *logbuffer.Buffer
+	Certs     *credentials.CertStore
 
 	// authDeps embeds the auth-specific dependencies (UserStore,
 	// SessionManager, Middleware, throttle, setup mutex) so the auth

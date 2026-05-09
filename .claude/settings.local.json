@@ -198,7 +198,26 @@
       "Bash(make help *)",
       "Bash(make docker-build *)",
       "Bash(grep -A8 \"^.PHONY: dev$\" /home/dennisbleul/git/loopze-edge/Makefile)",
-      "Bash(/home/dennisbleul/git/loopze-edge/.venv-docs/bin/mkdocs build *)"
+      "Bash(/home/dennisbleul/git/loopze-edge/.venv-docs/bin/mkdocs build *)",
+      "Bash(magick --version)",
+      "Bash(convert --version)",
+      "Bash(command -v magick)",
+      "Bash(command -v convert)",
+      "Bash(command -v icotool)",
+      "Bash(command -v png2ico)",
+      "Bash(python3 -c \"from PIL import Image; print\\(Image.__version__\\)\")",
+      "Bash(python3 -c \"from PIL import Image; print\\('Pillow:', Image.__version__\\)\")",
+      "Bash(command -v pip pipx uv pipenv poetry)",
+      "Read(//usr/bin/**)",
+      "Bash(python3 -m ensurepip --user)",
+      "Bash(python3 -m pip --version)",
+      "Bash(go env *)",
+      "Bash(mkdir -p /home/dennisbleul/git/loopze-edge/tools/icogen && ls /home/dennisbleul/git/loopze-edge/tools)",
+      "Bash(command -v wrestool)",
+      "Bash(command -v llvm-readobj)",
+      "Bash(objdump -h /tmp/loopze.exe)",
+      "Bash(git checkout *)",
+      "Bash(grep -E \"^func [A-Z][a-zA-Z]+\\\\\\(\" /root/go/pkg/mod/github.com/gopcua/opcua@*/options.go 2>/dev/null | grep -iE \"cert|key|priv\" | head -10 || find / -name \"options.go\" -path \"*gopcua*\" 2>/dev/null | head -3)"
     ]
   }
 }

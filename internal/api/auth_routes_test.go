@@ -26,17 +26,32 @@ import (
 // memStorage implements storage.Storage for the API tests. The
 // non-auth methods panic — they should never be called from auth tests.
 type memStorage struct {
-	users []byte
+	users       []byte
+	credentials []byte
+	workspace   *flow.Workspace
 }
 
-func (m *memStorage) LoadFlows() ([]flow.Flow, error)        { return []flow.Flow{}, nil }
-func (m *memStorage) SaveFlows([]flow.Flow) error            { return nil }
-func (m *memStorage) LoadWorkspace() (flow.Workspace, error) { return flow.Workspace{Flows: []flow.Flow{}}, nil }
-func (m *memStorage) SaveWorkspace(flow.Workspace) error     { return nil }
-func (m *memStorage) LoadCredentials() ([]byte, error)       { return nil, nil }
-func (m *memStorage) SaveCredentials([]byte) error           { return nil }
-func (m *memStorage) LoadUsers() ([]byte, error)             { return m.users, nil }
-func (m *memStorage) SaveUsers(data []byte) error            { m.users = data; return nil }
+func (m *memStorage) LoadFlows() ([]flow.Flow, error) { return []flow.Flow{}, nil }
+func (m *memStorage) SaveFlows([]flow.Flow) error     { return nil }
+func (m *memStorage) LoadWorkspace() (flow.Workspace, error) {
+	if m.workspace != nil {
+		return *m.workspace, nil
+	}
+	return flow.Workspace{Flows: []flow.Flow{}}, nil
+}
+func (m *memStorage) SaveWorkspace(ws flow.Workspace) error {
+	cp := ws
+	m.workspace = &cp
+	return nil
+}
+func (m *memStorage) LoadCredentials() ([]byte, error) { return m.credentials, nil }
+func (m *memStorage) SaveCredentials(b []byte) error {
+	m.credentials = make([]byte, len(b))
+	copy(m.credentials, b)
+	return nil
+}
+func (m *memStorage) LoadUsers() ([]byte, error)  { return m.users, nil }
+func (m *memStorage) SaveUsers(data []byte) error { m.users = data; return nil }
 
 // testServer wraps an httptest.Server with the deps that produced it,
 // so individual tests can mutate state directly (e.g. seed users).

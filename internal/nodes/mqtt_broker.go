@@ -16,6 +16,8 @@ import (
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
+
+	"github.com/loopzedev/loopze-edge/internal/credentials"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
 
@@ -82,6 +84,14 @@ type MqttBroker struct {
 
 	onConnectMsg    *presenceMessage
 	onDisconnectMsg *presenceMessage
+
+	// TLS state — captured at factory time, finalised in Start once the
+	// engine has injected the cert store. tlsProps is the raw `tls`
+	// sub-block from the user's config (may be nil); legacyUseTLS is
+	// the deprecated boolean kept working for one release of grace.
+	tlsProps     map[string]any
+	legacyUseTLS bool
+	certStore    *credentials.CertStore
 
 	mu                  sync.RWMutex
 	cm                  *autopaho.ConnectionManager
@@ -150,13 +160,22 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		sessionExpiry = uint32(v)
 	}
 
-	useTLS := false
+	legacyUseTLS := false
 	if v, ok := props["useTLS"].(bool); ok {
-		useTLS = v
+		legacyUseTLS = v
 	}
 
+	tlsBlock, _ := props["tls"].(map[string]any)
+	tlsBlockEnabled := false
+	if tlsBlock != nil {
+		tlsBlockEnabled, _ = tlsBlock["enabled"].(bool)
+	}
+
+	// The scheme depends only on whether TLS will be active at all; the
+	// actual TLS config is built later (Start), once SetCertStore has
+	// supplied the cert store.
 	scheme := "mqtt"
-	if useTLS {
+	if legacyUseTLS || tlsBlockEnabled {
 		scheme = "mqtts"
 	}
 	serverURL, err := url.Parse(fmt.Sprintf("%s://%s:%d", scheme, host, port))
@@ -175,6 +194,8 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		stopTimeout:         2 * time.Second,
 		onConnectMsg:        readPresenceMessage(props, "onConnect"),
 		onDisconnectMsg:     readPresenceMessage(props, "onDisconnect"),
+		tlsProps:            tlsBlock,
+		legacyUseTLS:        legacyUseTLS,
 	}
 
 	clientCfg := autopaho.ClientConfig{
@@ -200,9 +221,9 @@ func NewMqttBroker(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		},
 	}
 
-	if useTLS {
-		clientCfg.TlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
+	// TlsCfg is finalised in Start() once SetCertStore has run; leave nil
+	// here so any cert-ref resolution happens with the engine-injected
+	// store rather than during factory construction.
 
 	if will := readWill(props); will != nil {
 		clientCfg.WillMessage = &paho.WillMessage{
@@ -258,9 +279,48 @@ func MqttBrokerConfigTypeInfo() flow.ConfigTypeInfo {
 // Start initiates the MQTT connection asynchronously. Status updates are
 // broadcast via the OnConnectionUp / OnConnectError hooks; Deploy is not
 // blocked if the broker is unreachable.
+// SetCertStore implements flow.CertStoreProvider. The engine calls this
+// between the factory and Start so the broker can resolve cert refs from
+// the new tls block when it builds the autopaho TLS config.
+func (b *MqttBroker) SetCertStore(s *credentials.CertStore) {
+	b.certStore = s
+}
+
+// applyTLSConfigLocked finalises b.cfg.TlsCfg using the same precedence
+// rules as the http-request node:
+//
+//  1. If a `tls` block is present and enabled, use it (ref or inline).
+//  2. Otherwise, if the legacy `useTLS` boolean is set, fall back to a
+//     bare TLS 1.2+ config and emit a deprecation WARN. Slated for
+//     removal after two minor releases.
+//  3. Otherwise, no TLS — TlsCfg stays nil.
+//
+// The caller must hold b.mu.
+func (b *MqttBroker) applyTLSConfigLocked() error {
+	tlsCfg, err := ParseTLSBlock(map[string]any{"tls": b.tlsProps}, b.id, b.certStore)
+	if err != nil {
+		return err
+	}
+	switch {
+	case tlsCfg != nil:
+		b.cfg.TlsCfg = tlsCfg
+	case b.legacyUseTLS:
+		b.cfg.TlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
+		slog.Warn("mqtt-broker: useTLS is deprecated, migrate to the tls block",
+			"id", b.id, "name", b.name,
+		)
+	}
+	return nil
+}
+
 func (b *MqttBroker) Start() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	if err := b.applyTLSConfigLocked(); err != nil {
+		b.setStatusLocked("red", err.Error())
+		return fmt.Errorf("mqtt-broker %s: %w", b.id, err)
+	}
 
 	b.setStatusLocked("yellow", "connecting...")
 

@@ -107,7 +107,41 @@ clean-start, session-expiry, plus three optional presence messages:
 - **LastWill** — passed in CONNECT; published by the **broker** when the
   client drops uncleanly (timeout / lost connection). Optional v5 will-delay.
 
+### TLS
+
+The TLS section accepts the standard [`tls` block](tls.md) with three
+source modes — **Disabled**, **Stored cert** (refs against the
+[central cert store](../operations/cert-store.md)), and **File path**
+(absolute paths to PEM files on disk, re-read on every reconnect for
+cert-manager / Let's Encrypt rotations). The legacy `useTLS` boolean
+keeps working for one release of grace and is auto-migrated to the
+new block on first save.
+
+```yaml
+# Stored ref against the central cert store
+tls:
+  enabled:        true
+  serverName:     mqtt.example.com
+  caBundleRef:    internal-root-ca
+  clientPairRef:  edge-2026
+
+# File paths — useful when an external tool rotates the files in place
+tls:
+  enabled:        true
+  serverName:     mqtt.example.com
+  caBundleFile:   /etc/loopze/certs/ca.pem
+  clientCertFile: /etc/loopze/certs/client.pem
+  clientKeyFile:  /etc/loopze/certs/client.key
+```
+
+The bundled [demo broker](https://github.com/loopzedev/loopze-edge/tree/main/demo/mqtt-broker)
+exposes plain (`:1883`), TLS (`:8883`), and mTLS (`:8884`) listeners
+in parallel against a single CA, so all three permutations can be
+exercised against the same broker for local development.
+
 ## See also
 
 - [MQTT Publish](mqtt-out.md) — companion sink node.
 - [MQTT Request](mqtt-request.md) — synchronous request/response over MQTT v5.
+- [TLS configuration](tls.md) — full schema reference for the `tls` block.
+- [Cert store](../operations/cert-store.md) — operator guide for managing stored certs.

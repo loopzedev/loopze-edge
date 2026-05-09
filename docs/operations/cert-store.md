@@ -16,10 +16,18 @@ editing flows by hand.
 |---|---|
 | One flow, throwaway dev cert | **Inline PEM** in the node's `tls` block. |
 | Many flows hitting the same broker / API | **Stored reference** — one entry, many consumers. |
-| Cert is rotated by an external tool (cert-manager, Let's Encrypt, K8s secret) | **File source** — the store keeps the path; contents are re-read on every connection init. |
+| Cert is rotated by an external tool (cert-manager, Let's Encrypt, K8s secret), shared across configs | **Stored entry, `Source: file`** — one named entry to manage; many configs reference it. |
+| Cert is rotated externally, only one config uses it | **`*File` path directly in the `tls` block** — no store entry needed; same hot-reload semantics. |
 | Cert lives only inside LOOPZE | **Inline source** — PEM is encrypted at rest. |
 
 The store and inline mode coexist; you can pick differently per node.
+
+> **Both file-path approaches re-read on every connection init.** A
+> stored `Source: file` entry and a direct `caBundleFile` /
+> `clientCertFile` / `clientKeyFile` on the `tls` block both work the
+> same at runtime. The difference is cataloguing — stored entries get
+> a name, fingerprint and expiry in the cert manager UI, plus they
+> can be referenced by ID from many configs at once.
 
 ## Entry shape
 

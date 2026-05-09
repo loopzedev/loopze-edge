@@ -96,6 +96,17 @@ demo-modbus:
 	@echo "▸ Starting Modbus TCP demo on :5502…"
 	$(GO) run ./demo/modbus-server -listen :5502 -v
 
+## demo-mqtt: Start the Mosquitto demo broker (plain :1883, TLS :8883, mTLS :8884)
+.PHONY: demo-mqtt
+demo-mqtt:
+	@echo "▸ Starting Mosquitto demo broker…"
+	@cd demo/mqtt-broker && docker compose up -d && docker compose logs -f
+
+## demo-mqtt-stop: Stop the Mosquitto demo broker (keeps ./data)
+.PHONY: demo-mqtt-stop
+demo-mqtt-stop:
+	@cd demo/mqtt-broker && docker compose down
+
 # ─── Documentation ───────────────────────────────────────────────────────────
 
 DOCS_VENV := .venv-docs

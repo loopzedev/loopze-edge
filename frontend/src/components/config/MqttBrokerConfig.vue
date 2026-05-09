@@ -8,6 +8,8 @@ import FormField from '@/components/ui/FormField.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
+import ToggleGroup from '@/components/ui/ToggleGroup.vue'
+import CertSelector from '@/components/config/CertSelector.vue'
 import { QOS_LEVELS } from './enums'
 
 const props = defineProps<{
@@ -32,7 +34,43 @@ const password = ref('')
 const keepalive = ref(60)
 const cleanStart = ref(true)
 const sessionExpiry = ref(0)
-const useTLS = ref(false)
+
+// TLS state — modelled as the structured `tls` block the broker
+// expects since 0.0.8. The legacy `useTLS` boolean still works on the
+// backend (one release of grace) and is honoured when loading an old
+// config so existing flows are not silently downgraded.
+type TLSMode = 'disabled' | 'ref' | 'file'
+const tlsMode = ref<TLSMode>('disabled')
+const tlsServerName = ref('')
+const tlsCaBundleRef = ref('')
+const tlsClientPairRef = ref('')
+const tlsCaBundleFile = ref('')
+const tlsClientCertFile = ref('')
+const tlsClientKeyFile = ref('')
+const tlsInsecureSkipVerify = ref(false)
+// Tracks the inferred legacy state so the UI can show a one-shot
+// deprecation hint while the user migrates an older config to the new
+// TLS section.
+const legacyUseTLSDetected = ref(false)
+
+function setTlsMode(next: TLSMode) {
+  if (next === tlsMode.value) return
+  tlsMode.value = next
+  if (next !== 'ref') {
+    tlsCaBundleRef.value = ''
+    tlsClientPairRef.value = ''
+  }
+  if (next !== 'file') {
+    tlsCaBundleFile.value = ''
+    tlsClientCertFile.value = ''
+    tlsClientKeyFile.value = ''
+  }
+  if (next === 'disabled') {
+    tlsServerName.value = ''
+    tlsInsecureSkipVerify.value = false
+  }
+  legacyUseTLSDetected.value = false
+}
 
 const onConnectTopic = ref('')
 const onConnectPayload = ref('')
@@ -72,7 +110,42 @@ onMounted(() => {
         (cfg.cleanSession as boolean | undefined) ??
         true
       sessionExpiry.value = (cfg.sessionExpiry as number) ?? 0
-      useTLS.value = (cfg.useTLS as boolean) ?? false
+
+      // TLS: the new `tls` block wins over the legacy `useTLS`
+      // boolean. When neither is set the section starts disabled.
+      const tlsBlock = (cfg.tls as Record<string, unknown> | undefined) ?? {}
+      const tlsEnabled = !!tlsBlock.enabled
+      const legacy = !!cfg.useTLS
+      if (tlsEnabled) {
+        const caRef = (tlsBlock.caBundleRef as string) ?? ''
+        const cliRef = (tlsBlock.clientPairRef as string) ?? ''
+        const caFile = (tlsBlock.caBundleFile as string) ?? ''
+        const cliCertFile = (tlsBlock.clientCertFile as string) ?? ''
+        const cliKeyFile = (tlsBlock.clientKeyFile as string) ?? ''
+        if (caRef || cliRef) {
+          tlsMode.value = 'ref'
+          tlsCaBundleRef.value = caRef
+          tlsClientPairRef.value = cliRef
+        } else if (caFile || cliCertFile || cliKeyFile) {
+          tlsMode.value = 'file'
+          tlsCaBundleFile.value = caFile
+          tlsClientCertFile.value = cliCertFile
+          tlsClientKeyFile.value = cliKeyFile
+        } else {
+          // Block enabled with no material — default to ref mode so
+          // the cert selectors are visible.
+          tlsMode.value = 'ref'
+        }
+        tlsServerName.value = (tlsBlock.serverName as string) ?? ''
+        tlsInsecureSkipVerify.value = !!tlsBlock.insecureSkipVerify
+      } else if (legacy) {
+        // Legacy path: surface the section in ref mode with a one-shot
+        // hint so the operator can migrate.
+        tlsMode.value = 'ref'
+        legacyUseTLSDetected.value = true
+      } else {
+        tlsMode.value = 'disabled'
+      }
 
       onConnectTopic.value = (cfg.onConnectTopic as string) ?? ''
       onConnectPayload.value = (cfg.onConnectPayload as string) ?? ''
@@ -97,8 +170,25 @@ function generateId(): string {
   return crypto.randomUUID()
 }
 
+function buildTLSBlock(): Record<string, unknown> | undefined {
+  if (tlsMode.value === 'disabled') return undefined
+  const block: Record<string, unknown> = { enabled: true }
+  if (tlsServerName.value) block.serverName = tlsServerName.value
+  if (tlsInsecureSkipVerify.value) block.insecureSkipVerify = true
+  if (tlsMode.value === 'ref') {
+    if (tlsCaBundleRef.value) block.caBundleRef = tlsCaBundleRef.value
+    if (tlsClientPairRef.value) block.clientPairRef = tlsClientPairRef.value
+  } else {
+    if (tlsCaBundleFile.value) block.caBundleFile = tlsCaBundleFile.value
+    if (tlsClientCertFile.value) block.clientCertFile = tlsClientCertFile.value
+    if (tlsClientKeyFile.value) block.clientKeyFile = tlsClientKeyFile.value
+  }
+  return block
+}
+
 function save() {
-  const config = {
+  const tls = buildTLSBlock()
+  const config: Record<string, unknown> = {
     host: host.value,
     port: port.value,
     clientId: clientId.value,
@@ -108,7 +198,9 @@ function save() {
     keepalive: keepalive.value,
     cleanStart: cleanStart.value,
     sessionExpiry: sessionExpiry.value,
-    useTLS: useTLS.value,
+    // The legacy useTLS boolean is dropped on save — the structured
+    // block is the new contract. An undefined `tls` means "no TLS".
+    useTLS: false,
     onConnectTopic: onConnectTopic.value,
     onConnectPayload: onConnectPayload.value,
     onConnectQoS: Number(onConnectQoS.value),
@@ -123,6 +215,7 @@ function save() {
     lastWillRetain: lastWillRetain.value,
     lastWillDelayInterval: lastWillDelayInterval.value,
   }
+  if (tls) config.tls = tls
 
   if (isEditing.value && props.configId) {
     flowStore.updateConfig(props.configId, { name: name.value, config })
@@ -192,7 +285,91 @@ function cancel() {
       </FormField>
 
       <FormCheckbox v-model="cleanStart" label="Clean Start (Clean Session in v3.1.1)" />
-      <FormCheckbox v-model="useTLS" label="Use TLS" />
+
+      <SectionHeader title="TLS">
+        <div class="flex flex-col gap-2">
+          <FormField label="Mode">
+            <ToggleGroup
+              :model-value="tlsMode"
+              :options="[
+                { value: 'disabled', label: 'Disabled' },
+                { value: 'ref',      label: 'Stored cert' },
+                { value: 'file',     label: 'File path' },
+              ]"
+              @update:model-value="(v) => setTlsMode(v as TLSMode)"
+            />
+            <div v-if="legacyUseTLSDetected" class="text-[10px] text-status-warn leading-tight">
+              ⚠ Legacy <code>useTLS=true</code> detected. Pick a CA bundle
+              below — saving converts this config to the new <code>tls</code>
+              block.
+            </div>
+            <div v-else class="text-[10px] text-terminal-text-dim leading-tight">
+              Stored refs resolve against the
+              <router-link to="/certs" class="text-accent hover:underline">
+                central cert store
+              </router-link>
+              and rotate independently of this flow. File paths are read fresh
+              on every connection init — handy for cert-manager / Let's Encrypt
+              setups that swap files on disk.
+            </div>
+          </FormField>
+
+          <template v-if="tlsMode !== 'disabled'">
+            <FormField label="Server name (SNI)">
+              <FormInput v-model="tlsServerName" placeholder="broker.example.com" mono />
+              <div class="text-[10px] text-terminal-text-dim leading-tight">
+                Falls back to the host above when empty.
+              </div>
+            </FormField>
+
+            <template v-if="tlsMode === 'ref'">
+              <FormField label="CA bundle">
+                <CertSelector
+                  v-model="tlsCaBundleRef"
+                  type="ca-bundle"
+                  placeholder="— system roots —"
+                />
+              </FormField>
+              <FormField label="Client cert + key (mTLS)">
+                <CertSelector
+                  v-model="tlsClientPairRef"
+                  type="client-pair"
+                  placeholder="— no client auth —"
+                />
+              </FormField>
+            </template>
+
+            <template v-else>
+              <FormField label="CA bundle file (absolute path, optional)">
+                <FormInput v-model="tlsCaBundleFile" placeholder="/etc/loopze/certs/ca.pem" mono />
+                <div class="text-[10px] text-terminal-text-dim leading-tight">
+                  Empty = system trust roots.
+                </div>
+              </FormField>
+              <FormField label="Client certificate file (optional)">
+                <FormInput v-model="tlsClientCertFile" placeholder="/etc/loopze/certs/client.pem" mono />
+              </FormField>
+              <FormField label="Client key file (optional)">
+                <FormInput v-model="tlsClientKeyFile" placeholder="/etc/loopze/certs/client.key" mono />
+                <div class="text-[10px] text-terminal-text-dim leading-tight">
+                  Set both cert and key for mTLS, or leave both empty.
+                </div>
+              </FormField>
+            </template>
+
+            <FormField>
+              <FormCheckbox
+                :model-value="tlsInsecureSkipVerify"
+                label="Skip TLS verification (insecure)"
+                @update:model-value="tlsInsecureSkipVerify = Boolean($event)"
+              />
+              <div v-if="tlsInsecureSkipVerify" class="text-[10px] text-status-warn leading-tight">
+                ⚠ Disables certificate verification — only use in development.
+              </div>
+            </FormField>
+          </template>
+        </div>
+      </SectionHeader>
 
       <SectionHeader title="onConnect Message (optional)">
         <div class="flex flex-col gap-2">

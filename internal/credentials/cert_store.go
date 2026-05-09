@@ -150,6 +150,13 @@ func (s *CertStore) Store(e CertEntry) (CertEntry, error) {
 // preserved from the existing entry; UpdatedAt is refreshed. The entry's
 // ID field is forced to id so callers cannot accidentally rename via
 // Update (use a Delete + Store pair if a rename is really needed).
+//
+// Edits that omit cert material (empty CertPEM/KeyPEM for inline,
+// empty CertPath/KeyPath for file source) inherit the existing
+// material. This lets a caller change just the name or notes without
+// re-supplying the secret PEM, which the API never echoes back.
+// Switching Source between inline and file always requires fresh
+// material — there is nothing to inherit across sources.
 func (s *CertStore) Update(id string, e CertEntry) (CertEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -160,6 +167,25 @@ func (s *CertStore) Update(id string, e CertEntry) (CertEntry, error) {
 	}
 
 	e.ID = id
+	if e.Source == existing.Source {
+		switch e.Source {
+		case SourceInline:
+			if e.CertPEM == "" {
+				e.CertPEM = existing.CertPEM
+			}
+			if existing.requiresKey() && e.KeyPEM == "" {
+				e.KeyPEM = existing.KeyPEM
+			}
+		case SourceFile:
+			if e.CertPath == "" {
+				e.CertPath = existing.CertPath
+			}
+			if existing.requiresKey() && e.KeyPath == "" {
+				e.KeyPath = existing.KeyPath
+			}
+		}
+	}
+
 	if err := e.Validate(); err != nil {
 		return CertEntry{}, err
 	}

@@ -69,12 +69,19 @@ const requiresKey = computed(
 const canSubmit = computed(() => {
   if (form.submitting) return false
   if (!form.id || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(form.id)) return false
-  if (form.source === 'inline') {
-    if (!form.certPem.trim()) return false
-    if (requiresKey.value && !form.keyPem.trim()) return false
-  } else {
-    if (!form.certPath.trim().startsWith('/')) return false
-    if (requiresKey.value && !form.keyPath.trim().startsWith('/')) return false
+  // In edit mode the backend inherits any field left blank from the
+  // existing entry, so we only enforce material presence on create.
+  // (Switching source is checked separately by the backend; we let the
+  // server return a 400 if the user attempts that without supplying
+  // fresh material.)
+  if (form.mode === 'create') {
+    if (form.source === 'inline') {
+      if (!form.certPem.trim()) return false
+      if (requiresKey.value && !form.keyPem.trim()) return false
+    } else {
+      if (!form.certPath.trim().startsWith('/')) return false
+      if (requiresKey.value && !form.keyPath.trim().startsWith('/')) return false
+    }
   }
   return true
 })
@@ -381,6 +388,15 @@ function fingerprintShort(fp?: string): string {
             </label>
           </div>
 
+          <p
+            v-if="form.mode === 'edit'"
+            class="text-[10px] text-terminal-text-dim leading-tight bg-terminal-bg border border-terminal-border rounded px-2 py-1.5"
+          >
+            Existing PEM and paths are not echoed back for security. Leave the
+            fields below empty to keep the current material; fill them only
+            to replace it.
+          </p>
+
           <template v-if="form.source === 'inline'">
             <label class="flex flex-col gap-1 text-[11px]">
               <span class="text-terminal-text-dim">Certificate (PEM)</span>
@@ -388,7 +404,9 @@ function fingerprintShort(fp?: string): string {
                 v-model="form.certPem"
                 rows="6"
                 class="font-mono text-[11px] bg-terminal-bg border border-terminal-border rounded px-2 py-1 resize-y"
-                placeholder="-----BEGIN CERTIFICATE-----&#10;…&#10;-----END CERTIFICATE-----"
+                :placeholder="form.mode === 'edit'
+                  ? 'Leave empty to keep current certificate'
+                  : '-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----'"
               />
             </label>
             <label v-if="requiresKey" class="flex flex-col gap-1 text-[11px]">
@@ -397,7 +415,9 @@ function fingerprintShort(fp?: string): string {
                 v-model="form.keyPem"
                 rows="6"
                 class="font-mono text-[11px] bg-terminal-bg border border-terminal-border rounded px-2 py-1 resize-y"
-                placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"
+                :placeholder="form.mode === 'edit'
+                  ? 'Leave empty to keep current key'
+                  : '-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----'"
               />
             </label>
           </template>

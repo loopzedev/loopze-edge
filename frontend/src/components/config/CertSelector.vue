@@ -21,8 +21,14 @@ onMounted(() => {
   void store.ensureLoaded()
 })
 
+// radix-vue's SelectItem refuses an empty-string value, so we use a
+// non-empty sentinel internally and translate at the v-model boundary.
+// Without this the entire dropdown silently breaks on the "— none —"
+// row and clicks become no-ops.
+const NONE_VALUE = '__none__'
+
 const options = computed(() => {
-  const base = [{ value: '', label: '— none —' }]
+  const base = [{ value: NONE_VALUE, label: '— none —' }]
   const filtered = store.byType(props.type).map((c) => ({
     value: c.id,
     label: c.name ? `${c.name} (${c.id})` : c.id,
@@ -31,12 +37,16 @@ const options = computed(() => {
 })
 
 const selected = computed({
-  get: () => props.modelValue ?? '',
-  set: (v: string) => emit('update:modelValue', v),
+  get: () => (props.modelValue ? props.modelValue : NONE_VALUE),
+  set: (v: string) => emit('update:modelValue', v === NONE_VALUE ? '' : v),
 })
 
 const selectedEntry = computed(() =>
   store.certs.find((c) => c.id === props.modelValue),
+)
+
+const noEntriesAvailable = computed(
+  () => store.loaded && store.byType(props.type).length === 0,
 )
 
 function formatExpiry(iso: string | undefined): string {
@@ -68,10 +78,12 @@ function formatExpiry(iso: string | undefined): string {
       </div>
     </div>
     <div
-      v-else-if="store.loaded && options.length === 1"
+      v-else-if="noEntriesAvailable"
       class="text-[10px] text-terminal-text-dim leading-tight"
     >
-      No {{ props.type }} entries in the cert store yet.
+      No {{ props.type }} entries in the cert store yet —
+      <router-link to="/certs" class="text-accent hover:underline">add one</router-link>
+      .
     </div>
     <div v-if="store.error" class="text-[10px] text-status-error leading-tight">
       {{ store.error }}

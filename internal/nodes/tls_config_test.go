@@ -335,6 +335,118 @@ func TestParseTLSBlock_RefSetButNoStore(t *testing.T) {
 	}
 }
 
+func TestParseTLSBlock_FileMode_CABundle(t *testing.T) {
+	now := time.Now()
+	caPEM, _ := generateTestPair(t, "ca-from-file", now.Add(-time.Hour), now.Add(time.Hour))
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "ca.pem")
+	if err := os.WriteFile(caPath, []byte(caPEM), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	props := map[string]any{
+		"tls": map[string]any{
+			"enabled":      true,
+			"caBundleFile": caPath,
+		},
+	}
+	cfg, err := ParseTLSBlock(props, "n", nil)
+	if err != nil {
+		t.Fatalf("ParseTLSBlock: %v", err)
+	}
+	if cfg.RootCAs == nil {
+		t.Error("RootCAs should be populated from file")
+	}
+}
+
+func TestParseTLSBlock_FileMode_ClientPair(t *testing.T) {
+	now := time.Now()
+	cert, key := generateTestPair(t, "client-from-file", now.Add(-time.Hour), now.Add(time.Hour))
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "client.crt")
+	keyPath := filepath.Join(dir, "client.key")
+	if err := os.WriteFile(certPath, []byte(cert), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte(key), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	props := map[string]any{
+		"tls": map[string]any{
+			"enabled":        true,
+			"clientCertFile": certPath,
+			"clientKeyFile":  keyPath,
+		},
+	}
+	cfg, err := ParseTLSBlock(props, "n", nil)
+	if err != nil {
+		t.Fatalf("ParseTLSBlock: %v", err)
+	}
+	if len(cfg.Certificates) != 1 {
+		t.Errorf("Certificates len = %d, want 1", len(cfg.Certificates))
+	}
+}
+
+func TestParseTLSBlock_FileMode_HalfClientPair(t *testing.T) {
+	props := map[string]any{
+		"tls": map[string]any{
+			"enabled":        true,
+			"clientCertFile": "/tmp/cert.pem", // missing keyFile
+		},
+	}
+	_, err := ParseTLSBlock(props, "n", nil)
+	if err == nil || !strings.Contains(err.Error(), "must be set together") {
+		t.Errorf("expected 'must be set together' error, got %v", err)
+	}
+}
+
+func TestParseTLSBlock_FileMode_MissingFile(t *testing.T) {
+	props := map[string]any{
+		"tls": map[string]any{
+			"enabled":      true,
+			"caBundleFile": "/tmp/does-not-exist.pem",
+		},
+	}
+	if _, err := ParseTLSBlock(props, "n", nil); err == nil {
+		t.Error("expected error on missing CA file")
+	}
+}
+
+func TestParseTLSBlock_ConflictAcrossThreeSources(t *testing.T) {
+	now := time.Now()
+	caPEM, _ := generateTestPair(t, "ca", now.Add(-time.Hour), now.Add(time.Hour))
+
+	t.Run("inline + file", func(t *testing.T) {
+		props := map[string]any{
+			"tls": map[string]any{
+				"enabled":      true,
+				"caBundle":     caPEM,
+				"caBundleFile": "/tmp/ca.pem",
+			},
+		}
+		_, err := ParseTLSBlock(props, "n", nil)
+		if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("expected mutex error, got %v", err)
+		}
+	})
+
+	t.Run("ref + file", func(t *testing.T) {
+		store := newTestCertStore(t)
+		props := map[string]any{
+			"tls": map[string]any{
+				"enabled":      true,
+				"caBundleRef":  "anything",
+				"caBundleFile": "/tmp/ca.pem",
+			},
+		}
+		_, err := ParseTLSBlock(props, "n", store)
+		if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("expected mutex error, got %v", err)
+		}
+	})
+}
+
 func TestParseTLSBlock_MixedRefAndInline(t *testing.T) {
 	// CA via ref, client cert/key inline. Both should compose correctly.
 	store := newTestCertStore(t)

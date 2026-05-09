@@ -1,0 +1,22 @@
+# OpenSSL config for the demo MQTT client certificate. Used by LOOPZE's
+# mqtt-broker config when clientPairRef references the bundled fixture
+# and the broker is in mTLS mode (port 8884).
+
+[req]
+distinguished_name = dn
+prompt             = no
+req_extensions     = v3_req
+
+[dn]
+CN = loopze-demo-mqtt-client
+O  = LOOPZE
+OU = Demo
+
+[v3_req]
+basicConstraints     = CA:FALSE
+keyUsage             = critical, digitalSignature, keyEncipherment
+extendedKeyUsage     = clientAuth
+subjectAltName       = @alt_names
+
+[alt_names]
+DNS.1 = loopze-demo-mqtt-client

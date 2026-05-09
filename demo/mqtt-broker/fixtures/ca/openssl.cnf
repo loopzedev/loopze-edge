@@ -1,0 +1,21 @@
+# Self-signed CA used to sign the demo server and client certificates.
+# Regenerate via demo/mqtt-broker/fixtures/regenerate.sh.
+#
+# DO NOT use this material against any real broker — the private key is
+# checked into the repo, so anyone could impersonate this CA.
+
+[req]
+distinguished_name = dn
+prompt             = no
+req_extensions     = v3_ca
+x509_extensions    = v3_ca
+
+[dn]
+CN = LOOPZE Demo Mosquitto CA
+O  = LOOPZE
+OU = Demo
+
+[v3_ca]
+basicConstraints     = critical, CA:TRUE
+keyUsage             = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash

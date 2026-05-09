@@ -64,6 +64,45 @@ Default users (demo, **not** for production!):
 The demo roles map onto the OPC UA WellKnownRoles (`Operator`, `Engineer`,
 `AuthenticatedUser`, …).
 
+### Bundled client certificate
+
+A reproducible client certificate + key pair is checked into the repo at
+`fixtures/client/`. On every server start it is copied into
+`pki/user/trusted/certs/loopze-demo-client.pem` so the server accepts
+logins with it.
+
+Important properties of the bundled cert:
+
+- **Subject Alternative Name URI** is `urn:loopze:client` — the same
+  value LOOPZE's `opcua-server` config node advertises by default as
+  its `applicationUri`. OPC UA strictly requires these to match, so
+  the demo "just works" without per-config tweaks.
+- **Private key format** is PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`)
+  because gopcua's loader rejects PKCS#8.
+
+Pair it with LOOPZE's [central cert store](../../docs/operations/cert-store.md)
+to test `opcua-server` `certRef` end-to-end:
+
+1. In LOOPZE, open **Certificates** → **+ New certificate**.
+2. Type: `client-pair`. Source: `file`.
+3. Cert path: `<repo-root>/demo/opcua-server/fixtures/client/client.pem`.
+   Key path: `<repo-root>/demo/opcua-server/fixtures/client/client.key`.
+4. Save with ID `opcua-demo-client`.
+5. In an `opcua-server` config node, set `authMode: certificate`,
+   `certRef: opcua-demo-client`, leave `applicationUri` at its default
+   (`urn:loopze:client`), and pick a non-`None` SecurityPolicy /
+   SecurityMode.
+
+If you change `applicationUri`, regenerate the cert with a matching URI:
+
+```bash
+# Edit fixtures/client/openssl.cnf — set URI.1 to your applicationUri
+bash demo/opcua-server/fixtures/regenerate.sh
+# Restart the demo server so the new cert is re-installed in pki/user/trusted/.
+```
+
+> ⚠ The bundled key is public. Treat the cert as a demo fixture only.
+
 ## Address space
 
 All demo data lives in the namespace `urn:loopze:demo` (namespace index `2`).

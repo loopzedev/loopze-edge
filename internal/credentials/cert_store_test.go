@@ -165,6 +165,91 @@ func TestCertStore_UpdatePreservesCreatedAt(t *testing.T) {
 	}
 }
 
+func TestCertStore_UpdateInheritsInlinePEMWhenOmitted(t *testing.T) {
+	store, _ := newTestStore(t)
+	original, err := store.Store(sampleInlineClientPair(t, "client"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Caller submits a name change but no PEM material — the existing
+	// CertPEM / KeyPEM must be inherited so the entry stays valid.
+	updated, err := store.Update("client", CertEntry{
+		Name:   "Renamed",
+		Type:   TypeClientPair,
+		Source: SourceInline,
+	})
+	if err != nil {
+		t.Fatalf("Update without PEM: %v", err)
+	}
+	if updated.Name != "Renamed" {
+		t.Errorf("Name = %q, want Renamed", updated.Name)
+	}
+	if updated.CertPEM != original.CertPEM {
+		t.Error("CertPEM should be inherited from existing entry")
+	}
+	if updated.KeyPEM != original.KeyPEM {
+		t.Error("KeyPEM should be inherited from existing entry")
+	}
+	if updated.Fingerprint != original.Fingerprint {
+		t.Errorf("Fingerprint changed despite same material: %q vs %q",
+			updated.Fingerprint, original.Fingerprint)
+	}
+}
+
+func TestCertStore_UpdateInheritsFilePathsWhenOmitted(t *testing.T) {
+	store, _ := newTestStore(t)
+	now := time.Now()
+	cert, key := generateTestPair(t, "device", now.Add(-time.Hour), now.Add(time.Hour))
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "device.crt")
+	keyPath := filepath.Join(dir, "device.key")
+	if err := os.WriteFile(certPath, []byte(cert), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte(key), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Store(CertEntry{
+		ID: "device", Type: TypeClientPair, Source: SourceFile,
+		CertPath: certPath, KeyPath: keyPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := store.Update("device", CertEntry{
+		Name:   "Renamed device",
+		Type:   TypeClientPair,
+		Source: SourceFile,
+	})
+	if err != nil {
+		t.Fatalf("Update without paths: %v", err)
+	}
+	if updated.CertPath != certPath {
+		t.Errorf("CertPath should be inherited, got %q", updated.CertPath)
+	}
+	if updated.KeyPath != keyPath {
+		t.Errorf("KeyPath should be inherited, got %q", updated.KeyPath)
+	}
+}
+
+func TestCertStore_UpdateAcrossSourcesRequiresFreshMaterial(t *testing.T) {
+	store, _ := newTestStore(t)
+	if _, err := store.Store(sampleInlineCABundle(t, "ca")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Switching from inline to file with no path is rejected — there's
+	// nothing to inherit across the source change.
+	_, err := store.Update("ca", CertEntry{
+		Type:   TypeCABundle,
+		Source: SourceFile,
+	})
+	if err == nil {
+		t.Fatal("expected error when switching source without supplying material")
+	}
+}
+
 func TestCertStore_UpdateForbidsRename(t *testing.T) {
 	store, _ := newTestStore(t)
 	if _, err := store.Store(sampleInlineCABundle(t, "ca")); err != nil {

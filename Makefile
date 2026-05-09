@@ -107,6 +107,17 @@ demo-mqtt:
 demo-mqtt-stop:
 	@cd demo/mqtt-broker && docker compose down
 
+## demo-s7: Run the SIEMENS S7 demo PLC (python-snap7) on :1102 (request-tracing)
+.PHONY: demo-s7
+demo-s7:
+	@echo "▸ Starting S7 demo PLC on :1102…"
+	@cd demo/s7-server && \
+		if [ ! -d .venv ]; then \
+			python3 -m venv .venv && \
+			.venv/bin/pip install -q -r requirements.txt; \
+		fi && \
+		.venv/bin/python main.py -p 1102 -v
+
 # ─── Documentation ───────────────────────────────────────────────────────────
 
 DOCS_VENV := .venv-docs

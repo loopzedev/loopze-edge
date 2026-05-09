@@ -672,7 +672,7 @@ This endpoint is **read-only** and without persistence — it does not touch `co
 | `TestS7TestConnectionHandler` | `/api/v1/s7/test-connection` returns CPU type + order code on a healthy PLC, error string on bad rack/slot |
 | `TestS7SharedConnection` | Multiple nodes with the same PLC reference share one connection |
 
-**Test PLC**: use [`github.com/robinson/gos7/gos7server`](https://github.com/robinson/gos7) (the library's bundled in-process server simulator) under `LOOPZE_S7_TEST_HOST` / `LOOPZE_S7_TEST_PORT`. Tests skip when the env variable is unset (consistent with the OPC UA test pattern).
+**Test PLC**: a dedicated Snap7-based demo PLC is maintained under [`demo/s7-server/`](../../demo/s7-server/) (Python + `python-snap7`, libsnap7 bundled in the wheel — no native dependency setup required). It pre-fills DB1 / DB10, the Merker area, and inputs/outputs with well-known values and animates a handful of "live" measurements so polling tests see motion. By default it listens on the un-privileged port `:1102` (the LOOPZE PLC config simply uses `port=1102` in tests). Tests in this issue connect to it via `LOOPZE_S7_TEST_HOST` / `LOOPZE_S7_TEST_PORT` env vars and **skip** when those are unset (consistent with the OPC UA test pattern). The demo speaks the standard Snap7 surface (Connect / COMM-Setup / ReadArea / WriteArea / ReadMultiVars / WriteMultiVars); advanced services like `GetCpuInfo` / `GetOrderCode` return placeholder strings from the embedded Snap7 server — the LOOPZE Test-Connection endpoint must tolerate placeholder content here. For real-CPU parity tests (Optimized DB rejection, firmware-specific quirks) PLCSIM Advanced or actual hardware is required and lives outside CI.
 
 ### Frontend
 

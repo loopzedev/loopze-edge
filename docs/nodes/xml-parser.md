@@ -2,7 +2,7 @@
 
 Converts `msg.payload` (or any message property) between an XML string /
 buffer and a structured Go map, and back. Pair with
-[`json`](json-parser.md) for format conversion, or use standalone to
+the **JSON Parser** (`json`) for format conversion, or use standalone to
 bridge HTTP APIs, SOAP services, and industrial systems that speak XML.
 
 | Inputs | Outputs |
@@ -152,4 +152,4 @@ vary, add a normalisation step.
 
 ## See also
 
-- [JSON Parser](json-parser.md) — same interface for JSON payloads.
+- **JSON Parser** (`json`) — same interface for JSON payloads.

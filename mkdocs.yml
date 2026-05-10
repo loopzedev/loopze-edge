@@ -98,6 +98,8 @@ nav:
           - nodes/tcp-request.md
           - nodes/udp-in.md
           - nodes/udp-out.md
+      - Parsing:
+          - nodes/xml-parser.md
       - Industrial — SIEMENS S7:
           - nodes/s7-plc.md
           - nodes/s7-read.md

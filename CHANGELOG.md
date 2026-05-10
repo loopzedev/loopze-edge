@@ -5,6 +5,34 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **XML Parser node** (`xml`). Converts `msg.payload` (or any message property) bidirectionally
+  between an XML string / buffer and a structured Go `map[string]any`, using
+  [`mxj`](https://github.com/clbanning/mxj) for generic XML ↔ map conversion. Mirrors the JSON
+  Parser interface: same Property / Action / Indent pattern plus two XML-specific options —
+  `root` (root element name for stringify, default `"root"`) and `declaration` (prepend
+  `<?xml version="1.0" encoding="UTF-8"?>`, on by default). Map convention: attributes as
+  `"-key"`, repeated siblings as `[]any`, text content as `"#text"`. Special characters
+  (`&`, `<`, `>`, `"`, `'`) are escaped automatically on stringify. Error states (`xml parse
+  error`, `xml type error`, `xml root required`) are catchable via Catch nodes.
+
+### Internal
+- `internal/nodes/core/parser_xml.go` — `XMLParserNode` implementation; `mxj.XMLEscapeChars(true)`
+  set at package init to ensure well-formed output.
+- `internal/nodes/core/parser_xml_test.go` — 21 tests covering all action branches, attribute
+  parsing, repeated elements, pretty-print, declaration, roundtrip with special characters, and
+  status recovery.
+- `go.mod` / `go.sum` — `github.com/clbanning/mxj/v2 v2.7.0` added.
+- `frontend/src/components/nodes/XMLParserNode.vue` — canvas node component.
+- `frontend/src/nodes/core/XMLParserConfig.vue` — property panel with Property, Action, Root,
+  Indent, and Declaration fields.
+- `frontend/src/components/help/docs.ts` — sidebar help entries for `xml` (and `json`, which was
+  previously missing).
+- `frontend/src/components/help/index.ts` — live summary function for `xml`.
+- `docs/nodes/xml-parser.md` — full node reference documentation.
+
 ## [0.1.0] - 2026-05-10
 
 ### Changed

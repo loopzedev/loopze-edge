@@ -41,6 +41,30 @@ If you cannot agree to point (2) — for example, because your employer's IP pol
 
 This is a lightweight inbound=outbound model and does not require a separately signed CLA.
 
+## Adding a new node
+
+Nodes are the primary extension point of LOOPZE. Each node type lives in two places:
+
+- **Backend (Go):** `internal/nodes/` — implements the node logic
+- **Frontend (Vue):** `frontend/src/components/config/` — provides the properties-panel editor
+
+Step-by-step guides:
+
+- [Backend: how to implement and register a Go node](internal/nodes/README.md)
+- [Frontend: how to add a config editor component](frontend/src/components/config/README.md)
+
+The short version of the checklist is:
+
+1. Create `internal/nodes/<protocol>_<role>.go` implementing `flow.NodeInstance`
+2. Add one line to `registerNodes()` in `internal/server/server.go`
+3. Create `frontend/src/components/config/<NodeType>Config.vue`
+4. Add one line to `nodeEditors.ts` (or `configEditors.ts` for config nodes)
+5. Add a color category entry in `frontend/src/components/nodes/tokens.ts`
+6. Write tests (`*_test.go` on the backend, `pnpm type-check` on the frontend)
+
+For protocol nodes (Modbus, S7, OPC UA, …), also read the existing issue specs in
+`specifications/issues/NODE_*.md` to understand the design conventions.
+
 ## Code of conduct
 
 Be respectful. Disagree on technical merits, not personal attacks. Maintainers reserve the right to moderate or remove off-topic or hostile content from issues and PRs.

@@ -46,6 +46,18 @@ build-frontend:
 .PHONY: build-all
 build-all: build-frontend build
 
+## build-snapshot: Cross-compile all release targets via goreleaser (no tag required)
+##                 Output lands in dist/. Requires goreleaser in PATH.
+##                 Install: go install github.com/goreleaser/goreleaser/v2@latest
+.PHONY: build-snapshot
+build-snapshot:
+	@echo "▸ Cross-compiling snapshot for all platforms…"
+	@if ! command -v goreleaser >/dev/null 2>&1; then \
+		echo "⚠ goreleaser not found. Install: go install github.com/goreleaser/goreleaser/v2@latest"; \
+		exit 1; \
+	fi
+	goreleaser build --snapshot --clean
+
 # ─── Development ──────────────────────────────────────────────────────────────
 
 .PHONY: dev

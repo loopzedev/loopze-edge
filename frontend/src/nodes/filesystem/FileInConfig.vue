@@ -56,6 +56,10 @@ const writeT = makeToggle('write')
 const createT = makeToggle('create')
 const removeT = makeToggle('remove')
 const renameT = makeToggle('rename')
+
+// Workaround for Vue's Mustache-style interpolation: rendering the literal
+// string "{{mustache}}" inline would close the outer {{ }} prematurely.
+const MUSTACHE_TOKEN = '{{mustache}}'
 </script>
 
 <template>
@@ -79,7 +83,7 @@ const renameT = makeToggle('rename')
         Absolute file path required
       </div>
       <div v-else class="text-[10px] text-text-muted leading-tight">
-        {{ '{{mustache}}' }} supported in Read mode; msg.filename overrides this path
+        {{ MUSTACHE_TOKEN }} supported in Read mode; msg.filename overrides this path
       </div>
     </FormField>
 

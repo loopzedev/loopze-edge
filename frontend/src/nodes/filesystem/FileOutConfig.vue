@@ -23,6 +23,10 @@ const encodings = [
   { value: 'utf-8',  label: 'UTF-8 (text)' },
   { value: 'binary', label: 'Binary (bytes)' },
 ]
+
+// Workaround for Vue's Mustache-style interpolation: rendering the literal
+// string "{{mustache}}" inline would close the outer {{ }} prematurely.
+const MUSTACHE_TOKEN = '{{mustache}}'
 </script>
 
 <template>
@@ -38,7 +42,7 @@ const encodings = [
         Absolute file path required
       </div>
       <div v-else class="text-[10px] text-text-muted leading-tight">
-        {{ '{{mustache}}' }} supported; msg.filename overrides this path
+        {{ MUSTACHE_TOKEN }} supported; msg.filename overrides this path
       </div>
     </FormField>
 

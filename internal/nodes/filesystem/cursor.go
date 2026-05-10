@@ -179,6 +179,58 @@ func resetCursorKey(store flow.ContextStore, key string) error {
 	return store.Delete(key)
 }
 
+// dirCursorKey returns the flowPers key for the (nodeID, folderPath) pair
+// used by folder-in incremental mode. Same hashing scheme as cursorKey
+// with a different domain separator so the namespaces never collide.
+func dirCursorKey(nodeID, absPath string) string {
+	h := sha256.Sum256([]byte(nodeID + "::dir::" + absPath))
+	return "_dircursor." + hex.EncodeToString(h[:8])
+}
+
+// dirModTimeMap holds the per-file modTime snapshot persisted by folder-in.
+// Keys are absolute paths; values are RFC3339Nano timestamps.
+type dirModTimeMap map[string]string
+
+// loadDirCursor reads the persisted map. Returns (nil, nil) on first access.
+// JSON-decoded values arrive as map[string]any with string elements.
+func loadDirCursor(store flow.ContextStore, key string) (dirModTimeMap, error) {
+	if store == nil {
+		return nil, fmt.Errorf("no persistent context available")
+	}
+	val, err := store.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	if val == nil {
+		return nil, nil
+	}
+	raw, ok := val.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected dir cursor type %T", val)
+	}
+	out := make(dirModTimeMap, len(raw))
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			out[k] = s
+		}
+	}
+	return out, nil
+}
+
+// saveDirCursor persists the map. NATS KV serialises it as JSON.
+func saveDirCursor(store flow.ContextStore, key string, m dirModTimeMap) error {
+	if store == nil {
+		return fmt.Errorf("no persistent context available")
+	}
+	// Convert to map[string]any so the JSON encoder treats each value
+	// as a string rather than fighting the typed map.
+	raw := make(map[string]any, len(m))
+	for k, v := range m {
+		raw[k] = v
+	}
+	return store.Set(key, raw)
+}
+
 // toInt64 coerces the JSON-decoded cursor value (typically float64) back to int64.
 func toInt64(v any) int64 {
 	switch n := v.(type) {

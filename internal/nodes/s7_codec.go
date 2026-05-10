@@ -263,7 +263,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 			}
 		} else {
 			if n < 0 || n > math.MaxUint32 {
-				return nil, fmt.Errorf("encode dword: value %d out of range [0, %d]", n, math.MaxUint32)
+				return nil, fmt.Errorf("encode dword: value %d out of range [0, %d]", n, uint32(math.MaxUint32))
 			}
 		}
 		out := make([]byte, 4)
@@ -288,7 +288,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 			return nil, fmt.Errorf("encode udint: %w", err)
 		}
 		if n < 0 || n > math.MaxUint32 {
-			return nil, fmt.Errorf("encode udint: value %d out of range [0, %d]", n, math.MaxUint32)
+			return nil, fmt.Errorf("encode udint: value %d out of range [0, %d]", n, uint32(math.MaxUint32))
 		}
 		out := make([]byte, 4)
 		binary.BigEndian.PutUint32(out, uint32(n))

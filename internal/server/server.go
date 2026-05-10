@@ -586,50 +586,15 @@ func (s *Server) Broker() *loopzenats.Broker {
 	return s.broker
 }
 
-// registerNodes registers all built-in node types on the engine registry.
+// registerNodes applies all node groups that have self-registered via their
+// subpackage's init(). Each subpackage in internal/nodes/<group>/ calls
+// nodes.RegisterGroup from its init.go; the blank imports in cmd/loopze/groups.go
+// pull these init() functions into the binary at compile time.
+//
+// Pass an empty GroupSelection to enable every bundled group; a future
+// runtime config knob can disable groups (e.g. ship a stripped industrial
+// build by setting Disable=["network"]).
 func registerNodes(registry *flow.NodeRegistry) {
-	registry.Register("inject", nodes.NewInjectNode, nodes.InjectTypeInfo())
-	registry.Register("debug", nodes.NewDebugNode, nodes.DebugTypeInfo())
-	registry.Register("function", nodes.NewFunctionNode, nodes.FunctionTypeInfo())
-	registry.Register("function-expr", nodes.NewFunctionExprNode, nodes.FunctionExprTypeInfo())
-	registry.Register("function-go", nodes.NewFunctionGoNode, nodes.FunctionGoTypeInfo())
-	registry.Register("json", nodes.NewJSONParserNode, nodes.JSONParserTypeInfo())
-	registry.Register("context-watch", nodes.NewContextWatchNode, nodes.ContextWatchTypeInfo())
-	registry.Register("catch", nodes.NewCatchNode, nodes.CatchTypeInfo())
-	registry.Register("change", nodes.NewChangeNode, nodes.ChangeTypeInfo())
-	registry.Register("delay", nodes.NewDelayNode, nodes.DelayTypeInfo())
-	registry.Register("link-in", nodes.NewLinkInNode, nodes.LinkInTypeInfo())
-	registry.Register("link-out", nodes.NewLinkOutNode, nodes.LinkOutTypeInfo())
-	registry.Register("link-call", nodes.NewLinkCallNode, nodes.LinkCallTypeInfo())
-	registry.Register("mqtt-in", nodes.NewMqttInNode, nodes.MqttInTypeInfo())
-	registry.Register("mqtt-out", nodes.NewMqttOutNode, nodes.MqttOutTypeInfo())
-	registry.Register("mqtt-request", nodes.NewMqttRequestNode, nodes.MqttRequestTypeInfo())
-	registry.Register("modbus-read", nodes.NewModbusReadNode, nodes.ModbusReadTypeInfo())
-	registry.Register("modbus-write", nodes.NewModbusWriteNode, nodes.ModbusWriteTypeInfo())
-	registry.Register("modbus-parser", nodes.NewModbusParserNode, nodes.ModbusParserTypeInfo())
-	registry.Register("opcua-read", nodes.NewOpcuaReadNode, nodes.OpcuaReadTypeInfo())
-	registry.Register("opcua-write", nodes.NewOpcuaWriteNode, nodes.OpcuaWriteTypeInfo())
-	registry.Register("opcua-subscribe", nodes.NewOpcuaSubscribeNode, nodes.OpcuaSubscribeTypeInfo())
-	registry.Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
-	registry.Register("status", nodes.NewStatusNode, nodes.StatusTypeInfo())
-	registry.Register("switch", nodes.NewSwitchNode, nodes.SwitchTypeInfo())
-	registry.Register("template", nodes.NewTemplateNode, nodes.TemplateTypeInfo())
-	registry.Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
-	registry.Register("http-response", nodes.NewHTTPResponseNode, nodes.HTTPResponseTypeInfo())
-	registry.Register("http-request", nodes.NewHTTPRequestNode, nodes.HTTPRequestTypeInfo())
-	registry.Register("tcp-in", nodes.NewTCPInNode, nodes.TCPInTypeInfo())
-	registry.Register("tcp-out", nodes.NewTCPOutNode, nodes.TCPOutTypeInfo())
-	registry.Register("tcp-request", nodes.NewTCPRequestNode, nodes.TCPRequestTypeInfo())
-	registry.Register("udp-in", nodes.NewUDPInNode, nodes.UDPInTypeInfo())
-	registry.Register("udp-out", nodes.NewUDPOutNode, nodes.UDPOutTypeInfo())
-
-	// Config node types.
-	registry.RegisterConfig("mqtt-broker", nodes.NewMqttBroker, nodes.MqttBrokerConfigTypeInfo())
-	registry.RegisterConfig("modbus-server", nodes.NewModbusServer, nodes.ModbusServerConfigTypeInfo())
-	registry.RegisterConfig("opcua-server", nodes.NewOpcuaServer, nodes.OpcuaServerConfigTypeInfo())
-
-	// Self-registered groups (subpackages call nodes.RegisterGroup from init()).
-	// Apply with no selection = enable all known groups.
 	nodes.Apply(registry, nodes.GroupSelection{})
 }
 

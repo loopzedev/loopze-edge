@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
-	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes/core"
 )
 
 const inspectorMachineJSON = `{` +
@@ -22,7 +22,7 @@ const inspectorMachineJSON = `{` +
 
 func TestEngine_ListStateMachines(t *testing.T) {
 	rig := newCatchRig(t)
-	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	rig.engine.Registry().Register("statemachine", core.NewStateMachineNode, core.StateMachineTypeInfo())
 
 	rig.deploy([]flow.Flow{{
 		ID: "flow-sm",
@@ -64,7 +64,7 @@ func TestEngine_ListStateMachines(t *testing.T) {
 
 func TestEngine_ListAllStateMachines(t *testing.T) {
 	rig := newCatchRig(t)
-	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	rig.engine.Registry().Register("statemachine", core.NewStateMachineNode, core.StateMachineTypeInfo())
 
 	rig.deploy([]flow.Flow{
 		{
@@ -115,7 +115,7 @@ func TestEngine_ListAllStateMachines(t *testing.T) {
 
 func TestEngine_ListStateMachines_UnknownFlow(t *testing.T) {
 	rig := newCatchRig(t)
-	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	rig.engine.Registry().Register("statemachine", core.NewStateMachineNode, core.StateMachineTypeInfo())
 
 	rig.deploy([]flow.Flow{{
 		ID: "flow-sm",
@@ -131,7 +131,7 @@ func TestEngine_ListStateMachines_UnknownFlow(t *testing.T) {
 
 func TestEngine_StateMachineSnapshot(t *testing.T) {
 	rig := newCatchRig(t)
-	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	rig.engine.Registry().Register("statemachine", core.NewStateMachineNode, core.StateMachineTypeInfo())
 
 	rig.deploy([]flow.Flow{{
 		ID: "flow-sm",

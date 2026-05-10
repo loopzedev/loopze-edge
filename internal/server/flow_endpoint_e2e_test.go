@@ -16,7 +16,7 @@ import (
 
 	"github.com/loopzedev/loopze-edge/internal/config"
 	"github.com/loopzedev/loopze-edge/internal/flow"
-	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes/network"
 	"github.com/loopzedev/loopze-edge/internal/server"
 )
 
@@ -95,8 +95,8 @@ func TestEndToEndInFunctionResponse(t *testing.T) {
 	cfg := &config.Config{HTTPNodeRoot: "/endpoint"}
 	engine := flow.NewEngine(cfg)
 
-	engine.Registry().Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
-	engine.Registry().Register("http-response", nodes.NewHTTPResponseNode, nodes.HTTPResponseTypeInfo())
+	engine.Registry().Register("http-in", network.NewHTTPInNode, network.HTTPInTypeInfo())
+	engine.Registry().Register("http-response", network.NewHTTPResponseNode, network.HTTPResponseTypeInfo())
 	engine.Registry().Register("test-stamper", func(_ flow.NodeConfig) (flow.NodeInstance, error) {
 		return &stamperNode{stamp: "stamped-by-flow"}, nil
 	}, flow.NodeTypeInfo{Type: "test-stamper", Inputs: 1, Outputs: 1})
@@ -153,7 +153,7 @@ func TestRedeployDrainsInFlightRequests(t *testing.T) {
 	cfg := &config.Config{HTTPNodeRoot: "/endpoint"}
 	engine := flow.NewEngine(cfg)
 
-	engine.Registry().Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
+	engine.Registry().Register("http-in", network.NewHTTPInNode, network.HTTPInTypeInfo())
 
 	// A "stuck" passthrough that swallows the message — http-response
 	// will never be called, so the request blocks until the registry
@@ -246,7 +246,7 @@ func TestRedeployDrainsInFlightRequests(t *testing.T) {
 func TestEndToEndUnknownPathIs404(t *testing.T) {
 	cfg := &config.Config{HTTPNodeRoot: "/endpoint"}
 	engine := flow.NewEngine(cfg)
-	engine.Registry().Register("http-in", nodes.NewHTTPInNode, nodes.HTTPInTypeInfo())
+	engine.Registry().Register("http-in", network.NewHTTPInNode, network.HTTPInTypeInfo())
 
 	tsrv, _ := buildE2EHarness(t, engine)
 	defer tsrv.Close()

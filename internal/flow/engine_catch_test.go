@@ -12,7 +12,7 @@ import (
 
 	"github.com/loopzedev/loopze-edge/internal/config"
 	"github.com/loopzedev/loopze-edge/internal/flow"
-	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes/core"
 )
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ func newCatchRig(t *testing.T) *catchTestRig {
 		return n, nil
 	}, flow.NodeTypeInfo{Type: "test-capture", Inputs: 1, Outputs: 0})
 
-	engine.Registry().Register("catch", nodes.NewCatchNode, nodes.CatchTypeInfo())
+	engine.Registry().Register("catch", core.NewCatchNode, core.CatchTypeInfo())
 
 	if err := engine.Start(); err != nil {
 		t.Fatalf("engine.Start: %v", err)
@@ -394,7 +394,7 @@ func TestCatch_AsyncError_TriggersCatch(t *testing.T) {
 // to a Catch Node via the ErrorProvider hook on StateMachineNode.
 func TestCatch_StateMachineGuardError(t *testing.T) {
 	rig := newCatchRig(t)
-	rig.engine.Registry().Register("statemachine", nodes.NewStateMachineNode, nodes.StateMachineTypeInfo())
+	rig.engine.Registry().Register("statemachine", core.NewStateMachineNode, core.StateMachineTypeInfo())
 
 	machine := `{"id":"m","initial":"locked","context":{},"states":{` +
 		`"locked":{"on":{"UNLOCK":[{"target":"unlocked","guard":"pinCorrect"}]}},` +

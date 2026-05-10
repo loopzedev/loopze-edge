@@ -174,6 +174,56 @@ func ToUint16Slice(v any) ([]uint16, error) {
 	}
 }
 
+// ApplyScale returns value*scale + offset, converting any numeric Go type to
+// float64. Used by codecs (modbus, s7) to scale raw integer/float readings
+// into engineering units. Non-numeric values pass through unchanged.
+func ApplyScale(value any, scale, offset float64) any {
+	if scale == 1 && offset == 0 {
+		return value
+	}
+	switch v := value.(type) {
+	case int:
+		return float64(v)*scale + offset
+	case int8:
+		return float64(v)*scale + offset
+	case int16:
+		return float64(v)*scale + offset
+	case int32:
+		return float64(v)*scale + offset
+	case int64:
+		return float64(v)*scale + offset
+	case uint:
+		return float64(v)*scale + offset
+	case uint8:
+		return float64(v)*scale + offset
+	case uint16:
+		return float64(v)*scale + offset
+	case uint32:
+		return float64(v)*scale + offset
+	case uint64:
+		return float64(v)*scale + offset
+	case float32:
+		return float64(v)*scale + offset
+	case float64:
+		return v*scale + offset
+	default:
+		return value
+	}
+}
+
+// UnapplyScale is the inverse of ApplyScale: (raw - offset) / scale. Used in
+// the write path to reverse the user's scaling before encoding to registers.
+func UnapplyScale(value any, scale, offset float64) (float64, error) {
+	if scale == 0 {
+		return 0, fmt.Errorf("scale must not be zero")
+	}
+	f, err := ToFloat64(value)
+	if err != nil {
+		return 0, err
+	}
+	return (f - offset) / scale, nil
+}
+
 // ToBoolSlice accepts a single bool, []bool, []any of bools, or a single
 // truthy/falsy number/string. Numeric arrays are interpreted bit-by-bit
 // (any non-zero element is true).

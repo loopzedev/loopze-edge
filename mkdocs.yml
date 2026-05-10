@@ -113,6 +113,9 @@ nav:
       - deployment/docker.md
   - Operations:
       - operations/cert-store.md
+  - Contributing:
+      - contributing/index.md
+      - contributing/adding-a-node.md
   - Reference:
       - reference/cli.md
       - reference/architecture.md

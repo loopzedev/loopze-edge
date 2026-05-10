@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
-	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes/opcua"
 )
 
 // opcuaTestConnectionRequest carries the same Config payload that lands in
@@ -29,7 +29,7 @@ type opcuaTestConnectionRequest struct {
 type opcuaTestConnectionResponse struct {
 	OK         bool                   `json:"ok"`
 	Error      string                 `json:"error,omitempty"`
-	ServerInfo *nodes.OpcuaServerInfo `json:"serverInfo,omitempty"`
+	ServerInfo *opcua.OpcuaServerInfo `json:"serverInfo,omitempty"`
 }
 
 // opcuaBrowseRequest carries either a serverId (use a deployed session) or a
@@ -58,9 +58,9 @@ func (d *Deps) handleOpcuaBrowse(w http.ResponseWriter, r *http.Request) {
 	// Path 1: a deployed server with this ID — ride along on its session.
 	if req.ServerID != "" {
 		if inst, ok := d.Engine.GetConfigInstance(req.ServerID); ok {
-			if srv, ok := inst.(*nodes.OpcuaServer); ok {
+			if srv, ok := inst.(*opcua.OpcuaServer); ok {
 				if client := srv.Client(); client != nil {
-					result, err := nodes.OpcuaBrowse(ctx, client, srv, req.NodeID)
+					result, err := opcua.OpcuaBrowse(ctx, client, srv, req.NodeID)
 					if err != nil {
 						jsonResponse(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 						return
@@ -83,7 +83,7 @@ func (d *Deps) handleOpcuaBrowse(w http.ResponseWriter, r *http.Request) {
 		Type:   "opcua-server",
 		Config: req.Config,
 	}
-	result, err := nodes.OpcuaBrowseAdHoc(ctx, cfg, req.NodeID)
+	result, err := opcua.OpcuaBrowseAdHoc(ctx, cfg, req.NodeID)
 	if err != nil {
 		jsonResponse(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -122,8 +122,8 @@ func (d *Deps) handleOpcuaRead(w http.ResponseWriter, r *http.Request) {
 	// Path 1: deployed server.
 	if req.ServerID != "" {
 		if inst, ok := d.Engine.GetConfigInstance(req.ServerID); ok {
-			if srv, ok := inst.(*nodes.OpcuaServer); ok {
-				result, err := nodes.OpcuaReadOnce(ctx, srv, req.NodeID)
+			if srv, ok := inst.(*opcua.OpcuaServer); ok {
+				result, err := opcua.OpcuaReadOnce(ctx, srv, req.NodeID)
 				if err != nil {
 					jsonResponse(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 					return
@@ -140,7 +140,7 @@ func (d *Deps) handleOpcuaRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg := flow.ConfigNode{ID: "read-adhoc", Type: "opcua-server", Config: req.Config}
-	result, err := nodes.OpcuaReadOnceAdHoc(ctx, cfg, req.NodeID)
+	result, err := opcua.OpcuaReadOnceAdHoc(ctx, cfg, req.NodeID)
 	if err != nil {
 		jsonResponse(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -175,7 +175,7 @@ func (d *Deps) handleOpcuaTestConnection(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	info, err := nodes.OpcuaTestConnect(ctx, cfg, d.Certs)
+	info, err := opcua.OpcuaTestConnect(ctx, cfg, d.Certs)
 	if err != nil {
 		jsonResponse(w, http.StatusOK, opcuaTestConnectionResponse{
 			OK:    false,

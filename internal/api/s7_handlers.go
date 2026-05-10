@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
-	"github.com/loopzedev/loopze-edge/internal/nodes"
+	"github.com/loopzedev/loopze-edge/internal/nodes/s7"
 )
 
 // s7TestConnectionRequest carries the same Config payload that lands in
@@ -31,7 +31,7 @@ type s7TestConnectionRequest struct {
 type s7TestConnectionResponse struct {
 	OK    bool                         `json:"ok"`
 	Error string                       `json:"error,omitempty"`
-	Info  *nodes.S7TestConnectionInfo  `json:"info,omitempty"`
+	Info  *s7.S7TestConnectionInfo  `json:"info,omitempty"`
 }
 
 // handleS7TestConnection probes a candidate S7 PLC config without persisting
@@ -64,7 +64,7 @@ func (d *Deps) handleS7TestConnection(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	info, err := nodes.S7TestConnect(ctx, cfg)
+	info, err := s7.S7TestConnect(ctx, cfg)
 	if err != nil {
 		jsonResponse(w, http.StatusOK, s7TestConnectionResponse{
 			OK:    false,
@@ -82,7 +82,7 @@ func (d *Deps) handleS7TestConnection(w http.ResponseWriter, r *http.Request) {
 // can render a stable "PLC reachable but no CPU info available" hint without
 // branching on emptiness for each field. The python-snap7 demo server is the
 // main producer of empty fields; real CPUs return populated values.
-func fillUnknown(info *nodes.S7TestConnectionInfo) *nodes.S7TestConnectionInfo {
+func fillUnknown(info *s7.S7TestConnectionInfo) *s7.S7TestConnectionInfo {
 	if info == nil {
 		return nil
 	}

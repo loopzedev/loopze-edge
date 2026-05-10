@@ -64,15 +64,15 @@ func ParseTLSBlock(props map[string]any, nodeID string, certs *credentials.CertS
 		return nil, nil
 	}
 
-	serverName := strings.TrimSpace(stringVal(raw, "serverName", ""))
-	caBundleInline := strings.TrimSpace(stringVal(raw, "caBundle", ""))
-	clientCertInline := strings.TrimSpace(stringVal(raw, "clientCert", ""))
-	clientKeyInline := strings.TrimSpace(stringVal(raw, "clientKey", ""))
-	caBundleRef := strings.TrimSpace(stringVal(raw, "caBundleRef", ""))
-	clientPairRef := strings.TrimSpace(stringVal(raw, "clientPairRef", ""))
-	caBundleFile := strings.TrimSpace(stringVal(raw, "caBundleFile", ""))
-	clientCertFile := strings.TrimSpace(stringVal(raw, "clientCertFile", ""))
-	clientKeyFile := strings.TrimSpace(stringVal(raw, "clientKeyFile", ""))
+	serverName := strings.TrimSpace(StringVal(raw, "serverName", ""))
+	caBundleInline := strings.TrimSpace(StringVal(raw, "caBundle", ""))
+	clientCertInline := strings.TrimSpace(StringVal(raw, "clientCert", ""))
+	clientKeyInline := strings.TrimSpace(StringVal(raw, "clientKey", ""))
+	caBundleRef := strings.TrimSpace(StringVal(raw, "caBundleRef", ""))
+	clientPairRef := strings.TrimSpace(StringVal(raw, "clientPairRef", ""))
+	caBundleFile := strings.TrimSpace(StringVal(raw, "caBundleFile", ""))
+	clientCertFile := strings.TrimSpace(StringVal(raw, "clientCertFile", ""))
+	clientKeyFile := strings.TrimSpace(StringVal(raw, "clientKeyFile", ""))
 	insecureSkip, _ := raw["insecureSkipVerify"].(bool)
 
 	caSourcesSet := boolCount(caBundleInline != "", caBundleRef != "", caBundleFile != "")

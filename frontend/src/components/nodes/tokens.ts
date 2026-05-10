@@ -237,65 +237,12 @@ export const TOKENS: Record<string, NodeTokens> = {
   },
 }
 
-// Map node type → category
-const TYPE_CATEGORY: Record<string, string> = {
-  // ── Core ──────────────────────────────────────────────────────────────
-  inject:          'inject',
-  debug:           'debug',
-  catch:           'error',
-  status:          'input',
-  'context-watch': 'context',
+// Node type → category mapping is sourced from the per-group manifests in
+// frontend/src/nodes/<group>/index.ts. Each group declares either a default
+// `category` for all its node types or per-type `categories`. To change the
+// palette colour of a node type, edit the group's manifest — not this file.
 
-  // ── Transformation / Logic ────────────────────────────────────────────
-  function:        'function',
-  'function-expr': 'function',
-  'function-go':   'function',
-  statemachine:    'statemachine',
-  change:          'change',
-  switch:          'switch',
-  delay:           'process',
-  template:        'template',
-  json:            'process',
-
-  // ── Link ──────────────────────────────────────────────────────────────
-  'link-in':       'link',
-  'link-out':      'link',
-  'link-call':     'link',
-
-  // ── MQTT ──────────────────────────────────────────────────────────────
-  'mqtt-in':       'mqtt',
-  'mqtt-out':      'mqtt',
-  'mqtt-request':  'mqtt',
-
-  // ── Modbus ────────────────────────────────────────────────────────────
-  'modbus-read':   'rust',
-  'modbus-write':  'rust',
-  'modbus-parser': 'rust',
-
-  // ── Siemens S7 ────────────────────────────────────────────────────────
-  's7-read':       'rust',
-  's7-write':      'rust',
-  's7-parser':     'rust',
-
-  // ── OPC UA ────────────────────────────────────────────────────────────
-  'opcua-read':       'opcua',
-  'opcua-write':      'opcua',
-  'opcua-subscribe':  'opcua',
-
-  // ── HTTP ──────────────────────────────────────────────────────────────
-  'http-in':       'http',
-  'http-response': 'http',
-  'http-request':  'http',
-
-  // ── TCP ───────────────────────────────────────────────────────────────
-  'tcp-in':        'tcp',
-  'tcp-out':       'tcp',
-  'tcp-request':   'tcp',
-
-  // ── UDP ───────────────────────────────────────────────────────────────
-  'udp-in':        'udp',
-  'udp-out':       'udp',
-}
+import { getCategory } from '@/nodes'
 
 export const STATUS_COLORS: Record<string, string> = {
   red: '#e24b4a',
@@ -306,6 +253,5 @@ export const STATUS_COLORS: Record<string, string> = {
 }
 
 export function getTokens(nodeType: string): NodeTokens {
-  const cat = TYPE_CATEGORY[nodeType] ?? 'process'
-  return TOKENS[cat]
+  return TOKENS[getCategory(nodeType)] ?? TOKENS.process
 }

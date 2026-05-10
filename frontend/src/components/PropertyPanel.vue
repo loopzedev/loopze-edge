@@ -9,8 +9,7 @@ import FormInput from '@/components/ui/FormInput.vue'
 import AppSwitch from '@/components/ui/AppSwitch.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
-import { getConfigEditor } from '@/components/config/configEditors'
-import { getNodeEditor } from '@/components/config/nodeEditors'
+import { getConfigNodeEditor, getFlowNodeEditor } from '@/nodes'
 import { getNodeSummary } from '@/components/help'
 
 const ui = useUiStore()
@@ -26,7 +25,7 @@ const showConfigEditor = computed(() => ui.propertiesContext?.type === 'config-e
 const configEditorComponent = computed(() => {
   const ctx = ui.propertiesContext
   if (ctx?.type !== 'config-edit') return null
-  const loader = getConfigEditor(ctx.configType)
+  const loader = getConfigNodeEditor(ctx.configType)
   if (!loader) return null
   return defineAsyncComponent(loader)
 })
@@ -38,7 +37,7 @@ const configEditorId = computed(() => {
 const nodeEditorEntry = computed(() => {
   const type = selectedNode.value?.type
   if (!type) return undefined
-  return getNodeEditor(type)
+  return getFlowNodeEditor(type)
 })
 const nodeEditorComponent = computed(() => {
   const entry = nodeEditorEntry.value

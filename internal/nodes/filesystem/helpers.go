@@ -182,6 +182,21 @@ func encodeBinary(payload any) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported binary payload type %T", payload)
 }
 
+// decodePayload converts file bytes into the message-payload representation.
+// utf-8 returns a string; binary returns a []int (number array) so JSON
+// serialisation in the Debug node and downstream nodes stays human-readable
+// instead of base64. Same convention used by HTTP / TCP / MQTT nodes.
+func decodePayload(data []byte, encoding string) any {
+	if encoding == "binary" {
+		out := make([]int, len(data))
+		for i, b := range data {
+			out[i] = int(b)
+		}
+		return out
+	}
+	return string(data)
+}
+
 func toUint8(v any) (byte, bool) {
 	switch n := v.(type) {
 	case float64:

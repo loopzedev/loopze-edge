@@ -24,6 +24,7 @@ import StatusNode from "@/components/nodes/StatusNode.vue";
 import CatchNode from "@/components/nodes/CatchNode.vue";
 import TemplateNode from "@/components/nodes/TemplateNode.vue";
 import JSONParserNode from "@/components/nodes/JSONParserNode.vue";
+import XMLParserNode from "@/components/nodes/XMLParserNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -759,7 +760,7 @@ onMounted(async () => {
             </template>
 
             <template #node-xml="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <XMLParserNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-csv="nodeProps">

@@ -56,6 +56,7 @@ Cross-cutting reference:
 | Node                          | What it does                              |
 |-------------------------------|-------------------------------------------|
 | Parser JSON                   | Encode / decode JSON.                     |
+| [Parser XML](xml-parser.md)   | Encode / decode XML.                      |
 | Parser Modbus                 | Decode Modbus register frames.            |
 | [Parser S7](s7-parser.md)     | Decode raw S7 byte blocks into structured objects (and back). |
 

@@ -616,6 +616,78 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
       'A Debug node downstream is useful for tracing transitions during development.',
     ],
   },
+
+  json: {
+    overview:
+      'Converts msg.payload (or any message property) between a JSON string / buffer and a structured Go value. ' +
+      'Auto mode detects the direction automatically — string/buffer input is parsed, everything else is serialised. ' +
+      'Use parse or stringify to force one direction.',
+    inputs: ['Any message. The value at the configured property is read and replaced in-place.'],
+    outputs: ['The same message with msg.<property> replaced by the converted value. Parse errors and type mismatches are routed to Catch nodes.'],
+    properties: [
+      { key: 'property',  desc: 'Dot-path of the message field to convert (default: payload).' },
+      { key: 'action',    desc: '"auto" (detect direction) | "parse" (string → object) | "stringify" (object → string).' },
+      { key: 'indent',    desc: '(stringify / auto) Spaces for pretty-print indentation. 0 = compact output.' },
+    ],
+    examples: [
+      {
+        title: 'Parse MQTT JSON payload',
+        config: 'property=payload · action=auto',
+        result: 'msg.payload = \'{"v":1}\' → msg.payload = {v: 1}',
+      },
+      {
+        title: 'Serialise object before HTTP-Out',
+        config: 'property=payload · action=stringify · indent=2',
+        result: 'msg.payload = {ok: true} → msg.payload = "{\\n  \\"ok\\": true\\n}"',
+      },
+    ],
+    tips: [
+      'auto is the right default for most flows — the direction is clear from context (MQTT-In → parse, before MQTT-Out → stringify).',
+      'Use parse or stringify when you need a hard error if the input has the wrong type.',
+      'Wire a Catch node downstream to handle malformed JSON without crashing the flow.',
+      'Buffer ([]byte) inputs are accepted by parse and auto, so the node works directly after TCP-In or Modbus-In.',
+    ],
+  },
+
+  xml: {
+    overview:
+      'Converts msg.payload (or any message property) between an XML string / buffer and a structured Go map. ' +
+      'Auto mode detects the direction automatically — string/buffer input is parsed, everything else is serialised. ' +
+      'All parsed values are strings (XML carries no type information); use a Change node for coercion.',
+    inputs: ['Any message. The value at the configured property is read and replaced in-place.'],
+    outputs: ['The same message with msg.<property> replaced by the converted value. Parse errors and type mismatches are routed to Catch nodes.'],
+    properties: [
+      { key: 'property',    desc: 'Dot-path of the message field to convert (default: payload).' },
+      { key: 'action',      desc: '"auto" (detect direction) | "parse" (string → map) | "stringify" (map → string).' },
+      { key: 'root',        desc: '(stringify / auto) Name of the wrapping root element. Required — validation error when blank.' },
+      { key: 'indent',      desc: '(stringify / auto) Spaces for pretty-print indentation. 0 = compact output.' },
+      { key: 'declaration', desc: '(stringify / auto) Prepend <?xml version="1.0" encoding="UTF-8"?> to the output. On by default.' },
+    ],
+    examples: [
+      {
+        title: 'Parse XML from HTTP-In',
+        config: 'property=payload · action=auto',
+        result: 'msg.payload = "<sensor><value>25.4</value></sensor>" → msg.payload = {sensor: {value: "25.4"}}',
+      },
+      {
+        title: 'Parse element attributes',
+        config: 'property=payload · action=parse',
+        result: '"<sensor id=\\"42\\" unit=\\"C\\"/>" → {sensor: {"-id": "42", "-unit": "C"}}',
+      },
+      {
+        title: 'Serialise map for SOAP request',
+        config: 'property=payload · action=stringify · root=Person · indent=2',
+        result: '{name: "Alice"} → <Person>\\n  <name>Alice</name>\\n</Person>',
+      },
+    ],
+    tips: [
+      'Attributes are prefixed with "-" in the parsed map (e.g. id="42" → "-id": "42").',
+      'Repeated sibling elements with the same name become an array (e.g. two <item> → item: ["a", "b"]).',
+      'All parsed values are strings — XML has no type system. Use a Change or Function node to cast numbers/booleans downstream.',
+      'The XML declaration (<?xml …?>) is on by default for stringify; disable it when the receiving system rejects it (some HTTP APIs).',
+      'Wire a Catch node downstream to handle malformed XML without crashing the flow.',
+    ],
+  },
 }
 
 export function getNodeHelpDoc(nodeType: string | undefined | null): NodeHelpDoc | null {

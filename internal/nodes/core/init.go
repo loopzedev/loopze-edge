@@ -13,7 +13,7 @@ import "github.com/loopzedev/loopze-edge/internal/nodes"
 func init() {
 	nodes.RegisterGroup(nodes.Group{
 		Name:        "core",
-		Description: "Core nodes: inject, debug, function, change, switch, link, delay, template, status, catch, statemachine, json, context-watch",
+		Description: "Core nodes: inject, debug, function, change, switch, link, delay, template, status, catch, statemachine, json, xml, context-watch",
 		Nodes: []nodes.FlowNodeRegistration{
 			{Type: "inject", Factory: NewInjectNode, Info: InjectTypeInfo()},
 			{Type: "debug", Factory: NewDebugNode, Info: DebugTypeInfo()},
@@ -21,6 +21,7 @@ func init() {
 			{Type: "function-expr", Factory: NewFunctionExprNode, Info: FunctionExprTypeInfo()},
 			{Type: "function-go", Factory: NewFunctionGoNode, Info: FunctionGoTypeInfo()},
 			{Type: "json", Factory: NewJSONParserNode, Info: JSONParserTypeInfo()},
+			{Type: "xml", Factory: NewXMLParserNode, Info: XMLParserTypeInfo()},
 			{Type: "context-watch", Factory: NewContextWatchNode, Info: ContextWatchTypeInfo()},
 			{Type: "catch", Factory: NewCatchNode, Info: CatchTypeInfo()},
 			{Type: "change", Factory: NewChangeNode, Info: ChangeTypeInfo()},

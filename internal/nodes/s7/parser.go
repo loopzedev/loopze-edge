@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -45,7 +46,7 @@ type s7ParserField struct {
 //   - encode: forces encode, errors on array/buffer input
 type S7ParserNode struct {
 	config flow.NodeConfig
-	BaseNode
+	nodes.BaseNode
 	errFn  flow.ErrorFunc
 
 	action        string // "auto" | "parse" | "encode"
@@ -69,7 +70,7 @@ func NewS7ParserNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *S7ParserNode) Init() error {
 	props := n.config.Properties
 
-	n.action = stringVal(props, "action", "auto")
+	n.action = nodes.StringVal(props, "action", "auto")
 	switch n.action {
 	case "auto", "parse", "encode":
 	default:
@@ -78,9 +79,9 @@ func (n *S7ParserNode) Init() error {
 		n.action = "auto"
 	}
 
-	n.parseFrom = stringVal(props, "parseFrom", "payload")
-	n.encodeFrom = stringVal(props, "encodeFrom", "payload")
-	n.blockLength = intVal(props, "blockLength", 0)
+	n.parseFrom = nodes.StringVal(props, "parseFrom", "payload")
+	n.encodeFrom = nodes.StringVal(props, "encodeFrom", "payload")
+	n.blockLength = nodes.IntVal(props, "blockLength", 0)
 	if v, ok := props["preserveBytes"].(bool); ok {
 		n.preserveBytes = v
 	}
@@ -135,10 +136,10 @@ func (n *S7ParserNode) Init() error {
 // BOOL bit positions.
 func parseS7LayoutField(m map[string]any) (s7ParserField, error) {
 	f := s7ParserField{
-		Name:   stringVal(m, "name", ""),
-		Type:   strings.ToLower(stringVal(m, "type", "")),
-		Length: intVal(m, "length", 0),
-		Unit:   stringVal(m, "unit", ""),
+		Name:   nodes.StringVal(m, "name", ""),
+		Type:   strings.ToLower(nodes.StringVal(m, "type", "")),
+		Length: nodes.IntVal(m, "length", 0),
+		Unit:   nodes.StringVal(m, "unit", ""),
 	}
 	if v, ok := m["signed"].(bool); ok {
 		f.Signed = v
@@ -364,7 +365,7 @@ func (n *S7ParserNode) dispatch(msg *flow.Message) (*flow.Message, error) {
 		// which is exactly what s7-read block mode emits and what the user
 		// typically populates for write-side encoding too.
 		encodeInput := msg.Get(n.encodeFrom)
-		if isMapInput(encodeInput) {
+		if nodes.IsMapInput(encodeInput) {
 			return n.dispatchEncode(msg)
 		}
 		return n.dispatchParse(msg)
@@ -415,7 +416,7 @@ func (n *S7ParserNode) dispatchParse(msg *flow.Message) (*flow.Message, error) {
 // `start` on the s7-write to where that range lives in the PLC.
 func (n *S7ParserNode) dispatchEncode(msg *flow.Message) (*flow.Message, error) {
 	value := msg.Get(n.encodeFrom)
-	input, ok := normaliseMapInput(value)
+	input, ok := nodes.NormaliseMapInput(value)
 	if !ok {
 		return nil, fmt.Errorf("encode input %q: expected object/map, got %T", n.encodeFrom, value)
 	}
@@ -459,7 +460,7 @@ func normaliseS7BytesInput(v any) ([]byte, error) {
 	case []any:
 		out := make([]byte, len(x))
 		for i, e := range x {
-			n, err := toInt64(e)
+			n, err := nodes.ToInt64(e)
 			if err != nil {
 				return nil, fmt.Errorf("element %d: %w", i, err)
 			}
@@ -525,7 +526,7 @@ func (n *S7ParserNode) parse(buf []byte) (map[string]any, error) {
 		// integer ticks/ms; users that want unit conversion can chain a
 		// Function node.
 		if !s7IsNonScalable(f.Type) {
-			value = ApplyScale(value, f.Scale, f.OffsetValue)
+			value = nodes.ApplyScale(value, f.Scale, f.OffsetValue)
 		}
 		out[f.Name] = value
 	}
@@ -570,7 +571,7 @@ func (n *S7ParserNode) encode(input map[string]any) ([]byte, int, error) {
 		if !present {
 			continue // sparse-zero
 		}
-		b, err := toBool(v)
+		b, err := nodes.ToBool(v)
 		if err != nil {
 			return nil, 0, fmt.Errorf("field %q: %w", f.Name, err)
 		}
@@ -598,7 +599,7 @@ func (n *S7ParserNode) encode(input map[string]any) ([]byte, int, error) {
 		// Inverse scaling on numeric scalars only — same skip set as parse().
 		if !s7IsNonScalable(f.Type) {
 			if f.Scale != 1 || f.OffsetValue != 0 {
-				if scaled, err := UnapplyScale(v, f.Scale, f.OffsetValue); err == nil {
+				if scaled, err := nodes.UnapplyScale(v, f.Scale, f.OffsetValue); err == nil {
 					v = scaled
 				}
 			}

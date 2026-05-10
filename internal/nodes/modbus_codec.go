@@ -243,14 +243,14 @@ func DecodeRegisters(dataType string, bo ByteOrder, wo WordOrder, regs []uint16)
 func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]uint16, error) {
 	switch dataType {
 	case "raw", "":
-		regs, err := toUint16Slice(value)
+		regs, err := ToUint16Slice(value)
 		if err != nil {
 			return nil, fmt.Errorf("raw: %w", err)
 		}
 		return regs, nil
 
 	case "int16":
-		n, err := toInt64(value)
+		n, err := ToInt64(value)
 		if err != nil {
 			return nil, fmt.Errorf("int16: %w", err)
 		}
@@ -262,7 +262,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, WordOrderBig), nil
 
 	case "uint16":
-		n, err := toInt64(value)
+		n, err := ToInt64(value)
 		if err != nil {
 			return nil, fmt.Errorf("uint16: %w", err)
 		}
@@ -274,7 +274,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, WordOrderBig), nil
 
 	case "int32":
-		n, err := toInt64(value)
+		n, err := ToInt64(value)
 		if err != nil {
 			return nil, fmt.Errorf("int32: %w", err)
 		}
@@ -286,7 +286,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, wo), nil
 
 	case "uint32":
-		n, err := toInt64(value)
+		n, err := ToInt64(value)
 		if err != nil {
 			return nil, fmt.Errorf("uint32: %w", err)
 		}
@@ -298,7 +298,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, wo), nil
 
 	case "float32":
-		f, err := toFloat64(value)
+		f, err := ToFloat64(value)
 		if err != nil {
 			return nil, fmt.Errorf("float32: %w", err)
 		}
@@ -307,7 +307,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, wo), nil
 
 	case "int64":
-		n, err := toInt64(value)
+		n, err := ToInt64(value)
 		if err != nil {
 			return nil, fmt.Errorf("int64: %w", err)
 		}
@@ -316,7 +316,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, wo), nil
 
 	case "uint64":
-		u, err := toUint64(value)
+		u, err := ToUint64(value)
 		if err != nil {
 			return nil, fmt.Errorf("uint64: %w", err)
 		}
@@ -325,7 +325,7 @@ func EncodeRegisters(dataType string, bo ByteOrder, wo WordOrder, value any) ([]
 		return reorderForEncode(b[:], bo, wo), nil
 
 	case "float64":
-		f, err := toFloat64(value)
+		f, err := ToFloat64(value)
 		if err != nil {
 			return nil, fmt.Errorf("float64: %w", err)
 		}
@@ -372,7 +372,7 @@ func DecodeCoils(packed []byte, quantity int, dataType string) (any, error) {
 // coil-wire bytes (LSB-first within each byte). Returns the packed bytes and
 // the coil count for the wire-level write call.
 func EncodeCoils(value any) ([]byte, int, error) {
-	bools, err := toBoolSlice(value)
+	bools, err := ToBoolSlice(value)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -458,206 +458,10 @@ func UnapplyScale(value any, scale, offset float64) (float64, error) {
 	if scale == 0 {
 		return 0, fmt.Errorf("scale must not be zero")
 	}
-	f, err := toFloat64(value)
+	f, err := ToFloat64(value)
 	if err != nil {
 		return 0, err
 	}
 	return (f - offset) / scale, nil
 }
 
-// toInt64 converts the typical wire-format numeric values (float64 from JSON,
-// int from Go callers, etc.) into a single int64. Strings are not accepted —
-// the codec only parses numbers, callers must convert text upstream.
-func toInt64(v any) (int64, error) {
-	switch x := v.(type) {
-	case int:
-		return int64(x), nil
-	case int8:
-		return int64(x), nil
-	case int16:
-		return int64(x), nil
-	case int32:
-		return int64(x), nil
-	case int64:
-		return x, nil
-	case uint:
-		return int64(x), nil
-	case uint8:
-		return int64(x), nil
-	case uint16:
-		return int64(x), nil
-	case uint32:
-		return int64(x), nil
-	case uint64:
-		if x > math.MaxInt64 {
-			return 0, fmt.Errorf("uint64 %d exceeds int64 max", x)
-		}
-		return int64(x), nil
-	case float64:
-		return int64(x), nil
-	case float32:
-		return int64(x), nil
-	case bool:
-		if x {
-			return 1, nil
-		}
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("cannot convert %T to int", v)
-	}
-}
-
-// toUint64 converts numeric values into uint64. Negative values are rejected.
-func toUint64(v any) (uint64, error) {
-	switch x := v.(type) {
-	case uint64:
-		return x, nil
-	case float64:
-		if x < 0 {
-			return 0, fmt.Errorf("negative value %g cannot be uint64", x)
-		}
-		return uint64(x), nil
-	default:
-		n, err := toInt64(v)
-		if err != nil {
-			return 0, err
-		}
-		if n < 0 {
-			return 0, fmt.Errorf("negative value %d cannot be uint64", n)
-		}
-		return uint64(n), nil
-	}
-}
-
-// toFloat64 converts numeric values into float64.
-func toFloat64(v any) (float64, error) {
-	switch x := v.(type) {
-	case float64:
-		return x, nil
-	case float32:
-		return float64(x), nil
-	case int:
-		return float64(x), nil
-	case int64:
-		return float64(x), nil
-	case uint64:
-		return float64(x), nil
-	case bool:
-		if x {
-			return 1, nil
-		}
-		return 0, nil
-	default:
-		n, err := toInt64(v)
-		if err != nil {
-			return 0, err
-		}
-		return float64(n), nil
-	}
-}
-
-// toUint16Slice accepts the wire formats commonly seen for register arrays:
-// []uint16, []int, []any of numbers, or a single number (treated as one register).
-func toUint16Slice(v any) ([]uint16, error) {
-	switch x := v.(type) {
-	case []uint16:
-		return x, nil
-	case []int:
-		out := make([]uint16, len(x))
-		for i, n := range x {
-			if n < 0 || n > 0xffff {
-				return nil, fmt.Errorf("register[%d] %d out of uint16 range", i, n)
-			}
-			out[i] = uint16(n)
-		}
-		return out, nil
-	case []any:
-		out := make([]uint16, len(x))
-		for i, e := range x {
-			n, err := toInt64(e)
-			if err != nil {
-				return nil, fmt.Errorf("register[%d]: %w", i, err)
-			}
-			if n < 0 || n > 0xffff {
-				return nil, fmt.Errorf("register[%d] %d out of uint16 range", i, n)
-			}
-			out[i] = uint16(n)
-		}
-		return out, nil
-	case nil:
-		return nil, fmt.Errorf("nil value")
-	default:
-		// Single number → one-element slice.
-		n, err := toInt64(v)
-		if err != nil {
-			return nil, fmt.Errorf("expected register array or number, got %T", v)
-		}
-		if n < 0 || n > 0xffff {
-			return nil, fmt.Errorf("value %d out of uint16 range", n)
-		}
-		return []uint16{uint16(n)}, nil
-	}
-}
-
-// toBoolSlice accepts a single bool, []bool, []any of bools, or a single
-// truthy/falsy number/string. Numeric arrays are interpreted bit-by-bit
-// (any non-zero element is true).
-func toBoolSlice(v any) ([]bool, error) {
-	switch x := v.(type) {
-	case bool:
-		return []bool{x}, nil
-	case []bool:
-		return x, nil
-	case []any:
-		out := make([]bool, len(x))
-		for i, e := range x {
-			b, err := toBool(e)
-			if err != nil {
-				return nil, fmt.Errorf("element[%d]: %w", i, err)
-			}
-			out[i] = b
-		}
-		return out, nil
-	case []int:
-		out := make([]bool, len(x))
-		for i, n := range x {
-			out[i] = n != 0
-		}
-		return out, nil
-	case nil:
-		return nil, fmt.Errorf("nil value")
-	default:
-		b, err := toBool(v)
-		if err != nil {
-			return nil, err
-		}
-		return []bool{b}, nil
-	}
-}
-
-// toBool converts a single value into bool. Numeric values follow the
-// standard non-zero rule.
-func toBool(v any) (bool, error) {
-	switch x := v.(type) {
-	case bool:
-		return x, nil
-	case int:
-		return x != 0, nil
-	case int64:
-		return x != 0, nil
-	case float64:
-		return x != 0, nil
-	case string:
-		switch x {
-		case "true", "True", "TRUE", "1":
-			return true, nil
-		case "false", "False", "FALSE", "0":
-			return false, nil
-		}
-		return false, fmt.Errorf("cannot convert string %q to bool (expected true/false/1/0)", x)
-	case nil:
-		return false, fmt.Errorf("nil value")
-	default:
-		return false, fmt.Errorf("cannot convert %T to bool", v)
-	}
-}

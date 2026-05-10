@@ -76,15 +76,15 @@ func (n *ModbusReadNode) Init() error {
 	}
 	n.mode = mode
 
-	n.unitID = byte(readIntProp(props, "unitId", 0))
+	n.unitID = byte(IntVal(props, "unitId", 0))
 
-	n.fc = readIntProp(props, "fc", 3)
+	n.fc = IntVal(props, "fc", 3)
 	if n.fc < 1 || n.fc > 4 {
 		return fmt.Errorf("modbus-read %s: invalid function code %d (expected 1|2|3|4)", n.config.ID, n.fc)
 	}
 
-	n.address = uint16(readIntProp(props, "address", 0))
-	n.quantity = readIntProp(props, "quantity", 1)
+	n.address = uint16(IntVal(props, "address", 0))
+	n.quantity = IntVal(props, "quantity", 1)
 	if n.quantity < 1 {
 		n.quantity = 1
 	}
@@ -103,8 +103,8 @@ func (n *ModbusReadNode) Init() error {
 	wo, _ := props["wordOrder"].(string)
 	n.wordOrder = parseWordOrder(wo)
 
-	n.scale = readFloatProp(props, "scale", 1)
-	n.offset = readFloatProp(props, "offset", 0)
+	n.scale = FloatVal(props, "scale", 1)
+	n.offset = FloatVal(props, "offset", 0)
 	if n.scale == 0 {
 		n.scale = 1
 	}
@@ -129,7 +129,7 @@ func (n *ModbusReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLoo
 func (n *ModbusReadNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusReadNode) Start() error {
-	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
+	server, err := ResolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, ResolveConfigParams{
 		NodeKind:   "modbus-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -211,19 +211,19 @@ func (n *ModbusReadNode) effectiveParams(msg *flow.Message) readParams {
 	if msg == nil {
 		return p
 	}
-	if v, ok := readPositiveInt(msg.Get("unitId")); ok && v <= 0xFF {
+	if v, ok := ReadPositiveInt(msg.Get("unitId")); ok && v <= 0xFF {
 		p.unitID = byte(v)
 	}
-	if v, ok := readPositiveInt(msg.Get("fc")); ok && v >= 1 && v <= 4 {
+	if v, ok := ReadPositiveInt(msg.Get("fc")); ok && v >= 1 && v <= 4 {
 		p.fc = v
 	}
-	if v, ok := readPositiveInt(msg.Get("address")); ok && v <= 0xFFFF {
+	if v, ok := ReadPositiveInt(msg.Get("address")); ok && v <= 0xFFFF {
 		p.address = uint16(v)
 	} else if v, ok := msg.Get("address").(float64); ok && v >= 0 && v <= 0xFFFF {
 		// Accept zero-valued address explicitly.
 		p.address = uint16(v)
 	}
-	if v, ok := readPositiveInt(msg.Get("quantity")); ok && v >= 1 {
+	if v, ok := ReadPositiveInt(msg.Get("quantity")); ok && v >= 1 {
 		p.quantity = v
 	}
 	if dt, ok := msg.Get("dataType").(string); ok && dt != "" {
@@ -414,22 +414,6 @@ func serverTopicSegment(s *ModbusServer) string {
 		return name
 	}
 	return s.id
-}
-
-// readFloatProp parses a numeric property from a config map.
-func readFloatProp(props map[string]any, key string, fallback float64) float64 {
-	switch x := props[key].(type) {
-	case nil:
-		return fallback
-	case float64:
-		return x
-	case int:
-		return float64(x)
-	case int64:
-		return float64(x)
-	default:
-		return fallback
-	}
 }
 
 // ModbusReadTypeInfo returns the node type metadata for the palette.

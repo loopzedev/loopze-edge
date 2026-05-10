@@ -207,7 +207,7 @@ func getFloat(m map[string]any, key string, fallback float64) float64 {
 func (n *OpcuaSubscribeNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaSubscribeNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
+	server, err := ResolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, ResolveConfigParams{
 		NodeKind:   "opcua-subscribe",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",

@@ -64,17 +64,17 @@ func NewUDPOutNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *UDPOutNode) Init() error {
 	props := n.cfg.Properties
 
-	n.host = strings.TrimSpace(stringVal(props, "host", ""))
-	n.port = intVal(props, "port", 0)
-	n.bindHost = strings.TrimSpace(stringVal(props, "bindHost", ""))
-	n.mode = strings.ToLower(stringVal(props, "mode", udpOutModeUnicast))
+	n.host = strings.TrimSpace(StringVal(props, "host", ""))
+	n.port = IntVal(props, "port", 0)
+	n.bindHost = strings.TrimSpace(StringVal(props, "bindHost", ""))
+	n.mode = strings.ToLower(StringVal(props, "mode", udpOutModeUnicast))
 	switch n.mode {
 	case udpOutModeUnicast, udpOutModeBroadcast, udpOutModeMulticast:
 	default:
 		return fmt.Errorf("udp-out %s: invalid mode %q", n.cfg.ID, n.mode)
 	}
 
-	n.multicastTTL = intVal(props, "multicastTTL", defaultUdpMulticastTTL)
+	n.multicastTTL = IntVal(props, "multicastTTL", defaultUdpMulticastTTL)
 	if n.multicastTTL < 0 || n.multicastTTL > 255 {
 		return fmt.Errorf("udp-out %s: multicastTTL %d out of range (0–255)", n.cfg.ID, n.multicastTTL)
 	}

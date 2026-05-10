@@ -72,7 +72,7 @@ func NewModbusParserNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *ModbusParserNode) Init() error {
 	props := n.config.Properties
 
-	n.action = stringVal(props, "action", "auto")
+	n.action = StringVal(props, "action", "auto")
 	switch n.action {
 	case "auto", "parse", "encode":
 	default:
@@ -81,10 +81,10 @@ func (n *ModbusParserNode) Init() error {
 		n.action = "auto"
 	}
 
-	n.parseFrom = stringVal(props, "parseFrom", "bytes")
-	n.encodeFrom = stringVal(props, "encodeFrom", "payload")
-	n.byteOrder = parseByteOrder(stringVal(props, "byteOrder", ""))
-	n.wordOrder = parseWordOrder(stringVal(props, "wordOrder", ""))
+	n.parseFrom = StringVal(props, "parseFrom", "bytes")
+	n.encodeFrom = StringVal(props, "encodeFrom", "payload")
+	n.byteOrder = parseByteOrder(StringVal(props, "byteOrder", ""))
+	n.wordOrder = parseWordOrder(StringVal(props, "wordOrder", ""))
 
 	rawLayout, ok := props["layout"].([]any)
 	if !ok {
@@ -124,12 +124,12 @@ func (n *ModbusParserNode) Init() error {
 // applying defaults and validating the per-field constraints.
 func parseLayoutField(m map[string]any) (modbusField, error) {
 	f := modbusField{
-		Offset: intVal(m, "offset", -1),
-		Name:   stringVal(m, "name", ""),
-		Type:   stringVal(m, "type", ""),
-		Length: intVal(m, "length", 0),
-		Bit:    intVal(m, "bit", -1),
-		Unit:   stringVal(m, "unit", ""),
+		Offset: IntVal(m, "offset", -1),
+		Name:   StringVal(m, "name", ""),
+		Type:   StringVal(m, "type", ""),
+		Length: IntVal(m, "length", 0),
+		Bit:    IntVal(m, "bit", -1),
+		Unit:   StringVal(m, "unit", ""),
 	}
 	if bo, ok := m["byteOrder"].(string); ok && bo != "" {
 		f.ByteOrder = parseByteOrder(bo)
@@ -290,7 +290,7 @@ func (n *ModbusParserNode) dispatch(msg *flow.Message) (*flow.Message, error) {
 		// (default "bytes"). In auto mode we look at both and let the type
 		// decide which path to take.
 		encodeInput := msg.Get(n.encodeFrom)
-		if isMapInput(encodeInput) {
+		if IsMapInput(encodeInput) {
 			return n.dispatchEncode(msg)
 		}
 		return n.dispatchParse(msg)
@@ -320,7 +320,7 @@ func (n *ModbusParserNode) dispatchParse(msg *flow.Message) (*flow.Message, erro
 // the minimum offset to msg.address (only when not already set).
 func (n *ModbusParserNode) dispatchEncode(msg *flow.Message) (*flow.Message, error) {
 	value := msg.Get(n.encodeFrom)
-	input, ok := normaliseMapInput(value)
+	input, ok := NormaliseMapInput(value)
 	if !ok {
 		return nil, fmt.Errorf("encode input %q: expected object/map, got %T", n.encodeFrom, value)
 	}
@@ -355,26 +355,6 @@ func (n *ModbusParserNode) dispatchEncode(msg *flow.Message) (*flow.Message, err
 	return msg, nil
 }
 
-// isMapInput reports whether the value looks like a structured object (the
-// encode-side input shape).
-func isMapInput(v any) bool {
-	switch v.(type) {
-	case map[string]any:
-		return true
-	default:
-		return false
-	}
-}
-
-// normaliseMapInput converts the wire value into a map[string]any, accepting
-// the typical JSON-decoded shape directly.
-func normaliseMapInput(v any) (map[string]any, bool) {
-	if m, ok := v.(map[string]any); ok {
-		return m, true
-	}
-	return nil, false
-}
-
 // normaliseRegistersInput accepts the various wire shapes a register block
 // may arrive in and returns a []uint16 ready for parse(). Bytes (msg.bytes
 // from modbus-read) are 2:1-collapsed back to registers; word arrays
@@ -407,12 +387,12 @@ func normaliseRegistersInput(v any) ([]uint16, error) {
 			return BytesToRegisters(b), nil
 		}
 		// Treat as registers.
-		return toUint16Slice(x)
+		return ToUint16Slice(x)
 	case []any:
 		// JSON-decoded numbers — same heuristic.
 		allBytes := true
 		for _, e := range x {
-			n, err := toInt64(e)
+			n, err := ToInt64(e)
 			if err != nil {
 				return nil, fmt.Errorf("element: %w", err)
 			}
@@ -424,12 +404,12 @@ func normaliseRegistersInput(v any) ([]uint16, error) {
 		if allBytes && len(x)%2 == 0 {
 			b := make([]byte, len(x))
 			for i, e := range x {
-				n, _ := toInt64(e)
+				n, _ := ToInt64(e)
 				b[i] = byte(n)
 			}
 			return BytesToRegisters(b), nil
 		}
-		return toUint16Slice(x)
+		return ToUint16Slice(x)
 	default:
 		return nil, fmt.Errorf("expected register or byte array, got %T", v)
 	}
@@ -473,7 +453,7 @@ func (n *ModbusParserNode) parse(regs []uint16) (map[string]any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Name, err)
 			}
-			rawInt, _ := toInt64(raw)
+			rawInt, _ := ToInt64(raw)
 			if f.Bit >= 0 {
 				out[f.Name] = (rawInt>>uint(f.Bit))&1 == 1
 			} else {
@@ -534,7 +514,7 @@ func (n *ModbusParserNode) encode(input map[string]any) ([]uint16, int, error) {
 		if !present {
 			continue
 		}
-		b, err := toBool(v)
+		b, err := ToBool(v)
 		if err != nil {
 			return nil, 0, fmt.Errorf("field %q: %w", f.Name, err)
 		}
@@ -569,7 +549,7 @@ func (n *ModbusParserNode) encode(input map[string]any) ([]uint16, int, error) {
 		encType := f.Type
 		if encType == "bool" {
 			encType = "uint16"
-			b, err := toBool(v)
+			b, err := ToBool(v)
 			if err != nil {
 				return nil, 0, fmt.Errorf("field %q: %w", f.Name, err)
 			}

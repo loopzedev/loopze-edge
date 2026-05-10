@@ -70,16 +70,16 @@ func (n *ChangeNode) Init() error {
 		}
 
 		rule := Rule{
-			Type:     stringVal(ruleMap, "t", "set"),
-			Property: stringVal(ruleMap, "p", "payload"),
-			PropType:    stringVal(ruleMap, "pt", "msg"),
-			PropStorage: stringVal(ruleMap, "ps", "memory"),
-			To:          stringVal(ruleMap, "to", ""),
-			ToType:      stringVal(ruleMap, "tot", "str"),
-			ToStorage:   stringVal(ruleMap, "tos", "memory"),
-			From:        stringVal(ruleMap, "from", ""),
-			FromType:    stringVal(ruleMap, "fromt", "str"),
-			FromStorage: stringVal(ruleMap, "froms", "memory"),
+			Type:     StringVal(ruleMap, "t", "set"),
+			Property: StringVal(ruleMap, "p", "payload"),
+			PropType:    StringVal(ruleMap, "pt", "msg"),
+			PropStorage: StringVal(ruleMap, "ps", "memory"),
+			To:          StringVal(ruleMap, "to", ""),
+			ToType:      StringVal(ruleMap, "tot", "str"),
+			ToStorage:   StringVal(ruleMap, "tos", "memory"),
+			From:        StringVal(ruleMap, "from", ""),
+			FromType:    StringVal(ruleMap, "fromt", "str"),
+			FromStorage: StringVal(ruleMap, "froms", "memory"),
 		}
 
 		// Compile regex if search type is "re".
@@ -319,14 +319,6 @@ func (n *ChangeNode) valueContext() ValueContext {
 // pickContextStore selects the correct store based on scope and storage type.
 func (n *ChangeNode) pickContextStore(scope, storage string) flow.ContextStore {
 	return PickContextStore(n.valueContext(), scope, storage)
-}
-
-// stringVal extracts a string from a map with a default fallback.
-func stringVal(m map[string]any, key, fallback string) string {
-	if v, ok := m[key].(string); ok && v != "" {
-		return v
-	}
-	return fallback
 }
 
 // ChangeTypeInfo returns the NodeTypeInfo for the change node.

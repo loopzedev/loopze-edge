@@ -43,7 +43,7 @@ func NewHTTPResponseNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *HTTPResponseNode) Init() error {
 	props := n.cfg.Properties
 
-	code := intVal(props, "statusCode", http.StatusOK)
+	code := IntVal(props, "statusCode", http.StatusOK)
 	if code < 100 || code > 599 {
 		return fmt.Errorf("http-response %s: statusCode %d out of range", n.cfg.ID, code)
 	}

@@ -187,7 +187,7 @@ func (n *OpcuaReadNode) Init() error {
 func (n *OpcuaReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaReadNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
+	server, err := ResolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, ResolveConfigParams{
 		NodeKind:   "opcua-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",

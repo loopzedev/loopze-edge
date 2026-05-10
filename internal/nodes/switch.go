@@ -57,9 +57,9 @@ func NewSwitchNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *SwitchNode) Init() error {
 	props := n.config.Properties
 
-	n.property = stringVal(props, "property", "payload")
-	n.propertyType = stringVal(props, "propertyType", "msg")
-	n.propStorage = stringVal(props, "propertyStorage", "memory")
+	n.property = StringVal(props, "property", "payload")
+	n.propertyType = StringVal(props, "propertyType", "msg")
+	n.propStorage = StringVal(props, "propertyStorage", "memory")
 	if v, ok := props["checkall"].(bool); ok {
 		n.checkAll = v
 	}
@@ -77,14 +77,14 @@ func (n *SwitchNode) Init() error {
 		}
 
 		rule := SwitchRule{
-			ID:   stringVal(ruleMap, "id", ""),
-			Type: stringVal(ruleMap, "t", "eq"),
-			V:    stringVal(ruleMap, "v", ""),
-			VT:   stringVal(ruleMap, "vt", "str"),
-			VS:   stringVal(ruleMap, "vs", "memory"),
-			V2:   stringVal(ruleMap, "v2", ""),
-			V2T:  stringVal(ruleMap, "v2t", "str"),
-			V2S:  stringVal(ruleMap, "v2s", "memory"),
+			ID:   StringVal(ruleMap, "id", ""),
+			Type: StringVal(ruleMap, "t", "eq"),
+			V:    StringVal(ruleMap, "v", ""),
+			VT:   StringVal(ruleMap, "vt", "str"),
+			VS:   StringVal(ruleMap, "vs", "memory"),
+			V2:   StringVal(ruleMap, "v2", ""),
+			V2T:  StringVal(ruleMap, "v2t", "str"),
+			V2S:  StringVal(ruleMap, "v2s", "memory"),
 		}
 		if v, ok := ruleMap["case"].(bool); ok {
 			rule.Case = v

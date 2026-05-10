@@ -83,7 +83,7 @@ func NewHTTPInNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *HTTPInNode) Init() error {
 	props := n.cfg.Properties
 
-	method := strings.ToUpper(strings.TrimSpace(stringVal(props, "method", "GET")))
+	method := strings.ToUpper(strings.TrimSpace(StringVal(props, "method", "GET")))
 	if method == "" {
 		method = "GET"
 	}
@@ -92,13 +92,13 @@ func (n *HTTPInNode) Init() error {
 	}
 	n.method = method
 
-	path := strings.TrimSpace(stringVal(props, "path", ""))
+	path := strings.TrimSpace(StringVal(props, "path", ""))
 	if path == "" || !strings.HasPrefix(path, "/") {
 		return fmt.Errorf("http-in %s: path must start with '/'", n.cfg.ID)
 	}
 	n.path = path
 
-	parseMode := strings.ToLower(stringVal(props, "bodyParse", bodyParseAuto))
+	parseMode := strings.ToLower(StringVal(props, "bodyParse", bodyParseAuto))
 	switch parseMode {
 	case bodyParseAuto, bodyParseString, bodyParseJSON, bodyParseBuffer, bodyParseNone:
 	default:
@@ -106,13 +106,13 @@ func (n *HTTPInNode) Init() error {
 	}
 	n.bodyParse = parseMode
 
-	maxBytes := intVal(props, "maxBodyBytes", int(defaultMaxBodyBytes))
+	maxBytes := IntVal(props, "maxBodyBytes", int(defaultMaxBodyBytes))
 	if maxBytes < 0 {
 		return fmt.Errorf("http-in %s: maxBodyBytes must be >= 0", n.cfg.ID)
 	}
 	n.maxBodyBytes = int64(maxBytes)
 
-	timeoutSec := intVal(props, "responseTimeout", int(defaultResponseTimeout/time.Second))
+	timeoutSec := IntVal(props, "responseTimeout", int(defaultResponseTimeout/time.Second))
 	if timeoutSec < 0 {
 		return fmt.Errorf("http-in %s: responseTimeout must be >= 0", n.cfg.ID)
 	}
@@ -575,7 +575,7 @@ func parseCORS(props map[string]any) *corsConfig {
 	if v, ok := raw["credentials"].(bool); ok {
 		c.credentials = v
 	}
-	c.maxAge = intVal(raw, "maxAge", 600)
+	c.maxAge = IntVal(raw, "maxAge", 600)
 	if len(c.origins) == 0 {
 		return nil
 	}

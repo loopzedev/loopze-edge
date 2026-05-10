@@ -109,12 +109,12 @@ func NewTCPInNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *TCPInNode) Init() error {
 	props := n.cfg.Properties
 
-	n.mode = strings.ToLower(stringVal(props, "mode", tcpInModeServer))
+	n.mode = strings.ToLower(StringVal(props, "mode", tcpInModeServer))
 	if n.mode != tcpInModeServer && n.mode != tcpInModeClient {
 		return fmt.Errorf("tcp-in %s: invalid mode %q", n.cfg.ID, n.mode)
 	}
 
-	n.host = strings.TrimSpace(stringVal(props, "host", ""))
+	n.host = strings.TrimSpace(StringVal(props, "host", ""))
 	if n.mode == tcpInModeServer && n.host == "" {
 		n.host = "0.0.0.0"
 	}
@@ -122,7 +122,7 @@ func (n *TCPInNode) Init() error {
 		return fmt.Errorf("tcp-in %s: client mode requires host", n.cfg.ID)
 	}
 
-	n.port = intVal(props, "port", 0)
+	n.port = IntVal(props, "port", 0)
 	if n.port <= 0 || n.port > 65535 {
 		return fmt.Errorf("tcp-in %s: invalid port %d", n.cfg.ID, n.port)
 	}
@@ -131,14 +131,14 @@ func (n *TCPInNode) Init() error {
 		return err
 	}
 
-	n.payloadEncoding = strings.ToLower(stringVal(props, "payloadEncoding", tcpEncBuffer))
+	n.payloadEncoding = strings.ToLower(StringVal(props, "payloadEncoding", tcpEncBuffer))
 	switch n.payloadEncoding {
 	case tcpEncBuffer, tcpEncString, tcpEncBase64:
 	default:
 		return fmt.Errorf("tcp-in %s: invalid payloadEncoding %q", n.cfg.ID, n.payloadEncoding)
 	}
 
-	n.maxFrameBytes = intVal(props, "maxFrameBytes", defaultTcpInMaxFrame)
+	n.maxFrameBytes = IntVal(props, "maxFrameBytes", defaultTcpInMaxFrame)
 	if n.maxFrameBytes < 0 {
 		n.maxFrameBytes = 0
 	}
@@ -147,7 +147,7 @@ func (n *TCPInNode) Init() error {
 	if v, ok := props["keepAlive"].(bool); ok {
 		n.keepAlive = v
 	}
-	kaSec := intVal(props, "keepAliveInterval", int(defaultTcpInKeepAliveInterval/time.Second))
+	kaSec := IntVal(props, "keepAliveInterval", int(defaultTcpInKeepAliveInterval/time.Second))
 	if kaSec <= 0 {
 		kaSec = int(defaultTcpInKeepAliveInterval / time.Second)
 	}
@@ -172,7 +172,7 @@ func (n *TCPInNode) Init() error {
 			}
 			n.allowedNets = append(n.allowedNets, ipnet)
 		}
-		n.maxConnections = intVal(props, "maxConnections", 0)
+		n.maxConnections = IntVal(props, "maxConnections", 0)
 		if n.maxConnections < 0 {
 			n.maxConnections = 0
 		}
@@ -183,17 +183,17 @@ func (n *TCPInNode) Init() error {
 		if v, ok := props["reconnect"].(bool); ok {
 			n.reconnect = v
 		}
-		ms := intVal(props, "reconnectInitialDelay", int(defaultTcpInReconnectInitialDelay/time.Millisecond))
+		ms := IntVal(props, "reconnectInitialDelay", int(defaultTcpInReconnectInitialDelay/time.Millisecond))
 		if ms <= 0 {
 			ms = int(defaultTcpInReconnectInitialDelay / time.Millisecond)
 		}
 		n.reconnectInitial = time.Duration(ms) * time.Millisecond
-		ms = intVal(props, "reconnectMaxDelay", int(defaultTcpInReconnectMaxDelay/time.Millisecond))
+		ms = IntVal(props, "reconnectMaxDelay", int(defaultTcpInReconnectMaxDelay/time.Millisecond))
 		if ms <= 0 {
 			ms = int(defaultTcpInReconnectMaxDelay / time.Millisecond)
 		}
 		n.reconnectMax = time.Duration(ms) * time.Millisecond
-		ds := intVal(props, "dialTimeout", int(defaultTcpInDialTimeout/time.Second))
+		ds := IntVal(props, "dialTimeout", int(defaultTcpInDialTimeout/time.Second))
 		if ds <= 0 {
 			ds = int(defaultTcpInDialTimeout / time.Second)
 		}
@@ -210,7 +210,7 @@ func (n *TCPInNode) Init() error {
 }
 
 func (n *TCPInNode) parseFraming(props map[string]any) error {
-	mode := strings.ToLower(stringVal(props, "framing", FramingStream))
+	mode := strings.ToLower(StringVal(props, "framing", FramingStream))
 	switch mode {
 	case FramingStream, FramingDelimiter, FramingLengthPrefix, FramingFixedLength:
 	default:
@@ -219,7 +219,7 @@ func (n *TCPInNode) parseFraming(props map[string]any) error {
 	n.framing.mode = mode
 
 	if mode == FramingDelimiter {
-		bs, err := ParseDelimiter(stringVal(props, "delimiter", `\n`))
+		bs, err := ParseDelimiter(StringVal(props, "delimiter", `\n`))
 		if err != nil {
 			return fmt.Errorf("tcp-in %s: %w", n.cfg.ID, err)
 		}
@@ -230,8 +230,8 @@ func (n *TCPInNode) parseFraming(props map[string]any) error {
 		if raw == nil {
 			raw = map[string]any{}
 		}
-		bytesN := intVal(raw, "bytes", 4)
-		endian, err := ParseEndianness(stringVal(raw, "endianness", "big"))
+		bytesN := IntVal(raw, "bytes", 4)
+		endian, err := ParseEndianness(StringVal(raw, "endianness", "big"))
 		if err != nil {
 			return fmt.Errorf("tcp-in %s: %w", n.cfg.ID, err)
 		}
@@ -243,7 +243,7 @@ func (n *TCPInNode) parseFraming(props map[string]any) error {
 		}
 	}
 	if mode == FramingFixedLength {
-		size := intVal(props, "fixedLength", 0)
+		size := IntVal(props, "fixedLength", 0)
 		if size <= 0 {
 			return fmt.Errorf("tcp-in %s: fixedLength must be > 0", n.cfg.ID)
 		}

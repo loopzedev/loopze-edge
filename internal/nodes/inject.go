@@ -69,7 +69,7 @@ func (n *InjectNode) Init() error {
 		n.once = v
 	}
 
-	n.mode = stringVal(cfgProps, "mode", "interval")
+	n.mode = StringVal(cfgProps, "mode", "interval")
 
 	if v, ok := cfgProps["interval"].(float64); ok && v > 0 {
 		n.interval = time.Duration(v) * time.Millisecond
@@ -88,10 +88,10 @@ func (n *InjectNode) Init() error {
 				continue
 			}
 			n.props = append(n.props, InjectProp{
-				Property: stringVal(propMap, "p", "payload"),
-				VType:    stringVal(propMap, "vt", "str"),
-				Value:    stringVal(propMap, "v", ""),
-				Storage:  stringVal(propMap, "vs", "memory"),
+				Property: StringVal(propMap, "p", "payload"),
+				VType:    StringVal(propMap, "vt", "str"),
+				Value:    StringVal(propMap, "v", ""),
+				Storage:  StringVal(propMap, "vs", "memory"),
 			})
 		}
 	}

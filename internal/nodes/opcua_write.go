@@ -158,7 +158,7 @@ func parseStaticWrites(raw []any) ([]staticWrite, error) {
 func (n *OpcuaWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaWriteNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
+	server, err := ResolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, ResolveConfigParams{
 		NodeKind:   "opcua-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",

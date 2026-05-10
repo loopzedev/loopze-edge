@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"strings"
 	"sync"
 	"testing"
@@ -177,19 +178,19 @@ func TestToBool_AcceptsStrings(t *testing.T) {
 		"false": false, "False": false, "FALSE": false, "0": false,
 	}
 	for s, want := range cases {
-		got, err := toBool(s)
+		got, err := nodes.ToBool(s)
 		if err != nil {
-			t.Errorf("toBool(%q): unexpected error %v", s, err)
+			t.Errorf("nodes.ToBool(%q): unexpected error %v", s, err)
 		}
 		if got != want {
-			t.Errorf("toBool(%q): got %v, want %v", s, got, want)
+			t.Errorf("nodes.ToBool(%q): got %v, want %v", s, got, want)
 		}
 	}
 }
 
 func TestToBool_RejectsBadString(t *testing.T) {
-	if _, err := toBool("nope"); err == nil {
-		t.Error("toBool(\"nope\") should error")
+	if _, err := nodes.ToBool("nope"); err == nil {
+		t.Error("nodes.ToBool(\"nope\") should error")
 	}
 }
 

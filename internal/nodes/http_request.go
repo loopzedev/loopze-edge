@@ -95,7 +95,7 @@ func NewHTTPRequestNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *HTTPRequestNode) Init() error {
 	props := n.cfg.Properties
 
-	method := strings.ToUpper(strings.TrimSpace(stringVal(props, "method", "GET")))
+	method := strings.ToUpper(strings.TrimSpace(StringVal(props, "method", "GET")))
 	if method == "USE MSG.METHOD" || method == "MSG" {
 		n.useMsgMethod = true
 		method = "GET"
@@ -105,7 +105,7 @@ func (n *HTTPRequestNode) Init() error {
 	}
 	n.method = method
 
-	n.urlTemplate = strings.TrimSpace(stringVal(props, "url", ""))
+	n.urlTemplate = strings.TrimSpace(StringVal(props, "url", ""))
 	if n.urlTemplate != "" {
 		parsed, err := mustache.ParseString(n.urlTemplate)
 		if err != nil {
@@ -114,14 +114,14 @@ func (n *HTTPRequestNode) Init() error {
 		n.urlParsed = parsed
 	}
 
-	n.responseFormat = strings.ToLower(stringVal(props, "responseFormat", respFormatAuto))
+	n.responseFormat = strings.ToLower(StringVal(props, "responseFormat", respFormatAuto))
 	switch n.responseFormat {
 	case respFormatAuto, respFormatString, respFormatJSON, respFormatBuffer:
 	default:
 		return fmt.Errorf("http-request %s: invalid responseFormat %q", n.cfg.ID, n.responseFormat)
 	}
 
-	n.bodyEncoding = strings.ToLower(stringVal(props, "bodyEncoding", bodyEncodingAuto))
+	n.bodyEncoding = strings.ToLower(StringVal(props, "bodyEncoding", bodyEncodingAuto))
 	switch n.bodyEncoding {
 	case bodyEncodingAuto, bodyEncodingJSON, bodyEncodingForm, bodyEncodingText, bodyEncodingNone:
 	default:
@@ -147,14 +147,14 @@ func (n *HTTPRequestNode) Init() error {
 
 	if raw, ok := props["auth"].(map[string]any); ok {
 		n.auth = &requestAuthCfg{
-			kind:     stringVal(raw, "type", "none"),
-			username: stringVal(raw, "username", ""),
-			password: stringVal(raw, "password", ""),
-			token:    stringVal(raw, "token", ""),
+			kind:     StringVal(raw, "type", "none"),
+			username: StringVal(raw, "username", ""),
+			password: StringVal(raw, "password", ""),
+			token:    StringVal(raw, "token", ""),
 		}
 	}
 
-	timeoutSec := intVal(props, "timeout", int(defaultRequestTimeout/time.Second))
+	timeoutSec := IntVal(props, "timeout", int(defaultRequestTimeout/time.Second))
 	if timeoutSec <= 0 {
 		timeoutSec = int(defaultRequestTimeout / time.Second)
 	}
@@ -168,7 +168,7 @@ func (n *HTTPRequestNode) Init() error {
 		n.tlsInsecure = v
 	}
 
-	n.errorMode = strings.ToLower(stringVal(props, "errorMode", errModePassthrough))
+	n.errorMode = strings.ToLower(StringVal(props, "errorMode", errModePassthrough))
 	if n.errorMode != errModePassthrough && n.errorMode != errModeError {
 		return fmt.Errorf("http-request %s: invalid errorMode %q", n.cfg.ID, n.errorMode)
 	}

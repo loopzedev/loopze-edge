@@ -65,20 +65,20 @@ func NewUDPInNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *UDPInNode) Init() error {
 	props := n.cfg.Properties
 
-	n.host = strings.TrimSpace(stringVal(props, "host", "0.0.0.0"))
-	n.port = intVal(props, "port", 0)
+	n.host = strings.TrimSpace(StringVal(props, "host", "0.0.0.0"))
+	n.port = IntVal(props, "port", 0)
 	if n.port < 0 || n.port > 65535 {
 		return fmt.Errorf("udp-in %s: invalid port %d", n.cfg.ID, n.port)
 	}
 
-	n.payloadEncoding = strings.ToLower(stringVal(props, "payloadEncoding", tcpEncBuffer))
+	n.payloadEncoding = strings.ToLower(StringVal(props, "payloadEncoding", tcpEncBuffer))
 	switch n.payloadEncoding {
 	case tcpEncBuffer, tcpEncString, tcpEncBase64:
 	default:
 		return fmt.Errorf("udp-in %s: invalid payloadEncoding %q", n.cfg.ID, n.payloadEncoding)
 	}
 
-	n.maxDatagramBytes = intVal(props, "maxDatagramBytes", defaultUdpInMaxDatagram)
+	n.maxDatagramBytes = IntVal(props, "maxDatagramBytes", defaultUdpInMaxDatagram)
 	if n.maxDatagramBytes <= 0 {
 		n.maxDatagramBytes = defaultUdpInMaxDatagram
 	}

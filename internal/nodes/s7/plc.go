@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"context"
 	"errors"
 	"fmt"
@@ -118,7 +119,7 @@ func NewS7PLC(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 	if host == "" {
 		return nil, fmt.Errorf("s7-plc %s: host is required", cfg.ID)
 	}
-	port := readIntProp(props, "port", s7DefaultPort)
+	port := nodes.IntVal(props, "port", s7DefaultPort)
 	connection, _ := props["connection"].(string)
 	if connection == "" {
 		connection = "s7-1200-1500"
@@ -129,15 +130,15 @@ func NewS7PLC(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		return nil, err
 	}
 
-	pduReq := readIntProp(props, "pduSize", s7DefaultPDU)
-	timeoutMs := readIntProp(props, "timeout", 2000)
+	pduReq := nodes.IntVal(props, "pduSize", s7DefaultPDU)
+	timeoutMs := nodes.IntVal(props, "timeout", 2000)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
-	idleSec := readIntProp(props, "idleTimeout", 60)
+	idleSec := nodes.IntVal(props, "idleTimeout", 60)
 	idleTimeout := time.Duration(idleSec) * time.Second
 	if idleSec == 0 {
 		idleTimeout = 0
 	}
-	reconnectSec := readIntProp(props, "reconnectBackoff", 5)
+	reconnectSec := nodes.IntVal(props, "reconnectBackoff", 5)
 	reconnectBackoff := time.Duration(reconnectSec) * time.Second
 
 	addr := fmt.Sprintf("%s:%d", host, port)
@@ -204,9 +205,9 @@ func s7ConnectionDefaults(connection string, props map[string]any, configID stri
 		// turns rack=0/slot=2 into the 0x0302 remote TSAP that LOGO! expects.
 		return 0, 2, S7ConnectTypeBasic, nil
 	case "custom":
-		rack = readIntProp(props, "rack", 0)
-		slot = readIntProp(props, "slot", 1)
-		ct := readIntProp(props, "connectType", S7ConnectTypePG)
+		rack = nodes.IntVal(props, "rack", 0)
+		slot = nodes.IntVal(props, "slot", 1)
+		ct := nodes.IntVal(props, "connectType", S7ConnectTypePG)
 		if ct < S7ConnectTypePG || ct > S7ConnectTypeBasic {
 			return 0, 0, 0, fmt.Errorf("s7-plc %s: invalid connectType %d (expected 1=PG, 2=OP, 3=Basic)", configID, ct)
 		}

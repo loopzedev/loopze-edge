@@ -94,7 +94,7 @@ func NewTCPOutNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *TCPOutNode) Init() error {
 	props := n.cfg.Properties
 
-	n.mode = strings.ToLower(stringVal(props, "mode", tcpOutModeReply))
+	n.mode = strings.ToLower(StringVal(props, "mode", tcpOutModeReply))
 	switch n.mode {
 	case tcpOutModeReply, tcpOutModeServerBroadcast, tcpOutModeClient:
 	default:
@@ -102,15 +102,15 @@ func (n *TCPOutNode) Init() error {
 	}
 
 	if n.mode == tcpOutModeClient {
-		n.host = strings.TrimSpace(stringVal(props, "host", ""))
-		n.port = intVal(props, "port", 0)
+		n.host = strings.TrimSpace(StringVal(props, "host", ""))
+		n.port = IntVal(props, "port", 0)
 		// Allow empty host/port at config time as long as msg.host /
 		// msg.port will provide them at HandleMessage time. Validate
 		// per-message.
 	}
 
 	if n.mode == tcpOutModeServerBroadcast {
-		n.targetTcpIn = strings.TrimSpace(stringVal(props, "targetTcpIn", ""))
+		n.targetTcpIn = strings.TrimSpace(StringVal(props, "targetTcpIn", ""))
 		if n.targetTcpIn == "" {
 			return fmt.Errorf("tcp-out %s: server-broadcast requires targetTcpIn", n.cfg.ID)
 		}
@@ -121,7 +121,7 @@ func (n *TCPOutNode) Init() error {
 		n.keepConnection = v
 	}
 
-	if raw := stringVal(props, "appendDelimiter", ""); raw != "" {
+	if raw := StringVal(props, "appendDelimiter", ""); raw != "" {
 		bs, err := ParseDelimiter(raw)
 		if err != nil {
 			return fmt.Errorf("tcp-out %s: appendDelimiter: %w", n.cfg.ID, err)
@@ -133,19 +133,19 @@ func (n *TCPOutNode) Init() error {
 		n.closeAfterSend = v
 	}
 
-	dialSec := intVal(props, "dialTimeout", int(defaultTcpOutDialTimeout/time.Second))
+	dialSec := IntVal(props, "dialTimeout", int(defaultTcpOutDialTimeout/time.Second))
 	if dialSec <= 0 {
 		dialSec = int(defaultTcpOutDialTimeout / time.Second)
 	}
 	n.dialTimeout = time.Duration(dialSec) * time.Second
 
-	writeSec := intVal(props, "writeTimeout", int(defaultTcpOutWriteTimeout/time.Second))
+	writeSec := IntVal(props, "writeTimeout", int(defaultTcpOutWriteTimeout/time.Second))
 	if writeSec <= 0 {
 		writeSec = int(defaultTcpOutWriteTimeout / time.Second)
 	}
 	n.writeTimeout = time.Duration(writeSec) * time.Second
 
-	n.outboundQueueSz = intVal(props, "outboundQueueSize", defaultTcpOutQueueSize)
+	n.outboundQueueSz = IntVal(props, "outboundQueueSize", defaultTcpOutQueueSize)
 	if n.outboundQueueSz <= 0 {
 		n.outboundQueueSz = defaultTcpOutQueueSize
 	}

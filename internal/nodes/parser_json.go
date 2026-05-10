@@ -49,8 +49,8 @@ func NewJSONParserNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *JSONParserNode) Init() error {
 	props := n.config.Properties
 
-	n.property = stringVal(props, "property", "payload")
-	n.action = stringVal(props, "action", "auto")
+	n.property = StringVal(props, "property", "payload")
+	n.action = StringVal(props, "action", "auto")
 	switch n.action {
 	case "auto", "parse", "stringify":
 	default:
@@ -59,7 +59,7 @@ func (n *JSONParserNode) Init() error {
 		n.action = "auto"
 	}
 
-	n.indent = clampInt(intVal(props, "indent", 0), 0, 8)
+	n.indent = clampInt(IntVal(props, "indent", 0), 0, 8)
 
 	return nil
 }
@@ -183,22 +183,6 @@ func stringifyJSONValue(v any, indent int) (string, error) {
 		return "", fmt.Errorf("stringify: %w", err)
 	}
 	return string(b), nil
-}
-
-// intVal extracts an int from a properties map, accepting both int and
-// float64 (the latter is what JSON-decoded defaults arrive as).
-func intVal(m map[string]any, key string, fallback int) int {
-	switch v := m[key].(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	case float32:
-		return int(v)
-	}
-	return fallback
 }
 
 func clampInt(v, lo, hi int) int {

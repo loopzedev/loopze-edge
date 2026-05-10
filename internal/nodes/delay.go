@@ -102,14 +102,14 @@ func NewDelayNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *DelayNode) Init() error {
 	p := n.config.Properties
 
-	n.mode = stringVal(p, "mode", delayModeFixed)
+	n.mode = StringVal(p, "mode", delayModeFixed)
 
 	timeout, _ := p["timeout"].(float64)
-	n.timeout = parseDelayUnits(timeout, stringVal(p, "timeoutUnits", "milliseconds"))
+	n.timeout = parseDelayUnits(timeout, StringVal(p, "timeoutUnits", "milliseconds"))
 
 	first, _ := p["randomFirst"].(float64)
 	last, _ := p["randomLast"].(float64)
-	randomUnits := stringVal(p, "randomUnits", "milliseconds")
+	randomUnits := StringVal(p, "randomUnits", "milliseconds")
 	n.randomMin = parseDelayUnits(first, randomUnits)
 	n.randomMax = parseDelayUnits(last, randomUnits)
 	if n.randomMax < n.randomMin {
@@ -117,7 +117,7 @@ func (n *DelayNode) Init() error {
 	}
 
 	rate, _ := p["rate"].(float64)
-	rateUnits := stringVal(p, "rateUnits", "second")
+	rateUnits := StringVal(p, "rateUnits", "second")
 	if rate > 0 {
 		unit := parseDelayUnits(1, rateUnits)
 		if unit > 0 {
@@ -125,7 +125,7 @@ func (n *DelayNode) Init() error {
 		}
 	}
 
-	n.behaviour = stringVal(p, "behaviour", rateBehaviourQueue)
+	n.behaviour = StringVal(p, "behaviour", rateBehaviourQueue)
 	if n.behaviour != rateBehaviourDrop {
 		n.behaviour = rateBehaviourQueue
 	}

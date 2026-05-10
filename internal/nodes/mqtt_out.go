@@ -111,7 +111,7 @@ func readPayloadFormat(v any) (byte, bool) {
 func (n *MqttOutNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *MqttOutNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
+	broker, err := ResolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, ResolveConfigParams{
 		NodeKind:   "mqtt-out",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",

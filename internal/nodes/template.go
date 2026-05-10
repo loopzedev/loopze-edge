@@ -43,12 +43,12 @@ func NewTemplateNode(config flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *TemplateNode) Init() error {
 	props := n.config.Properties
 
-	n.template = stringVal(props, "template", "")
-	n.field = stringVal(props, "field", "payload")
-	n.fieldType = stringVal(props, "fieldType", "msg")
-	n.fieldStorage = stringVal(props, "fieldStorage", "memory")
-	n.format = stringVal(props, "format", "plain")
-	n.syntax = stringVal(props, "syntax", "mustache")
+	n.template = StringVal(props, "template", "")
+	n.field = StringVal(props, "field", "payload")
+	n.fieldType = StringVal(props, "fieldType", "msg")
+	n.fieldStorage = StringVal(props, "fieldStorage", "memory")
+	n.format = StringVal(props, "format", "plain")
+	n.syntax = StringVal(props, "syntax", "mustache")
 
 	if n.syntax == "mustache" && n.template != "" {
 		parsed, err := mustache.ParseString(n.template)

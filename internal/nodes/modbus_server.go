@@ -54,17 +54,17 @@ func NewModbusServer(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		return nil, fmt.Errorf("modbus-server %s: invalid transport %q (expected tcp|rtu)", cfg.ID, transport)
 	}
 
-	timeoutMs := readIntProp(props, "timeout", 1000)
+	timeoutMs := IntVal(props, "timeout", 1000)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 
-	idleTimeoutSec := readIntProp(props, "idleTimeout", 60)
+	idleTimeoutSec := IntVal(props, "idleTimeout", 60)
 	idleTimeout := time.Duration(idleTimeoutSec) * time.Second
 	if idleTimeoutSec == 0 {
 		idleTimeout = 0
 	}
 
-	defaultUnit := byte(readIntProp(props, "defaultUnitId", 1))
-	reconnectSec := readIntProp(props, "reconnectBackoff", 5)
+	defaultUnit := byte(IntVal(props, "defaultUnitId", 1))
+	reconnectSec := IntVal(props, "reconnectBackoff", 5)
 	reconnectBackoff := time.Duration(reconnectSec) * time.Second
 
 	s := &ModbusServer{
@@ -84,7 +84,7 @@ func NewModbusServer(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		if host == "" {
 			return nil, fmt.Errorf("modbus-server %s: host is required for TCP", cfg.ID)
 		}
-		port := readIntProp(props, "port", 502)
+		port := IntVal(props, "port", 502)
 		h := modbus.NewTCPClientHandler(fmt.Sprintf("%s:%d", host, port))
 		h.Timeout = timeout
 		h.IdleTimeout = idleTimeout
@@ -96,9 +96,9 @@ func NewModbusServer(cfg flow.ConfigNode) (flow.ConfigInstance, error) {
 		if serialPort == "" {
 			return nil, fmt.Errorf("modbus-server %s: serialPort is required for RTU", cfg.ID)
 		}
-		baud := readIntProp(props, "baudRate", 9600)
-		dataBits := readIntProp(props, "dataBits", 8)
-		stopBits := readIntProp(props, "stopBits", 1)
+		baud := IntVal(props, "baudRate", 9600)
+		dataBits := IntVal(props, "dataBits", 8)
+		stopBits := IntVal(props, "stopBits", 1)
 		parity, _ := props["parity"].(string)
 		if parity == "" {
 			parity = "none"
@@ -375,23 +375,6 @@ func (s *ModbusServer) setStatusLocked(fill, text string) {
 	s.currentText = text
 	for _, fn := range s.statusFuncs {
 		fn(fill, text)
-	}
-}
-
-// readIntProp extracts an integer property from a config map, accepting the
-// usual JSON-decoded types and falling back to a default when missing/invalid.
-func readIntProp(props map[string]any, key string, fallback int) int {
-	switch x := props[key].(type) {
-	case nil:
-		return fallback
-	case float64:
-		return int(x)
-	case int:
-		return x
-	case int64:
-		return int(x)
-	default:
-		return fallback
 	}
 }
 

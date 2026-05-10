@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -153,7 +154,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 	typ = strings.ToLower(strings.TrimSpace(typ))
 	switch typ {
 	case "byte", "char":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode %s: %w", typ, err)
 		}
@@ -169,7 +170,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return []byte{byte(n)}, nil
 
 	case "sint":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode sint: %w", err)
 		}
@@ -179,7 +180,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return []byte{byte(int8(n))}, nil
 
 	case "usint":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode usint: %w", err)
 		}
@@ -189,7 +190,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return []byte{byte(n)}, nil
 
 	case "word":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode word: %w", err)
 		}
@@ -207,7 +208,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "int":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode int: %w", err)
 		}
@@ -219,7 +220,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "uint":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode uint: %w", err)
 		}
@@ -253,7 +254,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "dword":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode dword: %w", err)
 		}
@@ -271,7 +272,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "dint":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode dint: %w", err)
 		}
@@ -283,7 +284,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "udint":
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode udint: %w", err)
 		}
@@ -298,7 +299,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		// Signed int32 milliseconds. JSON arrives as float64 → toInt64 caps
 		// precision at 2^53 ms (~9 quintillion ms), well above the int32
 		// range, so range-check after conversion.
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode time: %w", err)
 		}
@@ -313,7 +314,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		// uint32 ms since midnight (TIME_OF_DAY). 24h in ms = 86_400_000;
 		// values beyond that are nonsensical but the wire allows them, so
 		// only flag truly out-of-uint32 cases.
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode tod: %w", err)
 		}
@@ -339,7 +340,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "real":
-		f, err := toFloat64(v)
+		f, err := nodes.ToFloat64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode real: %w", err)
 		}
@@ -356,7 +357,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		return out, nil
 
 	case "lreal":
-		f, err := toFloat64(v)
+		f, err := nodes.ToFloat64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode lreal: %w", err)
 		}
@@ -369,7 +370,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 
 	case "lint":
 		// LINT is signed int64 — toInt64 already returns int64, full range fits.
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode lint: %w", err)
 		}
@@ -386,7 +387,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 			binary.BigEndian.PutUint64(out, u)
 			return out, nil
 		}
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode ulint: %w", err)
 		}
@@ -405,7 +406,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 			binary.BigEndian.PutUint64(out, u)
 			return out, nil
 		}
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode lword: %w", err)
 		}
@@ -420,7 +421,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 		// Signed int64 nanoseconds. JSON arrives as float64 → toInt64 caps at
 		// 2^53 ns (~104 days) which is plenty for industrial duration math; if
 		// callers need the full LTIME range they pass an int64 directly.
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode ltime: %w", err)
 		}
@@ -435,7 +436,7 @@ func EncodeS7Scalar(typ string, signed bool, v any) ([]byte, error) {
 			binary.BigEndian.PutUint64(out, u)
 			return out, nil
 		}
-		n, err := toInt64(v)
+		n, err := nodes.ToInt64(v)
 		if err != nil {
 			return nil, fmt.Errorf("encode ltod: %w", err)
 		}
@@ -491,7 +492,7 @@ func s7DateInputDays(v any) (int, error) {
 		}
 		return int(t.Sub(s7DateEpoch).Hours() / 24), nil
 	}
-	n, err := toInt64(v)
+	n, err := nodes.ToInt64(v)
 	if err != nil {
 		return 0, err
 	}

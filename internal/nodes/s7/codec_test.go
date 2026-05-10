@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"math"
 	"strings"
 	"testing"
@@ -760,15 +761,15 @@ func TestS7Codec_ReusesApplyScale(t *testing.T) {
 	// reused by the S7 read pipeline. This test just confirms the function
 	// is callable from this file (compile-time guarantee) and behaves as
 	// documented.
-	got := ApplyScale(int(100), 0.1, 0)
+	got := nodes.ApplyScale(int(100), 0.1, 0)
 	if f, ok := got.(float64); !ok || math.Abs(f-10.0) > 1e-9 {
-		t.Errorf("ApplyScale(100, 0.1, 0) = %v, want 10.0", got)
+		t.Errorf("nodes.ApplyScale(100, 0.1, 0) = %v, want 10.0", got)
 	}
-	un, err := UnapplyScale(10.0, 0.1, 0)
+	un, err := nodes.UnapplyScale(10.0, 0.1, 0)
 	if err != nil {
 		t.Fatalf("UnapplyScale error: %v", err)
 	}
 	if math.Abs(un-100.0) > 1e-9 {
-		t.Errorf("UnapplyScale(10.0, 0.1, 0) = %v, want 100.0", un)
+		t.Errorf("nodes.UnapplyScale(10.0, 0.1, 0) = %v, want 100.0", un)
 	}
 }

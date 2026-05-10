@@ -101,7 +101,7 @@ func NewTCPRequestNode(cfg flow.NodeConfig) (flow.NodeInstance, error) {
 func (n *TCPRequestNode) Init() error {
 	props := n.cfg.Properties
 
-	n.hostTemplate = strings.TrimSpace(stringVal(props, "host", ""))
+	n.hostTemplate = strings.TrimSpace(StringVal(props, "host", ""))
 	if n.hostTemplate != "" {
 		t, err := mustache.ParseString(n.hostTemplate)
 		if err != nil {
@@ -110,7 +110,7 @@ func (n *TCPRequestNode) Init() error {
 		n.hostParsed = t
 	}
 
-	n.portTemplate = strings.TrimSpace(stringVal(props, "port", ""))
+	n.portTemplate = strings.TrimSpace(StringVal(props, "port", ""))
 	if n.portTemplate != "" {
 		t, err := mustache.ParseString(n.portTemplate)
 		if err != nil {
@@ -119,7 +119,7 @@ func (n *TCPRequestNode) Init() error {
 		n.portParsed = t
 	}
 
-	n.terminator = strings.ToLower(stringVal(props, "terminator", tcpReqTermTime))
+	n.terminator = strings.ToLower(StringVal(props, "terminator", tcpReqTermTime))
 	switch n.terminator {
 	case tcpReqTermTime, tcpReqTermDelimiter, tcpReqTermLength, tcpReqTermLengthPrefix, tcpReqTermClose:
 	default:
@@ -127,7 +127,7 @@ func (n *TCPRequestNode) Init() error {
 	}
 
 	if n.terminator == tcpReqTermDelimiter {
-		raw := stringVal(props, "delimiter", "\\n")
+		raw := StringVal(props, "delimiter", "\\n")
 		bs, err := ParseDelimiter(raw)
 		if err != nil {
 			return fmt.Errorf("tcp-request %s: %w", n.cfg.ID, err)
@@ -136,7 +136,7 @@ func (n *TCPRequestNode) Init() error {
 	}
 
 	if n.terminator == tcpReqTermLength {
-		n.responseLength = intVal(props, "responseLength", 0)
+		n.responseLength = IntVal(props, "responseLength", 0)
 		if n.responseLength <= 0 {
 			return fmt.Errorf("tcp-request %s: responseLength must be > 0 for terminator=length", n.cfg.ID)
 		}
@@ -147,8 +147,8 @@ func (n *TCPRequestNode) Init() error {
 		if raw == nil {
 			return fmt.Errorf("tcp-request %s: lengthPrefix config required for terminator=length-prefix", n.cfg.ID)
 		}
-		bytesN := intVal(raw, "bytes", 4)
-		endian, err := ParseEndianness(stringVal(raw, "endianness", "big"))
+		bytesN := IntVal(raw, "bytes", 4)
+		endian, err := ParseEndianness(StringVal(raw, "endianness", "big"))
 		if err != nil {
 			return fmt.Errorf("tcp-request %s: %w", n.cfg.ID, err)
 		}
@@ -160,7 +160,7 @@ func (n *TCPRequestNode) Init() error {
 		}
 	}
 
-	if raw := stringVal(props, "appendDelimiter", ""); raw != "" {
+	if raw := StringVal(props, "appendDelimiter", ""); raw != "" {
 		bs, err := ParseDelimiter(raw)
 		if err != nil {
 			return fmt.Errorf("tcp-request %s: appendDelimiter: %w", n.cfg.ID, err)
@@ -168,20 +168,20 @@ func (n *TCPRequestNode) Init() error {
 		n.appendDelimiter = bs
 	}
 
-	n.responseEnc = strings.ToLower(stringVal(props, "responseEncoding", tcpEncBuffer))
+	n.responseEnc = strings.ToLower(StringVal(props, "responseEncoding", tcpEncBuffer))
 	switch n.responseEnc {
 	case tcpEncBuffer, tcpEncString, tcpEncBase64:
 	default:
 		return fmt.Errorf("tcp-request %s: invalid responseEncoding %q", n.cfg.ID, n.responseEnc)
 	}
 
-	timeoutMs := intVal(props, "responseTimeout", int(defaultTcpResponseTimeout/time.Millisecond))
+	timeoutMs := IntVal(props, "responseTimeout", int(defaultTcpResponseTimeout/time.Millisecond))
 	if timeoutMs <= 0 {
 		timeoutMs = int(defaultTcpResponseTimeout / time.Millisecond)
 	}
 	n.responseTimeout = time.Duration(timeoutMs) * time.Millisecond
 
-	dialSec := intVal(props, "dialTimeout", int(defaultTcpDialTimeout/time.Second))
+	dialSec := IntVal(props, "dialTimeout", int(defaultTcpDialTimeout/time.Second))
 	if dialSec <= 0 {
 		dialSec = int(defaultTcpDialTimeout / time.Second)
 	}

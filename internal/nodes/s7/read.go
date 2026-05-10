@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -26,7 +27,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type S7ReadNode struct {
 	config       flow.NodeConfig
-	BaseNode
+	nodes.BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -169,7 +170,7 @@ func (n *S7ReadNode) SetError(fn flow.ErrorFunc)              { n.errFn = fn }
 // kicks off the polling goroutine in static mode. Dynamic mode just sits idle
 // waiting for input messages.
 func (n *S7ReadNode) Start() error {
-	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, resolveConfigParams{
+	plc, err := nodes.ResolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, nodes.ResolveConfigParams{
 		NodeKind:   "s7-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "plc",
@@ -376,7 +377,7 @@ func (n *S7ReadNode) doRead(vars []s7Variable, _ *flow.Message) (*flow.Message, 
 			if decErr != nil {
 				entry.Err = decErr.Error()
 			} else {
-				entry.Value = ApplyScale(value, v.Scale, v.Offset)
+				entry.Value = nodes.ApplyScale(value, v.Scale, v.Offset)
 			}
 		}
 		out[i] = entry
@@ -578,15 +579,15 @@ func parseS7BlockConfigRead(props map[string]any, nodeID string) (s7BlockConfig,
 	if err != nil {
 		return s7BlockConfig{}, fmt.Errorf("s7-read %s: %w", nodeID, err)
 	}
-	db := readIntProp(props, "db", 0)
+	db := nodes.IntVal(props, "db", 0)
 	if area == S7AreaDB && db <= 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.db must be > 0 for area=DB", nodeID)
 	}
-	start := readIntProp(props, "start", 0)
+	start := nodes.IntVal(props, "start", 0)
 	if start < 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.start must be >= 0, got %d", nodeID, start)
 	}
-	length := readIntProp(props, "length", 0)
+	length := nodes.IntVal(props, "length", 0)
 	if length <= 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.length must be > 0, got %d", nodeID, length)
 	}
@@ -618,13 +619,13 @@ func (n *S7ReadNode) effectiveBlock(msg *flow.Message) s7BlockConfig {
 			blk.AreaName = name
 		}
 	}
-	if v, ok := readPositiveInt(overrides["db"]); ok {
+	if v, ok := nodes.ReadPositiveInt(overrides["db"]); ok {
 		blk.DB = v
 	}
 	if v, ok := readNonNegInt(overrides["start"]); ok {
 		blk.Start = v
 	}
-	if v, ok := readPositiveInt(overrides["length"]); ok {
+	if v, ok := nodes.ReadPositiveInt(overrides["length"]); ok {
 		blk.Length = v
 	}
 	return blk
@@ -786,11 +787,11 @@ func buildS7Variable(obj map[string]any, i int, nodeID string) (s7Variable, erro
 		// collapsing to an empty key when the user skips the label.
 		name = addr
 	}
-	scale := readFloatProp(obj, "scale", 1)
+	scale := nodes.FloatVal(obj, "scale", 1)
 	if scale == 0 {
 		scale = 1
 	}
-	offset := readFloatProp(obj, "offset", 0)
+	offset := nodes.FloatVal(obj, "offset", 0)
 
 	item, err := ParseS7Address(addr, dt)
 	if err != nil {

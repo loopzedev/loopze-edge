@@ -2,9 +2,10 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 // See LICENSE file for details.
 
-package nodes
+package s7
 
 import (
+	"github.com/loopzedev/loopze-edge/internal/nodes"
 	"fmt"
 	"log/slog"
 
@@ -30,7 +31,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type S7WriteNode struct {
 	config       flow.NodeConfig
-	BaseNode
+	nodes.BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -126,7 +127,7 @@ func (n *S7WriteNode) SetError(fn flow.ErrorFunc)              { n.errFn = fn }
 
 // Start resolves the PLC config instance and registers for status changes.
 func (n *S7WriteNode) Start() error {
-	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, resolveConfigParams{
+	plc, err := nodes.ResolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, nodes.ResolveConfigParams{
 		NodeKind:   "s7-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "plc",
@@ -273,7 +274,7 @@ func (n *S7WriteNode) resolveAndEncode(v s7WriteVariable, msg *flow.Message) ([]
 	// Inverse scaling on numeric types only — bool, raw, and the string-shaped
 	// types (string, wstring, date, dt, ldt, dtl, wchar) skip scaling.
 	if (v.Scale != 1 || v.Offset != 0) && v.DataType != "bool" && !s7IsNonScalable(v.DataType) {
-		f, err := UnapplyScale(value, v.Scale, v.Offset)
+		f, err := nodes.UnapplyScale(value, v.Scale, v.Offset)
 		if err != nil {
 			return nil, fmt.Errorf("scale: %w", err)
 		}
@@ -285,7 +286,7 @@ func (n *S7WriteNode) resolveAndEncode(v s7WriteVariable, msg *flow.Message) ([]
 		// One-bit write: encode the value into a single byte (0x00 or 0x01).
 		// The S7Item carries the bit position; gos7's AGWriteMulti uses it
 		// to compute the wire address as `Start*8 + Bit`.
-		b, err := toBool(value)
+		b, err := nodes.ToBool(value)
 		if err != nil {
 			return nil, fmt.Errorf("bool: %w", err)
 		}
@@ -436,8 +437,8 @@ func buildS7WriteVariableStatic(obj map[string]any, i int, nodeID string) (s7Wri
 	v := s7WriteVariable{
 		Address:  addr,
 		DataType: dt,
-		Scale:    readFloatProp(obj, "scale", 1),
-		Offset:   readFloatProp(obj, "offset", 0),
+		Scale:    nodes.FloatVal(obj, "scale", 1),
+		Offset:   nodes.FloatVal(obj, "offset", 0),
 		Item:     item,
 	}
 	if v.Scale == 0 {
@@ -505,8 +506,8 @@ func buildS7WriteVariableDynamic(obj map[string]any, i int, nodeID string) (s7Wr
 	v := s7WriteVariable{
 		Address:  addr,
 		DataType: dt,
-		Scale:    readFloatProp(obj, "scale", 1),
-		Offset:   readFloatProp(obj, "offset", 0),
+		Scale:    nodes.FloatVal(obj, "scale", 1),
+		Offset:   nodes.FloatVal(obj, "offset", 0),
 		Item:     item,
 	}
 	if v.Scale == 0 {
@@ -557,7 +558,7 @@ func toByteSlice(v any) ([]byte, error) {
 	case []any:
 		out := make([]byte, len(x))
 		for i, e := range x {
-			n, err := toInt64(e)
+			n, err := nodes.ToInt64(e)
 			if err != nil {
 				return nil, fmt.Errorf("element %d: %w", i, err)
 			}
@@ -591,15 +592,15 @@ func parseS7BlockConfigWrite(props map[string]any, nodeID string) (s7BlockConfig
 	if area == S7AreaPE {
 		return s7BlockConfig{}, fmt.Errorf("s7-write %s: block.area=I (inputs) is not writable", nodeID)
 	}
-	db := readIntProp(props, "db", 0)
+	db := nodes.IntVal(props, "db", 0)
 	if area == S7AreaDB && db <= 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-write %s: block.db must be > 0 for area=DB", nodeID)
 	}
-	start := readIntProp(props, "start", 0)
+	start := nodes.IntVal(props, "start", 0)
 	if start < 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-write %s: block.start must be >= 0, got %d", nodeID, start)
 	}
-	length := readIntProp(props, "length", 0)
+	length := nodes.IntVal(props, "length", 0)
 	if length < 0 {
 		return s7BlockConfig{}, fmt.Errorf("s7-write %s: block.length must be >= 0 (0 = use incoming data length), got %d", nodeID, length)
 	}
@@ -674,7 +675,7 @@ func (n *S7WriteNode) effectiveWriteBlock(msg *flow.Message) s7BlockConfig {
 			blk.AreaName = name
 		}
 	}
-	if v, ok := readPositiveInt(overrides["db"]); ok {
+	if v, ok := nodes.ReadPositiveInt(overrides["db"]); ok {
 		blk.DB = v
 	}
 	if v, ok := readNonNegInt(overrides["start"]); ok {

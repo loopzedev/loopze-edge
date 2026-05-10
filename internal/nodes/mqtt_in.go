@@ -205,7 +205,7 @@ func readStringMap(v any) map[string]string {
 func (n *MqttInNode) SetConfigLookup(fn flow.ConfigLookupFunc)  { n.configLookup = fn }
 
 func (n *MqttInNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
+	broker, err := ResolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, ResolveConfigParams{
 		NodeKind:   "mqtt-in",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",
@@ -343,7 +343,7 @@ func (n *MqttInNode) applyDynamicOverrides(msg *flow.Message) SubscribeOptions {
 		opts.RetainAsPublished = v
 	}
 	opts.RetainHandling = extractRetainHandling(msg.Get("retainHandling"), opts.RetainHandling)
-	if v, ok := readPositiveInt(msg.Get("subscriptionIdentifier")); ok {
+	if v, ok := ReadPositiveInt(msg.Get("subscriptionIdentifier")); ok {
 		opts.SubscriptionIdentifier = v
 	}
 	return opts
@@ -356,27 +356,6 @@ func readBool(v any) (bool, bool) {
 		return b, true
 	}
 	return false, false
-}
-
-// readPositiveInt parses a positive integer from typical wire formats. Returns
-// ok=false for absent, zero, or negative values.
-func readPositiveInt(v any) (int, bool) {
-	switch x := v.(type) {
-	case nil:
-		return 0, false
-	case float64:
-		if x <= 0 {
-			return 0, false
-		}
-		return int(x), true
-	case int:
-		if x <= 0 {
-			return 0, false
-		}
-		return x, true
-	default:
-		return 0, false
-	}
 }
 
 // extractQoS reads a QoS override from a control message. Valid values 0/1/2

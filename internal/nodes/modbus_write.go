@@ -51,13 +51,13 @@ func (n *ModbusWriteNode) Init() error {
 		return fmt.Errorf("modbus-write %s: no server configured", n.config.ID)
 	}
 
-	n.unitID = byte(readIntProp(props, "unitId", 0))
-	n.fc = readIntProp(props, "fc", 16)
+	n.unitID = byte(IntVal(props, "unitId", 0))
+	n.fc = IntVal(props, "fc", 16)
 	if !isWriteFC(n.fc) {
 		return fmt.Errorf("modbus-write %s: invalid function code %d (expected 5|6|15|16)", n.config.ID, n.fc)
 	}
 
-	n.address = uint16(readIntProp(props, "address", 0))
+	n.address = uint16(IntVal(props, "address", 0))
 	n.dataType, _ = props["dataType"].(string)
 	if n.dataType == "" {
 		n.dataType = "raw"
@@ -68,8 +68,8 @@ func (n *ModbusWriteNode) Init() error {
 	wo, _ := props["wordOrder"].(string)
 	n.wordOrder = parseWordOrder(wo)
 
-	n.scale = readFloatProp(props, "scale", 1)
-	n.offset = readFloatProp(props, "offset", 0)
+	n.scale = FloatVal(props, "scale", 1)
+	n.offset = FloatVal(props, "offset", 0)
 	if n.scale == 0 {
 		n.scale = 1
 	}
@@ -84,7 +84,7 @@ func (n *ModbusWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLo
 func (n *ModbusWriteNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusWriteNode) Start() error {
-	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
+	server, err := ResolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, ResolveConfigParams{
 		NodeKind:   "modbus-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -161,13 +161,13 @@ func (n *ModbusWriteNode) effectiveParams(msg *flow.Message) writeParams {
 	if msg == nil {
 		return p
 	}
-	if v, ok := readPositiveInt(msg.Get("unitId")); ok && v <= 0xFF {
+	if v, ok := ReadPositiveInt(msg.Get("unitId")); ok && v <= 0xFF {
 		p.unitID = byte(v)
 	}
-	if v, ok := readPositiveInt(msg.Get("fc")); ok && isWriteFC(v) {
+	if v, ok := ReadPositiveInt(msg.Get("fc")); ok && isWriteFC(v) {
 		p.fc = v
 	}
-	if v, ok := readPositiveInt(msg.Get("address")); ok && v <= 0xFFFF {
+	if v, ok := ReadPositiveInt(msg.Get("address")); ok && v <= 0xFFFF {
 		p.address = uint16(v)
 	} else if v, ok := msg.Get("address").(float64); ok && v >= 0 && v <= 0xFFFF {
 		p.address = uint16(v)
@@ -189,7 +189,7 @@ func (n *ModbusWriteNode) effectiveParams(msg *flow.Message) writeParams {
 func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any) (any, error) {
 	switch p.fc {
 	case 5: // Write Single Coil
-		bools, err := toBoolSlice(payload)
+		bools, err := ToBoolSlice(payload)
 		if err != nil {
 			return nil, fmt.Errorf("FC5 expects bool: %w", err)
 		}
@@ -232,7 +232,7 @@ func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any)
 			n.Status("red", err.Error())
 			return nil, err
 		}
-		bools, _ := toBoolSlice(payload)
+		bools, _ := ToBoolSlice(payload)
 		return bools, nil
 
 	case 16: // Write Multiple Registers

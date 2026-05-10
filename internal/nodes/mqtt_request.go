@@ -154,7 +154,7 @@ func (n *MqttRequestNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLo
 func (n *MqttRequestNode) SetError(fn flow.ErrorFunc)                { n.errorFn = fn }
 
 func (n *MqttRequestNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
+	broker, err := ResolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, ResolveConfigParams{
 		NodeKind:   "mqtt-request",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",

@@ -647,6 +647,14 @@ func toBool(v any) (bool, error) {
 		return x != 0, nil
 	case float64:
 		return x != 0, nil
+	case string:
+		switch x {
+		case "true", "True", "TRUE", "1":
+			return true, nil
+		case "false", "False", "FALSE", "0":
+			return false, nil
+		}
+		return false, fmt.Errorf("cannot convert string %q to bool (expected true/false/1/0)", x)
 	case nil:
 		return false, fmt.Errorf("nil value")
 	default:

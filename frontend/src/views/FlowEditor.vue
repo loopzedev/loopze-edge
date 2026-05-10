@@ -614,6 +614,71 @@ onMounted(async () => {
                 </BaseNode>
             </template>
 
+            <template #node-s7-read="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="s7-read"
+                    :selected="nodeProps.selected"
+                    :inputs="nodeProps.data?.inputs ?? 0"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'block'
+                                ? `block ${nodeProps.data?.config?.block?.area ?? 'DB'}${nodeProps.data?.config?.block?.db ?? ''}@${nodeProps.data?.config?.block?.start ?? 0}`
+                                : nodeProps.data?.config?.mode === 'dynamic'
+                                    ? 'dynamic'
+                                    : `${(nodeProps.data?.config?.variables ?? []).length} var(s) · ${nodeProps.data?.config?.pollInterval ?? 1000}ms`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-s7-write="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="s7-write"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="nodeProps.data?.outputs ?? 0"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            nodeProps.data?.config?.mode === 'block'
+                                ? `block ${nodeProps.data?.config?.block?.area ?? 'DB'}${nodeProps.data?.config?.block?.db ?? ''}@${nodeProps.data?.config?.block?.start ?? 0}`
+                                : nodeProps.data?.config?.mode === 'dynamic'
+                                    ? 'dynamic'
+                                    : `${(nodeProps.data?.config?.variables ?? []).length} var(s)`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
+            <template #node-s7-parser="nodeProps">
+                <BaseNode
+                    :id="nodeProps.id"
+                    :label="nodeProps.data?.label"
+                    node-type="s7-parser"
+                    :selected="nodeProps.selected"
+                    :inputs="1"
+                    :outputs="1"
+                    :status="nodeProps.data?.status"
+                    :disabled="nodeProps.data?.disabled"
+                >
+                    <template #body>
+                        <span class="truncate">{{
+                            `${(nodeProps.data?.config?.layout ?? []).length} field(s) · ${nodeProps.data?.config?.action ?? 'auto'}`
+                        }}</span>
+                    </template>
+                </BaseNode>
+            </template>
+
             <template #node-opc-ua="nodeProps">
                 <BaseNode v-bind="nodeProps as any" />
             </template>

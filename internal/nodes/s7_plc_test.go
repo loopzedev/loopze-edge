@@ -5,6 +5,7 @@
 package nodes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -501,6 +502,75 @@ func TestS7PLC_StopIsIdempotent_Demo(t *testing.T) {
 	if err := plc.Stop(); err != nil {
 		t.Errorf("second Stop: %v", err)
 	}
+}
+
+func TestS7TestConnect_BadHost(t *testing.T) {
+	// Pick a port that nobody listens on. dial-tcp connection-refused should
+	// surface as a wrapped error, not a panic, and the function must return
+	// promptly (within the configured 1s timeout).
+	cfg := flow.ConfigNode{
+		ID: "test", Name: "Bad", Type: "s7-plc",
+		Config: map[string]any{
+			"host":       "127.0.0.1",
+			"port":       1, // privileged + nothing listening
+			"connection": "s7-1200-1500",
+			"timeout":    500, // ms — keep the test snappy
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err := S7TestConnect(ctx, cfg)
+	if err == nil {
+		t.Fatal("S7TestConnect against unreachable host should error")
+	}
+	if !strings.Contains(err.Error(), "connect") {
+		t.Errorf("expected connect-related error, got %q", err.Error())
+	}
+}
+
+func TestS7TestConnect_RejectsMissingHost(t *testing.T) {
+	cfg := flow.ConfigNode{
+		ID: "test", Name: "NoHost", Type: "s7-plc",
+		Config: map[string]any{}, // host missing
+	}
+	_, err := S7TestConnect(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("S7TestConnect should reject config without host")
+	}
+}
+
+func TestS7TestConnect_Demo(t *testing.T) {
+	host := os.Getenv("LOOPZE_S7_TEST_HOST")
+	if host == "" {
+		t.Skip("LOOPZE_S7_TEST_HOST not set; run `make demo-s7` and re-run with the env var")
+	}
+	port := s7DefaultPort
+	if p := os.Getenv("LOOPZE_S7_TEST_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			port = n
+		}
+	}
+	cfg := flow.ConfigNode{
+		ID: "test", Name: "Demo", Type: "s7-plc",
+		Config: map[string]any{
+			"host": host, "port": port, "connection": "s7-1200-1500",
+			"timeout": 3000,
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	info, err := S7TestConnect(ctx, cfg)
+	if err != nil {
+		t.Fatalf("S7TestConnect: %v", err)
+	}
+	if info.NegotiatedPDUSize < 240 {
+		t.Errorf("NegotiatedPDUSize: got %d, want ≥ 240", info.NegotiatedPDUSize)
+	}
+	if !strings.Contains(info.Address, host) {
+		t.Errorf("Address: got %q, want it to contain %q", info.Address, host)
+	}
+	// CPUType / OrderCode may be empty against the python-snap7 demo —
+	// real CPUs return populated strings. We don't assert on them here.
 }
 
 func TestS7PLC_ReconnectAfterIdleClose_Demo(t *testing.T) {

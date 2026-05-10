@@ -153,6 +153,50 @@ const summaries: Record<string, NodeSummaryFn> = {
     return `auto-detect on msg.${property}`
   },
 
+  's7-plc'(cfg) {
+    const host = (cfg.host as string) || '?'
+    const port = Number(cfg.port ?? 102)
+    const conn = (cfg.connectionType as string) || 's7-1200-1500'
+    return `${host}:${port} · ${conn}`
+  },
+
+  's7-read'(cfg) {
+    const mode = (cfg.mode as string) || 'static'
+    if (mode === 'block') {
+      const blk = (cfg.block as Record<string, unknown>) ?? {}
+      const area = (blk.area as string) || 'DB'
+      const db = blk.db ? `${area}${blk.db}` : area
+      const len = Number(blk.length ?? 0)
+      const interval = Number(cfg.pollInterval ?? 1000)
+      return `block ${db}@${blk.start ?? 0} · ${len}B · ${formatDuration(interval)}`
+    }
+    const vars = Array.isArray(cfg.variables) ? cfg.variables.length : 0
+    if (mode === 'dynamic') {
+      return vars === 0 ? 'dynamic' : `dynamic · ${pluralize(vars, 'fallback var')}`
+    }
+    const interval = Number(cfg.pollInterval ?? 1000)
+    return `${pluralize(vars, 'var')} · ${formatDuration(interval)}`
+  },
+
+  's7-write'(cfg) {
+    const mode = (cfg.mode as string) || 'static'
+    if (mode === 'block') {
+      const blk = (cfg.block as Record<string, unknown>) ?? {}
+      const area = (blk.area as string) || 'DB'
+      const db = blk.db ? `${area}${blk.db}` : area
+      return `block ${db}@${blk.start ?? 0}`
+    }
+    if (mode === 'dynamic') return 'dynamic (msg-driven)'
+    const vars = Array.isArray(cfg.variables) ? cfg.variables.length : 0
+    return pluralize(vars, 'var')
+  },
+
+  's7-parser'(cfg) {
+    const layout = Array.isArray(cfg.layout) ? cfg.layout.length : 0
+    const action = (cfg.action as string) || 'auto'
+    return `${pluralize(layout, 'field')} · ${action}`
+  },
+
   delay(cfg) {
     const mode = (cfg.mode as string) ?? 'delay'
     const fmt = (n: number, unit: string) => `${n}${unit === 'milliseconds' ? 'ms' : unit === 'day' ? 'd' : unit[0]}`

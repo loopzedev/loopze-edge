@@ -68,11 +68,23 @@ type S7Item struct {
 // these exactly — drift will be caught by the cross-fixture test (TS side
 // wired in PR-9).
 var (
-	reDBBit    = regexp.MustCompile(`^DB(\d+)\.DBX(\d+)\.([0-7])$`)
-	reDBByte   = regexp.MustCompile(`^DB(\d+)\.DBB(\d+)$`)
-	reDBWord   = regexp.MustCompile(`^DB(\d+)\.DBW(\d+)$`)
-	reDBDWord  = regexp.MustCompile(`^DB(\d+)\.DBD(\d+)$`)
-	reDBString = regexp.MustCompile(`^DB(\d+)\.STRING(\d+)\.(\d+)$`)
+	reDBBit     = regexp.MustCompile(`^DB(\d+)\.DBX(\d+)\.([0-7])$`)
+	reDBByte    = regexp.MustCompile(`^DB(\d+)\.DBB(\d+)$`)
+	reDBWord    = regexp.MustCompile(`^DB(\d+)\.DBW(\d+)$`)
+	reDBDWord   = regexp.MustCompile(`^DB(\d+)\.DBD(\d+)$`)
+	// DBL = "Data Block Long" — 8 bytes. Not standard Siemens TIA syntax (TIA
+	// has no direct 8-byte wire form for non-optimized DBs), but a natural
+	// extension that lets users address LREAL/LINT/ULINT in variables mode
+	// without falling back to block reads + parser. Compile-time alignment
+	// to 8 bytes is the user's responsibility, same as for DBD/DBW.
+	reDBLong    = regexp.MustCompile(`^DB(\d+)\.DBL(\d+)$`)
+	// DTL is the only fixed 12-byte type in TIA Portal. Siemens has no
+	// canonical wire-form name for it (the engineering tool addresses it
+	// symbolically), so we coin `DB.DTL<byte>` analogous to `DBL` for 8-byte
+	// types. Always 12 bytes — no length suffix needed.
+	reDBDTL     = regexp.MustCompile(`^DB(\d+)\.DTL(\d+)$`)
+	reDBString  = regexp.MustCompile(`^DB(\d+)\.STRING(\d+)\.(\d+)$`)
+	reDBWString = regexp.MustCompile(`^DB(\d+)\.WSTRING(\d+)\.(\d+)$`)
 	// Symbolic-DB catcher: ≥4 word chars after the dot, end of string. Tight
 	// enough to NOT match malformed wire forms like `DB1.DBX0.8` (rejected as
 	// "does not match" with a hint to fix the bit number) but loose enough to
@@ -136,24 +148,56 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 
 	case reDBByte.MatchString(upper):
 		m := reDBByte.FindStringSubmatch(upper)
-		if err := requireType(dt, "DBB", "byte", "char"); err != nil {
+		if err := requireType(dt, "DBB", s7ByteTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaDB, atoi(m[1]), atoi(m[2]), wordLenFor(dt), dt), nil
 
 	case reDBWord.MatchString(upper):
 		m := reDBWord.FindStringSubmatch(upper)
-		if err := requireType(dt, "DBW", "word", "int"); err != nil {
+		if err := requireType(dt, "DBW", s7WordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaDB, atoi(m[1]), atoi(m[2]), wordLenFor(dt), dt), nil
 
 	case reDBDWord.MatchString(upper):
 		m := reDBDWord.FindStringSubmatch(upper)
-		if err := requireType(dt, "DBD", "dword", "dint", "real"); err != nil {
+		if err := requireType(dt, "DBD", s7DWordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaDB, atoi(m[1]), atoi(m[2]), wordLenFor(dt), dt), nil
+
+	case reDBLong.MatchString(upper):
+		// 8-byte wire access. Covers all 64-bit S7-1500 types: LREAL, LINT,
+		// ULINT, LWORD, LTIME, LTOD, LDT, and the BCD-packed DT.
+		m := reDBLong.FindStringSubmatch(upper)
+		if err := requireType(dt, "DBL", s7LongTypes...); err != nil {
+			return S7Item{}, err
+		}
+		return S7Item{
+			Area:     S7AreaDB,
+			WordLen:  S7WLByte,
+			DBNumber: atoi(m[1]),
+			Start:    atoi(m[2]),
+			Amount:   8,
+			DataType: dt,
+		}, nil
+
+	case reDBDTL.MatchString(upper):
+		// 12-byte structured DateTime. Only DTL has this exact width — the
+		// codec decodes the year(u16)+month+day+weekday+h+m+s+ns(u32) layout.
+		m := reDBDTL.FindStringSubmatch(upper)
+		if err := requireType(dt, "DTL", "dtl"); err != nil {
+			return S7Item{}, err
+		}
+		return S7Item{
+			Area:     S7AreaDB,
+			WordLen:  S7WLByte,
+			DBNumber: atoi(m[1]),
+			Start:    atoi(m[2]),
+			Amount:   12,
+			DataType: dt,
+		}, nil
 
 	case reDBString.MatchString(upper):
 		m := reDBString.FindStringSubmatch(upper)
@@ -174,6 +218,28 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 			StringMaxLen: maxLen,
 		}, nil
 
+	case reDBWString.MatchString(upper):
+		// WSTRING is the UCS-2 (16-bit char) wide string of S7-1500. Wire
+		// shape: [maxLen u16][actLen u16][char × maxLen × u16] = 4+2*maxLen B.
+		// Siemens caps maxLen at 16382 chars (32764 byte payload).
+		m := reDBWString.FindStringSubmatch(upper)
+		if err := requireType(dt, "WSTRING", "wstring"); err != nil {
+			return S7Item{}, err
+		}
+		maxLen := atoi(m[3])
+		if maxLen < 1 || maxLen > 16382 {
+			return S7Item{}, fmt.Errorf("WSTRING maxLen %d outside [1, 16382]", maxLen)
+		}
+		return S7Item{
+			Area:         S7AreaDB,
+			WordLen:      S7WLByte,
+			DBNumber:     atoi(m[1]),
+			Start:        atoi(m[2]),
+			Amount:       4 + maxLen*2,
+			DataType:     "wstring",
+			StringMaxLen: maxLen,
+		}, nil
+
 	// ── M (Merker / Flags) ──────────────────────────────────────────────
 	case reMBit.MatchString(upper):
 		m := reMBit.FindStringSubmatch(upper)
@@ -184,21 +250,21 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 
 	case reMByte.MatchString(upper):
 		m := reMByte.FindStringSubmatch(upper)
-		if err := requireType(dt, "MB", "byte", "char"); err != nil {
+		if err := requireType(dt, "MB", s7ByteTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaMK, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reMWord.MatchString(upper):
 		m := reMWord.FindStringSubmatch(upper)
-		if err := requireType(dt, "MW", "word", "int"); err != nil {
+		if err := requireType(dt, "MW", s7WordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaMK, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reMDWrd.MatchString(upper):
 		m := reMDWrd.FindStringSubmatch(upper)
-		if err := requireType(dt, "MD", "dword", "dint", "real"); err != nil {
+		if err := requireType(dt, "MD", s7DWordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaMK, 0, atoi(m[1]), wordLenFor(dt), dt), nil
@@ -213,21 +279,21 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 
 	case reIByte.MatchString(upper):
 		m := reIByte.FindStringSubmatch(upper)
-		if err := requireType(dt, "IB", "byte", "char"); err != nil {
+		if err := requireType(dt, "IB", s7ByteTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPE, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reIWord.MatchString(upper):
 		m := reIWord.FindStringSubmatch(upper)
-		if err := requireType(dt, "IW", "word", "int"); err != nil {
+		if err := requireType(dt, "IW", s7WordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPE, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reIDWrd.MatchString(upper):
 		m := reIDWrd.FindStringSubmatch(upper)
-		if err := requireType(dt, "ID", "dword", "dint", "real"); err != nil {
+		if err := requireType(dt, "ID", s7DWordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPE, 0, atoi(m[1]), wordLenFor(dt), dt), nil
@@ -242,21 +308,21 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 
 	case reQByte.MatchString(upper):
 		m := reQByte.FindStringSubmatch(upper)
-		if err := requireType(dt, "QB", "byte", "char"); err != nil {
+		if err := requireType(dt, "QB", s7ByteTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPA, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reQWord.MatchString(upper):
 		m := reQWord.FindStringSubmatch(upper)
-		if err := requireType(dt, "QW", "word", "int"); err != nil {
+		if err := requireType(dt, "QW", s7WordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPA, 0, atoi(m[1]), wordLenFor(dt), dt), nil
 
 	case reQDWrd.MatchString(upper):
 		m := reQDWrd.FindStringSubmatch(upper)
-		if err := requireType(dt, "QD", "dword", "dint", "real"); err != nil {
+		if err := requireType(dt, "QD", s7DWordTypes...); err != nil {
 			return S7Item{}, err
 		}
 		return mkScalarItem(S7AreaPA, 0, atoi(m[1]), wordLenFor(dt), dt), nil
@@ -302,7 +368,7 @@ func ParseS7Address(addr, dataType string) (S7Item, error) {
 			addr,
 		)
 	}
-	return S7Item{}, fmt.Errorf("address %q does not match any known S7 form (DB.<DBX|DBB|DBW|DBD|STRING>, M/MB/MW/MD, I/IB/IW/ID, Q/QB/QW/QD, C, T)", addr)
+	return S7Item{}, fmt.Errorf("address %q does not match any known S7 form (DB.<DBX|DBB|DBW|DBD|DBL|DTL|STRING|WSTRING>, M/MB/MW/MD, I/IB/IW/ID, Q/QB/QW/QD, C, T)", addr)
 }
 
 // ByteSize returns how many wire bytes one element of this item consumes.
@@ -339,19 +405,31 @@ func requireType(got, form string, allowed ...string) error {
 	return fmt.Errorf("address form %s requires one of dataType %v, got %q", form, allowed, got)
 }
 
+// Compatible-type sets per address form. Defined once so all four address-area
+// families (DB, M, I, Q) share the same dataType allow-list per width — the
+// wire layout is identical across areas, only the area code changes.
+var (
+	s7ByteTypes  = []string{"byte", "char", "sint", "usint"}
+	s7WordTypes  = []string{"word", "int", "uint", "wchar", "date"}
+	s7DWordTypes = []string{"dword", "dint", "udint", "real", "time", "tod"}
+	// 8-byte (DBL form). DTL stays out: it is 12 bytes and only addressable via
+	// the parser node / block reads.
+	s7LongTypes = []string{"lreal", "lint", "ulint", "lword", "ltime", "ltod", "ldt", "dt"}
+)
+
 // wordLenFor maps the user dataType to a wire WordLen for non-bit, non-string
-// items. Word/Int share WordLen (both 16-bit on the wire); DWord/DInt/Real
-// share WordLen (all 32-bit). The decode-side disambiguation lives in the
+// items. Width is shared across signed/unsigned and across "looks like an int"
+// vs. "looks like a duration" — the decode-side disambiguation lives in the
 // codec.
 func wordLenFor(dt string) int {
 	switch dt {
 	case "bool":
 		return S7WLBit
-	case "byte", "char":
+	case "byte", "char", "sint", "usint":
 		return S7WLByte
-	case "word", "int":
+	case "word", "int", "uint", "wchar", "date":
 		return S7WLWord
-	case "dword", "dint", "real":
+	case "dword", "dint", "udint", "real", "time", "tod":
 		return S7WLDWord
 	default:
 		return S7WLByte

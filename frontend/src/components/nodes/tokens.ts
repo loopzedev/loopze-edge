@@ -245,6 +245,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   'tcp-in':        'tcp',
   'udp-in':        'udp',
   'modbus-read':   'rust',
+  's7-read':       'rust',
   'file-in':       'input',
   'link-in':       'link',
   catch:           'error',
@@ -282,6 +283,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   'udp-out':       'udp',
   'modbus-write':  'rust',
   'modbus-parser': 'rust',
+  's7-write':      'rust',
+  's7-parser':     'rust',
   'file-out':      'output',
   'link-out':      'link',
 }

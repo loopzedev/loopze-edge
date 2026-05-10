@@ -608,6 +608,8 @@ func registerNodes(registry *flow.NodeRegistry) {
 	registry.Register("modbus-write", nodes.NewModbusWriteNode, nodes.ModbusWriteTypeInfo())
 	registry.Register("modbus-parser", nodes.NewModbusParserNode, nodes.ModbusParserTypeInfo())
 	registry.Register("s7-read", nodes.NewS7ReadNode, nodes.S7ReadTypeInfo())
+	registry.Register("s7-write", nodes.NewS7WriteNode, nodes.S7WriteTypeInfo())
+	registry.Register("s7-parser", nodes.NewS7ParserNode, nodes.S7ParserTypeInfo())
 	registry.Register("opcua-read", nodes.NewOpcuaReadNode, nodes.OpcuaReadTypeInfo())
 	registry.Register("opcua-write", nodes.NewOpcuaWriteNode, nodes.OpcuaWriteTypeInfo())
 	registry.Register("opcua-subscribe", nodes.NewOpcuaSubscribeNode, nodes.OpcuaSubscribeTypeInfo())

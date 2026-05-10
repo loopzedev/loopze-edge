@@ -44,6 +44,24 @@ func TestDecodeS7Scalar_RoundTrip(t *testing.T) {
 		{"real negative", "real", false, float32(-3.14)},
 		{"real small", "real", false, float32(1e-30)},
 		{"real large", "real", false, float32(1e30)},
+
+		// 64-bit S7-1500 types.
+		{"lreal zero", "lreal", false, float64(0)},
+		{"lreal one", "lreal", false, float64(1)},
+		{"lreal pi", "lreal", false, float64(3.141592653589793)},
+		{"lreal large", "lreal", false, float64(1e300)},
+		{"lreal small", "lreal", false, float64(1e-300)},
+		{"lreal negative", "lreal", false, float64(-2.718281828459045)},
+
+		{"lint zero", "lint", false, int64(0)},
+		{"lint positive", "lint", false, int64(9_000_000_000_000)},
+		{"lint negative", "lint", false, int64(-9_000_000_000_000)},
+		{"lint min", "lint", false, int64(-1) << 62}, // -4.6e18, well inside int64
+		{"lint max", "lint", false, (int64(1) << 62) - 1},
+
+		{"ulint zero", "ulint", false, uint64(0)},
+		{"ulint mid", "ulint", false, uint64(0xCAFEBABEDEADBEEF)},
+		{"ulint max", "ulint", false, ^uint64(0)},
 	}
 
 	for _, c := range cases {
@@ -315,6 +333,73 @@ func TestDecodeS7String_CorruptActLenClamps(t *testing.T) {
 	}
 }
 
+func TestS7WString_RoundTrip(t *testing.T) {
+	cases := []struct {
+		name   string
+		maxLen int
+		input  string
+		want   string
+	}{
+		{"ascii", 20, "LOOPZE-S7", "LOOPZE-S7"},
+		{"empty", 10, "", ""},
+		{"exact maxLen", 5, "HELLO", "HELLO"},
+		{"truncated", 5, "TOO LONG", "TOO L"},
+		{"single", 1, "X", "X"},
+		// BMP characters: umlauts and a Greek letter.
+		{"non-ascii BMP", 10, "Größe-π", "Größe-π"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := EncodeS7WString(c.maxLen, c.input)
+			if err != nil {
+				t.Fatalf("EncodeS7WString error: %v", err)
+			}
+			if len(b) != 4+c.maxLen*2 {
+				t.Errorf("encoded length %d, want %d", len(b), 4+c.maxLen*2)
+			}
+			got, err := DecodeS7WString(b)
+			if err != nil {
+				t.Fatalf("DecodeS7WString error: %v", err)
+			}
+			if got != c.want {
+				t.Errorf("round-trip got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestEncodeS7WString_InvalidMaxLen(t *testing.T) {
+	for _, maxLen := range []int{0, -1, 16383, 100000} {
+		_, err := EncodeS7WString(maxLen, "x")
+		if err == nil {
+			t.Errorf("EncodeS7WString(maxLen=%d, _) should error", maxLen)
+		}
+	}
+}
+
+func TestDecodeS7WString_ExplicitWire(t *testing.T) {
+	// Build the wire bytes for a 5-char WSTRING containing "Hi !".
+	// Layout: maxLen(u16) | actLen(u16) | char × 5 × u16
+	// For maxLen=5, actLen=4, chars [H, i, ' ', !]:
+	//   00 05 | 00 04 | 00 48 | 00 69 | 00 20 | 00 21 | 00 00 (zero-padded last)
+	wire := []byte{
+		0x00, 0x05, // maxLen = 5
+		0x00, 0x04, // actLen = 4
+		0x00, 'H',
+		0x00, 'i',
+		0x00, ' ',
+		0x00, '!',
+		0x00, 0x00, // unused slot zero-padded
+	}
+	got, err := DecodeS7WString(wire)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if got != "Hi !" {
+		t.Errorf("got %q, want %q", got, "Hi !")
+	}
+}
+
 func TestDecodeS7Scalar_Counter(t *testing.T) {
 	// S7 counter wire format is 2 bytes BCD with an asymmetric layout:
 	// low byte holds hundreds, high byte holds tens+units. For value 123:
@@ -389,12 +474,16 @@ func TestS7TypeWordLen(t *testing.T) {
 		{"byte", S7WLByte},
 		{"char", S7WLByte},
 		{"string", S7WLByte},
+		{"wstring", S7WLByte},
 		{"raw", S7WLByte},
 		{"word", S7WLWord},
 		{"int", S7WLWord},
 		{"dword", S7WLDWord},
 		{"dint", S7WLDWord},
 		{"real", S7WLDWord},
+		{"lreal", S7WLByte}, // 8-byte types ride on Byte+Amount=8
+		{"lint", S7WLByte},
+		{"ulint", S7WLByte},
 		{"counter", S7WLCounter},
 		{"timer", S7WLTimer},
 		{"unknown", S7WLByte}, // fallback so callers always get a non-zero
@@ -423,11 +512,17 @@ func TestS7TypeByteSize(t *testing.T) {
 		{"dword", 0, 4},
 		{"dint", 0, 4},
 		{"real", 0, 4},
+		{"lreal", 0, 8},
+		{"lint", 0, 8},
+		{"ulint", 0, 8},
 		{"counter", 0, 2},
 		{"timer", 0, 2},
-		{"string", 20, 22}, // [maxLen][actLen][20 chars]
+		{"string", 20, 22},   // [maxLen][actLen][20 chars]
 		{"string", 254, 256},
-		{"string", 0, 0}, // string with no maxLen returns 0 — caller responsibility
+		{"string", 0, 0},     // string with no maxLen returns 0 — caller responsibility
+		{"wstring", 20, 44},  // 4-byte header + 20*2 chars
+		{"wstring", 100, 204},
+		{"wstring", 0, 0},
 		{"raw", 100, 100},
 		{"unknown", 5, 0},
 	}
@@ -435,6 +530,226 @@ func TestS7TypeByteSize(t *testing.T) {
 		t.Run(c.typ, func(t *testing.T) {
 			if got := S7TypeByteSize(c.typ, c.length); got != c.want {
 				t.Errorf("S7TypeByteSize(%q, %d) = %d, want %d", c.typ, c.length, got, c.want)
+			}
+		})
+	}
+}
+
+// TestDecodeS7Scalar_NewTypes covers the TIA datatypes added beyond the
+// original LREAL/LINT/ULINT set: integer aliases, durations, and date/time.
+// Round-trips that survive Encode → Decode use the inputs the user actually
+// supplies (strings for date/dt/ldt/dtl/wchar, ints for time/tod/etc.).
+func TestDecodeS7Scalar_NewTypes_RoundTrip(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  string
+		val  any
+		want any // optional override when round-trip type differs from input
+	}{
+		{"sint positive", "sint", int8(100), nil},
+		{"sint negative", "sint", int8(-50), nil},
+		{"sint min", "sint", int8(-128), nil},
+		{"usint zero", "usint", uint8(0), nil},
+		{"usint max", "usint", uint8(255), nil},
+		{"uint zero", "uint", uint16(0), nil},
+		{"uint mid", "uint", uint16(50_000), nil},
+		{"uint max", "uint", uint16(65_535), nil},
+		{"udint zero", "udint", uint32(0), nil},
+		{"udint mid", "udint", uint32(4_000_000_000), nil},
+		{"udint max", "udint", uint32(0xFFFFFFFF), nil},
+		{"lword zero", "lword", uint64(0), nil},
+		{"lword mid", "lword", uint64(0xFEEDFACECAFEBEEF), nil},
+		{"lword max", "lword", ^uint64(0), nil},
+
+		// Time scalars surface as int / int64.
+		{"time positive", "time", 93_784_567, nil},
+		{"time negative", "time", -1_000_000, nil},
+		{"tod midday", "tod", 45_296_789, nil},
+		{"tod zero", "tod", 0, nil},
+		{"ltime ns", "ltime", int64(123_456_789_012_345), nil},
+		{"ltime negative", "ltime", int64(-1_000_000_000), nil},
+		{"ltod ns", "ltod", uint64(45_296_123_456_789), nil},
+
+		// Char-based types decode back as 1-character strings.
+		{"wchar ascii", "wchar", "A", nil},
+		{"wchar greek", "wchar", "Ω", nil},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := EncodeS7Scalar(c.typ, false, c.val)
+			if err != nil {
+				t.Fatalf("EncodeS7Scalar(%s, %v) error: %v", c.typ, c.val, err)
+			}
+			got, err := DecodeS7Scalar(c.typ, false, b)
+			if err != nil {
+				t.Fatalf("DecodeS7Scalar(%s, %v) error: %v", c.typ, b, err)
+			}
+			want := c.want
+			if want == nil {
+				want = c.val
+			}
+			if got != want {
+				t.Errorf("round-trip %s: got %v (%T), want %v (%T)", c.typ, got, got, want, want)
+			}
+		})
+	}
+}
+
+// TestDecodeS7Scalar_DateTimeRoundTrip checks the string-shaped time types.
+// Encode accepts an ISO date / RFC3339 timestamp; decode returns the
+// canonical representation that may differ in formatting (e.g. always UTC).
+func TestDecodeS7Scalar_DateTimeRoundTrip(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  string
+		in   string
+		want string
+	}{
+		{"date", "date", "2026-05-10", "2026-05-10"},
+		{"date epoch", "date", "1990-01-01", "1990-01-01"},
+		{"dt midday", "dt", "2026-05-10T12:34:56.789Z", "2026-05-10T12:34:56.789Z"},
+		{"ldt nanos", "ldt", "2026-05-10T12:34:56.123456789Z", "2026-05-10T12:34:56.123456789Z"},
+		{"dtl nanos", "dtl", "2026-05-10T12:34:56.123456789Z", "2026-05-10T12:34:56.123456789Z"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := EncodeS7Scalar(c.typ, false, c.in)
+			if err != nil {
+				t.Fatalf("EncodeS7Scalar(%s, %q) error: %v", c.typ, c.in, err)
+			}
+			got, err := DecodeS7Scalar(c.typ, false, b)
+			if err != nil {
+				t.Fatalf("DecodeS7Scalar(%s) error: %v", c.typ, err)
+			}
+			if got != c.want {
+				t.Errorf("round-trip %s: got %v, want %v", c.typ, got, c.want)
+			}
+		})
+	}
+}
+
+// TestEncodeS7Scalar_NewTypes_OutOfRange exercises the per-type range checks
+// the encoders apply before writing to the wire.
+func TestEncodeS7Scalar_NewTypes_OutOfRange(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  string
+		val  any
+		hint string
+	}{
+		{"sint underflow", "sint", -129, "out of range"},
+		{"sint overflow", "sint", 128, "out of range"},
+		{"usint negative", "usint", -1, "out of range"},
+		{"usint overflow", "usint", 256, "out of range"},
+		{"uint negative", "uint", -1, "out of range"},
+		{"uint overflow", "uint", 65536, "out of range"},
+		{"udint negative", "udint", -1, "out of range"},
+		{"udint overflow", "udint", int64(1) << 32, "out of range"},
+		{"time overflow", "time", int64(1) << 31, "out of int32"},
+		{"tod negative", "tod", -1, "out of uint32"},
+		{"lword negative", "lword", -1, "is negative"},
+		{"ltod negative", "ltod", -1, "is negative"},
+		{"wchar empty", "wchar", "", "empty"},
+		{"wchar multi", "wchar", "AB", "exactly 1"},
+		{"date bad string", "date", "not-a-date", "expected YYYY-MM-DD"},
+		{"ldt bad string", "ldt", "not-a-timestamp", "expected RFC3339"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := EncodeS7Scalar(c.typ, false, c.val)
+			if err == nil {
+				t.Fatalf("EncodeS7Scalar(%s, %v) succeeded; expected error containing %q", c.typ, c.val, c.hint)
+			}
+			if !strings.Contains(err.Error(), c.hint) {
+				t.Errorf("error %q does not contain %q", err.Error(), c.hint)
+			}
+		})
+	}
+}
+
+// TestDecodeS7Scalar_DTExplicitWire verifies the BCD layout of DT against a
+// hand-computed sample. The PLC ships these bytes; we must decode them
+// back to the documented timestamp.
+func TestDecodeS7Scalar_DTExplicitWire(t *testing.T) {
+	// 2026-05-10 12:34:56.789, weekday Sunday (1).
+	// BCD: yy=26 → 0x26, month=05 → 0x05, day=10 → 0x10,
+	//      hour=12 → 0x12, min=34 → 0x34, sec=56 → 0x56,
+	//      ms_high=78 → 0x78, ms_low_nibble=9, weekday=1 → 0x91
+	wire := []byte{0x26, 0x05, 0x10, 0x12, 0x34, 0x56, 0x78, 0x91}
+	got, err := DecodeS7Scalar("dt", false, wire)
+	if err != nil {
+		t.Fatalf("DecodeS7Scalar(dt) error: %v", err)
+	}
+	want := "2026-05-10T12:34:56.789Z"
+	if got != want {
+		t.Errorf("DT decode: got %v, want %v", got, want)
+	}
+}
+
+// TestDecodeS7Scalar_DTLExplicitWire mirrors the DT test for the structured
+// 12-byte DTL layout.
+func TestDecodeS7Scalar_DTLExplicitWire(t *testing.T) {
+	// 2026-05-10 12:34:56.123_456_789, year 2026 (BE u16 = 0x07EA),
+	// month 5, day 10, weekday 1 (Sunday), hour 12, min 34, sec 56,
+	// ns = 123_456_789 → 0x075BCD15
+	wire := []byte{
+		0x07, 0xEA, // year
+		0x05,       // month
+		0x0A,       // day
+		0x01,       // weekday
+		0x0C,       // hour
+		0x22,       // min
+		0x38,       // sec
+		0x07, 0x5B, 0xCD, 0x15, // ns
+	}
+	got, err := DecodeS7Scalar("dtl", false, wire)
+	if err != nil {
+		t.Fatalf("DecodeS7Scalar(dtl) error: %v", err)
+	}
+	want := "2026-05-10T12:34:56.123456789Z"
+	if got != want {
+		t.Errorf("DTL decode: got %v, want %v", got, want)
+	}
+}
+
+// TestS7TypeWordLen_NewTypes makes sure the new aliases land in the right
+// wire-length bucket. Drift here cascades into AGReadMulti misreads.
+func TestS7TypeWordLen_NewTypes(t *testing.T) {
+	cases := []struct {
+		typ  string
+		want int
+	}{
+		{"sint", S7WLByte}, {"usint", S7WLByte},
+		{"uint", S7WLWord}, {"wchar", S7WLWord}, {"date", S7WLWord},
+		{"udint", S7WLDWord}, {"time", S7WLDWord}, {"tod", S7WLDWord},
+		{"lword", S7WLByte}, {"ltime", S7WLByte}, {"ltod", S7WLByte},
+		{"ldt", S7WLByte}, {"dt", S7WLByte}, {"dtl", S7WLByte},
+	}
+	for _, c := range cases {
+		t.Run(c.typ, func(t *testing.T) {
+			if got := S7TypeWordLen(c.typ); got != c.want {
+				t.Errorf("S7TypeWordLen(%q) = 0x%02x, want 0x%02x", c.typ, got, c.want)
+			}
+		})
+	}
+}
+
+func TestS7TypeByteSize_NewTypes(t *testing.T) {
+	cases := []struct {
+		typ  string
+		want int
+	}{
+		{"sint", 1}, {"usint", 1},
+		{"uint", 2}, {"wchar", 2}, {"date", 2},
+		{"udint", 4}, {"time", 4}, {"tod", 4},
+		{"lword", 8}, {"ltime", 8}, {"ltod", 8}, {"ldt", 8}, {"dt", 8},
+		{"dtl", 12},
+	}
+	for _, c := range cases {
+		t.Run(c.typ, func(t *testing.T) {
+			if got := S7TypeByteSize(c.typ, 0); got != c.want {
+				t.Errorf("S7TypeByteSize(%q, 0) = %d, want %d", c.typ, got, c.want)
 			}
 		})
 	}

@@ -428,6 +428,176 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     ],
   },
 
+  's7-plc': {
+    overview:
+      'Connection-config node for a SIEMENS S7 PLC over RFC1006/ISO-on-TCP (port 102). Holds host/port/rack/slot, manages the gos7 client lifecycle, exposes the negotiated PDU size and reconnect state to read/write nodes that reference this PLC, and offers a Test Connection endpoint for round-trip verification.',
+    properties: [
+      { key: 'name',           desc: 'Display name (used in topics like s7/<name> and as the PLC label in dropdowns).' },
+      { key: 'host',           desc: 'PLC IP address or hostname.' },
+      { key: 'port',           desc: 'TCP port. Default 102 (ISO-on-TCP). The demo PLC uses 1102 to avoid sudo.' },
+      { key: 'connectionType', desc: 'CPU family preset: S7-1200/1500 (rack 0, slot 1), S7-300/400 (rack 0, slot 2), LOGO!/S7-200 Smart, or Custom (manual rack/slot).' },
+      { key: 'rack / slot',    desc: 'Custom-mode only. Auto-derived for the other presets.' },
+      { key: 'timeout',        desc: 'Connect/read/write timeout in milliseconds. Defaults to 5000 ms.' },
+      { key: 'reconnectDelay', desc: 'Backoff between reconnect attempts after the link drops.' },
+    ],
+    tips: [
+      'For S7-1200/1500: in TIA Portal you must un-tick "Optimized block access" on each DB you want to address with classical wire forms (DB10.DBD0, …) — Optimized DBs are only reachable via OPC UA.',
+      '"Test Connection" sends a Connect + GetCpuInfo round-trip and surfaces the PLC firmware/order-code so you can confirm the right CPU is reachable.',
+      'Multiple read/write nodes can share one PLC config — the underlying client is pooled and serialised per connection (matching real S7 PLCs).',
+      'PLC connection status is propagated to every referencing node\'s status pill (green = connected, red = link down with reason).',
+    ],
+  },
+
+  's7-read': {
+    overview:
+      'Reads variables from a SIEMENS S7 PLC. Three modes: Static (cyclic poll of a fixed list), Dynamic (read on every input message — list comes from the message, falls back to the configured list), Block (raw byte fetch from a contiguous area, typically piped into an s7-parser).',
+    inputs: [
+      '(Dynamic mode) Any message triggers a read. Override the list per message via msg.variables = [{name?, address, dataType}] or use the convenience form msg.address + msg.dataType for a single read.',
+      '(Block mode + triggerOnInput) Any message forces an extra read on top of the cyclic poll. Override the area/db/start/length per message via msg.s7.{area,db,start,length}.',
+    ],
+    outputs: [
+      'Variables modes: msg.payload shape depends on Output shape (single = bare value, array = per-variable list, object = name-keyed map). msg.s7 carries the per-variable metadata (address, dataType, value or error).',
+      'Block mode: msg.payload = []int (byte array as numbers, JSON-friendly). msg.s7 carries the area/db/start/length descriptor. Pipe into s7-parser to decode.',
+    ],
+    properties: [
+      { key: 'plc',           desc: 'Reference to an s7-plc config node.' },
+      { key: 'mode',          desc: 'static (poll) | dynamic (msg-triggered) | block (raw bytes).' },
+      { key: 'variables',     desc: 'List of {name, address, dataType, scale?, offset?} entries. Required for static, optional for dynamic (used as fallback).' },
+      { key: 'block',         desc: 'Block-mode descriptor: { area: DB|M|I|Q, db?, start, length, triggerOnInput? }. Length is capped by the negotiated PDU; oversized blocks are auto-split.' },
+      { key: 'outputShape',   desc: 'Variables-mode output: single (1 var only) | array | object. Defaults: single for 1 var, object for 2+.' },
+      { key: 'pollInterval',  desc: 'Static/block mode polling period in ms. Default 1000.' },
+      { key: 'emitOnChange',  desc: 'Suppress duplicate emits when the read result is unchanged.' },
+      { key: 'emitOnError',   desc: 'Emit a separate error message on read failure (in addition to routing to a Catch node).' },
+      { key: 'topicTemplate', desc: 'Optional topic format. Placeholders: <plc-name>, <address>, <name>, <area>, <db>, <start>, <length>.' },
+    ],
+    examples: [
+      {
+        title: 'Cyclic poll, single value',
+        config: 'mode=static · variables=[{name:"Temp", address:"DB1.DBD0", dataType:"real"}] · pollInterval=1000',
+        result: 'Emits msg.payload = <float> every second.',
+      },
+      {
+        title: 'Multi-variable object read',
+        config: 'mode=static · 3 variables · outputShape=object',
+        result: 'msg.payload = { Temp: 21.3, Pressure: 1.02, Tick: 1234 } per poll.',
+      },
+      {
+        title: 'On-demand single read via dynamic mode',
+        config: 'mode=dynamic · upstream sends {address:"DB10.DBD0", dataType:"real"}',
+        result: 'Each trigger reads the requested address and emits the decoded value.',
+      },
+      {
+        title: 'Block read for parser pipeline',
+        config: 'mode=block · area=DB · db=3 · start=0 · length=600',
+        result: 'Emits msg.payload = []int (600 bytes), auto-split across PDUs. Pipe into s7-parser with a layout to decode fields.',
+      },
+    ],
+    tips: [
+      'Address forms: DB.<DBX|DBB|DBW|DBD|DBL|DTL|STRING|WSTRING>, M/MB/MW/MD, I/IB/IW/ID, Q/QB/QW/QD, C, T. The spec at specifications/issues/NODE_S7.md has the full table.',
+      'Multi-variable reads use a single AGReadMulti round-trip when they fit the negotiated PDU (typically 462 bytes payload at PDU=480) — much cheaper than N separate reads.',
+      'Per-variable scaling: value = raw × scale + offset. Skipped automatically for string/raw/date/dt/dtl/wchar/counter/timer (no numeric meaning).',
+      '64-bit types (LREAL, LINT, ULINT, LWORD, LTIME, LTOD, LDT, DT) use the LOOPZE-coined DBL form (e.g. DB10.DBL16 for 8-byte access). DTL has its own DTL form (12 bytes).',
+      'Block mode emits []int (not []byte) so the Debug panel shows decimal bytes instead of base64 — the s7-parser accepts both forms.',
+    ],
+  },
+
+  's7-write': {
+    overview:
+      'Writes variables to a SIEMENS S7 PLC. Three modes: Static (fixed list, values from baked-in config or msg fields), Dynamic (variable list comes from the message — sidebar list is ignored), Block (raw bytes from msg.payload sent in one AGWriteArea call).',
+    inputs: [
+      'Static mode: triggers one write of the configured list. Per-variable values come from valueSource: static value baked into config, or msg.<valuePath>.',
+      'Dynamic mode: msg.variables = [{address, dataType, value}] for the full form, or msg.address + msg.dataType + msg.payload for a single write. The configured sidebar list is NOT used.',
+      'Block mode: msg.<inputProperty> (default payload) carries the byte slice. Override target via msg.s7.{area,db,start} per message.',
+    ],
+    outputs: [
+      'Default: silent (no output). Enable Emit ACK or Pass-through on the Output panel to surface results.',
+      'Emit ACK: a fresh message with msg.payload = allOk (boolean) and msg.s7Write = { plc, results: [{address, dataType, ok, error?}], allOk }.',
+      'Pass-through: the input message is forwarded unchanged with msg.s7Write enriched.',
+    ],
+    properties: [
+      { key: 'plc',          desc: 'Reference to an s7-plc config node.' },
+      { key: 'mode',         desc: 'static | dynamic | block.' },
+      { key: 'variables',    desc: 'Static-mode list: [{address, dataType, valueSource: "static"|"msg", value? | valuePath?, scale?, offset?}]. Hidden in dynamic mode (the runtime ignores it there).' },
+      { key: 'block',        desc: 'Block-mode descriptor: { area, db?, start, length?, inputProperty? }. length=0 means use the incoming buffer length.' },
+      { key: 'emitAck',      desc: 'Emit a fresh ACK message after every write attempt. Mutually exclusive with passthrough.' },
+      { key: 'passthrough',  desc: 'Forward the input message with msg.s7Write metadata added. Mutually exclusive with emitAck.' },
+    ],
+    examples: [
+      {
+        title: 'Static write, value from message',
+        config: 'mode=static · variables=[{address:"DB100.DBW12", dataType:"int", valueSource:"msg", valuePath:"payload.setpoint"}]',
+        result: 'Writes msg.payload.setpoint as a 16-bit signed int to DB100.DBW12 on every input.',
+      },
+      {
+        title: 'Static write, baked-in value',
+        config: 'mode=static · variables=[{address:"M0.0", dataType:"bool", valueSource:"static", value:true}]',
+        result: 'Sets the bit on every input message — useful as an "arm" command on a trigger.',
+      },
+      {
+        title: 'Dynamic single write (convenience form)',
+        config: 'mode=dynamic · upstream sends {address:"DB100.DBW12", dataType:"int", payload:1500}',
+        result: 'Writes 1500 to the address provided in the message. No sidebar config needed.',
+      },
+      {
+        title: 'Block write of pre-encoded bytes',
+        config: 'mode=block · area=DB · db=1 · start=12 · upstream sends msg.payload=[]int',
+        result: 'Sends the byte slice in one AGWriteArea call (auto-split on PDU). Pair with s7-parser action=encode upstream to build the buffer.',
+      },
+    ],
+    tips: [
+      'Per-variable encoding errors (out-of-range, type mismatch) land in msg.s7Write.results[i].error — the surviving items still get written. Whole-transaction failures (transport, lost connection) escalate to a catchable error and no ACK.',
+      'Counters and Timers are NOT writable — Siemens treats them as CPU-internal state. The encoder rejects with a clear message so misuse is obvious.',
+      'Date / DT / LDT / DTL accept RFC3339 strings (e.g. "2026-05-10T12:34:56Z"); DATE additionally accepts ISO date strings ("2026-05-10").',
+      'Block mode on area=I (Inputs / PE) is rejected — inputs are read-only on the wire.',
+      'Use Static mode with valueSource="msg" when you have a fixed address but the value flows through messages (the most common pattern). Dynamic mode is for cases where the address itself varies per message.',
+    ],
+  },
+
+  's7-parser': {
+    overview:
+      'Parses raw S7 byte blocks into structured objects (parse direction) or builds raw byte blocks from objects (encode direction). The layout is configured declaratively as a list of fields and is shared by both directions — pair it with s7-read block mode (parse) or s7-write block mode (encode).',
+    inputs: [
+      'Parse direction: msg.<parseFrom> (default payload) carries the byte block — accepts []byte, []int, or []any with numeric elements. Typical upstream is s7-read in block mode.',
+      'Encode direction: msg.<encodeFrom> (default payload) carries an object whose keys match the layout field names. Missing keys are emitted as zero bytes (sparse-zero semantics).',
+    ],
+    outputs: [
+      'Parse direction: msg.payload = { fieldName: value, … } based on the layout. With preserveBytes enabled the raw bytes are forwarded as msg.bytes ([]int).',
+      'Encode direction: msg.payload = []int (the wire bytes) and msg.bytes mirrors the same value. Pipe directly into s7-write block mode.',
+    ],
+    properties: [
+      { key: 'action',        desc: 'auto (sniff input shape) | parse (force decode) | encode (force build). Auto: object input → encode; everything else → parse.' },
+      { key: 'parseFrom',     desc: 'Message field carrying the byte block on parse. Default payload.' },
+      { key: 'encodeFrom',    desc: 'Message field carrying the object on encode. Default payload.' },
+      { key: 'blockLength',   desc: 'Fixed output buffer size in bytes (0 = derive from layout extent). Larger than the layout pads with zeros; smaller than required is rejected at deploy.' },
+      { key: 'preserveBytes', desc: 'Parse only — also forward the raw bytes as msg.bytes ([]int).' },
+      { key: 'layout',        desc: 'Ordered list of {name, offset, type, length?, signed?, scale?, valueOffset?, unit?}. Offsets are buffer-relative (0-based), independent of the PLC byte address.' },
+    ],
+    examples: [
+      {
+        title: 'Decode a sensor block from s7-read',
+        config: 'layout=[{name:"temp", offset:0, type:"real"}, {name:"pressure", offset:4, type:"real"}, {name:"setpoint", offset:8, type:"int"}, {name:"running", offset:10.0, type:"bool"}]',
+        result: 'Parses 11 raw bytes into { temp, pressure, setpoint, running }.',
+      },
+      {
+        title: 'Build a write buffer for s7-write block mode',
+        config: 'action=encode · same layout · upstream sends payload={temp: 21.5, pressure: 1.02, setpoint: 200, running: true}',
+        result: 'Emits msg.payload = []int (wire bytes). Pipe into s7-write with block.start matching the layout\'s zero offset.',
+      },
+      {
+        title: 'Pack BOOL status word',
+        config: 'layout=[{name:"alarm", offset:"0.0", type:"bool"}, {name:"warn", offset:"0.1", type:"bool"}, {name:"running", offset:"0.7", type:"bool"}]',
+        result: 'Multiple BOOLs sharing one host byte are OR-aggregated on encode.',
+      },
+    ],
+    tips: [
+      'Field offsets are buffer-relative — a layout starting at offset 0 is portable across DBs. The s7-write block.start positions the buffer at the right PLC byte.',
+      'BOOL offsets use the dotted "byte.bit" form (e.g. "12.3" = byte 12 bit 3); other types take a plain integer.',
+      'Auto mode dispatches based on input shape — same node serves both directions. Use parse / encode to force one path when the input shape is ambiguous.',
+      'Scaling (scale / valueOffset) applies to numeric scalars only. String/raw/date/dt/dtl/wchar/counter/timer fields skip it.',
+      'Sparse-zero on encode: missing keys leave their byte range at zero. Useful when only some fields of a larger DB layout are mutating.',
+    ],
+  },
+
   statemachine: {
     overview:
       'Drives a finite state machine. Each incoming message is treated as an event; the machine consumes it, optionally runs guards/actions, and transitions to a new state. Supports delayed transitions.',

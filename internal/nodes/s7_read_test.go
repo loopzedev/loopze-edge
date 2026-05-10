@@ -30,11 +30,79 @@ func TestS7Read_InitRejectsInvalidMode(t *testing.T) {
 	}
 }
 
-func TestS7Read_InitRejectsBlockMode(t *testing.T) {
-	// PR-4 supports static + dynamic only; block mode is PR-6.
+func TestS7Read_InitBlockMode_RequiresBlockConfig(t *testing.T) {
 	n := newS7ReadNode(t, map[string]any{"plc": "p1", "mode": "block"})
 	if err := n.Init(); err == nil {
-		t.Fatal("Init should reject block mode in PR-4")
+		t.Fatal("Init should reject block mode without `block` config")
+	}
+}
+
+func TestS7Read_InitBlockMode_RequiresValidLength(t *testing.T) {
+	n := newS7ReadNode(t, map[string]any{
+		"plc": "p1", "mode": "block",
+		"block": map[string]any{"area": "DB", "db": 1, "start": 0, "length": 0},
+	})
+	if err := n.Init(); err == nil {
+		t.Fatal("Init should reject block.length=0")
+	}
+}
+
+func TestS7Read_InitBlockMode_IgnoresOutputShape(t *testing.T) {
+	// A stale `outputShape` left over from a previous static/dynamic config
+	// must not block a switch to block mode — the UI hides the dropdown so
+	// the user has no way to clear it. Init silently ignores it instead.
+	n := newS7ReadNode(t, map[string]any{
+		"plc": "p1", "mode": "block",
+		"block":       map[string]any{"area": "DB", "db": 1, "start": 0, "length": 4},
+		"outputShape": "object",
+	})
+	if err := n.Init(); err != nil {
+		t.Errorf("Init should ignore stale outputShape in block mode, got %v", err)
+	}
+}
+
+func TestS7Read_InitBlockMode_DBRequiresDBNumber(t *testing.T) {
+	n := newS7ReadNode(t, map[string]any{
+		"plc": "p1", "mode": "block",
+		"block": map[string]any{"area": "DB", "start": 0, "length": 4},
+	})
+	if err := n.Init(); err == nil {
+		t.Fatal("Init should reject block.area=DB without db>0")
+	}
+}
+
+func TestS7Read_InitBlockMode_AcceptsM(t *testing.T) {
+	n := newS7ReadNode(t, map[string]any{
+		"plc": "p1", "mode": "block",
+		"block": map[string]any{"area": "M", "start": 0, "length": 16},
+	})
+	if err := n.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if n.block.Area != S7AreaMK {
+		t.Errorf("Area: got 0x%02x, want S7AreaMK (0x%02x)", n.block.Area, S7AreaMK)
+	}
+}
+
+func TestParseS7AreaName(t *testing.T) {
+	cases := map[string]int{
+		"DB": S7AreaDB, "db": S7AreaDB, "  DB ": S7AreaDB,
+		"M": S7AreaMK, "MK": S7AreaMK,
+		"I": S7AreaPE, "PE": S7AreaPE,
+		"Q": S7AreaPA, "PA": S7AreaPA,
+	}
+	for name, want := range cases {
+		got, err := parseS7AreaName(name)
+		if err != nil {
+			t.Errorf("parseS7AreaName(%q): %v", name, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("parseS7AreaName(%q): got 0x%02x, want 0x%02x", name, got, want)
+		}
+	}
+	if _, err := parseS7AreaName("Z"); err == nil {
+		t.Error("parseS7AreaName(\"Z\") should error")
 	}
 }
 
@@ -539,6 +607,185 @@ func TestS7Read_EmitOnChangeSuppresses_Demo(t *testing.T) {
 	h.start(t)
 	_ = h.waitForMessage(t, 2*time.Second)
 	time.Sleep(600 * time.Millisecond) // ~4 polls
+	got, _ := h.snapshot()
+	if len(got) > 1 {
+		t.Errorf("emitOnChange should suppress unchanged repeats; got %d messages", len(got))
+	}
+}
+
+// ─── Block-mode integration tests ─────────────────────────────────────────
+
+func TestS7Read_BlockStatic_DB1_Demo(t *testing.T) {
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(200),
+		"block": map[string]any{
+			"area": "DB", "db": 1, "start": 0, "length": 200,
+		},
+	})
+	h.start(t)
+	msg := h.waitForMessage(t, 2*time.Second)
+
+	data, ok := msg.Payload().([]int)
+	if !ok {
+		t.Fatalf("payload type: got %T, want []int (JSON-friendly byte representation)", msg.Payload())
+	}
+	if len(data) != 200 {
+		t.Errorf("payload length: got %d, want 200", len(data))
+	}
+	// DB1.STRING50.20 carries "LOOPZE-S7-DEMO" — verify the header bytes
+	// landed where we expect.
+	chars := make([]byte, 14)
+	for i := 0; i < 14; i++ {
+		chars[i] = byte(data[52+i])
+	}
+	if data[50] != 20 || data[51] != 14 || string(chars) != "LOOPZE-S7-DEMO" {
+		t.Errorf("DB1[50..66] string header garbled: maxLen=%d actLen=%d chars=%q", data[50], data[51], string(chars))
+	}
+
+	meta, _ := msg.Get("s7").(map[string]any)
+	if meta["area"] != "DB" || meta["db"] != 1 {
+		t.Errorf("metadata: got area=%v db=%v, want DB / 1", meta["area"], meta["db"])
+	}
+}
+
+func TestS7Read_BlockOversized_DB2_Ramp_Demo(t *testing.T) {
+	// DB2 is 600 bytes filled with `buf[i] = i & 0xFF`. The PDU is 480 bytes
+	// → AGReadDB internally splits into ≥2 chunks. We verify byte-perfect
+	// concatenation across the chunk boundary by checking every byte against
+	// the ramp pattern.
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(200),
+		"block": map[string]any{
+			"area": "DB", "db": 2, "start": 0, "length": 600,
+		},
+	})
+	h.start(t)
+	msg := h.waitForMessage(t, 3*time.Second)
+
+	data := msg.Payload().([]int)
+	if len(data) != 600 {
+		t.Fatalf("payload length: got %d, want 600", len(data))
+	}
+	for i, b := range data {
+		want := i & 0xFF
+		if b != want {
+			t.Fatalf("byte %d: got 0x%02x, want 0x%02x (ramp byte i&0xFF = %d)", i, b, want, want)
+		}
+	}
+}
+
+func TestS7Read_BlockTriggerOnInput_Demo(t *testing.T) {
+	// triggerOnInput=true with a slow poll: a HandleMessage call should
+	// produce an extra read on top of the cyclic poll. We use a long poll
+	// interval to make sure the message we observe is from the input, not
+	// the cyclic tick.
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(60000), // effectively never within the test window
+		"block": map[string]any{
+			"area": "DB", "db": 1, "start": 0, "length": 4,
+			"triggerOnInput": true,
+		},
+	})
+	h.start(t)
+
+	// First message comes from the immediate-on-startup tick. Wait for it
+	// then clear the buffer.
+	_ = h.waitForMessage(t, 2*time.Second)
+	h.mu.Lock()
+	h.sent = nil
+	h.mu.Unlock()
+
+	// HandleMessage should produce another read.
+	out, err := h.node.HandleMessage(flow.NewMessage())
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	if len(out) == 0 || len(out[0]) == 0 {
+		t.Fatal("triggerOnInput should produce output for an input message")
+	}
+	if data, _ := out[0][0].Payload().([]int); len(data) != 4 {
+		t.Errorf("payload length: got %d, want 4", len(data))
+	}
+}
+
+func TestS7Read_BlockNoTriggerIgnoresInput_Demo(t *testing.T) {
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(60000),
+		"block": map[string]any{
+			"area": "DB", "db": 1, "start": 0, "length": 4,
+			// triggerOnInput defaults to false
+		},
+	})
+	h.start(t)
+	_ = h.waitForMessage(t, 2*time.Second) // immediate tick
+	out, err := h.node.HandleMessage(flow.NewMessage())
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("triggerOnInput=false should ignore inputs; got %d ports", len(out))
+	}
+}
+
+func TestS7Read_BlockDynamicOverride_Demo(t *testing.T) {
+	// Configure DB1 / start=0 / length=4, then override via msg.s7 to read
+	// DB2 / start=10 / length=8. Verify the override is honoured by checking
+	// the ramp bytes at the offset.
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(60000),
+		"block": map[string]any{
+			"area": "DB", "db": 1, "start": 0, "length": 4,
+			"triggerOnInput": true,
+		},
+	})
+	h.start(t)
+	_ = h.waitForMessage(t, 2*time.Second) // drain the immediate tick
+
+	in := flow.NewMessage()
+	in.Set("s7", map[string]any{
+		"area": "DB", "db": 2, "start": 10, "length": 8,
+	})
+	out, err := h.node.HandleMessage(in)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	data, _ := out[0][0].Payload().([]int)
+	if len(data) != 8 {
+		t.Fatalf("payload length: got %d, want 8 (override length)", len(data))
+	}
+	for i, b := range data {
+		want := (10 + i) & 0xFF
+		if b != want {
+			t.Errorf("byte %d: got 0x%02x, want 0x%02x", i, b, want)
+		}
+	}
+	// Metadata should reflect the override.
+	meta, _ := out[0][0].Get("s7").(map[string]any)
+	if meta["db"] != 2 {
+		t.Errorf("metadata.db: got %v, want 2", meta["db"])
+	}
+}
+
+func TestS7Read_BlockEmitOnChange_Demo(t *testing.T) {
+	// DB1 bytes 60..70 are the trailing zero-padding of the STRING — they
+	// don't change. With emitOnChange we expect at most one message after
+	// the initial tick.
+	h := newS7ReadHarness(t, map[string]any{
+		"mode":         "block",
+		"pollInterval": float64(150),
+		"emitOnChange": true,
+		"block": map[string]any{
+			"area": "DB", "db": 1, "start": 60, "length": 10,
+		},
+	})
+	h.start(t)
+	_ = h.waitForMessage(t, 2*time.Second)
+	time.Sleep(600 * time.Millisecond)
 	got, _ := h.snapshot()
 	if len(got) > 1 {
 		t.Errorf("emitOnChange should suppress unchanged repeats; got %d messages", len(got))

@@ -17,7 +17,7 @@ Two new node types (`s7-read` and `s7-write`) enable reading from and writing to
 
 The **PLC manager** transparently auto-coalesces nearby individual variables in *variables* mode into a single block read where it can — see [Out of Scope](#out-of-scope) for the planned Phase 3 implementation.
 
-**Scope**: S7 over RFC1006 (ISO-on-TCP, port 102) for S7-300 / S7-400 / S7-1200 / S7-1500. LOGO! (TSAP-based) is supported via an explicit `connection=logo` toggle with manual TSAP fields. S7 Optimized DBs (`Optimized block access` checkbox in TIA Portal, only on 1200/1500) are **not** addressable via the S7 protocol — those DBs require OPC UA. The user must un-tick "Optimized" on DBs they want to access from LOOPZE; this is documented prominently. Supported areas: **DB**, **M (Merker / Flags)**, **I (Inputs / PE)**, **Q (Outputs / PA)**, **C (Counters)**, **T (Timers)**. Common data types: BOOL, BYTE, WORD, DWORD, INT, DINT, REAL, STRING.
+**Scope**: S7 over RFC1006 (ISO-on-TCP, port 102) for S7-300 / S7-400 / S7-1200 / S7-1500. LOGO! (TSAP-based) is supported via an explicit `connection=logo` toggle with manual TSAP fields. S7 Optimized DBs (`Optimized block access` checkbox in TIA Portal, only on 1200/1500) are **not** addressable via the S7 protocol — those DBs require OPC UA. The user must un-tick "Optimized" on DBs they want to access from LOOPZE; this is documented prominently. Supported areas: **DB**, **M (Merker / Flags)**, **I (Inputs / PE)**, **Q (Outputs / PA)**, **C (Counters)**, **T (Timers)**. Data types: see [Data Types](#data-types) for the full table — common ones are BOOL, BYTE, WORD/INT, DWORD/DINT, REAL, LREAL, LINT, ULINT, STRING, WSTRING.
 
 ## Overview
 
@@ -139,7 +139,7 @@ The **Test Connection** button performs a one-shot connect (`ISO-TSAP CR/CC` + `
   - `variables` (object[], used when `mode=static|dynamic`) — list of variables to read in one round-trip:
     - `name` (string) — user-defined display name (e.g. "Boiler Temperature"), used as key in the output object and as `topic` in per-item mode
     - `address` (string) — Siemens-style address, see "Address Syntax" below (e.g. `DB10.DBD0`, `M0.0`, `IB4`, `DB1.STRING50.20`)
-    - `dataType` (string) — `bool` | `byte` | `word` | `dword` | `int` | `dint` | `real` | `string` | `raw`. For BOOL the address must contain a bit (e.g. `M0.3`); for STRING the encoded length comes from the address (`DB1.STRING50.20` = STRING starting at byte 50, max length 20)
+    - `dataType` (string) — see the full [Data Types](#data-types) table for the complete set. Common values: `bool` | `byte` | `sint` | `usint` | `word` | `int` | `uint` | `dword` | `dint` | `udint` | `real` | `lreal` | `lint` | `ulint` | `lword` | `string` | `wstring` | `wchar` | `time` / `ltime` / `tod` / `ltod` / `date` / `dt` / `ldt` / `dtl` (numerical/structured time types) | `raw`. For BOOL the address must contain a bit (e.g. `M0.3`); for STRING the encoded length comes from the address (`DB1.STRING50.20` = STRING starting at byte 50, max length 20). 8-byte types use the `DBL` form (`DB10.DBL16`); the 12-byte `dtl` uses its own `DTL` form (`DB10.DTL171`)
     - `scale` (number, optional) — multiplicative scaling factor; default 1
     - `offset` (number, optional) — additive offset; applied **after** scaling
   - `block` (object, used when `mode=block`) — single contiguous byte block to read:
@@ -304,8 +304,8 @@ In block mode the variables editor is replaced by a single block configuration:
   - `passthrough` (boolean) — if `true`, the input message is forwarded with `msg.s7Write` enriched. Mutually exclusive with `emitAck` style new-message output. Default: `false`
 
 - **Incoming message**:
-  - **Static mode**: every input message triggers the writes defined in the config; values come from `valuePath` per row
-  - **Dynamic mode**: `msg.variables` contains the full write specification:
+  - **Static mode**: every input message triggers the writes defined in the config; values come from `valuePath` per row (or from the baked-in `value` for `valueSource=static` rows). This is the right mode for "fixed addresses, values from messages" — by far the most common pattern
+  - **Dynamic mode**: the variable list comes **only** from the message — the configured `variables` array is **ignored**. The UI hides the sidebar list in this mode to make that explicit. Either provide the full form `msg.variables`:
     ```json
     {
       "variables": [
@@ -315,10 +315,11 @@ In block mode the variables editor is replaced by a single block configuration:
       ]
     }
     ```
-  - Convenience form for a single write:
+    or the convenience form for a single write:
     ```json
     { "address": "DB10.DBD0", "dataType": "real", "payload": 100.5 }
     ```
+    Note: the read-side `effectiveVariables` falls back to the configured list when a dynamic message carries no overrides; the write side does **not** (writing also needs values, and the static mode already covers fixed-address-with-msg-values configurations).
   - **Block mode**: `msg.payload` (or whichever field `inputProperty` points to) is a `[]byte` and is written verbatim to the configured `area`/`db`/`start`. Override per message via `msg.s7.area` / `msg.s7.db` / `msg.s7.start`. The block is sent in **one** `AGWriteArea` call (or auto-split into multiple calls when it exceeds the negotiated PDU size). This is the natural counterpart to `s7-parser` `encode` action — no per-field protocol overhead
 
 - **Outgoing message** (only when `emitAck=true` or `passthrough=true`):
@@ -425,10 +426,13 @@ S7 addresses follow the Siemens engineering tool notation. The string in the `ad
 | Form | Example | Meaning | Required `dataType` |
 |---|---|---|---|
 | `DB<n>.DBX<byte>.<bit>` | `DB10.DBX2.3` | DB10, byte 2, bit 3 | `bool` |
-| `DB<n>.DBB<byte>` | `DB10.DBB4` | DB10, byte 4 | `byte` |
-| `DB<n>.DBW<byte>` | `DB10.DBW6` | DB10, word at byte 6 | `word` / `int` |
-| `DB<n>.DBD<byte>` | `DB10.DBD0` | DB10, dword at byte 0 | `dword` / `dint` / `real` |
-| `DB<n>.STRING<byte>.<maxlen>` | `DB1.STRING50.20` | DB1, S7 STRING starting at byte 50, max length 20 | `string` |
+| `DB<n>.DBB<byte>` | `DB10.DBB4` | DB10, byte 4 | `byte` / `char` / `sint` / `usint` |
+| `DB<n>.DBW<byte>` | `DB10.DBW6` | DB10, word at byte 6 | `word` / `int` / `uint` / `wchar` / `date` |
+| `DB<n>.DBD<byte>` | `DB10.DBD0` | DB10, dword at byte 0 | `dword` / `dint` / `udint` / `real` / `time` / `tod` |
+| `DB<n>.DBL<byte>` | `DB10.DBL16` | DB10, 8-byte long at byte 16 (S7-1500 64-bit types; not native TIA syntax — see notes) | `lreal` / `lint` / `ulint` / `lword` / `ltime` / `ltod` / `ldt` / `dt` |
+| `DB<n>.DTL<byte>` | `DB3.DTL171` | DB3, 12-byte structured DateTime at byte 171 (DTL is the only fixed-12-byte type; not native TIA syntax — see notes) | `dtl` |
+| `DB<n>.STRING<byte>.<maxlen>` | `DB1.STRING50.20` | DB1, S7 STRING starting at byte 50, max length 20 (= 22 wire bytes incl. 2-byte header) | `string` |
+| `DB<n>.WSTRING<byte>.<maxlen>` | `DB1.WSTRING50.20` | DB1, S7 WSTRING starting at byte 50, max length 20 chars (= 44 wire bytes: 4-byte header + 20×2-byte UCS-2 chars) | `wstring` |
 | `M<byte>.<bit>` | `M0.3` | Merker bit | `bool` |
 | `MB<byte>` / `MW<byte>` / `MD<byte>` | `MB10`, `MW12`, `MD16` | Merker byte / word / dword | `byte` / `word` / `dword` / `int` / `dint` / `real` |
 | `I<byte>.<bit>` / `IB`/`IW`/`ID` | `I0.0`, `IB1`, `IW2`, `ID4` | Inputs (PE) | bit / byte / word / dword |
@@ -439,6 +443,114 @@ S7 addresses follow the Siemens engineering tool notation. The string in the `ad
 **Validation**: The frontend validates syntax via regex on input — invalid addresses are flagged before save. Existence and access-rights checks happen on the first read/write at runtime; a non-existing DB returns `Item not available` from the PLC (catchable via Catch node).
 
 **Optimized DBs**: Address `DB<n>.<symbol>` (symbolic addressing) is **not supported** — Optimized DBs return only via OPC UA. The parser explicitly rejects symbolic syntax with a hint `S7 protocol requires non-optimized DBs; use OPC UA for symbolic access`.
+
+## Data Types
+
+The full SIEMENS TIA-Portal type system. The `LOOPZE code` column is the
+lowercase identifier accepted by the `dataType` field (in `s7-read` /
+`s7-write` variables and in the `s7-parser` layout). Status legend:
+
+- ✅ **shipped** — codec + address parser + parser layout
+- 🟡 **codec only** — usable in the parser layout; no native address form yet (use `DBB`/`DBW`/`DBD` with the `signed` flag, or block-mode + parser)
+- ⏳ **planned** — backlog item, not implemented yet
+
+### Bitfields (Binärzahlen)
+
+| TIA type | Width | LOOPZE code | Range / format | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `BOOL` | 1 bit | `bool` | `false` / `true` | ✅ | ✓ | ✓ | ✓ |
+| `BYTE` | 8 bit | `byte` | `0..255` (or `-128..127` with `signed:true`) | ✅ | ✓ | ✓ | ✓ |
+| `WORD` | 16 bit | `word` | `0..65535` (BE; `signed:true` flips to `int16`) | ✅ | ✓ | ✓ | ✓ |
+| `DWORD` | 32 bit | `dword` | `0..4_294_967_295` (BE; `signed:true` → `int32`) | ✅ | ✓ | ✓ | ✓ |
+| `LWORD` | 64 bit | `lword` | `0..2^64-1` (64-bit bitfield) | ✅ | — | — | ✓ |
+
+### Integers (Ganzzahlen)
+
+| TIA type | Width | LOOPZE code | Range | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `SINT` | 8 bit | `sint` | `-128..127` | ✅ | — | ✓ | ✓ |
+| `USINT` | 8 bit | `usint` | `0..255` | ✅ | — | ✓ | ✓ |
+| `INT` | 16 bit | `int` | `-32_768..32_767` | ✅ | ✓ | ✓ | ✓ |
+| `UINT` | 16 bit | `uint` | `0..65_535` | ✅ | — | ✓ | ✓ |
+| `DINT` | 32 bit | `dint` | `-2_147_483_648..2_147_483_647` | ✅ | ✓ | ✓ | ✓ |
+| `UDINT` | 32 bit | `udint` | `0..4_294_967_295` | ✅ | — | ✓ | ✓ |
+| `LINT` | 64 bit | `lint` | `-2^63..2^63-1` (~±9.2 quintillion) | ✅ | — | — | ✓ |
+| `ULINT` | 64 bit | `ulint` | `0..2^64-1` (~1.84 × 10^19) | ✅ | — | — | ✓ |
+
+JSON-decoded numbers arrive as `float64`, which can represent integers
+exactly up to 2^53 (~9 quadrillion). For LINT / ULINT values beyond that, a
+caller passing native Go `int64` / `uint64` to `EncodeS7Scalar` keeps the
+full precision; JSON callers are limited by the float64 mantissa.
+
+### Floats (Gleitpunktzahlen)
+
+| TIA type | Width | LOOPZE code | Precision | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `REAL` | 32 bit | `real` | IEEE 754 single, ~6-7 decimal digits | ✅ | ✓ | ✓ | ✓ |
+| `LREAL` | 64 bit | `lreal` | IEEE 754 double, ~15 decimal digits | ✅ | — | ✓ | ✓ |
+
+### Time durations (Zeiten)
+
+| TIA type | Width | LOOPZE code | Format | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `S5TIME` | 16 bit | `timer` | BCD with timebase, `S5T#10s` | ✅ (read only; decode → ms `int`) | ✓ | — | ✓ |
+| `TIME` | 32 bit | `time` | Signed ms, `T#-24d20h31m23s648ms..+24d…` | ✅ (decode → ms `int`) | ✓ | ✓ | ✓ |
+| `LTIME` | 64 bit | `ltime` | Signed ns, `LT#±106751d…` | ✅ (decode → ns `int64`) | — | ✓ | ✓ |
+
+### Characters & strings (Zeichen)
+
+| TIA type | Width | LOOPZE code | Range | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `CHAR` | 8 bit | `char` | ASCII | ✅ | ✓ | ✓ | ✓ |
+| `WCHAR` | 16 bit | `wchar` | Unicode BMP | ✅ (decode → 1-char `string`; encode rejects multi-char) | — | ✓ | ✓ |
+| `STRING` | n+2 byte | `string` | 0..254 ASCII chars; wire = `[maxLen][actLen][char × maxLen]` | ✅ | ✓ | ✓ | ✓ |
+| `WSTRING` | 4+2n byte | `wstring` | 0..16382 UCS-2 chars; wire = `[maxLen u16][actLen u16][char × maxLen × u16]` | ✅ | — | ✓ | ✓ |
+
+WSTRING handles the BMP (code points up to U+FFFF). Surrogate pairs (above
+U+FFFF) get truncated to their low 16 bits — same semantics as gos7's
+`SetWStringAt`. Industrial text payloads (machine names, recipe IDs) are
+typically Latin / Cyrillic / CJK BMP, all of which round-trip cleanly.
+
+### Date & time (Datum und Uhrzeit)
+
+| TIA type | Width | LOOPZE code | Format / range | Status | S7-300/400 | S7-1200 | S7-1500 |
+|---|---|---|---|---|---|---|---|
+| `DATE` | 16 bit | `date` | Days since 1990-01-01, `D#1990-01-01..D#2168-12-31` | ✅ (decode → ISO `"YYYY-MM-DD"` string; encode accepts string or days as `int`) | ✓ | ✓ | ✓ |
+| `TOD` (`TIME_OF_DAY`) | 32 bit | `tod` | `00:00:00.000..23:59:59.999` (ms since midnight) | ✅ (decode → ms `int`) | ✓ | ✓ | ✓ |
+| `LTOD` (`LTIME_OF_DAY`) | 64 bit | `ltod` | ns since midnight, full nanosecond precision | ✅ (decode → ns `uint64`) | — | ✓ | ✓ |
+| `DT` (`DATE_AND_TIME`) | 64 bit | `dt` | BCD year/month/day/hour/min/sec/ms+weekday | ✅ (decode → RFC3339Nano `string`; encode accepts RFC3339 string) | ✓ | — | — |
+| `LDT` (`L_DATE_AND_TIME`) | 64 bit | `ldt` | ns since 1970-01-01 (epoch), `LDT#1970-01-01..2262-04-11` | ✅ (decode → RFC3339Nano `string`; encode accepts RFC3339) | — | ✓ | ✓ |
+| `DTL` | 96 bit | `dtl` | Structured: year (u16) / month / day / weekday / hour / min / sec / ns (u32) | ✅ (decode → RFC3339Nano `string`; encode accepts RFC3339) | — | ✓ | ✓ |
+
+**Output conventions**:
+- Numerical durations (`TIME`, `LTIME`, `TOD`, `LTOD`) decode to integers
+  (ms or ns as documented). Easier for downstream consumers than parsing
+  RFC3339 duration strings, and JSON-clean.
+- `DATE` decodes to a plain ISO date string (`"2026-05-10"`).
+- `DT` / `LDT` / `DTL` decode to **RFC3339Nano UTC strings** so timestamps
+  round-trip cleanly through JSON and most parsers. The wall-clock vs.
+  UTC distinction is documented per type — there is no timezone metadata
+  on the wire.
+
+### Special
+
+| Type | LOOPZE code | Meaning | Status |
+|---|---|---|---|
+| Counter | `counter` | S7 BCD counter (2 bytes BCD, 0..999) — decode only | ✅ (read) |
+| Timer | `timer` | Same as S5TIME (kept as alias for the C/T areas) | ✅ (read) |
+| Raw | `raw` | Opaque byte slice, `length` bytes — passes through unchanged | ✅ |
+
+Counter/timer encoding is intentionally not in v1 — writing to a CPU's
+internal counters / timers from a client is rare in industrial practice and
+the wire format is asymmetric (gos7's `ToCounter` is buggy). Add when a real
+customer use case appears.
+
+### Implementation notes
+
+- **Aliases as a quick win**: `sint`, `usint`, `uint`, `udint` are wire-equivalent to existing types (`byte`, `byte`, `word`, `dword`). Adding them as recognised `dataType` strings is a one-line dispatch in `S7TypeWordLen` / the codec — straightforward follow-up. Tracked but not blocking v1.
+- **64-bit bitfield (`LWORD`)**: identical wire layout to `ULINT`. Adding it as a recognised type name is trivial; the only difference from `ULINT` is the JSON output type (`uint64` either way, but the user-facing label differs).
+- **Date/Time types**: gos7's `Helper` already provides `GetDateTimeAt`, `GetDateAt`, `GetTODAt`, `GetLTODAt`, `GetLDTAt`, `GetDTLAt` (and the inverse setters). Wiring these into the codec is a half-day exercise; the open question is the **JSON output shape** — `time.Time` marshals as RFC3339, but downstream parsers may prefer epoch ms. Pick one convention before implementing.
+- **Per-CPU availability**: 64-bit types (`LWORD`/`LINT`/`ULINT`/`LREAL`/`LTIME`/`LTOD`/`LDT`) are S7-1500-only. The protocol on S7-300/400 doesn't support them; attempting a multi-read on those CPUs returns "Item not available" at runtime. We don't pre-validate against the negotiated CPU type — the runtime error is informative enough.
 
 ## Data Structure
 

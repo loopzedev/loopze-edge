@@ -5,6 +5,32 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9] - 2026-05-10
+
+### Added
+- **Full SIEMENS TIA-Portal data type set on the S7 nodes.** Codec, address parser, parser-layout editor and frontend dropdowns all now accept the previously-deferred types: integer aliases (`sint`, `usint`, `uint`, `udint`, `lword`), the wide character (`wchar`), the duration types (`time`, `ltime`, `tod`, `ltod`) and the date / date-time family (`date`, `dt`, `ldt`, `dtl`). Numerical durations decode to integers (ms or ns); `date` decodes to an ISO `"YYYY-MM-DD"` string; `dt` / `ldt` / `dtl` decode to RFC3339Nano strings and accept RFC3339 on encode. JSON-clean throughout.
+- **`DB<n>.DTL<byte>` address form** for the 12-byte structured DateTime — the only fixed-width type that doesn't fit `DBL` (8 B). Coined analogous to the existing `DBL` form (Siemens has no canonical wire-form name for either, since the engineering tool addresses these symbolically).
+- **HELP-tab content for all four S7 nodes** (`s7-plc`, `s7-read`, `s7-write`, `s7-parser`) in the property-panel sidebar — overview, inputs/outputs, configuration reference, examples, and tips. Plus live one-liner summaries shown in the panel header (e.g. `block DB3@0 · 300B · 1s` for an s7-read in block mode).
+- **Multi-item read patch for the bundled S7 demo PLC.** `python-snap7` 1.4's pure-Python server only parses the first item spec from a multi-read request and hardcodes `item_count = 1` in the response — `gos7`'s `AGReadMulti` rejects the mismatch with `invalid CPU answer`, breaking any read of two or more variables in one PDU. `demo/s7-server/main.py` now monkey-patches `_handle_read_area` to re-parse all N items and emit a properly formed response with per-item data sections and even-byte alignment. Filed for upstream contribution.
+- **DB3 datatype showcase** in the demo PLC (256-byte DB pre-filled with one well-known sample value per TIA type at stable byte offsets) so integration tests and manual UI checks can assert byte-perfect decoding without bespoke fixtures.
+
+### Changed
+- **`s7-write` dynamic mode** no longer pretends the sidebar variables list is a config base — the runtime always took the list only from the message (`msg.variables` or the `msg.address+dataType+payload` convenience form), but the UI used to show the same editable list as static mode and silently ignore it. The list is now hidden in dynamic mode and replaced with a hint that points users at static + `valueSource=msg` for the common "fixed address, value from message" pattern.
+- **`s7-read` block mode** silently ignores stale `outputShape` config left behind from a previous mode switch instead of failing `Init` with an "outputShape is not applicable in block mode" error. The UI hides the dropdown in block mode so the user has no way to clear it; rejecting on the runtime side just stranded flows after a mode toggle.
+- **`s7-write` Variables row layout** rewritten as two stacked rows (address + delete on top, name + dataType below) — the previous single-row layout couldn't fit the wider dataType select needed for the new long labels (`DTL (12 bytes, structured date+time)`).
+
+### Fixed
+- **Terminal Log panel rendered `error={}` for failed node Inits** — the in-memory log buffer captured error attrs as the raw interface value, which JSON-encoded to `{}` because errors carry their message in unexported fields. The buffer now resolves errors via `.Error()` so the panel shows the same text as stdout.
+- **Form widgets in narrow property panels** — `FormSelect`'s class-based width was overridden by the trigger's hardcoded `shrink-0`; `FormInput`'s default-slot `w-full` overrode parent `w-32` classes; `NumberInput` overflowed the sidebar without `min-w-0` on the wrapping flex item. Fixed across the S7 variable editor; principles transfer to other panels.
+
+### Internal
+- `internal/nodes/s7_codec.go` — encoders + decoders for the new types, plus helpers `s7DateInputDays` / `s7ParseRFC3339` / `decodeS7DT` / `encodeS7DT` / `decodeS7DTL` / `encodeS7DTL`. `S7TypeWordLen` / `S7TypeByteSize` lookup tables extended.
+- `internal/nodes/s7_address.go` — type-set vars `s7ByteTypes` / `s7WordTypes` / `s7DWordTypes` / `s7LongTypes` shared across DB / M / I / Q address-family dispatch; new `reDBDTL` regex + case.
+- `internal/nodes/s7_parser.go` — type whitelist extended; new `s7IsNonScalable` helper governs whether scaling applies (string-shaped and time-shaped types skip it).
+- `internal/logbuffer/handler.go` — `capture()` resolves `error` values to their `.Error()` string before storing for the UI.
+- `frontend/src/components/help/docs.ts` — new entries for `s7-plc` / `s7-read` / `s7-write` / `s7-parser`.
+- `frontend/src/components/help/index.ts` — live-summary functions for the four S7 nodes.
+
 ## [0.0.8] - 2026-05-09
 
 ### Added

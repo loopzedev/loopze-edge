@@ -4,18 +4,20 @@ LOOPZE ships a curated set of built-in nodes grouped by purpose.
 
 ## Input
 
-| Node    | What it does                              |
-|---------|-------------------------------------------|
-| Inject  | Manually or periodically send a message.  |
-| Modbus  | Read / poll Modbus TCP or RTU registers.  |
-| OPC UA  | Read / subscribe to OPC UA nodes.         |
+| Node                   | What it does                              |
+|------------------------|-------------------------------------------|
+| Inject                 | Manually or periodically send a message.  |
+| Modbus                 | Read / poll Modbus TCP or RTU registers.  |
+| OPC UA                 | Read / subscribe to OPC UA nodes.         |
+| [S7 Read](s7-read.md)  | Read variables or raw blocks from a SIEMENS S7 PLC. |
 
 ## Output
 
-| Node     | What it does                              |
-|----------|-------------------------------------------|
-| Debug    | Stream messages to the editor sidebar.    |
-| OPC UA   | Write to an OPC UA node.                  |
+| Node                    | What it does                              |
+|-------------------------|-------------------------------------------|
+| Debug                   | Stream messages to the editor sidebar.    |
+| OPC UA                  | Write to an OPC UA node.                  |
+| [S7 Write](s7-write.md) | Write variables or raw blocks to a SIEMENS S7 PLC. |
 
 ## Network
 
@@ -51,10 +53,20 @@ Cross-cutting reference:
 
 ## Parsing
 
-| Node          | What it does                              |
-|---------------|-------------------------------------------|
-| Parser JSON   | Encode / decode JSON.                     |
-| Parser Modbus | Decode Modbus register frames.            |
+| Node                          | What it does                              |
+|-------------------------------|-------------------------------------------|
+| Parser JSON                   | Encode / decode JSON.                     |
+| Parser Modbus                 | Decode Modbus register frames.            |
+| [Parser S7](s7-parser.md)     | Decode raw S7 byte blocks into structured objects (and back). |
+
+## Industrial — SIEMENS S7
+
+| Node                       | What it does                              |
+|----------------------------|-------------------------------------------|
+| [S7 PLC](s7-plc.md)        | Connection-config node for an S7 PLC (RFC1006 / ISO-on-TCP). |
+| [S7 Read](s7-read.md)      | Static / dynamic / block-mode variable reads. |
+| [S7 Write](s7-write.md)    | Static / dynamic / block-mode variable writes. |
+| [S7 Parser](s7-parser.md)  | Decode block-mode bytes into structured objects (and back). |
 
 ## Diagnostics
 

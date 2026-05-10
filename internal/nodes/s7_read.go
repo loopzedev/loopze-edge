@@ -39,6 +39,9 @@ type S7ReadNode struct {
 	outputShape   string // "single" | "array" | "object"
 	topicTemplate string
 
+	// Block-mode config (used when mode=="block"). Otherwise zero-valued.
+	block s7BlockConfig
+
 	pollInterval time.Duration
 	emitOnChange bool
 	emitOnError  bool
@@ -85,47 +88,61 @@ func (n *S7ReadNode) Init() error {
 	if mode == "" {
 		mode = "static"
 	}
-	if mode != "static" && mode != "dynamic" {
-		return fmt.Errorf("s7-read %s: invalid mode %q (expected static|dynamic; block mode arrives in PR-6)", n.config.ID, mode)
+	if mode != "static" && mode != "dynamic" && mode != "block" {
+		return fmt.Errorf("s7-read %s: invalid mode %q (expected static|dynamic|block)", n.config.ID, mode)
 	}
 	n.mode = mode
 
-	rawVars, _ := props["variables"].([]any)
-	vars, err := parseS7Variables(rawVars, n.config.ID)
-	if err != nil {
-		return err
-	}
-	n.variables = vars
+	if n.mode == "block" {
+		blockProps, _ := props["block"].(map[string]any)
+		blk, err := parseS7BlockConfigRead(blockProps, n.config.ID)
+		if err != nil {
+			return err
+		}
+		n.block = blk
+	} else {
+		rawVars, _ := props["variables"].([]any)
+		vars, err := parseS7Variables(rawVars, n.config.ID)
+		if err != nil {
+			return err
+		}
+		n.variables = vars
 
-	// Static mode requires at least one variable so the poll loop has
-	// something to do. Dynamic mode is allowed to start empty — the user
-	// supplies variables per-message.
-	if n.mode == "static" && len(n.variables) == 0 {
-		return fmt.Errorf("s7-read %s: static mode requires at least one variable", n.config.ID)
-	}
-
-	// outputShape: validated against the variables list count. "single" is
-	// only meaningful with exactly one variable; >1 variables default to
-	// "object" so downstream Function/Switch nodes get a map keyed by name.
-	shape, _ := props["outputShape"].(string)
-	if shape == "" {
-		if len(n.variables) <= 1 {
-			shape = "single"
-		} else {
-			shape = "object"
+		// Static mode requires at least one variable so the poll loop has
+		// something to do. Dynamic mode is allowed to start empty — the user
+		// supplies variables per-message.
+		if n.mode == "static" && len(n.variables) == 0 {
+			return fmt.Errorf("s7-read %s: static mode requires at least one variable", n.config.ID)
 		}
 	}
-	switch shape {
-	case "single":
-		if len(n.variables) > 1 {
-			return fmt.Errorf("s7-read %s: outputShape=single requires exactly 1 variable, got %d", n.config.ID, len(n.variables))
+
+	// outputShape only applies to variables modes — block mode always emits
+	// raw `[]byte` in `msg.payload`. A stale value from a previous mode is
+	// silently ignored so users can switch modes without manually clearing
+	// the config field (the UI hides the dropdown in block mode).
+	if n.mode == "block" {
+		// no-op: outputShape carries no meaning here.
+	} else {
+		shape, _ := props["outputShape"].(string)
+		if shape == "" {
+			if len(n.variables) <= 1 {
+				shape = "single"
+			} else {
+				shape = "object"
+			}
 		}
-	case "array", "object":
-		// nothing to check — these accept any non-zero count
-	default:
-		return fmt.Errorf("s7-read %s: invalid outputShape %q (expected single|array|object)", n.config.ID, shape)
+		switch shape {
+		case "single":
+			if len(n.variables) > 1 {
+				return fmt.Errorf("s7-read %s: outputShape=single requires exactly 1 variable, got %d", n.config.ID, len(n.variables))
+			}
+		case "array", "object":
+			// nothing to check — these accept any non-zero count
+		default:
+			return fmt.Errorf("s7-read %s: invalid outputShape %q (expected single|array|object)", n.config.ID, shape)
+		}
+		n.outputShape = shape
 	}
-	n.outputShape = shape
 
 	if t, ok := props["topicTemplate"].(string); ok {
 		n.topicTemplate = t
@@ -169,12 +186,24 @@ func (n *S7ReadNode) Start() error {
 	n.plc = plc
 	n.plc.RegisterStatusFunc(n.handlePLCStatus)
 
-	if n.mode == "static" {
+	switch n.mode {
+	case "static":
 		n.wg.Add(1)
 		go n.pollLoop()
 		slog.Info("s7-read started (static)",
 			"node_id", n.config.ID, "vars", len(n.variables), "interval", n.pollInterval)
-	} else {
+	case "block":
+		// Block mode polls cyclically just like static. The optional input
+		// port (when triggerOnInput=true) lets users force an extra read on
+		// demand without waiting for the next tick.
+		n.wg.Add(1)
+		go n.pollLoop()
+		slog.Info("s7-read started (block)",
+			"node_id", n.config.ID,
+			"area", n.block.AreaName, "db", n.block.DB,
+			"start", n.block.Start, "length", n.block.Length,
+			"interval", n.pollInterval, "triggerOnInput", n.block.TriggerOnInput)
+	default: // dynamic
 		slog.Info("s7-read started (dynamic, idle)", "node_id", n.config.ID, "vars", len(n.variables))
 	}
 	return nil
@@ -192,11 +221,27 @@ func (n *S7ReadNode) Stop() error {
 	return nil
 }
 
-// HandleMessage in dynamic mode triggers a read using effective variables
-// (config defaults overridden by msg.variables, msg.address+msg.dataType, or
-// msg.name). The incoming message is NOT forwarded — the output carries only
-// the read result, matching the modbus-read convention.
+// HandleMessage handles input messages for dynamic mode and for block mode
+// when `triggerOnInput=true`. In dynamic mode the variables list (and its
+// values) come from the message; in block mode the input merely triggers a
+// fresh read, optionally overriding the area/db/start/length via `msg.s7.*`.
+//
+// Static mode and block mode without `triggerOnInput` ignore inputs entirely
+// (those branches return immediately without producing output).
 func (n *S7ReadNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
+	if n.mode == "block" {
+		if !n.block.TriggerOnInput {
+			return nil, nil
+		}
+		out, err := n.doBlockRead(n.effectiveBlock(msg))
+		if err != nil {
+			return nil, err
+		}
+		if out == nil {
+			return nil, nil
+		}
+		return [][]*flow.Message{{out}}, nil
+	}
 	if n.mode != "dynamic" {
 		return nil, nil
 	}
@@ -273,11 +318,20 @@ func (n *S7ReadNode) pollLoop() {
 	}
 }
 
-// tick performs one read of the configured variables list and dispatches the
-// result. Errors are routed through the catch-node mechanism (errFn) and
-// optionally emitted as an error message on port 0.
+// tick performs one read of the configured variables list (or the configured
+// block in block mode) and dispatches the result. Errors are routed through
+// the catch-node mechanism (errFn) and optionally emitted as an error
+// message on port 0.
 func (n *S7ReadNode) tick() {
-	out, err := n.doRead(n.variables, nil)
+	var (
+		out *flow.Message
+		err error
+	)
+	if n.mode == "block" {
+		out, err = n.doBlockRead(n.block)
+	} else {
+		out, err = n.doRead(n.variables, nil)
+	}
 	if err != nil {
 		if n.errFn != nil {
 			n.errFn(err, nil)
@@ -389,6 +443,8 @@ func decodeS7ItemResult(item S7Item, dataType string, data []byte) (any, error) 
 		return data[0] != 0, nil
 	case dataType == "string":
 		return DecodeS7String(data)
+	case dataType == "wstring":
+		return DecodeS7WString(data)
 	case dataType == "raw":
 		out := make([]byte, len(data))
 		copy(out, data)
@@ -498,6 +554,205 @@ func (n *S7ReadNode) connectedStatus() string {
 		return fmt.Sprintf("connected · %s", n.pollInterval)
 	}
 	return "connected · idle"
+}
+
+// s7BlockConfig captures the parameters of a block-mode read or write. Used
+// by both s7-read and s7-write — kept package-level so the write node can
+// reuse the same parser.
+type s7BlockConfig struct {
+	Area           int    // S7Area* constant
+	AreaName       string // user-facing string ("DB" / "M" / "I" / "Q") — kept for output metadata
+	DB             int    // 0 unless Area == S7AreaDB
+	Start          int    // byte offset within the area
+	Length         int    // byte count to read; 0 means "use incoming data length" (write only)
+	TriggerOnInput bool   // read-only: adds an input port that fires extra reads
+	InputProperty  string // write-only: msg field that carries the byte slice
+}
+
+// parseS7BlockConfigRead parses the read node's `block` config object.
+// Returns an error if any required field is missing or malformed.
+func parseS7BlockConfigRead(props map[string]any, nodeID string) (s7BlockConfig, error) {
+	if props == nil {
+		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block mode requires a `block` config object", nodeID)
+	}
+	areaName, _ := props["area"].(string)
+	if areaName == "" {
+		areaName = "DB"
+	}
+	area, err := parseS7AreaName(areaName)
+	if err != nil {
+		return s7BlockConfig{}, fmt.Errorf("s7-read %s: %w", nodeID, err)
+	}
+	db := readIntProp(props, "db", 0)
+	if area == S7AreaDB && db <= 0 {
+		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.db must be > 0 for area=DB", nodeID)
+	}
+	start := readIntProp(props, "start", 0)
+	if start < 0 {
+		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.start must be >= 0, got %d", nodeID, start)
+	}
+	length := readIntProp(props, "length", 0)
+	if length <= 0 {
+		return s7BlockConfig{}, fmt.Errorf("s7-read %s: block.length must be > 0, got %d", nodeID, length)
+	}
+	trigger := false
+	if v, ok := props["triggerOnInput"].(bool); ok {
+		trigger = v
+	}
+	return s7BlockConfig{
+		Area: area, AreaName: areaName, DB: db,
+		Start: start, Length: length, TriggerOnInput: trigger,
+	}, nil
+}
+
+// effectiveBlock overlays the `msg.s7.{area,db,start,length}` per-message
+// overrides on top of the configured block. Only used when the node is in
+// block mode with `triggerOnInput=true`.
+func (n *S7ReadNode) effectiveBlock(msg *flow.Message) s7BlockConfig {
+	blk := n.block
+	if msg == nil {
+		return blk
+	}
+	overrides, _ := msg.Get("s7").(map[string]any)
+	if overrides == nil {
+		return blk
+	}
+	if name, ok := overrides["area"].(string); ok && name != "" {
+		if a, err := parseS7AreaName(name); err == nil {
+			blk.Area = a
+			blk.AreaName = name
+		}
+	}
+	if v, ok := readPositiveInt(overrides["db"]); ok {
+		blk.DB = v
+	}
+	if v, ok := readNonNegInt(overrides["start"]); ok {
+		blk.Start = v
+	}
+	if v, ok := readPositiveInt(overrides["length"]); ok {
+		blk.Length = v
+	}
+	return blk
+}
+
+// readNonNegInt is like readPositiveInt but accepts zero as a valid value.
+// Used for fields like `start` where 0 is the natural default.
+func readNonNegInt(v any) (int, bool) {
+	switch x := v.(type) {
+	case nil:
+		return 0, false
+	case float64:
+		if x < 0 {
+			return 0, false
+		}
+		return int(x), true
+	case int:
+		if x < 0 {
+			return 0, false
+		}
+		return x, true
+	case int64:
+		if x < 0 {
+			return 0, false
+		}
+		return int(x), true
+	}
+	return 0, false
+}
+
+// doBlockRead executes one block fetch and assembles the outgoing message.
+// emitOnChange suppression compares the raw byte slice — in block mode that
+// is the whole "value", so a mid-block change still emits.
+func (n *S7ReadNode) doBlockRead(blk s7BlockConfig) (*flow.Message, error) {
+	data, err := n.plc.ReadArea(blk.Area, blk.DB, blk.Start, blk.Length)
+	if err != nil {
+		return nil, fmt.Errorf("s7-read %s: %w", n.config.ID, err)
+	}
+
+	if n.emitOnChange {
+		n.mu.Lock()
+		if last, ok := n.lastPayload.([]byte); ok && bytesEqual(last, data) {
+			n.mu.Unlock()
+			return nil, nil
+		}
+		// Store a copy so a downstream mutation of the message doesn't
+		// affect our suppression state.
+		stored := make([]byte, len(data))
+		copy(stored, data)
+		n.lastPayload = stored
+		n.mu.Unlock()
+	}
+
+	// Convert []byte → []int before SetPayload so the JSON marshaller
+	// (used by the debug node and the workspace API) renders the bytes as
+	// `[222, 173, 190, 239, …]` instead of base64-encoding them into an
+	// opaque string. The s7-parser's normaliseS7BytesInput accepts both
+	// shapes, so downstream wiring is unaffected. Mirrors the modbus-read
+	// raw-mode convention (msg.bytes = []int).
+	bytesArr := make([]int, len(data))
+	for i, b := range data {
+		bytesArr[i] = int(b)
+	}
+
+	msg := flow.NewMessage()
+	msg.SetPayload(bytesArr)
+	msg.SetTopic(n.renderBlockTopic(blk))
+	msg.Set("s7", map[string]any{
+		"plc":    plcTopicSegment(n.plc),
+		"area":   blk.AreaName,
+		"db":     blk.DB,
+		"start":  blk.Start,
+		"length": len(data),
+	})
+	return msg, nil
+}
+
+func (n *S7ReadNode) renderBlockTopic(blk s7BlockConfig) string {
+	if n.topicTemplate == "" {
+		if blk.Area == S7AreaDB {
+			return fmt.Sprintf("s7/%s/db%d", plcTopicSegment(n.plc), blk.DB)
+		}
+		return fmt.Sprintf("s7/%s/%s", plcTopicSegment(n.plc), strings.ToLower(blk.AreaName))
+	}
+	return strings.NewReplacer(
+		"<plc-name>", plcTopicSegment(n.plc),
+		"<area>", blk.AreaName,
+		"<db>", fmt.Sprintf("%d", blk.DB),
+		"<start>", fmt.Sprintf("%d", blk.Start),
+		"<length>", fmt.Sprintf("%d", blk.Length),
+	).Replace(n.topicTemplate)
+}
+
+// parseS7AreaName maps the user-facing area name to its protocol constant.
+// Used by both read and write block configs.
+func parseS7AreaName(name string) (int, error) {
+	switch strings.ToUpper(strings.TrimSpace(name)) {
+	case "DB":
+		return S7AreaDB, nil
+	case "M", "MK":
+		return S7AreaMK, nil
+	case "I", "PE":
+		return S7AreaPE, nil
+	case "Q", "PA":
+		return S7AreaPA, nil
+	default:
+		return 0, fmt.Errorf("unknown S7 area %q (expected DB|M|I|Q)", name)
+	}
+}
+
+// bytesEqual is a small helper so we don't pull in bytes.Equal alone.
+// (Worth its own function because the slices may be of different lengths
+// across reads when the configured block length changed via msg.s7.length.)
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // parseS7Variables turns the JSON-decoded `variables` array into validated

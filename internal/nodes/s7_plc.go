@@ -5,6 +5,7 @@
 package nodes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -632,6 +633,102 @@ func isS7TransportError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// S7TestConnectionInfo is the result of a one-shot Test-Connection probe.
+// Empty strings in the CPU/order fields indicate the server didn't return
+// the value (typical for the python-snap7 demo server, whose placeholder
+// SZL responses leave these blank). The HTTP handler renders empty strings
+// as "unknown" for the user.
+type S7TestConnectionInfo struct {
+	Address           string `json:"address"`
+	NegotiatedPDUSize int    `json:"negotiatedPduSize"`
+	CPUType           string `json:"cpuType,omitempty"`
+	OrderCode         string `json:"orderCode,omitempty"`
+	ModuleName        string `json:"moduleName,omitempty"`
+	SerialNumber      string `json:"serialNumber,omitempty"`
+}
+
+// S7TestConnect builds a transient S7PLC from the supplied config, opens a
+// short-lived connection, captures the negotiated PDU size and any reported
+// CPU info, and closes. Used by the `/api/v1/s7/test-connection` REST
+// endpoint — the analog of `OpcuaTestConnect`.
+//
+// The function does NOT touch the engine's deployed config registry; it's
+// safe to call concurrently with a deployed PLC of the same ID.
+//
+// Note on ctx: gos7 does not accept a `context.Context` on its connect /
+// CPU-info paths, so the caller's ctx only governs the wrapping HTTP
+// timeout. The transport timeout configured on the PLC config still applies
+// to the underlying calls.
+func S7TestConnect(ctx context.Context, cfg flow.ConfigNode) (*S7TestConnectionInfo, error) {
+	inst, err := NewS7PLC(cfg)
+	if err != nil {
+		return nil, err
+	}
+	plc := inst.(*S7PLC)
+
+	if err := plc.handler.Connect(); err != nil {
+		return nil, fmt.Errorf("connect %s: %w", plc.address(), err)
+	}
+	defer func() {
+		// Best-effort close — we already have the data, no point bubbling a
+		// teardown error up to the user.
+		_ = plc.handler.Close()
+	}()
+
+	// Honour ctx cancellation from the HTTP layer: if it's already done by
+	// the time we wrap up, return an error. The actual gos7 calls below run
+	// synchronously and ignore ctx.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	info := &S7TestConnectionInfo{
+		Address:           plc.address(),
+		NegotiatedPDUSize: plc.handler.PDULength,
+	}
+	// gos7's GetCPUInfo / GetOrderCode parse SZL responses with hard-coded
+	// byte offsets and don't validate the response length. The python-snap7
+	// demo server returns truncated SZL replies that trigger a slice-bounds
+	// panic inside gos7. We can't fix the lib in PR-8, so defensively
+	// recover and leave the relevant fields empty (the handler later
+	// substitutes "unknown" so the UI never shows a blank cell).
+	safeCallCPUInfo(plc.client, info)
+	safeCallOrderCode(plc.client, info)
+	return info, nil
+}
+
+// safeCallCPUInfo runs GetCPUInfo behind a recover() so a stripped-SZL panic
+// from a non-conforming server (or a malformed response) doesn't crash the
+// HTTP handler. Real Siemens CPUs return the full SZL block and don't
+// trigger this.
+func safeCallCPUInfo(c gos7.Client, info *S7TestConnectionInfo) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Debug("s7-plc: GetCPUInfo panicked (server returned truncated SZL)", "recover", rec)
+		}
+	}()
+	cpu, err := c.GetCPUInfo()
+	if err != nil {
+		return
+	}
+	info.CPUType = strings.TrimSpace(cpu.ModuleTypeName)
+	info.ModuleName = strings.TrimSpace(cpu.ModuleName)
+	info.SerialNumber = strings.TrimSpace(cpu.SerialNumber)
+}
+
+func safeCallOrderCode(c gos7.Client, info *S7TestConnectionInfo) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Debug("s7-plc: GetOrderCode panicked (server returned truncated SZL)", "recover", rec)
+		}
+	}()
+	oc, err := c.GetOrderCode()
+	if err != nil {
+		return
+	}
+	info.OrderCode = strings.TrimSpace(oc.Code)
 }
 
 // setStatusLocked updates the current status and notifies all registered

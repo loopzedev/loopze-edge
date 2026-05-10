@@ -79,6 +79,108 @@ func TestParseS7Address_Positive(t *testing.T) {
 			wantSize: 256,
 		},
 
+		// ── 64-bit S7-1500 types via the DBL form ──
+		{
+			name: "DB long (lreal)",
+			addr: "DB10.DBL16", dt: "lreal",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 16, Amount: 8, DataType: "lreal"},
+			wantSize: 8,
+		},
+		{
+			name: "DB long (lint)",
+			addr: "DB10.DBL24", dt: "lint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 24, Amount: 8, DataType: "lint"},
+			wantSize: 8,
+		},
+		{
+			name: "DB long (ulint)",
+			addr: "DB10.DBL32", dt: "ulint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 32, Amount: 8, DataType: "ulint"},
+			wantSize: 8,
+		},
+		{
+			name: "DB long (lword)",
+			addr: "DB10.DBL40", dt: "lword",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 40, Amount: 8, DataType: "lword"},
+			wantSize: 8,
+		},
+		{
+			name: "DB long (dt — BCD date+time)",
+			addr: "DB10.DBL48", dt: "dt",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 48, Amount: 8, DataType: "dt"},
+			wantSize: 8,
+		},
+		{
+			name: "DB DTL (12 bytes structured date+time)",
+			addr: "DB3.DTL171", dt: "dtl",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 3, Start: 171, Amount: 12, DataType: "dtl"},
+			wantSize: 12,
+		},
+
+		// ── New aliases on the existing byte/word/dword forms ──
+		{
+			name: "DB byte (sint)",
+			addr: "DB10.DBB1", dt: "sint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 1, Amount: 1, DataType: "sint"},
+			wantSize: 1,
+		},
+		{
+			name: "DB byte (usint)",
+			addr: "DB10.DBB2", dt: "usint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 10, Start: 2, Amount: 1, DataType: "usint"},
+			wantSize: 1,
+		},
+		{
+			name: "DB word (uint)",
+			addr: "DB10.DBW8", dt: "uint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLWord, DBNumber: 10, Start: 8, Amount: 1, DataType: "uint"},
+			wantSize: 2,
+		},
+		{
+			name: "DB word (date — 2 bytes, days since 1990)",
+			addr: "DB10.DBW141", dt: "date",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLWord, DBNumber: 10, Start: 141, Amount: 1, DataType: "date"},
+			wantSize: 2,
+		},
+		{
+			name: "DB word (wchar)",
+			addr: "DB10.DBW59", dt: "wchar",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLWord, DBNumber: 10, Start: 59, Amount: 1, DataType: "wchar"},
+			wantSize: 2,
+		},
+		{
+			name: "DB dword (udint)",
+			addr: "DB10.DBD18", dt: "udint",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLDWord, DBNumber: 10, Start: 18, Amount: 1, DataType: "udint"},
+			wantSize: 4,
+		},
+		{
+			name: "DB dword (time — signed ms duration)",
+			addr: "DB10.DBD129", dt: "time",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLDWord, DBNumber: 10, Start: 129, Amount: 1, DataType: "time"},
+			wantSize: 4,
+		},
+		{
+			name: "DB dword (tod — ms since midnight)",
+			addr: "DB10.DBD143", dt: "tod",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLDWord, DBNumber: 10, Start: 143, Amount: 1, DataType: "tod"},
+			wantSize: 4,
+		},
+
+		// ── WSTRING (UCS-2 wide string) ──
+		{
+			name: "DB WSTRING(20)",
+			addr: "DB1.WSTRING50.20", dt: "wstring",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 1, Start: 50, Amount: 44, DataType: "wstring", StringMaxLen: 20},
+			wantSize: 44,
+		},
+		{
+			name: "DB WSTRING(16382) — max",
+			addr: "DB1.WSTRING0.16382", dt: "wstring",
+			want:     S7Item{Area: S7AreaDB, WordLen: S7WLByte, DBNumber: 1, Start: 0, Amount: 32768, DataType: "wstring", StringMaxLen: 16382},
+			wantSize: 32768,
+		},
+
 		// ── Merker ──
 		{
 			name: "M bit",
@@ -264,6 +366,21 @@ func TestParseS7Address_Negative(t *testing.T) {
 			name: "DB STRING with maxLen 255",
 			addr: "DB1.STRING0.255", dt: "string",
 			errContains: "STRING maxLen 255 outside",
+		},
+		{
+			name: "DBL with real dataType (only lreal/lint/ulint allowed)",
+			addr: "DB1.DBL0", dt: "real",
+			errContains: "address form DBL requires",
+		},
+		{
+			name: "DB WSTRING maxLen 0",
+			addr: "DB1.WSTRING0.0", dt: "wstring",
+			errContains: "WSTRING maxLen 0 outside",
+		},
+		{
+			name: "DB WSTRING maxLen 16383",
+			addr: "DB1.WSTRING0.16383", dt: "wstring",
+			errContains: "WSTRING maxLen 16383 outside",
 		},
 		{
 			name: "totally unknown form",

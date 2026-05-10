@@ -94,6 +94,9 @@ const typeLabel = computed(() => {
         "opcua-subscribe": "OPC UA Subscribe",
         "opcua-write": "OPC UA Write",
         statemachine: "State Machine",
+        "file-in": "File In",
+        "file-out": "File Write",
+        "folder-in": "Folder In",
     };
     return labels[props.nodeType] ?? props.nodeType;
 });

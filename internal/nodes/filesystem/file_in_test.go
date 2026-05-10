@@ -9,9 +9,62 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
+
+// sendCollector captures messages pushed by source nodes via SendFunc so
+// watch-mode tests can assert on emitted events with a timeout.
+type sendCollector struct {
+	ch chan *flow.Message
+}
+
+func newSendCollector() *sendCollector {
+	return &sendCollector{ch: make(chan *flow.Message, 16)}
+}
+
+func (c *sendCollector) sendFn() flow.SendFunc {
+	return func(_ int, msg *flow.Message) { c.ch <- msg }
+}
+
+// wait blocks until one message arrives or the timeout elapses.
+func (c *sendCollector) wait(t *testing.T, d time.Duration) *flow.Message {
+	t.Helper()
+	select {
+	case msg := <-c.ch:
+		return msg
+	case <-time.After(d):
+		t.Fatalf("timed out after %s waiting for message", d)
+		return nil
+	}
+}
+
+// waitNone asserts no message arrives within the window.
+func (c *sendCollector) waitNone(t *testing.T, d time.Duration) {
+	t.Helper()
+	select {
+	case msg := <-c.ch:
+		t.Fatalf("expected no message in %s, got payload=%v event=%v",
+			d, msg.Get("payload"), msg.Get("event"))
+	case <-time.After(d):
+	}
+}
+
+// drain returns all messages received within the window.
+func (c *sendCollector) drain(t *testing.T, d time.Duration) []*flow.Message {
+	t.Helper()
+	deadline := time.After(d)
+	var out []*flow.Message
+	for {
+		select {
+		case msg := <-c.ch:
+			out = append(out, msg)
+		case <-deadline:
+			return out
+		}
+	}
+}
 
 // newFileIn builds an initialised FileInNode for tests, capturing the most
 // recent (color, label) pair pushed to the status callback.
@@ -284,4 +337,210 @@ func TestFileIn_NilMessage(t *testing.T) {
 	if out != nil {
 		t.Errorf("expected nil output for nil input, got %v", out)
 	}
+}
+
+// startWatchFi builds a watch-mode file-in node, attaches a send collector,
+// and starts it. Returns the node, collector, and status capture.
+func startWatchFi(t *testing.T, props map[string]any) (*FileInNode, *sendCollector, *struct {
+	color string
+	text  string
+}) {
+	t.Helper()
+	fi, status := newFileIn(t, props)
+	col := newSendCollector()
+	fi.SetSend(col.sendFn())
+	if err := fi.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = fi.Stop() })
+	return fi, col, status
+}
+
+func TestFileIn_WatchMode_EmitsOnWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watched.log")
+	if err := os.WriteFile(path, []byte("seed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, col, _ := startWatchFi(t, map[string]any{
+		"path":       path,
+		"mode":       "watch",
+		"debounceMs": 0,
+	})
+	// Give the watcher a moment to register before writing.
+	time.Sleep(20 * time.Millisecond)
+
+	if err := os.WriteFile(path, []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	msg := col.wait(t, 2*time.Second)
+
+	if got := msg.Get("event"); got != "write" {
+		t.Errorf("event = %v, want write", got)
+	}
+	if got := msg.Get("filename"); got != path {
+		t.Errorf("filename = %v, want %v", got, path)
+	}
+	if msg.Get("payload") != nil {
+		t.Errorf("watch mode should not emit payload, got %v", msg.Get("payload"))
+	}
+}
+
+func TestFileIn_WatchMode_EventFilter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watched.log")
+	if err := os.WriteFile(path, []byte("seed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only listen for "remove" — writes should be silently filtered.
+	_, col, _ := startWatchFi(t, map[string]any{
+		"path":        path,
+		"mode":        "watch",
+		"watchEvents": []string{"remove"},
+		"debounceMs":  0,
+	})
+	time.Sleep(20 * time.Millisecond)
+
+	if err := os.WriteFile(path, []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	col.waitNone(t, 200*time.Millisecond)
+}
+
+func TestFileIn_WatchMode_Debounce(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watched.log")
+	if err := os.WriteFile(path, []byte("seed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, col, _ := startWatchFi(t, map[string]any{
+		"path":       path,
+		"mode":       "watch",
+		"debounceMs": 200,
+	})
+	time.Sleep(20 * time.Millisecond)
+
+	// Three rapid writes inside the 200ms debounce window.
+	for i := 0; i < 3; i++ {
+		if err := os.WriteFile(path, []byte("burst"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	// Wait for debounce to elapse plus slack.
+	got := col.drain(t, 500*time.Millisecond)
+	if len(got) != 1 {
+		t.Errorf("expected 1 coalesced message, got %d", len(got))
+	}
+}
+
+func TestFileIn_ReadPlusWatch_EmitsContent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tail.log")
+	if err := os.WriteFile(path, []byte("first"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, col, _ := startWatchFi(t, map[string]any{
+		"path":       path,
+		"mode":       "read+watch",
+		"debounceMs": 0,
+	})
+	time.Sleep(20 * time.Millisecond)
+
+	if err := os.WriteFile(path, []byte("updated content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	msg := col.wait(t, 2*time.Second)
+
+	if got := msg.Get("payload"); got != "updated content" {
+		t.Errorf("payload = %v, want 'updated content'", got)
+	}
+	if got := msg.Get("event"); got != "write" {
+		t.Errorf("event = %v, want write", got)
+	}
+	if got := msg.Get("encoding"); got != "utf-8" {
+		t.Errorf("encoding = %v, want utf-8", got)
+	}
+}
+
+func TestFileIn_WatchMode_Status(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watched.log")
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, status := startWatchFi(t, map[string]any{
+		"path": path,
+		"mode": "watch",
+	})
+	if status.color != "green" {
+		t.Errorf("status color = %q, want green", status.color)
+	}
+	if !strings.Contains(status.text, "watching") {
+		t.Errorf("status text = %q, want 'watching ...'", status.text)
+	}
+}
+
+func TestFileIn_WatchMode_StartFailsOnMissingFile(t *testing.T) {
+	fi, status := newFileIn(t, map[string]any{
+		"path": "/does/not/exist/file.log",
+		"mode": "watch",
+	})
+	col := newSendCollector()
+	fi.SetSend(col.sendFn())
+
+	if err := fi.Start(); err == nil {
+		_ = fi.Stop()
+		t.Fatal("expected Start error for missing file, got nil")
+	}
+	if status.color != "red" {
+		t.Errorf("status color = %q, want red", status.color)
+	}
+}
+
+func TestFileIn_WatchMode_InvalidWatchEvent(t *testing.T) {
+	node, _ := NewFileInNode(flow.NodeConfig{
+		ID:   "x",
+		Type: "file-in",
+		Properties: map[string]any{
+			"mode":        "watch",
+			"path":        "/tmp/x",
+			"watchEvents": []string{"chmod"}, // not in whitelist
+		},
+	})
+	if err := node.Init(); err == nil {
+		t.Fatal("expected error for invalid watch event")
+	}
+}
+
+func TestFileIn_WatchMode_StopDrains(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watched.log")
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, status := newFileIn(t, map[string]any{"path": path, "mode": "watch"})
+	col := newSendCollector()
+	fi.SetSend(col.sendFn())
+	if err := fi.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fi.Stop() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Stop returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not complete within 2s")
+	}
+	_ = status
 }

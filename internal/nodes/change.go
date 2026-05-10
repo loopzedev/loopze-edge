@@ -36,10 +36,7 @@ type Rule struct {
 // set, change (search/replace), delete, and move.
 type ChangeNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	// Context stores received via ContextProvider.
 	ctxMem   flow.ContextStore
 	ctxPers  flow.ContextStore
@@ -123,10 +120,6 @@ func exprEnvShape() map[string]any {
 		"msg":   map[string]any{},
 	}
 }
-
-func (n *ChangeNode) SetSend(fn flow.SendFunc)    { n.send = fn }
-func (n *ChangeNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *ChangeNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 
 // SetContext implements flow.ContextProvider.
 func (n *ChangeNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {

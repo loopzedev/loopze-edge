@@ -32,9 +32,7 @@ import (
 //	flow.get/set/delete/keys   – flow context KV
 type StateMachineNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
+	BaseNode
 	errFn  flow.ErrorFunc
 
 	// Context stores (injected via ContextProvider).
@@ -110,10 +108,6 @@ func (n *StateMachineNode) Init() error {
 
 	return nil
 }
-
-func (n *StateMachineNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *StateMachineNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *StateMachineNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 
 // SetError implements flow.ErrorProvider so guard/action errors raised inside
 // the JS runtime can be surfaced to Catch Nodes via the engine's error fan-out.
@@ -235,8 +229,8 @@ func (n *StateMachineNode) Start() error {
 	}
 
 	// Set initial status.
-	if n.status != nil {
-		n.status("green", "State: "+n.engine.CurrentState())
+	if n.Status != nil {
+		n.Status("green", "State: "+n.engine.CurrentState())
 	}
 
 	// Start after-timers for the initial state.
@@ -293,8 +287,8 @@ func (n *StateMachineNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 		n.startDelayTimers()
 
 		// Update node status.
-		if n.status != nil {
-			n.status("green", "State: "+result.To)
+		if n.Status != nil {
+			n.Status("green", "State: "+result.To)
 		}
 
 		// Persist state if enabled.
@@ -525,8 +519,8 @@ func (n *StateMachineNode) handleAfterTimer(delayMs string) {
 	n.startDelayTimers()
 
 	// Update node status.
-	if n.status != nil {
-		n.status("green", "State: "+result.To)
+	if n.Status != nil {
+		n.Status("green", "State: "+result.To)
 	}
 
 	// Persist state if enabled.
@@ -548,14 +542,14 @@ func (n *StateMachineNode) handleAfterTimer(delayMs string) {
 		"machineId":     n.engine.def.ID,
 		"changed":       result.Changed,
 	})
-	if n.send != nil {
-		n.send(0, outMsg)
+	if n.Send != nil {
+		n.Send(0, outMsg)
 	}
 
 	// Send action-generated messages on port 1.
 	for _, msg := range n.pendingSends {
-		if n.send != nil {
-			n.send(1, msg)
+		if n.Send != nil {
+			n.Send(1, msg)
 		}
 	}
 }
@@ -634,8 +628,8 @@ func (n *StateMachineNode) registerGlobals() {
 	_ = nodeObj.Set("status", func(call goja.FunctionCall) goja.Value {
 		fill := call.Argument(0).String()
 		text := call.Argument(1).String()
-		if n.status != nil {
-			n.status(fill, text)
+		if n.Status != nil {
+			n.Status(fill, text)
 		}
 		return goja.Undefined()
 	})
@@ -769,14 +763,14 @@ func (n *StateMachineNode) jsSend(val goja.Value) {
 }
 
 func (n *StateMachineNode) emitDebug(status string, val goja.Value) {
-	if n.debug == nil {
+	if n.Debug == nil {
 		return
 	}
 	var payload any
 	if val != nil && !goja.IsUndefined(val) && !goja.IsNull(val) {
 		payload = val.Export()
 	}
-	n.debug(flow.DebugMessage{
+	n.Debug(flow.DebugMessage{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		Status:    status,
 		Payload:   payload,

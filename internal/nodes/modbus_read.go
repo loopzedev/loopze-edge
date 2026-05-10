@@ -24,9 +24,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type ModbusReadNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -127,14 +125,11 @@ func (n *ModbusReadNode) Init() error {
 	return nil
 }
 
-func (n *ModbusReadNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *ModbusReadNode) SetStatus(fn flow.StatusFunc)             { n.status = fn }
-func (n *ModbusReadNode) SetDebug(fn flow.DebugFunc)               { n.debug = fn }
 func (n *ModbusReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 func (n *ModbusReadNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusReadNode) Start() error {
-	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
 		NodeKind:   "modbus-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -282,12 +277,12 @@ func (n *ModbusReadNode) tick() {
 		if n.emitOnError {
 			out := flow.NewMessage()
 			out.Set("error", err.Error())
-			n.send(0, out)
+			n.Send(0, out)
 		}
 		return
 	}
 	if msg != nil {
-		n.send(0, msg)
+		n.Send(0, msg)
 	}
 }
 
@@ -320,7 +315,7 @@ func (n *ModbusReadNode) doRead(p readParams) (*flow.Message, error) {
 
 	raw, err := n.server.Read(unitID, p.fc, p.address, uint16(wireQty))
 	if err != nil {
-		n.status("red", err.Error())
+		n.Status("red", err.Error())
 		return nil, fmt.Errorf("modbus-read %s: %w", n.config.ID, err)
 	}
 
@@ -390,14 +385,14 @@ func (n *ModbusReadNode) doRead(p readParams) (*flow.Message, error) {
 // handleServerStatus is invoked by the server config node whenever its
 // connection state changes. We pass it through unchanged for the read node.
 func (n *ModbusReadNode) handleServerStatus(fill, text string) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	if fill == "green" {
-		n.status("green", n.connectedStatus())
+		n.Status("green", n.connectedStatus())
 		return
 	}
-	n.status(fill, text)
+	n.Status(fill, text)
 }
 
 // connectedStatus is the green-state status text — describes the polling

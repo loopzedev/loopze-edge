@@ -24,9 +24,7 @@ import (
 type HTTPResponseNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Injected by the engine via HTTPMuxProvider.
@@ -62,9 +60,6 @@ func (n *HTTPResponseNode) Init() error {
 	return nil
 }
 
-func (n *HTTPResponseNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *HTTPResponseNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *HTTPResponseNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *HTTPResponseNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetHTTPMux implements flow.HTTPMuxProvider. http-response only needs

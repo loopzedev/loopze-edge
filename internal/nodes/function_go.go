@@ -28,10 +28,7 @@ import (
 // stdlib subset.
 type FunctionGoNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	ctxMem   flow.ContextStore
 	ctxPers  flow.ContextStore
 	flowMem  flow.ContextStore
@@ -75,10 +72,6 @@ func (n *FunctionGoNode) Init() error {
 	return nil
 }
 
-func (n *FunctionGoNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *FunctionGoNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *FunctionGoNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // SetContext implements flow.ContextProvider. Called by the engine after
 // wiring, before Start().
 func (n *FunctionGoNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
@@ -92,24 +85,24 @@ func (n *FunctionGoNode) SetContext(globalMem, globalPers, flowMem, flowPers flo
 // and propagates the error to the engine — the deploy reflects this in the UI.
 func (n *FunctionGoNode) Start() error {
 	if n.code == "" {
-		if n.status != nil {
-			n.status("yellow", "no code")
+		if n.Status != nil {
+			n.Status("yellow", "no code")
 		}
 		return nil
 	}
 
 	prog, err := scriptingyaegi.New().Compile(n.code)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "compile: "+err.Error())
+		if n.Status != nil {
+			n.Status("red", "compile: "+err.Error())
 		}
 		return fmt.Errorf("function-go node %s: compile: %w", n.config.ID, err)
 	}
 	n.program = prog
 
 	// Clear any leftover status from a previous failed deploy.
-	if n.status != nil {
-		n.status("", "")
+	if n.Status != nil {
+		n.Status("", "")
 	}
 
 	slog.Info("function-go node started", "node_id", n.config.ID, "outputs", n.outputs)
@@ -199,7 +192,7 @@ func (n *FunctionGoNode) payloadToMessage(v any) *flow.Message {
 
 // emitDebug publishes a debug message via the debug callback.
 func (n *FunctionGoNode) emitDebug(status string, args []any) {
-	if n.debug == nil {
+	if n.Debug == nil {
 		return
 	}
 	var payload any
@@ -208,7 +201,7 @@ func (n *FunctionGoNode) emitDebug(status string, args []any) {
 	} else if len(args) > 1 {
 		payload = args
 	}
-	n.debug(flow.DebugMessage{
+	n.Debug(flow.DebugMessage{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		Status:    status,
 		Payload:   payload,
@@ -256,8 +249,8 @@ func (a *goNodeAPI) Warn(args ...any)  { a.node.emitDebug("warn", args) }
 func (a *goNodeAPI) Error(args ...any) { a.node.emitDebug("error", args) }
 
 func (a *goNodeAPI) Status(fill, text string) {
-	if a.node.status != nil {
-		a.node.status(fill, text)
+	if a.node.Status != nil {
+		a.node.Status(fill, text)
 	}
 }
 

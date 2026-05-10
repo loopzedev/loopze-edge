@@ -20,9 +20,7 @@ import (
 // detected by matching _linkSource == own ID, cleaned up, and emitted at port 0.
 type LinkCallNode struct {
 	config   flow.NodeConfig
-	send     flow.SendFunc
-	status   flow.StatusFunc
-	debug    flow.DebugFunc
+	BaseNode
 	linkSend flow.LinkSendFunc
 
 	linkTarget string // Single link-in node ID to send requests to
@@ -41,9 +39,6 @@ func (n *LinkCallNode) Init() error {
 	return nil
 }
 
-func (n *LinkCallNode) SetSend(fn flow.SendFunc)       { n.send = fn }
-func (n *LinkCallNode) SetStatus(fn flow.StatusFunc)    { n.status = fn }
-func (n *LinkCallNode) SetDebug(fn flow.DebugFunc)      { n.debug = fn }
 func (n *LinkCallNode) SetLinkSend(fn flow.LinkSendFunc) { n.linkSend = fn }
 
 // Start is a no-op for link-call.

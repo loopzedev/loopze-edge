@@ -35,9 +35,7 @@ const (
 type UDPOutNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Parsed configuration.
@@ -105,9 +103,6 @@ func (n *UDPOutNode) Init() error {
 	return nil
 }
 
-func (n *UDPOutNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *UDPOutNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *UDPOutNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *UDPOutNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 func (n *UDPOutNode) Start() error { return nil }
@@ -281,8 +276,8 @@ func setBroadcast(c *net.UDPConn) error {
 }
 
 func (n *UDPOutNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

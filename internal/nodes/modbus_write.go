@@ -21,9 +21,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type ModbusWriteNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -82,14 +80,11 @@ func (n *ModbusWriteNode) Init() error {
 	return nil
 }
 
-func (n *ModbusWriteNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *ModbusWriteNode) SetStatus(fn flow.StatusFunc)             { n.status = fn }
-func (n *ModbusWriteNode) SetDebug(fn flow.DebugFunc)               { n.debug = fn }
 func (n *ModbusWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 func (n *ModbusWriteNode) SetError(fn flow.ErrorFunc)               { n.errFn = fn }
 
 func (n *ModbusWriteNode) Start() error {
-	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+	server, err := resolveConfigInstance[ModbusServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
 		NodeKind:   "modbus-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -99,7 +94,7 @@ func (n *ModbusWriteNode) Start() error {
 		return err
 	}
 	n.server = server
-	n.server.RegisterStatusFunc(n.status)
+	n.server.RegisterStatusFunc(n.Status)
 
 	slog.Info("modbus-write started",
 		"node_id", n.config.ID, "fc", n.fc, "address", n.address, "dataType", n.dataType)
@@ -202,7 +197,7 @@ func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any)
 			return nil, fmt.Errorf("FC5 expects single bool, got %d values", len(bools))
 		}
 		if err := n.server.WriteSingleCoil(unitID, p.address, bools[0]); err != nil {
-			n.status("red", err.Error())
+			n.Status("red", err.Error())
 			return nil, err
 		}
 		return bools[0], nil
@@ -223,7 +218,7 @@ func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any)
 			return nil, fmt.Errorf("FC6 encode: %w", err)
 		}
 		if err := n.server.WriteSingleRegister(unitID, p.address, regs[0]); err != nil {
-			n.status("red", err.Error())
+			n.Status("red", err.Error())
 			return nil, err
 		}
 		return []int{int(regs[0])}, nil
@@ -234,7 +229,7 @@ func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any)
 			return nil, fmt.Errorf("FC15 encode: %w", err)
 		}
 		if err := n.server.WriteMultipleCoils(unitID, p.address, packed, uint16(qty)); err != nil {
-			n.status("red", err.Error())
+			n.Status("red", err.Error())
 			return nil, err
 		}
 		bools, _ := toBoolSlice(payload)
@@ -252,7 +247,7 @@ func (n *ModbusWriteNode) dispatchWrite(unitID byte, p writeParams, payload any)
 			return nil, fmt.Errorf("FC16 encode: %w", err)
 		}
 		if err := n.server.WriteMultipleRegisters(unitID, p.address, regs); err != nil {
-			n.status("red", err.Error())
+			n.Status("red", err.Error())
 			return nil, err
 		}
 		out := make([]int, len(regs))

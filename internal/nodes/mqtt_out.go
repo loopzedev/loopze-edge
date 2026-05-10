@@ -18,9 +18,7 @@ import (
 // Sink node: 1 input, 0 outputs. Implements flow.ConfigProvider.
 type MqttOutNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 
 	brokerID string
@@ -110,13 +108,10 @@ func readPayloadFormat(v any) (byte, bool) {
 	}
 }
 
-func (n *MqttOutNode) SetSend(fn flow.SendFunc)               { n.send = fn }
-func (n *MqttOutNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *MqttOutNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *MqttOutNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *MqttOutNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.status, resolveConfigParams{
+	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
 		NodeKind:   "mqtt-out",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",
@@ -128,7 +123,7 @@ func (n *MqttOutNode) Start() error {
 	n.broker = broker
 
 	// Register status callback so broker state changes update this node.
-	n.broker.RegisterStatusFunc(n.status)
+	n.broker.RegisterStatusFunc(n.Status)
 
 	slog.Info("mqtt-out node started", "node_id", n.config.ID, "topic", n.topic, "qos", n.qos)
 	return nil
@@ -148,7 +143,7 @@ func (n *MqttOutNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error
 	props := n.mergeV5PublishProperties(msg)
 
 	if err := n.broker.Publish(topic, n.qos, n.retain, payload, props); err != nil {
-		n.status("red", err.Error())
+		n.Status("red", err.Error())
 		return nil, fmt.Errorf("mqtt-out %s: publish failed: %w", n.config.ID, err)
 	}
 

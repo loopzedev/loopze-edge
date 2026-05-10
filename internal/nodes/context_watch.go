@@ -27,10 +27,7 @@ type kvProvider interface {
 // It is a source node (0 inputs, 1 output).
 type ContextWatchNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	// Context stores received via ContextProvider.
 	globalMem  flow.ContextStore
 	globalPers flow.ContextStore
@@ -81,10 +78,6 @@ func (n *ContextWatchNode) Init() error {
 	return nil
 }
 
-func (n *ContextWatchNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *ContextWatchNode) SetStatus(fn flow.StatusFunc)  { n.status = fn }
-func (n *ContextWatchNode) SetDebug(fn flow.DebugFunc)    { n.debug = fn }
-
 // SetContext implements flow.ContextProvider to receive context stores.
 func (n *ContextWatchNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
 	n.globalMem = globalMem
@@ -96,7 +89,7 @@ func (n *ContextWatchNode) SetContext(globalMem, globalPers, flowMem, flowPers f
 // Start selects the configured context store, starts a NATS KV watcher,
 // and launches a goroutine that emits messages for each change event.
 func (n *ContextWatchNode) Start() error {
-	if n.send == nil {
+	if n.Send == nil {
 		return fmt.Errorf("context-watch node %s: send function not set", n.config.ID)
 	}
 
@@ -127,8 +120,8 @@ func (n *ContextWatchNode) Start() error {
 	n.wg.Add(1)
 	go n.watchLoop(watcher)
 
-	if n.status != nil {
-		n.status("green", "watching")
+	if n.Status != nil {
+		n.Status("green", "watching")
 	}
 
 	slog.Info("context-watch node started",
@@ -182,8 +175,8 @@ func (n *ContextWatchNode) watchLoop(watcher jetstream.KeyWatcher) {
 				slog.Warn("context-watch watcher channel closed, stopping",
 					"node_id", n.config.ID,
 				)
-				if n.status != nil {
-					n.status("red", "disconnected")
+				if n.Status != nil {
+					n.Status("red", "disconnected")
 				}
 				return
 			}
@@ -224,7 +217,7 @@ func (n *ContextWatchNode) handleEntry(entry jetstream.KeyValueEntry) {
 		msg.SetPayload(nil)
 	}
 
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 // ContextWatchTypeInfo returns the NodeTypeInfo for registering the context-watch node.

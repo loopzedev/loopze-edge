@@ -29,9 +29,7 @@ import (
 // Implements flow.ConfigProvider.
 type OpcuaReadNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 
 	serverID        string
@@ -186,13 +184,10 @@ func (n *OpcuaReadNode) Init() error {
 	return nil
 }
 
-func (n *OpcuaReadNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *OpcuaReadNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *OpcuaReadNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *OpcuaReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaReadNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
 		NodeKind:   "opcua-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -203,8 +198,8 @@ func (n *OpcuaReadNode) Start() error {
 	}
 	n.server = server
 
-	if n.status != nil {
-		n.server.RegisterStatusFunc(n.status)
+	if n.Status != nil {
+		n.server.RegisterStatusFunc(n.Status)
 	}
 
 	if n.mode == "static" {
@@ -334,7 +329,7 @@ func (n *OpcuaReadNode) runStatic(stop <-chan struct{}, done chan<- struct{}) {
 
 	emit := func() {
 		for _, msg := range n.doRead(n.nodeEntries) {
-			n.send(0, msg)
+			n.Send(0, msg)
 		}
 	}
 
@@ -377,8 +372,8 @@ func (n *OpcuaReadNode) runStatic(stop <-chan struct{}, done chan<- struct{}) {
 func (n *OpcuaReadNode) doRead(entries []nodeIDEntry) []*flow.Message {
 	client := n.server.Client()
 	if client == nil {
-		if n.status != nil {
-			n.status("red", "no session")
+		if n.Status != nil {
+			n.Status("red", "no session")
 		}
 		return nil
 	}
@@ -424,8 +419,8 @@ func (n *OpcuaReadNode) doRead(entries []nodeIDEntry) []*flow.Message {
 		})
 		cancel()
 		if err != nil {
-			if n.status != nil {
-				n.status("red", err.Error())
+			if n.Status != nil {
+				n.Status("red", err.Error())
 			}
 			slog.Warn("opcua-read service error", "node_id", n.config.ID, "error", err)
 			return nil

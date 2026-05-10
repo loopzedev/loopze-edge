@@ -29,9 +29,7 @@ const (
 type UDPInNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Parsed configuration.
@@ -138,9 +136,6 @@ func parseMulticastGroup(raw string) (multicastGroupCfg, error) {
 	}, nil
 }
 
-func (n *UDPInNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *UDPInNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *UDPInNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *UDPInNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 func (n *UDPInNode) Start() error {
@@ -279,7 +274,7 @@ func (n *UDPInNode) checkAllowed(src *net.UDPAddr) bool {
 }
 
 func (n *UDPInNode) emit(datagram []byte, src *net.UDPAddr, localAddr string, truncated bool) {
-	if n.send == nil {
+	if n.Send == nil {
 		return
 	}
 	msg := flow.NewMessage()
@@ -292,7 +287,7 @@ func (n *UDPInNode) emit(datagram []byte, src *net.UDPAddr, localAddr string, tr
 	if truncated {
 		msg.Set("truncated", true)
 	}
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 func (n *UDPInNode) isStopped() bool {
@@ -314,8 +309,8 @@ func (n *UDPInNode) publishStatus() {
 }
 
 func (n *UDPInNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

@@ -15,9 +15,7 @@ import (
 // It has 0 canvas inputs and 1 canvas output.
 type LinkInNode struct {
 	config   flow.NodeConfig
-	send     flow.SendFunc
-	status   flow.StatusFunc
-	debug    flow.DebugFunc
+	BaseNode
 	linkSend flow.LinkSendFunc
 
 	links []string // IDs of link-out nodes (for bidirectional display in UI)
@@ -42,9 +40,6 @@ func (n *LinkInNode) Init() error {
 	return nil
 }
 
-func (n *LinkInNode) SetSend(fn flow.SendFunc)       { n.send = fn }
-func (n *LinkInNode) SetStatus(fn flow.StatusFunc)    { n.status = fn }
-func (n *LinkInNode) SetDebug(fn flow.DebugFunc)      { n.debug = fn }
 func (n *LinkInNode) SetLinkSend(fn flow.LinkSendFunc) { n.linkSend = fn }
 
 // Start is a no-op for link-in (it only reacts to incoming messages).

@@ -32,10 +32,7 @@ const catchBlinkDuration = 2 * time.Second
 // of scope.
 type CatchNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	scope       string
 	targetNodes map[string]struct{}
 
@@ -78,10 +75,6 @@ func (n *CatchNode) Init() error {
 	return nil
 }
 
-func (n *CatchNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *CatchNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *CatchNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // SetErrorListener implements flow.ErrorListenerProvider. The engine calls
 // this once per wire pass; if a previous registration exists (from an earlier
 // wire pass during a modified-nodes deploy) it is released first to avoid
@@ -108,8 +101,8 @@ func (n *CatchNode) Start() error {
 		slog.Warn("catch node: no listener registration available",
 			"node_id", n.config.ID)
 		n.started = true
-		if n.status != nil {
-			n.status("yellow", "no listener")
+		if n.Status != nil {
+			n.Status("yellow", "no listener")
 		}
 		return nil
 	}
@@ -120,8 +113,8 @@ func (n *CatchNode) Start() error {
 	n.unregister = n.register(n.handleError)
 	n.started = true
 
-	if n.status != nil {
-		n.status("green", catchIdleStatusText)
+	if n.Status != nil {
+		n.Status("green", catchIdleStatusText)
 	}
 	return nil
 }
@@ -165,7 +158,7 @@ func (n *CatchNode) handleError(em flow.ErrorMessage) {
 	case "all":
 		// no filter
 	}
-	if n.send == nil {
+	if n.Send == nil {
 		return
 	}
 
@@ -189,12 +182,12 @@ func (n *CatchNode) handleError(em flow.ErrorMessage) {
 	// in makeErrorFunc.
 	out.Set("_caught", true)
 
-	n.send(0, out)
+	n.Send(0, out)
 	n.blink(em)
 }
 
 func (n *CatchNode) blink(em flow.ErrorMessage) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	seq := n.blinkSeq.Add(1)
@@ -203,14 +196,14 @@ func (n *CatchNode) blink(em flow.ErrorMessage) {
 		label = em.NodeID
 	}
 	text := label + ": error"
-	n.status("red", catchTruncate(text, 32))
+	n.Status("red", catchTruncate(text, 32))
 
 	go func() {
 		time.Sleep(catchBlinkDuration)
 		if n.blinkSeq.Load() != seq {
 			return
 		}
-		n.status("green", catchIdleStatusText)
+		n.Status("green", catchIdleStatusText)
 	}()
 }
 

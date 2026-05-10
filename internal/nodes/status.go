@@ -37,10 +37,7 @@ const statusBlinkDuration = 2 * time.Second
 // regardless of scope.
 type StatusNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	scope       string              // "flow", "selected" or "all"
 	targetNodes map[string]struct{} // populated when scope == "selected"
 
@@ -87,21 +84,6 @@ func (n *StatusNode) Init() error {
 	return nil
 }
 
-// SetSend stores the engine-provided callback for sending messages downstream.
-func (n *StatusNode) SetSend(fn flow.SendFunc) {
-	n.send = fn
-}
-
-// SetStatus stores the engine-provided callback for reporting node status.
-func (n *StatusNode) SetStatus(fn flow.StatusFunc) {
-	n.status = fn
-}
-
-// SetDebug stores the engine-provided callback for emitting debug messages.
-func (n *StatusNode) SetDebug(fn flow.DebugFunc) {
-	n.debug = fn
-}
-
 // SetStatusListener implements flow.StatusListenerProvider. The engine calls
 // this once per wire pass; if a previous registration exists (from an earlier
 // wire pass during a modified-nodes deploy) it is released first to avoid
@@ -132,8 +114,8 @@ func (n *StatusNode) Start() error {
 		slog.Warn("status node: no listener registration available",
 			"node_id", n.config.ID)
 		n.started = true
-		if n.status != nil {
-			n.status("yellow", "no listener")
+		if n.Status != nil {
+			n.Status("yellow", "no listener")
 		}
 		return nil
 	}
@@ -145,8 +127,8 @@ func (n *StatusNode) Start() error {
 	n.unregister = n.register(n.handleStatus)
 	n.started = true
 
-	if n.status != nil {
-		n.status("green", idleStatusText)
+	if n.Status != nil {
+		n.Status("green", idleStatusText)
 	}
 	return nil
 }
@@ -192,7 +174,7 @@ func (n *StatusNode) handleStatus(sm flow.StatusMessage) {
 	case "all":
 		// no filter
 	}
-	if n.send == nil {
+	if n.Send == nil {
 		return
 	}
 
@@ -209,7 +191,7 @@ func (n *StatusNode) handleStatus(sm flow.StatusMessage) {
 	})
 	msg.SetPayload(sm.Status.Text)
 
-	n.send(0, msg)
+	n.Send(0, msg)
 	n.blink(sm)
 }
 
@@ -217,7 +199,7 @@ func (n *StatusNode) handleStatus(sm flow.StatusMessage) {
 // statusBlinkDuration, then reverts to the idle text — provided no newer
 // blink has started in the meantime.
 func (n *StatusNode) blink(sm flow.StatusMessage) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 
@@ -227,14 +209,14 @@ func (n *StatusNode) blink(sm flow.StatusMessage) {
 		label = sm.NodeID
 	}
 	text := label + ": " + sm.Status.Fill
-	n.status("grey", truncate(text, 32))
+	n.Status("grey", truncate(text, 32))
 
 	go func() {
 		time.Sleep(statusBlinkDuration)
 		if n.blinkSeq.Load() != seq {
 			return
 		}
-		n.status("green", idleStatusText)
+		n.Status("green", idleStatusText)
 	}()
 }
 

@@ -26,9 +26,7 @@ import (
 // Implements flow.ConfigProvider.
 type MqttInNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 
 	mode         string
@@ -204,13 +202,10 @@ func readStringMap(v any) map[string]string {
 	}
 }
 
-func (n *MqttInNode) SetSend(fn flow.SendFunc)                 { n.send = fn }
-func (n *MqttInNode) SetStatus(fn flow.StatusFunc)              { n.status = fn }
-func (n *MqttInNode) SetDebug(fn flow.DebugFunc)                { n.debug = fn }
 func (n *MqttInNode) SetConfigLookup(fn flow.ConfigLookupFunc)  { n.configLookup = fn }
 
 func (n *MqttInNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.status, resolveConfigParams{
+	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
 		NodeKind:   "mqtt-in",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",
@@ -228,7 +223,7 @@ func (n *MqttInNode) Start() error {
 
 	if n.mode == "static" {
 		if err := n.broker.Subscribe(n.config.ID, n.topic, n.subscribeOptionsFromConfig(), n.onMessage); err != nil {
-			n.status("red", "subscribe failed")
+			n.Status("red", "subscribe failed")
 			return fmt.Errorf("mqtt-in %s: subscribe failed: %w", n.config.ID, err)
 		}
 		n.mu.Lock()
@@ -291,7 +286,7 @@ func (n *MqttInNode) onMessage(p *paho.Publish) {
 		}
 	}
 
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 // HandleMessage in dynamic mode treats incoming messages as control commands
@@ -475,7 +470,7 @@ func (n *MqttInNode) Stop() error {
 // the "connected" state with node-local detail.
 func (n *MqttInNode) handleBrokerStatus(fill, text string) {
 	if fill != "green" {
-		n.status(fill, text)
+		n.Status(fill, text)
 		return
 	}
 	n.refreshStatus()
@@ -493,14 +488,14 @@ func (n *MqttInNode) refreshStatus() {
 	n.mu.Unlock()
 
 	if n.mode == "static" {
-		n.status("green", "connected · "+first)
+		n.Status("green", "connected · "+first)
 		return
 	}
 	if count == 0 {
-		n.status("green", "connected · idle")
+		n.Status("green", "connected · idle")
 		return
 	}
-	n.status("green", fmt.Sprintf("connected · %d topic(s)", count))
+	n.Status("green", fmt.Sprintf("connected · %d topic(s)", count))
 }
 
 // MqttInTypeInfo returns the node type metadata for the palette.

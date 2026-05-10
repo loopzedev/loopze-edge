@@ -57,9 +57,7 @@ const (
 type HTTPRequestNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Parsed configuration.
@@ -213,9 +211,6 @@ func (n *HTTPRequestNode) Init() error {
 	return nil
 }
 
-func (n *HTTPRequestNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *HTTPRequestNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *HTTPRequestNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *HTTPRequestNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetCertStore implements flow.CertStoreProvider.
@@ -526,8 +521,8 @@ func decodeResponseBody(body []byte, contentType, mode string) (any, error) {
 }
 
 func (n *HTTPRequestNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

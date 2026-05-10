@@ -30,10 +30,7 @@ import (
 //	true            — keep the input message, overwrite outputProperty only
 type FunctionExprNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	// Parsed from Properties.
 	expression     string
 	outputProperty string
@@ -68,18 +65,14 @@ func (n *FunctionExprNode) Init() error {
 	return nil
 }
 
-func (n *FunctionExprNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *FunctionExprNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *FunctionExprNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // Start compiles the expression. A compile failure puts the node in red status
 // and propagates the error to the engine — the deploy reflects this in the UI.
 func (n *FunctionExprNode) Start() error {
 	if n.expression == "" {
 		// Empty expression is permitted but emits a passthrough; tag the node
 		// so the user can see that nothing meaningful is happening.
-		if n.status != nil {
-			n.status("yellow", "no expression")
+		if n.Status != nil {
+			n.Status("yellow", "no expression")
 		}
 		return nil
 	}
@@ -92,16 +85,16 @@ func (n *FunctionExprNode) Start() error {
 
 	prog, err := scriptingexpr.Compile(n.expression, envShape)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "compile: "+err.Error())
+		if n.Status != nil {
+			n.Status("red", "compile: "+err.Error())
 		}
 		return fmt.Errorf("function-expr node %s: compile: %w", n.config.ID, err)
 	}
 	n.program = prog
 
 	// Clear any leftover status from a previous failed deploy.
-	if n.status != nil {
-		n.status("", "")
+	if n.Status != nil {
+		n.Status("", "")
 	}
 
 	slog.Info("function-expr node started", "node_id", n.config.ID)

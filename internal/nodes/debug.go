@@ -18,10 +18,7 @@ import (
 // them as debug output. It has 1 input and 0 outputs.
 type DebugNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	// Parsed from Properties.
 	output        string // "property", "message", "gjson"
 	property      string // which msg field to display (default: "payload")
@@ -74,21 +71,6 @@ func (n *DebugNode) Init() error {
 	return nil
 }
 
-// SetSend stores the send callback (debug node doesn't send downstream).
-func (n *DebugNode) SetSend(fn flow.SendFunc) {
-	n.send = fn
-}
-
-// SetStatus stores the status callback.
-func (n *DebugNode) SetStatus(fn flow.StatusFunc) {
-	n.status = fn
-}
-
-// SetDebug stores the debug callback for publishing debug messages.
-func (n *DebugNode) SetDebug(fn flow.DebugFunc) {
-	n.debug = fn
-}
-
 // Start is a no-op for the debug node (it only reacts to incoming messages).
 func (n *DebugNode) Start() error {
 	slog.Info("debug node started",
@@ -101,7 +83,7 @@ func (n *DebugNode) Start() error {
 
 // HandleMessage captures the incoming message and publishes it as a debug event.
 func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
-	if n.debug == nil {
+	if n.Debug == nil {
 		return nil, nil
 	}
 
@@ -127,7 +109,7 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 		propertyLabel = n.property
 	}
 
-	n.debug(flow.DebugMessage{
+	n.Debug(flow.DebugMessage{
 		ID:        msg.ID(),
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		Status:    "debug",
@@ -139,7 +121,7 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 
 	// Status output
 	n.msgCount++
-	if n.statusEnabled && n.status != nil {
+	if n.statusEnabled && n.Status != nil {
 		var statusText string
 		switch n.statusOutput {
 		case "same":
@@ -160,7 +142,7 @@ func (n *DebugNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 		if runes := []rune(statusText); len(runes) > 32 {
 			statusText = string(runes[:32])
 		}
-		n.status("grey", statusText)
+		n.Status("grey", statusText)
 	}
 
 	return nil, nil

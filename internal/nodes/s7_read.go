@@ -26,9 +26,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type S7ReadNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -164,9 +162,6 @@ func (n *S7ReadNode) Init() error {
 	return nil
 }
 
-func (n *S7ReadNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *S7ReadNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *S7ReadNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *S7ReadNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 func (n *S7ReadNode) SetError(fn flow.ErrorFunc)              { n.errFn = fn }
 
@@ -174,7 +169,7 @@ func (n *S7ReadNode) SetError(fn flow.ErrorFunc)              { n.errFn = fn }
 // kicks off the polling goroutine in static mode. Dynamic mode just sits idle
 // waiting for input messages.
 func (n *S7ReadNode) Start() error {
-	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.status, resolveConfigParams{
+	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, resolveConfigParams{
 		NodeKind:   "s7-read",
 		NodeID:     n.config.ID,
 		ConfigKind: "plc",
@@ -253,8 +248,8 @@ func (n *S7ReadNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error)
 		// Nothing to read — silently swallow, matching the spec ("if dynamic
 		// mode without msg.nodeIds and without default NodeIDs in the config,
 		// the read is skipped with a status warning").
-		if n.status != nil {
-			n.status("yellow", "no variables to read")
+		if n.Status != nil {
+			n.Status("yellow", "no variables to read")
 		}
 		return nil, nil
 	}
@@ -339,12 +334,12 @@ func (n *S7ReadNode) tick() {
 		if n.emitOnError {
 			errMsg := flow.NewMessage()
 			errMsg.Set("error", err.Error())
-			n.send(0, errMsg)
+			n.Send(0, errMsg)
 		}
 		return
 	}
 	if out != nil {
-		n.send(0, out)
+		n.Send(0, out)
 	}
 }
 
@@ -539,14 +534,14 @@ func (n *S7ReadNode) renderTopic(vars []s7Variable) string {
 // status pill, with a node-specific text on green that describes the polling
 // configuration.
 func (n *S7ReadNode) handlePLCStatus(fill, text string) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	if fill == "green" {
-		n.status("green", n.connectedStatus())
+		n.Status("green", n.connectedStatus())
 		return
 	}
-	n.status(fill, text)
+	n.Status(fill, text)
 }
 
 func (n *S7ReadNode) connectedStatus() string {

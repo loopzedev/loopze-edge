@@ -50,10 +50,7 @@ const (
 // On Stop() all pending messages are discarded.
 type DelayNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	mode           string
 	timeout        time.Duration
 	randomMin      time.Duration
@@ -147,19 +144,10 @@ func (n *DelayNode) Init() error {
 	return nil
 }
 
-// SetSend stores the engine-provided callback for sending messages downstream.
-func (n *DelayNode) SetSend(fn flow.SendFunc) { n.send = fn }
-
-// SetStatus stores the engine-provided callback for reporting node status.
-func (n *DelayNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-
-// SetDebug stores the engine-provided callback for emitting debug messages.
-func (n *DelayNode) SetDebug(fn flow.DebugFunc) { n.debug = fn }
-
 // Start launches the rate worker goroutine when running in rate mode.
 // Modes "delay" and "random" spawn per-message goroutines on demand.
 func (n *DelayNode) Start() error {
-	if n.send == nil {
+	if n.Send == nil {
 		return fmt.Errorf("delay node %s: send function not set", n.config.ID)
 	}
 
@@ -215,7 +203,7 @@ func (n *DelayNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) 
 		n.handleRate(msg)
 	default:
 		// Unknown mode: pass through unchanged so the node never silently drops.
-		n.send(0, msg)
+		n.Send(0, msg)
 	}
 	return nil, nil
 }
@@ -258,7 +246,7 @@ func (n *DelayNode) flushPending() {
 		for {
 			select {
 			case msg := <-n.queue:
-				n.send(0, msg)
+				n.Send(0, msg)
 				n.pending.Add(-1)
 			default:
 				n.updateStatus()
@@ -299,7 +287,7 @@ func (n *DelayNode) Stop() error {
 // not have to special-case them.
 func (n *DelayNode) scheduleAfter(d time.Duration, msg *flow.Message) {
 	if d <= 0 {
-		n.send(0, msg)
+		n.Send(0, msg)
 		return
 	}
 
@@ -324,9 +312,9 @@ func (n *DelayNode) scheduleAfter(d time.Duration, msg *flow.Message) {
 
 		select {
 		case <-timer.C:
-			n.send(0, msg)
+			n.Send(0, msg)
 		case <-flushCh:
-			n.send(0, msg)
+			n.Send(0, msg)
 		case <-resetCh:
 			return // reset broadcast — discard
 		case <-n.done:
@@ -342,17 +330,17 @@ func (n *DelayNode) scheduleAfter(d time.Duration, msg *flow.Message) {
 // interleave such that an earlier read writes its status after a later one,
 // leaving stale "pending: N" text after the queue has drained.
 func (n *DelayNode) updateStatus() {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	p := n.pending.Load()
 	if p == 0 {
-		n.status("", "")
+		n.Status("", "")
 		return
 	}
-	n.status("blue", fmt.Sprintf("pending: %d", p))
+	n.Status("blue", fmt.Sprintf("pending: %d", p))
 }
 
 // handleRate routes a rate-mode message through either the timestamp gate
@@ -371,7 +359,7 @@ func (n *DelayNode) handleRate(msg *flow.Message) {
 func (n *DelayNode) handleRateDrop(msg *flow.Message) {
 	if n.rateInterval <= 0 {
 		// No effective rate limit configured — pass through.
-		n.send(0, msg)
+		n.Send(0, msg)
 		return
 	}
 
@@ -383,7 +371,7 @@ func (n *DelayNode) handleRateDrop(msg *flow.Message) {
 	}
 	n.lastSent = now
 	n.mu.Unlock()
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 // handleRateQueue places msg into the rate-mode buffer. When the queue is
@@ -435,7 +423,7 @@ func (n *DelayNode) rateWorker() {
 		case <-ticker.C:
 			select {
 			case msg := <-n.queue:
-				n.send(0, msg)
+				n.Send(0, msg)
 				n.pending.Add(-1)
 				n.updateStatus()
 			default:

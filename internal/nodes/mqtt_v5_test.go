@@ -37,7 +37,7 @@ func TestMqttIn_OnMessage_V5Properties(t *testing.T) {
 	}
 
 	c := &collector{}
-	n := &MqttInNode{send: c.send}
+	n := &MqttInNode{BaseNode: BaseNode{Send: c.send}}
 	n.onMessage(pkt)
 
 	if c.count() != 1 {
@@ -96,7 +96,7 @@ func TestMqttIn_OnMessage_PayloadFormatAndSubscriptionIdentifier(t *testing.T) {
 	}
 
 	c := &collector{}
-	n := &MqttInNode{send: c.send}
+	n := &MqttInNode{BaseNode: BaseNode{Send: c.send}}
 	n.onMessage(pkt)
 
 	msg := c.last()
@@ -114,7 +114,7 @@ func TestMqttIn_OnMessage_PayloadFormatAndSubscriptionIdentifier(t *testing.T) {
 func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
 	t.Run("string (default) — bytes become Go string", func(t *testing.T) {
 		c := &collector{}
-		n := &MqttInNode{send: c.send, outputFormat: "string"}
+		n := &MqttInNode{BaseNode: BaseNode{Send: c.send}, outputFormat: "string"}
 		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`{"a":1}`)})
 
 		got, ok := c.last().Get("payload").(string)
@@ -128,7 +128,7 @@ func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
 
 	t.Run("buffer — bytes preserved as []int (round-trip-safe via JSON)", func(t *testing.T) {
 		c := &collector{}
-		n := &MqttInNode{send: c.send, outputFormat: "buffer"}
+		n := &MqttInNode{BaseNode: BaseNode{Send: c.send}, outputFormat: "buffer"}
 		raw := []byte{0xCA, 0xFE, 0xBA, 0xBE}
 		n.onMessage(&paho.Publish{Topic: "x", Payload: raw})
 
@@ -150,7 +150,7 @@ func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
 
 	t.Run("buffer — JSON round-trip preserves data and re-serialises to bytes", func(t *testing.T) {
 		c := &collector{}
-		n := &MqttInNode{send: c.send, outputFormat: "buffer"}
+		n := &MqttInNode{BaseNode: BaseNode{Send: c.send}, outputFormat: "buffer"}
 		raw := []byte{0xDE, 0xAD, 0xBE, 0xEF}
 		n.onMessage(&paho.Publish{Topic: "x", Payload: raw})
 
@@ -183,7 +183,7 @@ func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
 
 	t.Run("json — valid JSON is decoded to a structured value", func(t *testing.T) {
 		c := &collector{}
-		n := &MqttInNode{send: c.send, outputFormat: "json"}
+		n := &MqttInNode{BaseNode: BaseNode{Send: c.send}, outputFormat: "json"}
 		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`{"a":1,"b":[true,null]}`)})
 
 		got, ok := c.last().Get("payload").(map[string]any)
@@ -200,7 +200,7 @@ func TestMqttIn_OnMessage_OutputFormat(t *testing.T) {
 
 	t.Run("json — invalid JSON falls back to string + parseError", func(t *testing.T) {
 		c := &collector{}
-		n := &MqttInNode{send: c.send, outputFormat: "json"}
+		n := &MqttInNode{BaseNode: BaseNode{Send: c.send}, outputFormat: "json"}
 		n.onMessage(&paho.Publish{Topic: "x", Payload: []byte(`not json`)})
 
 		got, ok := c.last().Get("payload").(string)
@@ -229,7 +229,7 @@ func TestMqttIn_OnMessage_NoV5Properties(t *testing.T) {
 	}
 
 	c := &collector{}
-	n := &MqttInNode{send: c.send}
+	n := &MqttInNode{BaseNode: BaseNode{Send: c.send}}
 	n.onMessage(pkt)
 
 	msg := c.last()

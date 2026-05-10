@@ -56,9 +56,7 @@ const (
 type TCPRequestNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Parsed configuration.
@@ -205,9 +203,6 @@ func (n *TCPRequestNode) Init() error {
 	return nil
 }
 
-func (n *TCPRequestNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *TCPRequestNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *TCPRequestNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *TCPRequestNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetCertStore implements flow.CertStoreProvider.
@@ -606,8 +601,8 @@ func encodePayload(b []byte, enc string) any {
 }
 
 func (n *TCPRequestNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

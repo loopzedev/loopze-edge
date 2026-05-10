@@ -30,9 +30,7 @@ import (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type S7WriteNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 	errFn        flow.ErrorFunc
 
@@ -123,15 +121,12 @@ func (n *S7WriteNode) Init() error {
 	return nil
 }
 
-func (n *S7WriteNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *S7WriteNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *S7WriteNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *S7WriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 func (n *S7WriteNode) SetError(fn flow.ErrorFunc)              { n.errFn = fn }
 
 // Start resolves the PLC config instance and registers for status changes.
 func (n *S7WriteNode) Start() error {
-	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.status, resolveConfigParams{
+	plc, err := resolveConfigInstance[S7PLC](n.configLookup, n.plcID, n.Status, resolveConfigParams{
 		NodeKind:   "s7-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "plc",
@@ -393,14 +388,14 @@ func (n *S7WriteNode) buildResultMessage(in *flow.Message, results []s7WriteResu
 
 // handlePLCStatus relays the PLC connection state to the node's status pill.
 func (n *S7WriteNode) handlePLCStatus(fill, text string) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	if fill == "green" {
-		n.status("green", "ready")
+		n.Status("green", "ready")
 		return
 	}
-	n.status(fill, text)
+	n.Status(fill, text)
 }
 
 // parseS7WriteVariablesStatic parses the config-time variables list (static

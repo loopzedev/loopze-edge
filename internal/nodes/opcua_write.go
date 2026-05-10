@@ -50,9 +50,7 @@ type staticWrite struct {
 // Implements flow.ConfigProvider.
 type OpcuaWriteNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 
 	serverID         string
@@ -157,13 +155,10 @@ func parseStaticWrites(raw []any) ([]staticWrite, error) {
 	return out, nil
 }
 
-func (n *OpcuaWriteNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *OpcuaWriteNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *OpcuaWriteNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *OpcuaWriteNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaWriteNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
 		NodeKind:   "opcua-write",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -174,8 +169,8 @@ func (n *OpcuaWriteNode) Start() error {
 	}
 	n.server = server
 
-	if n.status != nil {
-		n.server.RegisterStatusFunc(n.status)
+	if n.Status != nil {
+		n.server.RegisterStatusFunc(n.Status)
 	}
 
 	slog.Info("opcua-write started", "node_id", n.config.ID, "mode", n.mode)
@@ -316,8 +311,8 @@ func (n *OpcuaWriteNode) executeWrites(specs []writeSpec) []map[string]any {
 			results[i]["statusCode"] = "BadConnectionClosed"
 			results[i]["statusCodeRaw"] = uint32(ua.StatusBadConnectionClosed)
 		}
-		if n.status != nil {
-			n.status("red", "no session")
+		if n.Status != nil {
+			n.Status("red", "no session")
 		}
 		return results
 	}
@@ -397,8 +392,8 @@ func (n *OpcuaWriteNode) executeWrites(specs []writeSpec) []map[string]any {
 			results[p.idx]["statusCodeRaw"] = uint32(ua.StatusBadCommunicationError)
 			results[p.idx]["error"] = err.Error()
 		}
-		if n.status != nil {
-			n.status("red", err.Error())
+		if n.Status != nil {
+			n.Status("red", err.Error())
 		}
 		return results
 	}
@@ -466,7 +461,7 @@ func (n *OpcuaWriteNode) resolveTypeID(spec writeSpec) (ua.TypeID, error) {
 // last write outcome at a glance. Long-lived state (red on connection loss
 // etc.) keeps coming through the server's RegisterStatusFunc broadcast.
 func (n *OpcuaWriteNode) pulseStatus(results []map[string]any) {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	good := 0
@@ -476,9 +471,9 @@ func (n *OpcuaWriteNode) pulseStatus(results []map[string]any) {
 		}
 	}
 	if good == len(results) {
-		n.status("green", fmt.Sprintf("%d/%d ok", good, len(results)))
+		n.Status("green", fmt.Sprintf("%d/%d ok", good, len(results)))
 	} else {
-		n.status("yellow", fmt.Sprintf("%d/%d ok", good, len(results)))
+		n.Status("yellow", fmt.Sprintf("%d/%d ok", good, len(results)))
 	}
 	// Don't restore the prior status — the next state-change broadcast or the
 	// next message will overwrite this anyway. Keeps the implementation tight.

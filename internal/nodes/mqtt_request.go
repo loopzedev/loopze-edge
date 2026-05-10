@@ -43,9 +43,7 @@ const (
 // Implements flow.ConfigProvider and flow.ErrorProvider.
 type MqttRequestNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 	errorFn      flow.ErrorFunc
 
@@ -152,14 +150,11 @@ func (n *MqttRequestNode) Init() error {
 	return nil
 }
 
-func (n *MqttRequestNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *MqttRequestNode) SetStatus(fn flow.StatusFunc)             { n.status = fn }
-func (n *MqttRequestNode) SetDebug(fn flow.DebugFunc)               { n.debug = fn }
 func (n *MqttRequestNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 func (n *MqttRequestNode) SetError(fn flow.ErrorFunc)                { n.errorFn = fn }
 
 func (n *MqttRequestNode) Start() error {
-	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.status, resolveConfigParams{
+	broker, err := resolveConfigInstance[MqttBroker](n.configLookup, n.brokerID, n.Status, resolveConfigParams{
 		NodeKind:   "mqtt-request",
 		NodeID:     n.config.ID,
 		ConfigKind: "broker",
@@ -318,7 +313,7 @@ func (n *MqttRequestNode) onResponse(p *paho.Publish) {
 		}
 	}
 
-	n.send(0, out)
+	n.Send(0, out)
 	n.refreshStatus()
 }
 
@@ -338,7 +333,7 @@ func (n *MqttRequestNode) onTimeout(key string) {
 	if n.timeoutMode == mqttRequestTimeoutModePassthrough {
 		out := ctx.inMsg.COWClone()
 		out.Set("timedOut", true)
-		n.send(0, out)
+		n.Send(0, out)
 	} else if n.errorFn != nil {
 		n.errorFn(errors.New("mqtt-request: timeout"), ctx.inMsg)
 	}
@@ -367,10 +362,10 @@ func (n *MqttRequestNode) failAllInflight() {
 			_ = n.broker.Unsubscribe(n.config.ID, ctx.responseTopic)
 		}
 		if n.timeoutMode == mqttRequestTimeoutModePassthrough {
-			if n.send != nil {
+			if n.Send != nil {
 				out := ctx.inMsg.COWClone()
 				out.Set("timedOut", true)
-				n.send(0, out)
+				n.Send(0, out)
 			}
 		} else if n.errorFn != nil {
 			n.errorFn(errors.New("mqtt-request: connection lost"), ctx.inMsg)
@@ -446,7 +441,7 @@ func (n *MqttRequestNode) buildPublishProperties(msg *flow.Message, responseTopi
 // through verbatim and override the green state with node-local detail.
 func (n *MqttRequestNode) handleBrokerStatus(fill, text string) {
 	if fill != "green" {
-		n.status(fill, text)
+		n.Status(fill, text)
 		return
 	}
 	n.refreshStatus()
@@ -454,7 +449,7 @@ func (n *MqttRequestNode) handleBrokerStatus(fill, text string) {
 
 // refreshStatus updates the green-state status string based on inflight count.
 func (n *MqttRequestNode) refreshStatus() {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	n.mu.Lock()
@@ -462,10 +457,10 @@ func (n *MqttRequestNode) refreshStatus() {
 	n.mu.Unlock()
 
 	if count == 0 {
-		n.status("green", "idle")
+		n.Status("green", "idle")
 		return
 	}
-	n.status("green", fmt.Sprintf("%d inflight", count))
+	n.Status("green", fmt.Sprintf("%d inflight", count))
 }
 
 // randomCorrelationData returns 16 cryptographically random bytes for v5

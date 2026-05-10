@@ -18,9 +18,7 @@ import (
 // node instead of the configured targets.
 type LinkOutNode struct {
 	config   flow.NodeConfig
-	send     flow.SendFunc
-	status   flow.StatusFunc
-	debug    flow.DebugFunc
+	BaseNode
 	linkSend flow.LinkSendFunc
 
 	links []string // Target link-in node IDs
@@ -45,9 +43,6 @@ func (n *LinkOutNode) Init() error {
 	return nil
 }
 
-func (n *LinkOutNode) SetSend(fn flow.SendFunc)       { n.send = fn }
-func (n *LinkOutNode) SetStatus(fn flow.StatusFunc)    { n.status = fn }
-func (n *LinkOutNode) SetDebug(fn flow.DebugFunc)      { n.debug = fn }
 func (n *LinkOutNode) SetLinkSend(fn flow.LinkSendFunc) { n.linkSend = fn }
 
 // Start is a no-op for link-out.

@@ -51,9 +51,7 @@ type itemState struct {
 // Implements flow.ConfigProvider.
 type OpcuaSubscribeNode struct {
 	config       flow.NodeConfig
-	send         flow.SendFunc
-	status       flow.StatusFunc
-	debug        flow.DebugFunc
+	BaseNode
 	configLookup flow.ConfigLookupFunc
 
 	serverID    string
@@ -206,13 +204,10 @@ func getFloat(m map[string]any, key string, fallback float64) float64 {
 	return fallback
 }
 
-func (n *OpcuaSubscribeNode) SetSend(fn flow.SendFunc)                { n.send = fn }
-func (n *OpcuaSubscribeNode) SetStatus(fn flow.StatusFunc)            { n.status = fn }
-func (n *OpcuaSubscribeNode) SetDebug(fn flow.DebugFunc)              { n.debug = fn }
 func (n *OpcuaSubscribeNode) SetConfigLookup(fn flow.ConfigLookupFunc) { n.configLookup = fn }
 
 func (n *OpcuaSubscribeNode) Start() error {
-	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.status, resolveConfigParams{
+	server, err := resolveConfigInstance[OpcuaServer](n.configLookup, n.serverID, n.Status, resolveConfigParams{
 		NodeKind:   "opcua-subscribe",
 		NodeID:     n.config.ID,
 		ConfigKind: "server",
@@ -223,8 +218,8 @@ func (n *OpcuaSubscribeNode) Start() error {
 	}
 	n.server = server
 
-	if n.status != nil {
-		n.server.RegisterStatusFunc(n.status)
+	if n.Status != nil {
+		n.server.RegisterStatusFunc(n.Status)
 	}
 	// Recreate the subscription on every reconnect — gopcua tears it down on
 	// disconnect and re-registers nothing for us. Items are stored locally so
@@ -502,8 +497,8 @@ func (n *OpcuaSubscribeNode) rebuildSubscription() {
 	notifyCh := make(chan *opcua.PublishNotificationData, 64)
 	sub, err := client.Subscribe(context.Background(), &n.subParams, notifyCh)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", err.Error())
+		if n.Status != nil {
+			n.Status("red", err.Error())
 		}
 		slog.Warn("opcua-subscribe Subscribe failed", "node_id", n.config.ID, "error", err)
 		return
@@ -600,8 +595,8 @@ func (n *OpcuaSubscribeNode) createItemsOn(sub *opcua.Subscription, states []*it
 	defer cancel()
 	resp, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth, reqs...)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", err.Error())
+		if n.Status != nil {
+			n.Status("red", err.Error())
 		}
 		return err
 	}
@@ -691,7 +686,7 @@ func (n *OpcuaSubscribeNode) dispatchDataChange(dcn *ua.DataChangeNotification) 
 	if dcn == nil || len(dcn.MonitoredItems) == 0 {
 		return
 	}
-	if n.send == nil {
+	if n.Send == nil {
 		slog.Warn("opcua-subscribe dispatch skipped: no send func",
 			"node_id", n.config.ID)
 		return
@@ -736,7 +731,7 @@ func (n *OpcuaSubscribeNode) dispatchDataChange(dcn *ua.DataChangeNotification) 
 		}
 		out := flow.NewMessage()
 		out.Set("payload", batch)
-		n.send(0, out)
+		n.Send(0, out)
 		return
 	}
 
@@ -749,7 +744,7 @@ func (n *OpcuaSubscribeNode) dispatchDataChange(dcn *ua.DataChangeNotification) 
 		// Convenience: the value sits both inside the record and at
 		// msg.payload so consumers can wire either way.
 		out.Set("payload", rec["value"])
-		n.send(0, out)
+		n.Send(0, out)
 	}
 }
 
@@ -814,7 +809,7 @@ func (n *OpcuaSubscribeNode) allocHandleLocked() uint32 {
 // updateActiveStatus reports the live item count so the editor surfaces a
 // useful number even when the server-level status is otherwise unchanged.
 func (n *OpcuaSubscribeNode) updateActiveStatus() {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	n.mu.Lock()
@@ -826,9 +821,9 @@ func (n *OpcuaSubscribeNode) updateActiveStatus() {
 		return
 	}
 	if count == 0 {
-		n.status("green", "active · idle")
+		n.Status("green", "active · idle")
 	} else {
-		n.status("green", fmt.Sprintf("active · %d items", count))
+		n.Status("green", fmt.Sprintf("active · %d items", count))
 	}
 }
 

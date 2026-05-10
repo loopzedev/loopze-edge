@@ -33,10 +33,7 @@ type InjectProp struct {
 // a configurable list of rules (props), similar to the Change node's "set" rules.
 type InjectNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	// Context stores received via ContextProvider.
 	ctxMem   flow.ContextStore
 	ctxPers  flow.ContextStore
@@ -111,8 +108,8 @@ func (n *InjectNode) Init() error {
 		if err != nil {
 			slog.Warn("inject node: invalid cron expression",
 				"node_id", n.config.ID, "expression", n.cronExpr, "error", err)
-			if n.status != nil {
-				n.status("red", "invalid cron expression")
+			if n.Status != nil {
+				n.Status("red", "invalid cron expression")
 			}
 		} else {
 			n.schedule = schedule
@@ -139,21 +136,6 @@ func (n *InjectNode) hasRecurringTrigger() bool {
 	}
 }
 
-// SetSend stores the engine-provided callback for sending messages downstream.
-func (n *InjectNode) SetSend(fn flow.SendFunc) {
-	n.send = fn
-}
-
-// SetStatus stores the engine-provided callback for reporting node status.
-func (n *InjectNode) SetStatus(fn flow.StatusFunc) {
-	n.status = fn
-}
-
-// SetDebug stores the engine-provided callback for emitting debug messages.
-func (n *InjectNode) SetDebug(fn flow.DebugFunc) {
-	n.debug = fn
-}
-
 // SetContext implements flow.ContextProvider.
 func (n *InjectNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
 	n.ctxMem = globalMem
@@ -165,7 +147,7 @@ func (n *InjectNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.Co
 // Start begins message generation. If once is true, a message is sent immediately.
 // If interval is set, a background goroutine sends messages at the configured rate.
 func (n *InjectNode) Start() error {
-	if n.send == nil {
+	if n.Send == nil {
 		return fmt.Errorf("inject node %s: send function not set", n.config.ID)
 	}
 
@@ -236,7 +218,7 @@ func (n *InjectNode) emit() {
 		}
 	}
 
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 // tickerLoop runs in a goroutine and emits messages at the configured interval.

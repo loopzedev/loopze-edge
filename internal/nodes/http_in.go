@@ -43,9 +43,7 @@ const (
 type HTTPInNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Injected by the engine via HTTPMuxProvider.
@@ -127,10 +125,6 @@ func (n *HTTPInNode) Init() error {
 	return nil
 }
 
-func (n *HTTPInNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *HTTPInNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *HTTPInNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // SetError implements flow.ErrorProvider so the node can report async
 // errors (e.g. body parse failures inside the HTTP handler) into the
 // engine's standard error pipeline.
@@ -166,7 +160,7 @@ func (n *HTTPInNode) HTTPRoutes() []flow.HTTPRouteSpec {
 // directly after; if registration conflicts, OnHTTPRouteConflict
 // overrides this with red.
 func (n *HTTPInNode) Start() error {
-	if n.send == nil {
+	if n.Send == nil {
 		return fmt.Errorf("http-in %s: send not wired", n.cfg.ID)
 	}
 	if n.registry == nil {
@@ -202,15 +196,15 @@ func (n *HTTPInNode) OnHTTPRouteConflict(reason string) {
 	n.statusMu.Lock()
 	n.confTxt = reason
 	n.statusMu.Unlock()
-	if n.status != nil {
-		n.status("red", "route conflict: "+reason)
+	if n.Status != nil {
+		n.Status("red", "route conflict: "+reason)
 	}
 }
 
 // setListeningStatus pushes the green idle status, formatted to include
 // the full URL prefix ("listening · POST /endpoint/webhook").
 func (n *HTTPInNode) setListeningStatus() {
-	if n.status == nil {
+	if n.Status == nil {
 		return
 	}
 	n.statusMu.Lock()
@@ -224,7 +218,7 @@ func (n *HTTPInNode) setListeningStatus() {
 	if n.root != "" {
 		full = strings.TrimSuffix(n.root, "/") + n.path
 	}
-	n.status("green", "listening · "+n.method+" "+full)
+	n.Status("green", "listening · "+n.method+" "+full)
 }
 
 // ─── Request handling ───────────────────────────────────────────────────────
@@ -270,7 +264,7 @@ func (n *HTTPInNode) handle(w http.ResponseWriter, r *http.Request) {
 	msg.Set("req", buildReqEnvelope(r))
 	msg.Set("res", handle)
 
-	n.send(0, msg)
+	n.Send(0, msg)
 
 	// Block until http-response writes the body, the sweeper expires
 	// the slot (default 504), or the engine drains on shutdown (503).

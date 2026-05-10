@@ -45,9 +45,7 @@ type s7ParserField struct {
 //   - encode: forces encode, errors on array/buffer input
 type S7ParserNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
+	BaseNode
 	errFn  flow.ErrorFunc
 
 	action        string // "auto" | "parse" | "encode"
@@ -310,15 +308,12 @@ func checkS7LayoutOverlap(layout []s7ParserField, nodeID string) {
 	}
 }
 
-func (n *S7ParserNode) SetSend(fn flow.SendFunc)       { n.send = fn }
-func (n *S7ParserNode) SetStatus(fn flow.StatusFunc)   { n.status = fn }
-func (n *S7ParserNode) SetDebug(fn flow.DebugFunc)     { n.debug = fn }
 func (n *S7ParserNode) SetError(fn flow.ErrorFunc)     { n.errFn = fn }
 
 // Start clears any leftover status from a previous deploy (matches modbus-parser).
 func (n *S7ParserNode) Start() error {
-	if n.status != nil {
-		n.status("", "")
+	if n.Status != nil {
+		n.Status("", "")
 	}
 	slog.Info("s7-parser started",
 		"node_id", n.config.ID,
@@ -343,14 +338,14 @@ func (n *S7ParserNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, erro
 	}
 	out, err := n.dispatch(msg)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "parse error")
+		if n.Status != nil {
+			n.Status("red", "parse error")
 		}
 		n.inErrorState = true
 		return nil, fmt.Errorf("s7-parser %s: %w", n.config.ID, err)
 	}
-	if n.inErrorState && n.status != nil {
-		n.status("", "")
+	if n.inErrorState && n.Status != nil {
+		n.Status("", "")
 	}
 	n.inErrorState = false
 	return [][]*flow.Message{{out}}, nil

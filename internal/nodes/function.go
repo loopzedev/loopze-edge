@@ -37,9 +37,7 @@ import (
 //	global.keys()             – list all global context keys
 type FunctionNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
+	BaseNode
 	ctxMem  flow.ContextStore // global volatile memory store
 	ctxPers flow.ContextStore // global persistent file-backed store
 	flowMem  flow.ContextStore // flow-scoped volatile memory store
@@ -88,10 +86,6 @@ func (n *FunctionNode) Init() error {
 	return nil
 }
 
-func (n *FunctionNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *FunctionNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *FunctionNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // SetContext implements flow.ContextProvider.
 // Called by the engine after wiring, before Start().
 func (n *FunctionNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
@@ -130,8 +124,8 @@ func (n *FunctionNode) Start() error {
 	// Clear any leftover status from a previous failed deploy. Without this,
 	// a node that went red on the previous compile and then succeeded on the
 	// next would still show the stale red indicator in the editor.
-	if n.status != nil {
-		n.status("", "")
+	if n.Status != nil {
+		n.Status("", "")
 	}
 
 	slog.Info("function node started",
@@ -224,8 +218,8 @@ func (n *FunctionNode) registerGlobals() {
 	_ = nodeObj.Set("status", func(call goja.FunctionCall) goja.Value {
 		fill := call.Argument(0).String()
 		text := call.Argument(1).String()
-		if n.status != nil {
-			n.status(fill, text)
+		if n.Status != nil {
+			n.Status(fill, text)
 		}
 		return goja.Undefined()
 	})
@@ -541,14 +535,14 @@ func (n *FunctionNode) pickFlowStore(persistArg goja.Value) flow.ContextStore {
 
 // emitDebug publishes a debug message via the debug callback.
 func (n *FunctionNode) emitDebug(status string, val goja.Value) {
-	if n.debug == nil {
+	if n.Debug == nil {
 		return
 	}
 	var payload any
 	if val != nil && !goja.IsUndefined(val) && !goja.IsNull(val) {
 		payload = val.Export()
 	}
-	n.debug(flow.DebugMessage{
+	n.Debug(flow.DebugMessage{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		Status:    status,
 		Payload:   payload,

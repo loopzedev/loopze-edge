@@ -28,10 +28,7 @@ var errJSONTypeMismatch = errors.New("json type error")
 //   - stringify: forces marshal, errors on string/[]byte input
 type JSONParserNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	property string
 	action   string
 	indent   int
@@ -67,10 +64,6 @@ func (n *JSONParserNode) Init() error {
 	return nil
 }
 
-func (n *JSONParserNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *JSONParserNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *JSONParserNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // Start logs the node startup.
 func (n *JSONParserNode) Start() error {
 	slog.Info("json parser node started",
@@ -99,15 +92,15 @@ func (n *JSONParserNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, er
 	value := msg.Get(n.property)
 	result, err := n.convert(value)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", n.errorLabel(err))
+		if n.Status != nil {
+			n.Status("red", n.errorLabel(err))
 		}
 		n.inErrorState = true
 		return nil, fmt.Errorf("json: %w", err)
 	}
 
-	if n.inErrorState && n.status != nil {
-		n.status("", "")
+	if n.inErrorState && n.Status != nil {
+		n.Status("", "")
 	}
 	n.inErrorState = false
 

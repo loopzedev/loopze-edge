@@ -66,9 +66,7 @@ func (cfg *tcpFramingCfg) build(maxFrameBytes int) (Framer, error) {
 type TCPInNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Injected by the engine.
@@ -254,9 +252,6 @@ func (n *TCPInNode) parseFraming(props map[string]any) error {
 	return nil
 }
 
-func (n *TCPInNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *TCPInNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *TCPInNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *TCPInNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetSessionRegistry implements flow.SessionRegistryProvider.
@@ -574,7 +569,7 @@ func (n *TCPInNode) readLoop(c net.Conn, handle *flow.SessionHandle, localAddr, 
 }
 
 func (n *TCPInNode) emitFrame(frame []byte, handle *flow.SessionHandle, localAddr, remoteAddr, host string, port int) {
-	if n.send == nil {
+	if n.Send == nil {
 		return
 	}
 	msg := flow.NewMessage()
@@ -587,11 +582,11 @@ func (n *TCPInNode) emitFrame(frame []byte, handle *flow.SessionHandle, localAdd
 	msg.Set("ip", host)
 	msg.Set("port", port)
 	msg.Set("frameSize", len(frame))
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 func (n *TCPInNode) emitClose(handle *flow.SessionHandle, localAddr, remoteAddr, host string, port int) {
-	if n.send == nil || !n.emitCloseEvent {
+	if n.Send == nil || !n.emitCloseEvent {
 		return
 	}
 	msg := flow.NewMessage()
@@ -604,7 +599,7 @@ func (n *TCPInNode) emitClose(handle *flow.SessionHandle, localAddr, remoteAddr,
 	msg.Set("ip", host)
 	msg.Set("port", port)
 	msg.Set("_event", "close")
-	n.send(0, msg)
+	n.Send(0, msg)
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -634,8 +629,8 @@ func (n *TCPInNode) publishServerStatus() {
 }
 
 func (n *TCPInNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

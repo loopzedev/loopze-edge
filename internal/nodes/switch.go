@@ -34,10 +34,7 @@ type SwitchRule struct {
 // configurable rules. The node has 1 input and len(rules) outputs.
 type SwitchNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	ctxMem   flow.ContextStore
 	ctxPers  flow.ContextStore
 	flowMem  flow.ContextStore
@@ -117,10 +114,6 @@ func (n *SwitchNode) Init() error {
 
 	return nil
 }
-
-func (n *SwitchNode) SetSend(fn flow.SendFunc)    { n.send = fn }
-func (n *SwitchNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *SwitchNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 
 // SetContext implements flow.ContextProvider.
 func (n *SwitchNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {

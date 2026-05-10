@@ -48,9 +48,7 @@ const (
 type TCPOutNode struct {
 	cfg flow.NodeConfig
 
-	send    flow.SendFunc
-	status  flow.StatusFunc
-	debug   flow.DebugFunc
+	BaseNode
 	errorFn flow.ErrorFunc
 
 	// Injected by the engine.
@@ -176,9 +174,6 @@ func (n *TCPOutNode) dial(addr string) (net.Conn, error) {
 	return d.Dial("tcp", addr)
 }
 
-func (n *TCPOutNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *TCPOutNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *TCPOutNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
 func (n *TCPOutNode) SetError(fn flow.ErrorFunc)   { n.errorFn = fn }
 
 // SetSessionRegistry implements flow.SessionRegistryProvider.
@@ -558,8 +553,8 @@ func encodeOutboundBody(msg *flow.Message) ([]byte, error) {
 }
 
 func (n *TCPOutNode) setStatus(fill, text string) {
-	if n.status != nil {
-		n.status(fill, text)
+	if n.Status != nil {
+		n.Status(fill, text)
 	}
 }
 

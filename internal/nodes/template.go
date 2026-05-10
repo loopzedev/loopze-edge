@@ -17,10 +17,7 @@ import (
 // global context, then writes the result into a configurable target property.
 type TemplateNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
-
+	BaseNode
 	template     string
 	field        string
 	fieldType    string
@@ -64,10 +61,6 @@ func (n *TemplateNode) Init() error {
 	return nil
 }
 
-func (n *TemplateNode) SetSend(fn flow.SendFunc)     { n.send = fn }
-func (n *TemplateNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-func (n *TemplateNode) SetDebug(fn flow.DebugFunc)   { n.debug = fn }
-
 // SetContext implements flow.ContextProvider.
 func (n *TemplateNode) SetContext(globalMem, globalPers, flowMem, flowPers flow.ContextStore) {
 	n.globalMem = globalMem
@@ -102,16 +95,16 @@ func (n *TemplateNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, erro
 
 	rendered, err := n.render(msg)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "template error")
+		if n.Status != nil {
+			n.Status("red", "template error")
 		}
 		return nil, fmt.Errorf("template render: %w", err)
 	}
 
 	value, err := n.applyFormat(rendered)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "json parse error")
+		if n.Status != nil {
+			n.Status("red", "json parse error")
 		}
 		return nil, fmt.Errorf("template format: %w", err)
 	}

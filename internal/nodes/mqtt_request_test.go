@@ -235,12 +235,14 @@ func TestMqttRequest_OnResponse_HappyPath(t *testing.T) {
 		responseFormat: "string",
 		timeoutMode:    mqttRequestTimeoutModeError,
 		pending:        make(map[string]*mqttRequestInflight),
-		send: func(port int, m *flow.Message) {
-			sendMu.Lock()
-			sent = append(sent, m)
-			sendMu.Unlock()
+		BaseNode: BaseNode{
+			Send: func(port int, m *flow.Message) {
+				sendMu.Lock()
+				sent = append(sent, m)
+				sendMu.Unlock()
+			},
+			Status: func(string, string) {},
 		},
-		status: func(string, string) {},
 	}
 	// Pre-register an inflight context, mimicking what HandleMessage would do.
 	in := flow.NewMessage()
@@ -317,10 +319,12 @@ func TestMqttRequest_OnResponse_WrongCorrelation(t *testing.T) {
 		broker:         broker,
 		responseFormat: "string",
 		pending:        make(map[string]*mqttRequestInflight),
-		send: func(int, *flow.Message) {
-			t.Errorf("send should NOT be called for unknown correlation")
+		BaseNode: BaseNode{
+			Send: func(int, *flow.Message) {
+				t.Errorf("send should NOT be called for unknown correlation")
+			},
+			Status: func(string, string) {},
 		},
-		status: func(string, string) {},
 	}
 	node.pending[hex.EncodeToString(pendingKey)] = &mqttRequestInflight{
 		correlation:   pendingKey,
@@ -348,10 +352,12 @@ func TestMqttRequest_OnResponse_NoCorrelationProperty(t *testing.T) {
 	node := &MqttRequestNode{
 		config:  flow.NodeConfig{ID: "req-1"},
 		pending: make(map[string]*mqttRequestInflight),
-		send: func(int, *flow.Message) {
-			t.Errorf("send should NOT fire without correlation")
+		BaseNode: BaseNode{
+			Send: func(int, *flow.Message) {
+				t.Errorf("send should NOT fire without correlation")
+			},
+			Status: func(string, string) {},
 		},
-		status: func(string, string) {},
 	}
 	// nil properties
 	node.onResponse(&paho.Publish{Topic: "x", Payload: []byte("noise")})
@@ -381,10 +387,12 @@ func TestMqttRequest_OnTimeout_ErrorMode(t *testing.T) {
 			caught = err
 			caughtMsg = m
 		},
-		send: func(int, *flow.Message) {
-			t.Errorf("send should NOT fire in error timeout mode")
+		BaseNode: BaseNode{
+			Send: func(int, *flow.Message) {
+				t.Errorf("send should NOT fire in error timeout mode")
+			},
+			Status: func(string, string) {},
 		},
-		status: func(string, string) {},
 	}
 	in := flow.NewMessage()
 	in.Set("topic", "rpc/foo")
@@ -423,13 +431,15 @@ func TestMqttRequest_OnTimeout_Passthrough(t *testing.T) {
 		broker:      broker,
 		timeoutMode: mqttRequestTimeoutModePassthrough,
 		pending:     make(map[string]*mqttRequestInflight),
-		send: func(_ int, m *flow.Message) {
-			sent = append(sent, m)
-		},
 		errorFn: func(error, *flow.Message) {
 			t.Errorf("errorFn should NOT fire in passthrough mode")
 		},
-		status: func(string, string) {},
+		BaseNode: BaseNode{
+			Send: func(_ int, m *flow.Message) {
+				sent = append(sent, m)
+			},
+			Status: func(string, string) {},
+		},
 	}
 	in := flow.NewMessage()
 	in.Set("topic", "rpc/foo")
@@ -470,8 +480,10 @@ func TestMqttRequest_FailAllInflight_ErrorMode(t *testing.T) {
 			}
 			errCount++
 		},
-		send:   func(int, *flow.Message) {},
-		status: func(string, string) {},
+		BaseNode: BaseNode{
+			Send:   func(int, *flow.Message) {},
+			Status: func(string, string) {},
+		},
 	}
 	for i, c := range [][]byte{{0x01}, {0x02}, {0x03}} {
 		_ = i
@@ -508,8 +520,10 @@ func TestMqttRequest_OnTimeout_AlreadyDone(t *testing.T) {
 		errorFn: func(error, *flow.Message) {
 			t.Errorf("errorFn should NOT fire when entry is already drained")
 		},
-		send:   func(int, *flow.Message) {},
-		status: func(string, string) {},
+		BaseNode: BaseNode{
+			Send:   func(int, *flow.Message) {},
+			Status: func(string, string) {},
+		},
 	}
 	// no entry → onTimeout must short-circuit
 	node.onTimeout("nonexistent")

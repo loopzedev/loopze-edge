@@ -44,9 +44,7 @@ type modbusField struct {
 //   - encode: forces encode, errors on array/buffer input
 type ModbusParserNode struct {
 	config flow.NodeConfig
-	send   flow.SendFunc
-	status flow.StatusFunc
-	debug  flow.DebugFunc
+	BaseNode
 	errFn  flow.ErrorFunc
 
 	action     string // "auto" | "parse" | "encode"
@@ -224,15 +222,6 @@ func checkLayoutOverlap(layout []modbusField, nodeID string) {
 	}
 }
 
-// SetSend stores the engine-provided callback for sending output messages.
-func (n *ModbusParserNode) SetSend(fn flow.SendFunc) { n.send = fn }
-
-// SetStatus stores the engine-provided callback for status pill updates.
-func (n *ModbusParserNode) SetStatus(fn flow.StatusFunc) { n.status = fn }
-
-// SetDebug stores the engine-provided callback for debug output.
-func (n *ModbusParserNode) SetDebug(fn flow.DebugFunc) { n.debug = fn }
-
 // SetError implements flow.ErrorProvider so runtime decode/encode errors can
 // be routed to Catch nodes.
 func (n *ModbusParserNode) SetError(fn flow.ErrorFunc) { n.errFn = fn }
@@ -244,8 +233,8 @@ func (n *ModbusParserNode) SetError(fn flow.ErrorFunc) { n.errFn = fn }
 // status("", "") when n.inErrorState is true, and a fresh node always starts
 // with inErrorState=false.
 func (n *ModbusParserNode) Start() error {
-	if n.status != nil {
-		n.status("", "")
+	if n.Status != nil {
+		n.Status("", "")
 	}
 	slog.Info("modbus-parser started",
 		"node_id", n.config.ID,
@@ -271,15 +260,15 @@ func (n *ModbusParserNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, 
 
 	out, err := n.dispatch(msg)
 	if err != nil {
-		if n.status != nil {
-			n.status("red", "parse error")
+		if n.Status != nil {
+			n.Status("red", "parse error")
 		}
 		n.inErrorState = true
 		return nil, fmt.Errorf("modbus-parser %s: %w", n.config.ID, err)
 	}
 
-	if n.inErrorState && n.status != nil {
-		n.status("", "")
+	if n.inErrorState && n.Status != nil {
+		n.Status("", "")
 	}
 	n.inErrorState = false
 

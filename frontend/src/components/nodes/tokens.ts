@@ -239,54 +239,62 @@ export const TOKENS: Record<string, NodeTokens> = {
 
 // Map node type → category
 const TYPE_CATEGORY: Record<string, string> = {
+  // ── Core ──────────────────────────────────────────────────────────────
   inject:          'inject',
-  'mqtt-in':       'mqtt',
-  'http-in':       'http',
-  'tcp-in':        'tcp',
-  'udp-in':        'udp',
-  'modbus-read':   'rust',
-  's7-read':       'rust',
-  'file-in':       'input',
-  'link-in':       'link',
+  debug:           'debug',
   catch:           'error',
   status:          'input',
+  'context-watch': 'context',
 
+  // ── Transformation / Logic ────────────────────────────────────────────
   function:        'function',
   'function-expr': 'function',
   'function-go':   'function',
+  statemachine:    'statemachine',
   change:          'change',
   switch:          'switch',
-  template:        'template',
   delay:           'process',
-  filter:          'process',
+  template:        'template',
   json:            'process',
-  xml:             'process',
-  csv:             'process',
+
+  // ── Link ──────────────────────────────────────────────────────────────
+  'link-in':       'link',
+  'link-out':      'link',
   'link-call':     'link',
-  comment:         'process',
-  'opc-ua':        'process',
-  'opcua-read':      'opcua',
-  'opcua-subscribe': 'opcua',
-  'opcua-write':     'opcua',
 
-  'context-watch': 'context',
-
-  statemachine:    'statemachine',
-
-  debug:           'debug',
+  // ── MQTT ──────────────────────────────────────────────────────────────
+  'mqtt-in':       'mqtt',
   'mqtt-out':      'mqtt',
   'mqtt-request':  'mqtt',
-  'http-response': 'http',
-  'http-request':  'http',
-  'tcp-out':       'tcp',
-  'tcp-request':   'tcp',
-  'udp-out':       'udp',
+
+  // ── Modbus ────────────────────────────────────────────────────────────
+  'modbus-read':   'rust',
   'modbus-write':  'rust',
   'modbus-parser': 'rust',
+
+  // ── Siemens S7 ────────────────────────────────────────────────────────
+  's7-read':       'rust',
   's7-write':      'rust',
   's7-parser':     'rust',
-  'file-out':      'output',
-  'link-out':      'link',
+
+  // ── OPC UA ────────────────────────────────────────────────────────────
+  'opcua-read':       'opcua',
+  'opcua-write':      'opcua',
+  'opcua-subscribe':  'opcua',
+
+  // ── HTTP ──────────────────────────────────────────────────────────────
+  'http-in':       'http',
+  'http-response': 'http',
+  'http-request':  'http',
+
+  // ── TCP ───────────────────────────────────────────────────────────────
+  'tcp-in':        'tcp',
+  'tcp-out':       'tcp',
+  'tcp-request':   'tcp',
+
+  // ── UDP ───────────────────────────────────────────────────────────────
+  'udp-in':        'udp',
+  'udp-out':       'udp',
 }
 
 export const STATUS_COLORS: Record<string, string> = {

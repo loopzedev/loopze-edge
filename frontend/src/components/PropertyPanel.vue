@@ -8,40 +8,9 @@ import FormLabel from '@/components/ui/FormLabel.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import AppSwitch from '@/components/ui/AppSwitch.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
-import InjectConfig from '@/components/config/InjectConfig.vue'
-import FunctionConfig from '@/components/config/FunctionConfig.vue'
-import ExprFunctionConfig from '@/components/config/ExprFunctionConfig.vue'
-import GoFunctionConfig from '@/components/config/GoFunctionConfig.vue'
-import ContextWatchConfig from '@/components/config/ContextWatchConfig.vue'
-import ChangeConfig from '@/components/config/ChangeConfig.vue'
-import SwitchConfig from '@/components/config/SwitchConfig.vue'
-import DebugConfig from '@/components/config/DebugConfig.vue'
-import DelayConfig from '@/components/config/DelayConfig.vue'
-import LinkConfig from '@/components/config/LinkConfig.vue'
-import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
-import MqttRequestConfig from '@/components/config/MqttRequestConfig.vue'
-import ModbusNodeConfig from '@/components/config/ModbusNodeConfig.vue'
-import ModbusParserConfig from '@/components/config/ModbusParserConfig.vue'
-import S7NodeConfig from '@/components/config/S7NodeConfig.vue'
-import S7ParserConfig from '@/components/config/S7ParserConfig.vue'
-import OpcuaReadConfig from '@/components/config/OpcuaReadConfig.vue'
-import OpcuaWriteConfig from '@/components/config/OpcuaWriteConfig.vue'
-import OpcuaSubscribeConfig from '@/components/config/OpcuaSubscribeConfig.vue'
-import StateMachineConfig from '@/components/config/StateMachineConfig.vue'
-import StatusConfig from '@/components/config/StatusConfig.vue'
-import CatchConfig from '@/components/config/CatchConfig.vue'
-import TemplateConfig from '@/components/config/TemplateConfig.vue'
-import JSONParserConfig from '@/components/config/JSONParserConfig.vue'
-import HttpInConfig from '@/components/config/HttpInConfig.vue'
-import HttpResponseConfig from '@/components/config/HttpResponseConfig.vue'
-import HttpRequestConfig from '@/components/config/HttpRequestConfig.vue'
-import TcpInConfig from '@/components/config/TcpInConfig.vue'
-import TcpOutConfig from '@/components/config/TcpOutConfig.vue'
-import TcpRequestConfig from '@/components/config/TcpRequestConfig.vue'
-import UdpInConfig from '@/components/config/UdpInConfig.vue'
-import UdpOutConfig from '@/components/config/UdpOutConfig.vue'
 import FlowProperties from '@/components/FlowProperties.vue'
 import { getConfigEditor } from '@/components/config/configEditors'
+import { getNodeEditor } from '@/components/config/nodeEditors'
 import { getNodeSummary } from '@/components/help'
 
 const ui = useUiStore()
@@ -64,6 +33,17 @@ const configEditorComponent = computed(() => {
 const configEditorId = computed(() => {
   const ctx = ui.propertiesContext
   return ctx?.type === 'config-edit' ? ctx.configId : undefined
+})
+
+const nodeEditorEntry = computed(() => {
+  const type = selectedNode.value?.type
+  if (!type) return undefined
+  return getNodeEditor(type)
+})
+const nodeEditorComponent = computed(() => {
+  const entry = nodeEditorEntry.value
+  if (!entry) return null
+  return defineAsyncComponent(entry.loader)
 })
 
 const STATUS_COLORS: Record<string, string> = {
@@ -260,51 +240,20 @@ function onResizeEnd() {
 
           <!-- Configuration -->
           <div class="px-4 py-3 flex-1 flex flex-col min-h-0">
-            <!-- Skip the collapsible SectionHeader for nodes whose config
-                 needs the full available height — radix's CollapsibleContent
-                 renders block-level divs that break the flex-col chain, so
-                 child editors can't grow to fill the panel otherwise. -->
-            <template v-if="['statemachine', 'function', 'function-expr', 'function-go'].includes(selectedNode?.type ?? '')">
+            <!-- fullHeight editors (code editors, canvas-like) bypass the
+                 collapsible SectionHeader — Radix CollapsibleContent breaks
+                 the flex-col chain and prevents children from filling height. -->
+            <template v-if="nodeEditorEntry?.fullHeight">
               <p class="flex items-center gap-1.5 text-[10px] text-terminal-text-dim uppercase tracking-widest mb-2.5 font-semibold">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 rotate-90 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
                 Configuration
               </p>
-              <StateMachineConfig v-if="selectedNode?.type === 'statemachine'" />
-              <FunctionConfig v-else-if="selectedNode?.type === 'function'" />
-              <ExprFunctionConfig v-else-if="selectedNode?.type === 'function-expr'" />
-              <GoFunctionConfig v-else-if="selectedNode?.type === 'function-go'" />
+              <component :is="nodeEditorComponent" v-if="nodeEditorComponent" />
             </template>
             <SectionHeader v-else title="Configuration">
-              <InjectConfig v-if="selectedNode?.type === 'inject'" />
-              <ContextWatchConfig v-else-if="selectedNode?.type === 'context-watch'" />
-              <ChangeConfig v-else-if="selectedNode?.type === 'change'" />
-              <SwitchConfig v-else-if="selectedNode?.type === 'switch'" />
-              <DebugConfig v-else-if="selectedNode?.type === 'debug'" />
-              <DelayConfig v-else-if="selectedNode?.type === 'delay'" />
-              <LinkConfig v-else-if="['link-in', 'link-out', 'link-call'].includes(selectedNode?.type ?? '')" />
-              <MqttNodeConfig v-else-if="['mqtt-in', 'mqtt-out'].includes(selectedNode?.type ?? '')" />
-              <MqttRequestConfig v-else-if="selectedNode?.type === 'mqtt-request'" />
-              <ModbusNodeConfig v-else-if="['modbus-read', 'modbus-write'].includes(selectedNode?.type ?? '')" />
-              <ModbusParserConfig v-else-if="selectedNode?.type === 'modbus-parser'" />
-              <S7NodeConfig v-else-if="['s7-read', 's7-write'].includes(selectedNode?.type ?? '')" />
-              <S7ParserConfig v-else-if="selectedNode?.type === 's7-parser'" />
-              <OpcuaReadConfig v-else-if="selectedNode?.type === 'opcua-read'" />
-              <OpcuaWriteConfig v-else-if="selectedNode?.type === 'opcua-write'" />
-              <OpcuaSubscribeConfig v-else-if="selectedNode?.type === 'opcua-subscribe'" />
-              <StatusConfig v-else-if="selectedNode?.type === 'status'" />
-              <CatchConfig v-else-if="selectedNode?.type === 'catch'" />
-              <TemplateConfig v-else-if="selectedNode?.type === 'template'" />
-              <JSONParserConfig v-else-if="selectedNode?.type === 'json'" />
-              <HttpInConfig v-else-if="selectedNode?.type === 'http-in'" />
-              <HttpResponseConfig v-else-if="selectedNode?.type === 'http-response'" />
-              <HttpRequestConfig v-else-if="selectedNode?.type === 'http-request'" />
-              <TcpInConfig v-else-if="selectedNode?.type === 'tcp-in'" />
-              <TcpOutConfig v-else-if="selectedNode?.type === 'tcp-out'" />
-              <TcpRequestConfig v-else-if="selectedNode?.type === 'tcp-request'" />
-              <UdpInConfig v-else-if="selectedNode?.type === 'udp-in'" />
-              <UdpOutConfig v-else-if="selectedNode?.type === 'udp-out'" />
+              <component :is="nodeEditorComponent" v-if="nodeEditorComponent" />
               <template v-else>
                 <div v-if="nodeData?.config && Object.keys(nodeData.config).length > 0" class="flex flex-col gap-3">
                   <div

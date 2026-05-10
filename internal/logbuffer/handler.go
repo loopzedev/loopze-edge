@@ -96,7 +96,14 @@ func (h *Handler) capture(r slog.Record, bound []slog.Attr) {
 		if attrs == nil {
 			attrs = make(map[string]any, 4)
 		}
-		attrs[a.Key] = a.Value.Resolve().Any()
+		v := a.Value.Resolve().Any()
+		// Errors carry their message in unexported fields; JSON-encoding them
+		// for the UI Terminal Log would yield `{}` and swallow the cause.
+		// Resolve to the .Error() string so the panel shows what stdout shows.
+		if err, ok := v.(error); ok {
+			v = err.Error()
+		}
+		attrs[a.Key] = v
 	}
 	for _, a := range bound {
 		add(a)

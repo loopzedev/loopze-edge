@@ -22,6 +22,8 @@ import MqttNodeConfig from '@/components/config/MqttNodeConfig.vue'
 import MqttRequestConfig from '@/components/config/MqttRequestConfig.vue'
 import ModbusNodeConfig from '@/components/config/ModbusNodeConfig.vue'
 import ModbusParserConfig from '@/components/config/ModbusParserConfig.vue'
+import S7NodeConfig from '@/components/config/S7NodeConfig.vue'
+import S7ParserConfig from '@/components/config/S7ParserConfig.vue'
 import OpcuaReadConfig from '@/components/config/OpcuaReadConfig.vue'
 import OpcuaWriteConfig from '@/components/config/OpcuaWriteConfig.vue'
 import OpcuaSubscribeConfig from '@/components/config/OpcuaSubscribeConfig.vue'
@@ -286,6 +288,8 @@ function onResizeEnd() {
               <MqttRequestConfig v-else-if="selectedNode?.type === 'mqtt-request'" />
               <ModbusNodeConfig v-else-if="['modbus-read', 'modbus-write'].includes(selectedNode?.type ?? '')" />
               <ModbusParserConfig v-else-if="selectedNode?.type === 'modbus-parser'" />
+              <S7NodeConfig v-else-if="['s7-read', 's7-write'].includes(selectedNode?.type ?? '')" />
+              <S7ParserConfig v-else-if="selectedNode?.type === 's7-parser'" />
               <OpcuaReadConfig v-else-if="selectedNode?.type === 'opcua-read'" />
               <OpcuaWriteConfig v-else-if="selectedNode?.type === 'opcua-write'" />
               <OpcuaSubscribeConfig v-else-if="selectedNode?.type === 'opcua-subscribe'" />

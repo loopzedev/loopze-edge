@@ -14,6 +14,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.12.5
 	github.com/nats-io/nats.go v1.49.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/robinson/gos7 v0.0.0-20241205073040-7ea1d6fb9d20
 	github.com/tidwall/gjson v1.18.0
 	github.com/traefik/yaegi v0.16.1
 	golang.org/x/crypto v0.48.0

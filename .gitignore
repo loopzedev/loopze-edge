@@ -61,5 +61,9 @@ Thumbs.db
 /site/
 /.venv-docs/
 
+# Python venvs / caches inside demo servers
+/demo/s7-server/.venv/
+/demo/**/__pycache__/
+
 # Ignore Claude config
 /.claude/

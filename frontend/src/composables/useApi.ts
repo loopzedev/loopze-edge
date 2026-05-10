@@ -480,6 +480,36 @@ export function useApi() {
     )
   }
 
+  // ── S7 endpoints ─────────────────────────────────────────────────────────
+
+  /**
+   * Probe an S7 PLC config without persisting it. Used by the
+   * "Test Connection" button in the S7 PLC config dialog. The handler
+   * substitutes empty CPU/order strings with "unknown" so all info fields
+   * are non-empty on success.
+   */
+  async function testS7Connection(payload: {
+    id?: string
+    name?: string
+    config: Record<string, unknown>
+  }): Promise<{
+    ok: boolean
+    error?: string
+    info?: {
+      address: string
+      negotiatedPduSize: number
+      cpuType?: string
+      orderCode?: string
+      moduleName?: string
+      serialNumber?: string
+    }
+  }> {
+    return request('/s7/test-connection', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+
   /**
    * Browse one level of the OPC UA address space. Either serverId (riding
    * along on a deployed session) or config (transient ad-hoc session) must
@@ -605,6 +635,7 @@ export function useApi() {
     updateUser,
     setUserPassword,
     testOpcuaConnection,
+    testS7Connection,
     browseOpcua,
     readOpcua,
     listCerts,

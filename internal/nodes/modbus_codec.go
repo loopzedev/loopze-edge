@@ -408,8 +408,16 @@ func packCoilBits(bools []bool) []byte {
 	return out
 }
 
-// ApplyScale returns scale*value + offset, preserving int types when both the
-// input and result are integral and the scale/offset are integer-valued.
+// ApplyScale returns scale*value + offset. The result is always float64 when
+// scaling is active — no attempt to preserve the input integer type, since
+// any non-trivial scale loses precision for typical industrial uses (0.1 °C,
+// 0.01 bar, …) and surfacing the lossy truncation downstream is worse than
+// shipping a float64 the user expected anyway. For scale=1, offset=0 the
+// value passes through untouched.
+//
+// Accepts the full set of Go numeric types the codecs (modbus, s7) emit:
+// int / int8 / int16 / int32 / int64, uint / uint8 / uint16 / uint32 / uint64,
+// float32 / float64. Anything else passes through unchanged.
 func ApplyScale(value any, scale, offset float64) any {
 	if scale == 1 && offset == 0 {
 		return value
@@ -417,9 +425,25 @@ func ApplyScale(value any, scale, offset float64) any {
 	switch v := value.(type) {
 	case int:
 		return float64(v)*scale + offset
+	case int8:
+		return float64(v)*scale + offset
+	case int16:
+		return float64(v)*scale + offset
+	case int32:
+		return float64(v)*scale + offset
 	case int64:
 		return float64(v)*scale + offset
+	case uint:
+		return float64(v)*scale + offset
+	case uint8:
+		return float64(v)*scale + offset
+	case uint16:
+		return float64(v)*scale + offset
+	case uint32:
+		return float64(v)*scale + offset
 	case uint64:
+		return float64(v)*scale + offset
+	case float32:
 		return float64(v)*scale + offset
 	case float64:
 		return v*scale + offset
@@ -623,6 +647,14 @@ func toBool(v any) (bool, error) {
 		return x != 0, nil
 	case float64:
 		return x != 0, nil
+	case string:
+		switch x {
+		case "true", "True", "TRUE", "1":
+			return true, nil
+		case "false", "False", "FALSE", "0":
+			return false, nil
+		}
+		return false, fmt.Errorf("cannot convert string %q to bool (expected true/false/1/0)", x)
 	case nil:
 		return false, fmt.Errorf("nil value")
 	default:

@@ -107,6 +107,36 @@ demo-mqtt:
 demo-mqtt-stop:
 	@cd demo/mqtt-broker && docker compose down
 
+## demo-s7: Run the SIEMENS S7 demo PLC (python-snap7) on :1102 (request-tracing)
+##           Depends on demo-s7-stop so re-running guarantees a single fresh
+##           instance — python-snap7 uses SO_REUSEPORT, which silently allows
+##           multiple stale instances to bind the same port and round-robin
+##           between them. Always start clean.
+.PHONY: demo-s7
+demo-s7: demo-s7-stop
+	@echo "▸ Starting S7 demo PLC on :1102…"
+	@cd demo/s7-server && \
+		if [ ! -d .venv ]; then \
+			python3 -m venv .venv && \
+			.venv/bin/pip install -q -r requirements.txt; \
+		fi && \
+		.venv/bin/python main.py -p 1102 -v
+
+## demo-s7-stop: Kill any S7 demo PLC instance(s) on :1102.
+##               Uses lsof to find every PID with an active LISTEN on the port
+##               (works around python-snap7's SO_REUSEPORT, which lets multiple
+##               instances bind the same port). Idempotent; no-op if none run.
+.PHONY: demo-s7-stop
+demo-s7-stop:
+	@pids=$$(lsof -ti tcp:1102 -sTCP:LISTEN 2>/dev/null); \
+	if [ -n "$$pids" ]; then \
+		echo "▸ Stopping S7 demo PLC on :1102 (PIDs: $$pids)…"; \
+		kill -9 $$pids 2>/dev/null || true; \
+		sleep 0.3; \
+	else \
+		echo "▸ No S7 demo PLC running on :1102."; \
+	fi
+
 # ─── Documentation ───────────────────────────────────────────────────────────
 
 DOCS_VENV := .venv-docs

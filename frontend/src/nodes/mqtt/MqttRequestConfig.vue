@@ -14,7 +14,7 @@ import {
   PAYLOAD_FORMAT_OPTIONS,
   MQTT_IN_OUTPUT_FORMATS,
   MQTT_REQUEST_TIMEOUT_MODES,
-} from '@/components/config/enums'
+} from './enums'
 
 const { options: brokerOptions, openNewConfig, openEditConfig } = useConfigSelector('mqtt-broker')
 

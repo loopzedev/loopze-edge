@@ -50,17 +50,20 @@ Nodes are the primary extension point of LOOPZE. Each node type lives in two pla
 
 Step-by-step guides:
 
-- [Backend: how to implement and register a Go node](internal/nodes/README.md)
-- [Frontend: how to add a config editor component](frontend/src/components/config/README.md)
+- [Backend: how to implement and register a Go node group](internal/nodes/README.md)
+- [Frontend: how to add a config editor group](frontend/src/nodes/README.md)
 
 The short version of the checklist is:
 
-1. Create `internal/nodes/<protocol>_<role>.go` implementing `flow.NodeInstance`
-2. Add one line to `registerNodes()` in `internal/server/server.go`
-3. Create `frontend/src/components/config/<NodeType>Config.vue`
-4. Add one line to `nodeEditors.ts` (or `configEditors.ts` for config nodes)
-5. Add a color category entry in `frontend/src/components/nodes/tokens.ts`
-6. Write tests (`*_test.go` on the backend, `pnpm type-check` on the frontend)
+1. Create `internal/nodes/<group>/` with the node implementations + `init.go`
+   that calls `nodes.RegisterGroup` (see `internal/nodes/s7/` as an example).
+2. Add one blank import to `cmd/loopze/groups.go`.
+3. Create `frontend/src/nodes/<group>/` with the editor components +
+   `index.ts` exporting a `NodeGroupManifest`.
+4. Add one import to the `GROUPS` array in `frontend/src/nodes/index.ts`.
+5. If the group needs a new palette colour, add an entry to
+   `frontend/src/components/nodes/tokens.ts`.
+6. Write tests (`go test ./internal/nodes/<group>/...` and `pnpm type-check`).
 
 For protocol nodes (Modbus, S7, OPC UA, …), also read the existing issue specs in
 `specifications/issues/NODE_*.md` to understand the design conventions.

@@ -8,7 +8,7 @@ import NumberInput from '@/components/ui/NumberInput.vue'
 import PropertyList from '@/components/ui/PropertyList.vue'
 import PropertyListItem from '@/components/ui/PropertyListItem.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
-import { S7_DATA_TYPES } from '@/components/config/enums'
+import { S7_DATA_TYPES } from './enums'
 
 // Layout entry shape mirrors the on-wire JSON in workspace.json (see
 // PARSER_S7_NODE.md). Offset is normalised to a string in the UI even when

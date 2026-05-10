@@ -12,7 +12,7 @@ import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import UserPropertiesEditor from '@/components/ui/UserPropertiesEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 import { useStructuralProperty } from '@/composables/useStructuralProperty'
-import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS, MQTT_OUT_TARGETS } from '@/components/config/enums'
+import { QOS_LEVELS, RETAIN_HANDLING_OPTIONS, PAYLOAD_FORMAT_OPTIONS, MQTT_IN_OUTPUT_FORMATS, MQTT_OUT_TARGETS } from './enums'
 
 const flowStore = useFlowStore()
 const { options: brokerOptions, openNewConfig, openEditConfig } = useConfigSelector('mqtt-broker')

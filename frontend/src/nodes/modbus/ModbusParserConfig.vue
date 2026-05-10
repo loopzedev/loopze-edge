@@ -7,7 +7,7 @@ import ToggleGroup from '@/components/ui/ToggleGroup.vue'
 import SectionHeader from '@/components/ui/SectionHeader.vue'
 import ModbusParserLayoutEditor from './ModbusParserLayoutEditor.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
-import { MODBUS_BYTE_ORDERS, MODBUS_WORD_ORDERS } from '@/components/config/enums'
+import { MODBUS_BYTE_ORDERS, MODBUS_WORD_ORDERS } from './enums'
 
 const action = useNodeProperty<string>('action', 'auto')
 const parseFrom = useNodeProperty<string>('parseFrom', 'bytes')

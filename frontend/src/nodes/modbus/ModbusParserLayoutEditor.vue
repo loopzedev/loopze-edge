@@ -7,7 +7,7 @@ import NumberInput from '@/components/ui/NumberInput.vue'
 import PropertyList from '@/components/ui/PropertyList.vue'
 import PropertyListItem from '@/components/ui/PropertyListItem.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
-import { MODBUS_DATA_TYPES, MODBUS_BYTE_ORDERS, MODBUS_WORD_ORDERS } from '@/components/config/enums'
+import { MODBUS_DATA_TYPES, MODBUS_BYTE_ORDERS, MODBUS_WORD_ORDERS } from './enums'
 
 interface LayoutField {
   id: string

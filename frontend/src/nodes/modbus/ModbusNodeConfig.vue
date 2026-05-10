@@ -17,7 +17,7 @@ import {
   MODBUS_DATA_TYPES,
   MODBUS_BYTE_ORDERS,
   MODBUS_WORD_ORDERS,
-} from '@/components/config/enums'
+} from './enums'
 
 const flowStore = useFlowStore()
 const { options: serverOptions, openNewConfig, openEditConfig } = useConfigSelector('modbus-server')

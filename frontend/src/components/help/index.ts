@@ -153,6 +153,18 @@ const summaries: Record<string, NodeSummaryFn> = {
     return `auto-detect on msg.${property}`
   },
 
+  xml(cfg) {
+    const property = (cfg.property as string) || 'payload'
+    const action = (cfg.action as string) || 'auto'
+    const root = (cfg.root as string) || 'root'
+    const indent = Number(cfg.indent ?? 0)
+    if (action === 'parse') return `parse msg.${property}`
+    if (action === 'stringify') {
+      return `stringify msg.${property} → <${root}>${indent > 0 ? ` (indent ${indent})` : ''}`
+    }
+    return `auto-detect on msg.${property}`
+  },
+
   's7-plc'(cfg) {
     const host = (cfg.host as string) || '?'
     const port = Number(cfg.port ?? 102)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,10 +41,10 @@ type FileInNode struct {
 	rootJail     string
 	watchEvents  []string
 	debounceMs   int
-	incremental  bool   // parsed; unused until phase 5
-	fromStart    bool   // parsed; unused until phase 5
-	delimiter    string // parsed; unused until phase 5
-	maxLineBytes int64  // parsed; unused until phase 5
+	incremental  bool
+	fromStart    bool
+	delimiter    string
+	maxLineBytes int64
 
 	// watch-mode runtime state
 	watcher  *fsnotify.Watcher
@@ -51,6 +52,34 @@ type FileInNode struct {
 	opMask   fsnotify.Op
 	done     chan struct{}
 	wg       sync.WaitGroup
+
+	// Persistent flow context for the incremental cursor. Optional —
+	// nodes that do not need it work just fine without flowPers.
+	flowPers flow.ContextStore
+}
+
+// SetContext implements flow.ContextProvider. Only flowPers is consumed
+// (incremental cursor); the other stores are accepted but ignored.
+func (n *FileInNode) SetContext(_, _, _, flowPers flow.ContextStore) {
+	n.flowPers = flowPers
+}
+
+// resolveDelimiter applies the spec default: when incremental is on and the
+// user left delimiter at the placeholder default, use "\n" for utf-8 / "auto"
+// encoding and "none" for binary. Explicit values pass through.
+func (n *FileInNode) resolveDelimiter(absPath string) string {
+	switch n.delimiter {
+	case DelimLF, DelimCRLF, DelimAuto, DelimNone:
+		// Encoding-aware default: when the resolved encoding is binary the
+		// LF default makes no sense — switch to none unless the user
+		// explicitly asked for a delimiter.
+		if n.delimiter == DelimLF && resolveEncoding(absPath, n.encoding) == "binary" {
+			return DelimNone
+		}
+		return n.delimiter
+	default:
+		return DelimLF
+	}
 }
 
 // NewFileInNode is the NodeFactory for the file-in node type.
@@ -89,6 +118,12 @@ func (n *FileInNode) Init() error {
 		return fmt.Errorf("file-in %s: %w", n.cfg.ID, err)
 	}
 	n.opMask = mask
+
+	switch n.delimiter {
+	case "", DelimLF, DelimCRLF, DelimAuto, DelimNone:
+	default:
+		return fmt.Errorf("file-in %s: invalid delimiter %q", n.cfg.ID, n.delimiter)
+	}
 	return nil
 }
 
@@ -99,11 +134,11 @@ func (n *FileInNode) Start() error {
 		"node_id", n.cfg.ID,
 		"mode", n.mode,
 		"path", n.path,
+		"incremental", n.incremental,
 	)
-	if n.incremental {
-		slog.Warn("file-in: incremental not yet implemented (phase 5)",
-			"node_id", n.cfg.ID,
-		)
+	if n.incremental && n.flowPers == nil {
+		n.statusError("no persistent context")
+		return fmt.Errorf("file-in %s: incremental mode requires persistent flow context", n.cfg.ID)
 	}
 	if n.mode == fileInModeRead {
 		return nil
@@ -128,6 +163,19 @@ func (n *FileInNode) Start() error {
 		return fmt.Errorf("file-in %s: add watch: %w", n.cfg.ID, err)
 	}
 	n.watcher = w
+
+	// Pin the incremental cursor to current EOF at Start time so writes
+	// that arrive between deploy and the first event are skipped (when
+	// fromStart=false). Without this, the first event-driven read sees
+	// whatever EOF is at that later moment and would lose those writes.
+	if n.incremental {
+		if err := n.initIncrementalCursor(resolved); err != nil {
+			_ = w.Close()
+			n.statusError("cursor init error")
+			return fmt.Errorf("file-in %s: %w", n.cfg.ID, err)
+		}
+	}
+
 	if n.Status != nil {
 		n.Status("green", "watching · "+resolved)
 	}
@@ -135,6 +183,30 @@ func (n *FileInNode) Start() error {
 	n.wg.Add(1)
 	go n.watchLoop()
 	return nil
+}
+
+// initIncrementalCursor pins the cursor at deploy time when no value is
+// stored yet. fromStart=true sets it to 0; fromStart=false to current EOF.
+// A pre-existing cursor (from a previous deploy) is left untouched —
+// persistence is intentional.
+func (n *FileInNode) initIncrementalCursor(absPath string) error {
+	key := cursorKey(n.cfg.ID, absPath)
+	existing, err := n.flowPers.Get(key)
+	if err != nil {
+		return fmt.Errorf("read existing cursor: %w", err)
+	}
+	if existing != nil {
+		return nil
+	}
+	var cursor int64 = 0
+	if !n.fromStart {
+		info, err := os.Stat(absPath)
+		if err != nil {
+			return fmt.Errorf("stat for cursor init: %w", err)
+		}
+		cursor = info.Size()
+	}
+	return n.flowPers.Set(key, cursor)
 }
 
 // Stop closes the fsnotify watcher (in watch modes) and waits for the
@@ -155,6 +227,9 @@ func (n *FileInNode) Stop() error {
 // HandleMessage performs a one-shot file read in mode=read. In watch /
 // read+watch mode the node has no input wired by the engine, so
 // HandleMessage is normally not invoked; if it is, the message is dropped.
+//
+// When msg.resetCursor is true the persisted cursor is cleared and no
+// content is emitted. Useful for forcing a re-read after a known log rotation.
 func (n *FileInNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
 	if msg == nil || n.mode != fileInModeRead {
 		return nil, nil
@@ -164,6 +239,22 @@ func (n *FileInNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error)
 	if err != nil {
 		n.statusError("path error")
 		return nil, fmt.Errorf("file-in: %w", err)
+	}
+
+	if reset, _ := msg.Get("resetCursor").(bool); reset && n.incremental {
+		key := cursorKey(n.cfg.ID, resolved)
+		if err := resetCursorKey(n.flowPers, key); err != nil {
+			n.statusError("cursor reset error")
+			return nil, fmt.Errorf("file-in: reset cursor: %w", err)
+		}
+		if n.Status != nil {
+			n.Status("blue", "cursor reset")
+		}
+		return nil, nil
+	}
+
+	if n.incremental {
+		return n.readIncrementalAndEmit(resolved, "", msg)
 	}
 
 	out, err := n.buildReadMessage(resolved, "", msg)
@@ -272,6 +363,20 @@ func (n *FileInNode) handleWatchEvent(ev fsnotify.Event) {
 	}
 
 	// read+watch: read content and emit
+	if n.incremental {
+		out, err := n.readIncrementalAndEmit(ev.Name, eventName, flow.NewMessage())
+		if err != nil {
+			slog.Warn("file-in read+watch incremental: read failed",
+				"node_id", n.cfg.ID,
+				"path", ev.Name,
+				"error", err,
+			)
+			return
+		}
+		// readIncrementalAndEmit already wrote to n.Send when it had content.
+		_ = out
+		return
+	}
 	out, err := n.buildReadMessage(ev.Name, eventName, flow.NewMessage())
 	if err != nil {
 		slog.Warn("file-in read+watch: read failed",
@@ -282,6 +387,80 @@ func (n *FileInNode) handleWatchEvent(ev fsnotify.Event) {
 		return
 	}
 	n.Send(0, out)
+}
+
+// readIncrementalAndEmit performs an incremental read, applies the
+// line-aware trim, and pushes a message via n.Send when there is content
+// to emit (or a reset to signal). For HandleMessage callers it also
+// returns the [][]*flow.Message envelope so the engine can route the
+// message; for watch dispatch the return value is unused.
+//
+// When the incremental result is Skipped (no new bytes / partial-only
+// line / unchanged file), nothing is emitted and the engine envelope is
+// nil — matching the spec rule that incremental stays silent in those
+// cases.
+func (n *FileInNode) readIncrementalAndEmit(absPath, eventName string, msg *flow.Message) ([][]*flow.Message, error) {
+	delim := n.resolveDelimiter(absPath)
+
+	res, err := readIncremental(n.flowPers, IncrementalOpts{
+		NodeID:       n.cfg.ID,
+		AbsPath:      absPath,
+		Delimiter:    delim,
+		MaxLineBytes: n.maxLineBytes,
+		FromStart:    n.fromStart,
+	})
+	if err != nil {
+		n.statusError(incrementalErrorLabel(err))
+		return nil, fmt.Errorf("file-in: %w", err)
+	}
+	if res.Skipped {
+		return nil, nil
+	}
+
+	encoding := resolveEncoding(absPath, n.encoding)
+	msg.SetPayload(decodePayload(res.Data, encoding))
+	msg.Set("filename", absPath)
+	msg.Set("encoding", encoding)
+	msg.Set("position", res.Position)
+	msg.Set("bytesRead", res.BytesRead)
+	if delim != DelimNone {
+		msg.Set("lineCount", res.LineCount)
+	}
+	if eventName != "" {
+		msg.Set("event", eventName)
+	}
+	if res.Reset {
+		msg.Set("reset", true)
+	}
+
+	if n.Status != nil {
+		n.Status("blue", "read "+humanSize(res.BytesRead))
+	}
+
+	// In watch mode dispatch via n.Send (no input port). In read mode
+	// return through the engine envelope so msg pass-through preserves
+	// any existing fields the upstream node set.
+	if n.mode == fileInModeRead {
+		return [][]*flow.Message{{msg}}, nil
+	}
+	if n.Send != nil {
+		n.Send(0, msg)
+	}
+	return nil, nil
+}
+
+// incrementalErrorLabel maps cursor / line-buffer errors to a stable label.
+func incrementalErrorLabel(err error) string {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return "not found"
+	case errors.Is(err, os.ErrPermission):
+		return "permission denied"
+	}
+	if strings.Contains(err.Error(), "exceeded maxLineBytes") {
+		return "line buffer exceeded"
+	}
+	return "incremental error"
 }
 
 // buildReadMessage reads the file at path, encodes the payload, and writes

@@ -13,6 +13,17 @@ const encoding = useNodeProperty<string>('encoding', 'auto')
 const rootJail = useNodeProperty<string>('rootJail', '')
 const watchEvents = useNodeProperty<string[]>('watchEvents', ['write', 'create'])
 const debounceMs = useNodeProperty<number>('debounceMs', 50)
+const incremental = useNodeProperty<boolean>('incremental', false)
+const fromStart = useNodeProperty<boolean>('fromStart', false)
+const delimiter = useNodeProperty<string>('delimiter', '\n')
+const maxLineBytes = useNodeProperty<number>('maxLineBytes', 1048576)
+
+const delimiters = [
+  { value: '\n',   label: 'LF (\\n)' },
+  { value: '\r\n', label: 'CRLF (\\r\\n)' },
+  { value: 'auto', label: 'Auto (LF or CRLF)' },
+  { value: 'none', label: 'None (raw bytes)' },
+]
 
 const modes = [
   { value: 'read',       label: 'Read (triggered by message)' },
@@ -101,6 +112,33 @@ const renameT = makeToggle('rename')
         <div class="text-[10px] text-text-muted leading-tight">
           Collapses bursts (e.g. write → flush → close) into a single event.
         </div>
+      </FormField>
+    </template>
+
+    <FormCheckbox v-model="incremental" label="Incremental (only new bytes since last read)" />
+
+    <template v-if="incremental">
+      <FormCheckbox v-model="fromStart" label="Start from beginning on first access" />
+
+      <FormField label="Line delimiter">
+        <FormSelect
+          :model-value="delimiter"
+          :options="delimiters"
+          @update:model-value="delimiter = String($event)"
+        />
+        <div class="text-[10px] text-text-muted leading-tight">
+          Partial trailing lines are buffered until the next read.
+        </div>
+      </FormField>
+
+      <FormField label="Max line size">
+        <NumberInput
+          :model-value="maxLineBytes"
+          :min="1024"
+          :max="104857600"
+          unit="bytes"
+          @update:model-value="maxLineBytes = Number($event)"
+        />
       </FormField>
     </template>
 

@@ -8,10 +8,57 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
+
+// memStore is an in-memory flow.ContextStore used by cursor and incremental
+// tests. Keys are strings, values are stored as-is. Concurrency-safe so it
+// can be shared between the test goroutine and the file-in watch loop.
+type memStore struct {
+	mu sync.RWMutex
+	kv map[string]any
+}
+
+func newMemStore() *memStore {
+	return &memStore{kv: map[string]any{}}
+}
+
+func (s *memStore) Get(key string) (any, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.kv[key]
+	if !ok {
+		return nil, nil
+	}
+	return v, nil
+}
+
+func (s *memStore) Set(key string, value any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.kv[key] = value
+	return nil
+}
+
+func (s *memStore) Delete(key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.kv, key)
+	return nil
+}
+
+func (s *memStore) Keys() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]string, 0, len(s.kv))
+	for k := range s.kv {
+		out = append(out, k)
+	}
+	return out, nil
+}
 
 func TestResolvePath_Plain(t *testing.T) {
 	got, err := resolvePath("/var/log/app.log", flow.NewMessage(), "")

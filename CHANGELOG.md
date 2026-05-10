@@ -5,6 +5,45 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Node packages reorganised into per-protocol subpackages.** All node implementations are now
+  in self-contained subdirectories (`internal/nodes/core/`, `modbus/`, `mqtt/`, `network/`,
+  `opcua/`, `s7/`). Each subpackage registers itself via an `init()` in its own `init.go`;
+  `internal/server` no longer contains any node registration logic. Which groups end up in the
+  binary is controlled exclusively by blank imports in `cmd/loopze/groups.go`.
+- **Frontend editors reorganised into per-group manifests.** Config and flow editors moved from
+  `frontend/src/components/config/` to `frontend/src/nodes/<group>/`. Each group exports a
+  `NodeGroupManifest` (lazy editor imports, palette category, optional group-local enums);
+  `frontend/src/nodes/index.ts` is the aggregator. Protocol-specific enum tables (`S7_DATA_TYPES`,
+  `MODBUS_FUNCTION_CODES`, etc.) now live in their group folder instead of the shared
+  `components/config/enums.ts`.
+- **`nodes.BaseNode` embed** replaces boilerplate `Send` / `Status` / `Debug` setter methods on
+  every node type. Nodes embed `nodes.BaseNode` and the engine injects callbacks into the
+  struct fields directly; the old `SetSend` / `SetStatus` / `SetDebug` methods are gone.
+- **`nodes.StringVal` / `IntVal` / `BoolVal` / `Float64Val` property helpers** replace ad-hoc
+  map-access one-liners across the codebase. All node `Init` methods now use these typed helpers.
+
+### Added
+- **`internal/nodes/nodestest/`** — shared test utilities: `Collector` (captures emitted messages
+  for assertions) and TLS helpers (`GenerateTLSPair`, `NewCertStore`) previously duplicated
+  across protocol test files.
+- **Contributor documentation.** New `docs/contributing/` section with an [overview](https://docs.loopze.dev/contributing/)
+  and an end-to-end [Adding a node](https://docs.loopze.dev/contributing/adding-a-node/) guide
+  covering backend skeleton, optional capabilities, self-registration, frontend manifest, palette
+  tokens, and the verification checklist. Architecture reference updated with the Node groups tree.
+
+### Internal
+- `cmd/loopze/groups.go` — single file that lists every enabled node group as a blank import;
+  adding or removing a group is one line here with no changes elsewhere.
+- `internal/nodes/registry.go` — `RegisterGroup` / `Apply` / `GroupSelection` APIs.
+- `internal/nodes/props.go` — `StringVal`, `IntVal`, `BoolVal`, `Float64Val`, `AnyVal`.
+- `internal/nodes/base.go` — `BaseNode` embed with `Send`, `Status`, `Debug` fields.
+- `frontend/src/nodes/types.ts` — `NodeGroupManifest` type definition.
+- `CONTRIBUTING.md` updated to reflect the new `internal/nodes/<group>/` and
+  `frontend/src/nodes/<group>/` paths.
+
 ## [0.0.9] - 2026-05-10
 
 ### Added

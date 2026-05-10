@@ -39,6 +39,7 @@ export type NodeType =
   | 'csv'
   | 'file-in'
   | 'file-out'
+  | 'folder-in'
   | 'catch'
   | 'status'
   | 'link-in'

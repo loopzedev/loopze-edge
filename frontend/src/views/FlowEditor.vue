@@ -755,6 +755,10 @@ onMounted(async () => {
                 <BaseNode v-bind="nodeProps as any" />
             </template>
 
+            <template #node-folder-in="nodeProps">
+                <BaseNode v-bind="nodeProps as any" />
+            </template>
+
             <template #node-json="nodeProps">
                 <JSONParserNode v-bind="nodeProps as any" />
             </template>

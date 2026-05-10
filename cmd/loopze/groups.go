@@ -17,6 +17,7 @@ package main
 
 import (
 	_ "github.com/loopzedev/loopze-edge/internal/nodes/core"
+	_ "github.com/loopzedev/loopze-edge/internal/nodes/filesystem"
 	_ "github.com/loopzedev/loopze-edge/internal/nodes/modbus"
 	_ "github.com/loopzedev/loopze-edge/internal/nodes/mqtt"
 	_ "github.com/loopzedev/loopze-edge/internal/nodes/network"

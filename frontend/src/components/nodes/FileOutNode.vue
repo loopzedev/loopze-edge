@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), { selected: false })
 function bodyText(): string {
   const cfg = props.data.config ?? {}
   const mode = (cfg.mode as string) || 'overwrite'
-  const path = (cfg.path as string) || '(no path)'
+  const path = (cfg.path as string) || 'msg.filename'
   return `${mode} · ${path}`
 }
 </script>

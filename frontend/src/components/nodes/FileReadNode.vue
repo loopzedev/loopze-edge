@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), { selected: false })
 function bodyText(): string {
   const cfg = props.data.config ?? {}
   const incremental = Boolean(cfg.incremental)
-  const path = (cfg.path as string) || '(no path)'
+  const path = (cfg.path as string) || 'msg.filename'
   const tag = incremental ? 'incr' : 'read'
   return `${tag} · ${path}`
 }

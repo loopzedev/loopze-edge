@@ -62,15 +62,18 @@ const renameT = makeToggle('rename')
       />
     </FormField>
 
-    <FormField label="Path">
+    <FormField :label="mode === 'read' ? 'Path (optional)' : 'Path'">
       <FormInput
         v-model="path"
         placeholder="/data/incoming"
         mono
-        :invalid="!path"
+        :invalid="mode !== 'read' && !path"
       />
-      <div v-if="!path" class="text-[10px] text-status-error leading-tight">
-        Absolute path (file or folder) required
+      <div v-if="mode !== 'read' && !path" class="text-[10px] text-status-error leading-tight">
+        Absolute path required for Watch / Read+Watch modes
+      </div>
+      <div v-else-if="!path" class="text-[10px] text-text-muted leading-tight">
+        Leave empty to list msg.path from the incoming message (Read mode only).
       </div>
       <div v-else class="text-[10px] text-text-muted leading-tight">
         File Watch never reads file contents — chain a File Read to consume the changed file.

@@ -31,15 +31,14 @@ const MUSTACHE_TOKEN = '{{mustache}}'
 
 <template>
   <div class="flex flex-col gap-3 flex-1 min-h-0">
-    <FormField label="Path">
+    <FormField label="Path (optional)">
       <FormInput
         v-model="path"
         placeholder="/var/log/events.log"
         mono
-        :invalid="!path"
       />
-      <div v-if="!path" class="text-[10px] text-status-error leading-tight">
-        Absolute file path required
+      <div v-if="!path" class="text-[10px] text-text-muted leading-tight">
+        Leave empty to write to msg.filename from the incoming message.
       </div>
       <div v-else class="text-[10px] text-text-muted leading-tight">
         {{ MUSTACHE_TOKEN }} supported; msg.filename overrides this path

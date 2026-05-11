@@ -146,6 +146,38 @@ func TestFileRead_MsgFilenameOverride(t *testing.T) {
 	}
 }
 
+func TestFileRead_EmptyPath_RequiresMsgFilename(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "from-msg.txt")
+	if err := os.WriteFile(target, []byte("via msg"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Path config left empty — node must rely on msg.filename.
+	fr, _ := newFileRead(t, map[string]any{"path": ""})
+	msg := flow.NewMessage()
+	msg.Set("filename", target)
+
+	out, err := fr.HandleMessage(msg)
+	if err != nil {
+		t.Fatalf("HandleMessage: %v", err)
+	}
+	if got := out[0][0].Get("payload"); got != "via msg" {
+		t.Errorf("payload = %v, want 'via msg'", got)
+	}
+}
+
+func TestFileRead_EmptyPath_NoMsgFilename_Errors(t *testing.T) {
+	fr, status := newFileRead(t, map[string]any{"path": ""})
+	_, err := fr.HandleMessage(flow.NewMessage())
+	if err == nil {
+		t.Fatal("expected path-error when neither config nor msg provides a path")
+	}
+	if status.color != "red" || status.text != "path error" {
+		t.Errorf("status = (%s, %s), want (red, path error)", status.color, status.text)
+	}
+}
+
 func TestFileRead_MustachePath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "alice.log")

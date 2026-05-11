@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), { selected: false })
 function bodyText(): string {
   const cfg = props.data.config ?? {}
   const mode = (cfg.mode as string) || 'watch'
-  const path = (cfg.path as string) || '(no path)'
+  const path = (cfg.path as string) || (mode === 'read' ? 'msg.path' : '(set path)')
   const glob = (cfg.glob as string) || '*'
   const tail = glob && glob !== '*' ? ` [${glob}]` : ''
   return `${mode} · ${path}${tail}`

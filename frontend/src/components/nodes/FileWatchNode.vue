@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<Props>(), { selected: false })
 
 function bodyText(): string {
   const cfg = props.data.config ?? {}
-  const mode = (cfg.mode as string) || 'read'
+  const mode = (cfg.mode as string) || 'watch'
   const path = (cfg.path as string) || '(no path)'
   const glob = (cfg.glob as string) || '*'
   const tail = glob && glob !== '*' ? ` [${glob}]` : ''
@@ -32,7 +32,7 @@ function bodyText(): string {
   <BaseNode
     :id="props.id"
     :label="props.data.label"
-    node-type="folder-in"
+    node-type="file-watch"
     :selected="props.selected"
     :inputs="props.data.inputs ?? 1"
     :outputs="props.data.outputs ?? 1"

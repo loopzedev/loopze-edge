@@ -182,6 +182,29 @@ func encodeBinary(payload any) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported binary payload type %T", payload)
 }
 
+// stringSlice extracts a []string from the property bag. JSON-decoded values
+// arrive as []any with string elements; native callers may pass []string
+// directly. Falls back to the supplied default for missing or wrong-typed
+// entries.
+func stringSlice(m map[string]any, key string, fallback []string) []string {
+	switch v := m[key].(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, x := range v {
+			if s, ok := x.(string); ok {
+				out = append(out, s)
+			}
+		}
+		if len(out) == 0 {
+			return fallback
+		}
+		return out
+	}
+	return fallback
+}
+
 // decodePayload converts file bytes into the message-payload representation.
 // utf-8 returns a string; binary returns a []int (number array) so JSON
 // serialisation in the Debug node and downstream nodes stays human-readable

@@ -10,9 +10,45 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/loopzedev/loopze-edge/internal/flow"
 )
+
+// sendCollector captures messages pushed by source nodes via SendFunc so
+// watch-mode tests can assert on emitted events with a timeout.
+type sendCollector struct {
+	ch chan *flow.Message
+}
+
+func newSendCollector() *sendCollector {
+	return &sendCollector{ch: make(chan *flow.Message, 16)}
+}
+
+func (c *sendCollector) sendFn() flow.SendFunc {
+	return func(_ int, msg *flow.Message) { c.ch <- msg }
+}
+
+func (c *sendCollector) wait(t *testing.T, d time.Duration) *flow.Message {
+	t.Helper()
+	select {
+	case msg := <-c.ch:
+		return msg
+	case <-time.After(d):
+		t.Fatalf("timed out after %s waiting for message", d)
+		return nil
+	}
+}
+
+func (c *sendCollector) waitNone(t *testing.T, d time.Duration) {
+	t.Helper()
+	select {
+	case msg := <-c.ch:
+		t.Fatalf("expected no message in %s, got payload=%v event=%v",
+			d, msg.Get("payload"), msg.Get("event"))
+	case <-time.After(d):
+	}
+}
 
 // memStore is an in-memory flow.ContextStore used by cursor and incremental
 // tests. Keys are strings, values are stored as-is. Concurrency-safe so it

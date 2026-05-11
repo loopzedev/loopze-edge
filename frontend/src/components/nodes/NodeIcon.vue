@@ -60,9 +60,9 @@ const icons: Record<string, string[]> = {
   'opcua-write':     ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M14.5 9a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z', 'M9 15h6', 'M19 16h-6', 'M15 14l2 2-2 2'], // OPC UA + write arrow
 
   // ── File ──────────────────────────────────
-  'file-in':     ['M14 2H6v20h12V6l-4-4z', 'M14 2v4h4', 'M12 12v6', 'M9 15l3 3 3-3'], // file + down arrow
+  'file-read':   ['M14 2H6v20h12V6l-4-4z', 'M14 2v4h4', 'M12 12v6', 'M9 15l3 3 3-3'], // file + down arrow
   'file-out':    ['M14 2H6v20h12V6l-4-4z', 'M14 2v4h4', 'M12 18v-6', 'M9 15l3-3 3 3'], // file + up arrow
-  'folder-in':   ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z', 'M12 11v6', 'M9 14l3 3 3-3'], // folder + down arrow
+  'file-watch':  ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z', 'M12 12.5m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0', 'M12 11.5v1', 'M12 12.5h0.5'], // folder + eye
 
   // ── Parser ────────────────────────────────
   json:          ['M7 4c-2 0-3 1-3 3v3c0 1-1 2-2 2 1 0 2 1 2 2v3c0 2 1 3 3 3', 'M17 4c2 0 3 1 3 3v3c0 1 1 2 2 2-1 0-2 1-2 2v3c0 2-1 3-3 3'], // { }

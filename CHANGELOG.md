@@ -8,28 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Filesystem nodes** — three new node types for reading, writing, and watching files
-  and folders, registered as the new `filesystem` group:
-  - **File In** (`file-in`). Reads a file on demand (`mode=read`), watches it for changes
-    (`mode=watch`), or both (`mode=read+watch`). Optional **incremental mode** reads only
-    bytes appended since the last read using a persistent byte-offset cursor stored in
-    `flowPers` (NATS KV) — survives redeploys and restarts. Line-aware trim
-    (`delimiter` = `\n` / `\r\n` / `auto` / `none`) leaves trailing partial lines
-    unread so a read that races with an in-progress write never advances the cursor
-    past an incomplete record. `maxLineBytes` guards against unbounded buffering on
-    misconfigured binary files. Truncation / rotation is detected (`cursor > size`)
-    and surfaced as `msg.reset = true`. `msg.resetCursor = true` clears the cursor
-    in `read` mode. Watch mode uses [`fsnotify`](https://github.com/fsnotify/fsnotify)
-    with inline-debounce burst coalescing.
-  - **Folder In** (`folder-in`). Lists a folder's entries (`mode=read`), watches for
-    filesystem events (`mode=watch`), or both (`mode=read+watch` — always behaves
-    incrementally). Recursive walks supported in `mode=read`; glob filter applied to
-    entry names. Optional `includeContent` reads each file with the same encoding
-    rules as File In and skips files larger than `maxFileSizeBytes`. Incremental
-    mode tracks per-file modTime in a persistent map under `flowPers`, so a re-scan
-    only emits entries whose modTime has advanced (and deletions when `remove` is in
-    `watchEvents`). `sendAs` toggles between one message per entry (with
+- **Filesystem nodes** — three new node types with single-purpose semantics
+  (read, watch, write) that compose cleanly. Registered as the `filesystem` group:
+  - **File Read** (`file-read`). Reads a file's content on every incoming message.
+    Optional **incremental tail mode** reads only bytes appended since the last read
+    using a persistent byte-offset cursor stored in `flowPers` (NATS KV) — survives
+    redeploys and restarts. Line-aware trim (`delimiter` = `\n` / `\r\n` / `auto` /
+    `none`) leaves trailing partial lines unread so a read that races with an
+    in-progress write never advances the cursor past an incomplete record.
+    `maxLineBytes` guards against unbounded buffering on misconfigured binary files.
+    Truncation / rotation is detected (`cursor > size`) and surfaced as
+    `msg.reset = true`. `msg.resetCursor = true` clears the cursor.
+    `file-read` does **not** watch — chain a `file-watch` in front to react to
+    filesystem changes.
+  - **File Watch** (`file-watch`). Watches a single file or a folder for filesystem
+    changes and emits **metadata-only** messages — `file-watch` never reads file
+    content. Modes: `read` (list folder entries on trigger), `watch` (event-driven
+    via [`fsnotify`](https://github.com/fsnotify/fsnotify) with inline-debounce
+    coalescing), `read+watch` (re-scan on each event, always incremental). Glob
+    filter on entry names; recursive walks supported in `mode=read` only (watcher is
+    non-recursive — v1 limitation). Incremental mode tracks per-file modTime in a
+    persistent map under `flowPers` and emits exactly one message per change
+    including deletions. `sendAs` toggles between one message per entry (with
     isFirst/isLast/index/total) and a single message carrying the array.
+    Compose with `file-read` to consume the changed file:
+    `file-watch → file-read → parser`.
   - **File Write** (`file-out`). Writes `msg.payload` to a file in `overwrite`,
     `append`, or `create` (fail-if-exists) mode. UTF-8 / binary / auto encoding;
     auto resolves by extension (`.log`, `.json`, `.csv`, `.yaml`, … → utf-8;
@@ -70,21 +73,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously missing).
 - `frontend/src/components/help/index.ts` — live summary function for `xml`.
 - `docs/nodes/xml-parser.md` — full node reference documentation.
-- `internal/nodes/filesystem/` — new package with `init.go`, `file_in.go`,
-  `folder_in.go`, `file_out.go`, `helpers.go`, `cursor.go` plus tests
-  (`file_in_test.go`, `folder_in_test.go`, `file_out_test.go`, `helpers_test.go`,
-  `cursor_test.go`). 84 unit tests covering every documented scenario.
+- `internal/nodes/filesystem/` — new package with `init.go`, `file_read.go`,
+  `file_watch.go`, `file_out.go`, `helpers.go`, `cursor.go` plus tests
+  (`file_read_test.go`, `file_watch_test.go`, `file_out_test.go`,
+  `helpers_test.go`, `cursor_test.go`). Unit tests cover every documented scenario.
 - `cmd/loopze/groups.go` — blank-import line wires the filesystem group into the
   binary.
 - `go.mod` / `go.sum` — `github.com/fsnotify/fsnotify v1.10.1` added (cross-platform
   inotify / kqueue / ReadDirectoryChangesW wrapper).
-- `frontend/src/nodes/filesystem/` — new group manifest plus `FileInConfig.vue`,
-  `FolderInConfig.vue`, `FileOutConfig.vue`.
+- `frontend/src/nodes/filesystem/` — new group manifest plus `FileReadConfig.vue`,
+  `FileWatchConfig.vue`, `FileOutConfig.vue`.
 - `frontend/src/nodes/index.ts` — registers the filesystem manifest.
+- `frontend/src/components/nodes/{FileReadNode,FileWatchNode,FileOutNode}.vue` —
+  canvas node components surfacing useful body text (mode + path + glob).
 - `frontend/src/types/flow.ts`, `frontend/src/views/FlowEditor.vue`,
-  `frontend/src/components/nodes/NodeIcon.vue` — `folder-in` added to the type
-  union, the slot template, and the icon table; existing `file-in` / `file-out`
-  scaffolding reused.
+  `frontend/src/components/nodes/NodeIcon.vue`, `BaseNode.vue` — `file-read`,
+  `file-watch`, `file-out` added to the type union, slot templates, icon
+  table, and label map.
 - `frontend/src/components/nodes/tokens.ts` — new `filesystem` palette
   (slate-stone, distinct from process / switch / network families).
 - `specifications/issues/NODE_FILESYSTEM.md` — full design specification.

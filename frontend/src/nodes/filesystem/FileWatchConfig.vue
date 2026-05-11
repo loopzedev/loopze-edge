@@ -7,22 +7,19 @@ import FormCheckbox from '@/components/ui/FormCheckbox.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 
-const mode = useNodeProperty<string>('mode', 'read')
+const mode = useNodeProperty<string>('mode', 'watch')
 const path = useNodeProperty<string>('path', '')
 const recursive = useNodeProperty<boolean>('recursive', false)
 const glob = useNodeProperty<string>('glob', '*')
 const watchEvents = useNodeProperty<string[]>('watchEvents', ['create', 'write', 'remove', 'rename'])
 const sendAs = useNodeProperty<string>('sendAs', 'individual')
-const includeContent = useNodeProperty<boolean>('includeContent', false)
-const contentEncoding = useNodeProperty<string>('contentEncoding', 'auto')
-const maxFileSizeBytes = useNodeProperty<number>('maxFileSizeBytes', 1048576)
 const debounceMs = useNodeProperty<number>('debounceMs', 100)
 const incremental = useNodeProperty<boolean>('incremental', false)
 const fromStart = useNodeProperty<boolean>('fromStart', false)
 const rootJail = useNodeProperty<string>('rootJail', '')
 
 const modes = [
-  { value: 'read',       label: 'Read (triggered by message)' },
+  { value: 'read',       label: 'Read (list folder, triggered by message)' },
   { value: 'watch',      label: 'Watch (event-driven)' },
   { value: 'read+watch', label: 'Read + Watch (always incremental)' },
 ]
@@ -32,15 +29,8 @@ const sendAsOptions = [
   { value: 'array',      label: 'Array (one message with all entries)' },
 ]
 
-const encodings = [
-  { value: 'auto',   label: 'Auto (by extension)' },
-  { value: 'utf-8',  label: 'UTF-8 (text)' },
-  { value: 'binary', label: 'Binary (number array)' },
-]
-
 const isWatchMode = computed(() => mode.value !== 'read')
 const isReadPlusWatch = computed(() => mode.value === 'read+watch')
-
 // read+watch is always incremental — UI hides the toggle for that mode.
 const showIncremental = computed(() => mode.value !== 'read+watch')
 
@@ -72,7 +62,7 @@ const renameT = makeToggle('rename')
       />
     </FormField>
 
-    <FormField label="Folder path">
+    <FormField label="Path">
       <FormInput
         v-model="path"
         placeholder="/data/incoming"
@@ -80,10 +70,11 @@ const renameT = makeToggle('rename')
         :invalid="!path"
       />
       <div v-if="!path" class="text-[10px] text-status-error leading-tight">
-        Absolute folder path required
+        Absolute path (file or folder) required
       </div>
       <div v-else class="text-[10px] text-text-muted leading-tight">
-        msg.path overrides this folder in Read mode.
+        File Watch never reads file contents — chain a File Read to consume the changed file.
+        msg.path overrides this in Read mode.
       </div>
     </FormField>
 
@@ -101,33 +92,8 @@ const renameT = makeToggle('rename')
       />
     </FormField>
 
-    <FormCheckbox v-model="includeContent" label="Include file content" />
-
-    <template v-if="includeContent">
-      <FormField label="Content encoding">
-        <FormSelect
-          :model-value="contentEncoding"
-          :options="encodings"
-          @update:model-value="contentEncoding = String($event)"
-        />
-      </FormField>
-
-      <FormField label="Max file size">
-        <NumberInput
-          :model-value="maxFileSizeBytes"
-          :min="1024"
-          :max="104857600"
-          unit="bytes"
-          @update:model-value="maxFileSizeBytes = Number($event)"
-        />
-        <div class="text-[10px] text-text-muted leading-tight">
-          Files larger than this are emitted with content omitted (contentSkipped flag).
-        </div>
-      </FormField>
-    </template>
-
     <template v-if="showIncremental">
-      <FormCheckbox v-model="incremental" label="Incremental (only changed files since last read)" />
+      <FormCheckbox v-model="incremental" label="Incremental (only changed entries since last scan)" />
     </template>
     <div v-else class="text-[10px] text-text-muted leading-tight">
       Read + Watch mode is always incremental. Each event triggers a re-scan;
@@ -135,7 +101,7 @@ const renameT = makeToggle('rename')
     </div>
 
     <template v-if="incremental || isReadPlusWatch">
-      <FormCheckbox v-model="fromStart" label="Emit all existing files on first access" />
+      <FormCheckbox v-model="fromStart" label="Emit all existing entries on first access" />
     </template>
 
     <template v-if="isWatchMode">

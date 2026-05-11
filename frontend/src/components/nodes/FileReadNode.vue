@@ -20,10 +20,9 @@ const props = withDefaults(defineProps<Props>(), { selected: false })
 
 function bodyText(): string {
   const cfg = props.data.config ?? {}
-  const mode = (cfg.mode as string) || 'read'
   const incremental = Boolean(cfg.incremental)
   const path = (cfg.path as string) || '(no path)'
-  const tag = incremental ? `${mode}+inc` : mode
+  const tag = incremental ? 'incr' : 'read'
   return `${tag} · ${path}`
 }
 </script>
@@ -32,7 +31,7 @@ function bodyText(): string {
   <BaseNode
     :id="props.id"
     :label="props.data.label"
-    node-type="file-in"
+    node-type="file-read"
     :selected="props.selected"
     :inputs="props.data.inputs ?? 1"
     :outputs="props.data.outputs ?? 1"

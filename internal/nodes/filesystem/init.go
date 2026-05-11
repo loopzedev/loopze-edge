@@ -15,8 +15,8 @@ func init() {
 		Name:        "filesystem",
 		Description: "File and folder read, watch, and write",
 		Nodes: []nodes.FlowNodeRegistration{
-			{Type: "file-in", Factory: NewFileInNode, Info: FileInTypeInfo()},
-			{Type: "folder-in", Factory: NewFolderInNode, Info: FolderInTypeInfo()},
+			{Type: "file-read", Factory: NewFileReadNode, Info: FileReadTypeInfo()},
+			{Type: "file-watch", Factory: NewFileWatchNode, Info: FileWatchTypeInfo()},
 			{Type: "file-out", Factory: NewFileOutNode, Info: FileOutTypeInfo()},
 		},
 	})

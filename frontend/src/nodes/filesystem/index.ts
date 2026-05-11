@@ -11,8 +11,8 @@ export const manifest: NodeGroupManifest = {
   name: 'filesystem',
   category: 'filesystem',
   flowEditors: {
-    'file-in':   () => import('./FileInConfig.vue') as Promise<Component>,
-    'folder-in': () => import('./FolderInConfig.vue') as Promise<Component>,
-    'file-out':  () => import('./FileOutConfig.vue') as Promise<Component>,
+    'file-read':  () => import('./FileReadConfig.vue') as Promise<Component>,
+    'file-watch': () => import('./FileWatchConfig.vue') as Promise<Component>,
+    'file-out':   () => import('./FileOutConfig.vue') as Promise<Component>,
   },
 }

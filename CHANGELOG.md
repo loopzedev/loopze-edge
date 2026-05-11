@@ -8,6 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Filesystem nodes** — three new node types with single-purpose semantics
+  (read, watch, write) that compose cleanly. Registered as the `filesystem` group:
+  - **File Read** (`file-read`). Reads a file's content on every incoming message.
+    Optional **incremental tail mode** reads only bytes appended since the last read
+    using a persistent byte-offset cursor stored in `flowPers` (NATS KV) — survives
+    redeploys and restarts. Line-aware trim (`delimiter` = `\n` / `\r\n` / `auto` /
+    `none`) leaves trailing partial lines unread so a read that races with an
+    in-progress write never advances the cursor past an incomplete record.
+    `maxLineBytes` guards against unbounded buffering on misconfigured binary files.
+    Truncation / rotation is detected (`cursor > size`) and surfaced as
+    `msg.reset = true`. `msg.resetCursor = true` clears the cursor.
+    `file-read` does **not** watch — chain a `file-watch` in front to react to
+    filesystem changes.
+  - **File Watch** (`file-watch`). Watches a single file or a folder for filesystem
+    changes and emits **metadata-only** messages — `file-watch` never reads file
+    content. Modes: `read` (list folder entries on trigger), `watch` (event-driven
+    via [`fsnotify`](https://github.com/fsnotify/fsnotify) with inline-debounce
+    coalescing), `read+watch` (re-scan on each event, always incremental). Glob
+    filter on entry names; recursive walks supported in `mode=read` only (watcher is
+    non-recursive — v1 limitation). Incremental mode tracks per-file modTime in a
+    persistent map under `flowPers` and emits exactly one message per change
+    including deletions. `sendAs` toggles between one message per entry (with
+    isFirst/isLast/index/total) and a single message carrying the array.
+    Compose with `file-read` to consume the changed file:
+    `file-watch → file-read → parser`.
+  - **File Write** (`file-out`). Writes `msg.payload` to a file in `overwrite`,
+    `append`, or `create` (fail-if-exists) mode. UTF-8 / binary / auto encoding;
+    auto resolves by extension (`.log`, `.json`, `.csv`, `.yaml`, … → utf-8;
+    everything else → binary, including number arrays). Mustache path templates
+    over `msg`; `msg.filename` overrides the configured path. Optional `createDirs`
+    runs `MkdirAll` for parent directories; optional `appendNewline` adds `\n`
+    after each write (line-based logs).
+  - All three nodes share **mustache path templating**, **auto-encoding**, and an
+    optional **root jail** (`rootJail` config) that uses lenient symlink resolution
+    so writes to non-existing files inside the jail still pass the safety check.
+    All errors route through the Catch node pipeline with stable status labels
+    ("not found", "permission denied", "path error", "file exists", "line buffer
+    exceeded", …). Backed by a single shared `helpers.go` (`resolvePath`,
+    `resolveEncoding`, `encodePayload`, `decodePayload`, `applyJail`) and `cursor.go`
+    (`readIncremental`, `trimToLastLine`, dir modTime map).
+
 - **XML Parser node** (`xml`). Converts `msg.payload` (or any message property) bidirectionally
   between an XML string / buffer and a structured Go `map[string]any`, using
   [`mxj`](https://github.com/clbanning/mxj) for generic XML ↔ map conversion. Mirrors the JSON
@@ -32,6 +73,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously missing).
 - `frontend/src/components/help/index.ts` — live summary function for `xml`.
 - `docs/nodes/xml-parser.md` — full node reference documentation.
+- `internal/nodes/filesystem/` — new package with `init.go`, `file_read.go`,
+  `file_watch.go`, `file_out.go`, `helpers.go`, `cursor.go` plus tests
+  (`file_read_test.go`, `file_watch_test.go`, `file_out_test.go`,
+  `helpers_test.go`, `cursor_test.go`). Unit tests cover every documented scenario.
+- `cmd/loopze/groups.go` — blank-import line wires the filesystem group into the
+  binary.
+- `go.mod` / `go.sum` — `github.com/fsnotify/fsnotify v1.10.1` added (cross-platform
+  inotify / kqueue / ReadDirectoryChangesW wrapper).
+- `frontend/src/nodes/filesystem/` — new group manifest plus `FileReadConfig.vue`,
+  `FileWatchConfig.vue`, `FileOutConfig.vue`.
+- `frontend/src/nodes/index.ts` — registers the filesystem manifest.
+- `frontend/src/components/nodes/{FileReadNode,FileWatchNode,FileOutNode}.vue` —
+  canvas node components surfacing useful body text (mode + path + glob).
+- `frontend/src/types/flow.ts`, `frontend/src/views/FlowEditor.vue`,
+  `frontend/src/components/nodes/NodeIcon.vue`, `BaseNode.vue` — `file-read`,
+  `file-watch`, `file-out` added to the type union, slot templates, icon
+  table, and label map.
+- `frontend/src/components/nodes/tokens.ts` — new `filesystem` palette
+  (slate-stone, distinct from process / switch / network families).
+- `specifications/issues/NODE_FILESYSTEM.md` — full design specification.
 
 ## [0.1.0] - 2026-05-10
 

@@ -25,6 +25,9 @@ import CatchNode from "@/components/nodes/CatchNode.vue";
 import TemplateNode from "@/components/nodes/TemplateNode.vue";
 import JSONParserNode from "@/components/nodes/JSONParserNode.vue";
 import XMLParserNode from "@/components/nodes/XMLParserNode.vue";
+import FileReadNode from "@/components/nodes/FileReadNode.vue";
+import FileOutNode from "@/components/nodes/FileOutNode.vue";
+import FileWatchNode from "@/components/nodes/FileWatchNode.vue";
 
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -747,12 +750,16 @@ onMounted(async () => {
                 </BaseNode>
             </template>
 
-            <template #node-file-in="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+            <template #node-file-read="nodeProps">
+                <FileReadNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-file-out="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <FileOutNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-file-watch="nodeProps">
+                <FileWatchNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-json="nodeProps">

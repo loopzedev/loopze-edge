@@ -223,6 +223,20 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a2e1a',
     textSub:    '#b88a6a',
   },
+  // Filesystem palette: slate-stone — evokes disk / storage / archival.
+  // Cooler and greyer than process/switch; distinct from MQTT magenta and
+  // OPC UA cyan. Reads as "data at rest" rather than "data in motion".
+  filesystem: {
+    accent:     '#94a3b8',
+    accentDim:  '#94a3b812',
+    accentBdr:  '#94a3b82a',
+    accentGlow: '#94a3b814',
+    bg:         '#080a0d',
+    bgHdr:      '#10141a',
+    bgIcon:     '#161a22',
+    border:     '#2e3742',
+    textSub:    '#6a7585',
+  },
   // Iron-oxide rust — warm brown-orange, evokes industrial / fieldbus equipment.
   rust: {
     accent:     '#c97644',

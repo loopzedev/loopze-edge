@@ -69,6 +69,14 @@ Cross-cutting reference:
 | [S7 Write](s7-write.md)    | Static / dynamic / block-mode variable writes. |
 | [S7 Parser](s7-parser.md)  | Decode block-mode bytes into structured objects (and back). |
 
+## Filesystem
+
+| Node                            | What it does                                                  |
+|---------------------------------|---------------------------------------------------------------|
+| [File Read](file-read.md)       | Read file content on trigger; supports incremental byte-cursor tailing. |
+| [File Watch](file-watch.md)     | Watch a file or directory for FS events; emits metadata only. |
+| [File Out](file-out.md)         | Write message payloads to a file (overwrite / append / create). |
+
 ## Diagnostics
 
 | Node    | What it does                              |

@@ -209,6 +209,27 @@ const summaries: Record<string, NodeSummaryFn> = {
     return `${pluralize(layout, 'field')} · ${action}`
   },
 
+  'file-read'(cfg) {
+    const incremental = Boolean(cfg.incremental)
+    const path = (cfg.path as string) || 'msg.filename'
+    const tag = incremental ? 'incr' : 'read'
+    return `${tag} · ${path}`
+  },
+
+  'file-watch'(cfg) {
+    const mode = (cfg.mode as string) || 'watch'
+    const path = (cfg.path as string) || (mode === 'read' ? 'msg.path' : '(set path)')
+    const glob = (cfg.glob as string) || '*'
+    const tail = glob && glob !== '*' ? ` [${glob}]` : ''
+    return `${mode} · ${path}${tail}`
+  },
+
+  'file-out'(cfg) {
+    const mode = (cfg.mode as string) || 'overwrite'
+    const path = (cfg.path as string) || 'msg.filename'
+    return `${mode} · ${path}`
+  },
+
   delay(cfg) {
     const mode = (cfg.mode as string) ?? 'delay'
     const fmt = (n: number, unit: string) => `${n}${unit === 'milliseconds' ? 'ms' : unit === 'day' ? 'd' : unit[0]}`

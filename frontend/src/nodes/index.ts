@@ -12,6 +12,7 @@ import type { Component } from 'vue'
 import type { NodeGroupManifest } from './types'
 
 import { manifest as coreManifest } from './core'
+import { manifest as filesystemManifest } from './filesystem'
 import { manifest as modbusManifest } from './modbus'
 import { manifest as mqttManifest } from './mqtt'
 import { manifest as networkManifest } from './network'
@@ -20,6 +21,7 @@ import { manifest as s7Manifest } from './s7'
 
 export const GROUPS: NodeGroupManifest[] = [
   coreManifest,
+  filesystemManifest,
   modbusManifest,
   mqttManifest,
   networkManifest,

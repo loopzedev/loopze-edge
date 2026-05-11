@@ -23,12 +23,27 @@ log-tail workflows survive flow updates.
 | Field           | Default       | Description |
 |-----------------|---------------|-------------|
 | `path`          | *(empty)*     | Absolute path to the file. Leave empty to use `msg.filename` from each incoming message. |
-| `encoding`      | `utf8`        | `utf8` \| `utf16le` \| `latin1` \| `base64` \| `hex` \| `buffer`. `buffer` emits a raw `Buffer` object. |
+| `encoding`      | `auto`        | `auto` \| `utf-8` \| `utf-16le` \| `utf-16be` \| `utf-16` \| `latin1` \| `windows-1252` \| `binary`. See [Encodings](#encodings). |
 | `incremental`   | `false`       | Only read bytes added since the last run. Cursor persisted via flow context. |
 | `fromStart`     | `false`       | Incremental only — emit all existing content on the first access (cursor starts at 0). Off = cursor pins to current EOF at start. |
 | `delimiter`     | *(empty)*     | Split output into an array of lines at this byte sequence (e.g. `\n`). Empty = no split. |
 | `maxLineBytes`  | `1048576`     | Safety limit per line when delimiter is set. Lines longer than this are truncated. |
 | `rootJail`      | *(empty)*     | Resolved paths must stay inside this directory. Empty = no restriction. |
+
+## Encodings
+
+| Value          | Behaviour |
+|----------------|-----------|
+| `auto`         | **Default.** Resolves by file extension: `.txt .json .xml .csv .log .yaml .yml .toml .md` → `utf-8`; everything else → `binary`. |
+| `utf-8`        | UTF-8 text — returned as a Go string. |
+| `utf-16le`     | UTF-16 Little-Endian without BOM (Windows/Excel default). |
+| `utf-16be`     | UTF-16 Big-Endian without BOM. |
+| `utf-16`       | UTF-16 with BOM detection: LE when BOM=`FFFE`, BE when BOM=`FEFF`, falls back to LE when absent. |
+| `latin1`       | ISO-8859-1 — Western European (legacy industrial systems, older databases). |
+| `windows-1252` | Windows Code Page 1252 — superset of Latin-1 with extra characters (€, „, ", …). Common in files exported from Windows applications. |
+| `binary`       | Raw bytes returned as `[]int` (same convention as TCP / MQTT / HTTP nodes). |
+
+All text encodings are decoded to a UTF-8 Go string before the payload is sent downstream. Use a **JSON Parser** node to further parse JSON content.
 
 ## Output message fields
 

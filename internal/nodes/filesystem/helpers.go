@@ -5,13 +5,18 @@
 package filesystem
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
 	"github.com/cbroglie/mustache"
 	"github.com/loopzedev/loopze-edge/internal/flow"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // textExtensions resolves to "utf-8" when encoding is "auto". Everything not
@@ -112,12 +117,13 @@ func evalSymlinksLenient(p string) (string, error) {
 }
 
 // resolveEncoding picks the effective encoding. "auto" looks up the extension;
-// explicit "utf-8" / "binary" pass through.
+// all explicit encoding names pass through unchanged.
 func resolveEncoding(path, cfgEncoding string) string {
 	switch cfgEncoding {
-	case "utf-8", "binary":
+	case "utf-8", "utf-16le", "utf-16be", "utf-16", "latin1", "windows-1252", "binary":
 		return cfgEncoding
 	}
+	// auto: map known text extensions to utf-8, everything else to binary.
 	if textExtensions[strings.ToLower(filepath.Ext(path))] {
 		return "utf-8"
 	}
@@ -206,9 +212,8 @@ func stringSlice(m map[string]any, key string, fallback []string) []string {
 }
 
 // decodePayload converts file bytes into the message-payload representation.
-// utf-8 returns a string; binary returns a []int (number array) so JSON
-// serialisation in the Debug node and downstream nodes stays human-readable
-// instead of base64. Same convention used by HTTP / TCP / MQTT nodes.
+// "binary" returns a []int (number array, same convention as HTTP/TCP/MQTT
+// nodes). All text encodings are decoded to a Go string via decodeText.
 func decodePayload(data []byte, encoding string) any {
 	if encoding == "binary" {
 		out := make([]int, len(data))
@@ -217,7 +222,51 @@ func decodePayload(data []byte, encoding string) any {
 		}
 		return out
 	}
-	return string(data)
+	s, err := decodeText(data, encoding)
+	if err != nil {
+		return string(data) // best-effort UTF-8 fallback
+	}
+	return s
+}
+
+// decodeText converts raw file bytes to a UTF-8 Go string using the given
+// named encoding. "utf-8" / "" pass through without any transformation.
+func decodeText(data []byte, encoding string) (string, error) {
+	switch encoding {
+	case "utf-16le":
+		b, err := io.ReadAll(transform.NewReader(
+			bytes.NewReader(data),
+			unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder(),
+		))
+		return string(b), err
+	case "utf-16be":
+		b, err := io.ReadAll(transform.NewReader(
+			bytes.NewReader(data),
+			unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM).NewDecoder(),
+		))
+		return string(b), err
+	case "utf-16":
+		// UseBOM: LE when BOM=FFFE, BE when BOM=FEFF, falls back to LE when absent.
+		b, err := io.ReadAll(transform.NewReader(
+			bytes.NewReader(data),
+			unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(),
+		))
+		return string(b), err
+	case "latin1":
+		b, err := io.ReadAll(transform.NewReader(
+			bytes.NewReader(data),
+			charmap.ISO8859_1.NewDecoder(),
+		))
+		return string(b), err
+	case "windows-1252":
+		b, err := io.ReadAll(transform.NewReader(
+			bytes.NewReader(data),
+			charmap.Windows1252.NewDecoder(),
+		))
+		return string(b), err
+	}
+	// utf-8 and anything unknown: treat as UTF-8.
+	return string(data), nil
 }
 
 func toUint8(v any) (byte, bool) {

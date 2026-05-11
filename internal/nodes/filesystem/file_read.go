@@ -61,7 +61,7 @@ func (n *FileReadNode) Init() error {
 	n.maxLineBytes = int64(nodes.IntVal(p, "maxLineBytes", 1048576))
 
 	switch n.encoding {
-	case "auto", "utf-8", "binary":
+	case "auto", "utf-8", "utf-16le", "utf-16be", "utf-16", "latin1", "windows-1252", "binary":
 	default:
 		return fmt.Errorf("file-read %s: invalid encoding %q", n.cfg.ID, n.encoding)
 	}

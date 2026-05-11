@@ -15,9 +15,14 @@ const delimiter = useNodeProperty<string>('delimiter', '\n')
 const maxLineBytes = useNodeProperty<number>('maxLineBytes', 1048576)
 
 const encodings = [
-  { value: 'auto',   label: 'Auto (by extension)' },
-  { value: 'utf-8',  label: 'UTF-8 (text)' },
-  { value: 'binary', label: 'Binary (number array)' },
+  { value: 'auto',         label: 'Auto (by file extension)' },
+  { value: 'utf-8',        label: 'UTF-8' },
+  { value: 'utf-16le',     label: 'UTF-16 LE (Windows Unicode / Excel)' },
+  { value: 'utf-16be',     label: 'UTF-16 BE' },
+  { value: 'utf-16',       label: 'UTF-16 (BOM detection)' },
+  { value: 'latin1',       label: 'Latin-1 / ISO-8859-1' },
+  { value: 'windows-1252', label: 'Windows-1252' },
+  { value: 'binary',       label: 'Binary ([]int)' },
 ]
 
 const delimiters = [

@@ -660,7 +660,7 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     ],
     properties: [
       { key: 'path',          desc: 'Absolute path to the file. Leave empty to use msg.filename from each incoming message.' },
-      { key: 'encoding',      desc: 'utf8 (default) | utf16le | latin1 | base64 | hex | buffer. "buffer" emits a raw Buffer object.' },
+      { key: 'encoding',      desc: 'auto (by extension) | utf-8 | utf-16le (Windows / Excel) | utf-16be | utf-16 (BOM detection) | latin1 | windows-1252 | binary ([]int).' },
       { key: 'incremental',   desc: 'When on: only read bytes added since the last run. Cursor is persisted so it survives restarts and redeployments.' },
       { key: 'fromStart',     desc: 'Incremental only — emit all existing content on the first access (cursor starts at 0). Off by default (cursor pins to current EOF at start).' },
       { key: 'delimiter',     desc: 'Split output into an array of lines at this byte sequence (e.g. \\n). Empty = no split, returns a single string.' },

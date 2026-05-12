@@ -5,7 +5,7 @@ All notable changes to LOOPZE are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - 2026-05-11
 
 ### Added
 - **Filesystem nodes** — three new node types with single-purpose semantics
@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     exceeded", …). Backed by a single shared `helpers.go` (`resolvePath`,
     `resolveEncoding`, `encodePayload`, `decodePayload`, `applyJail`) and `cursor.go`
     (`readIncremental`, `trimToLastLine`, dir modTime map).
+
+- **File Read: extended encoding support.** `file-read` now decodes files in
+  `utf-16le` (Windows / Excel CSV exports), `utf-16be`, `utf-16` (BOM detection),
+  `latin1` (ISO-8859-1), and `windows-1252` in addition to the existing `utf-8`
+  and `binary` encodings. Decoding is handled by `golang.org/x/text` (already a
+  transitive dependency, now promoted to direct). The `auto` mode is unchanged —
+  it maps known text extensions to `utf-8` and everything else to `binary`.
+  All text encodings are decoded to a UTF-8 Go string before the payload is
+  forwarded downstream.
 
 - **XML Parser node** (`xml`). Converts `msg.payload` (or any message property) bidirectionally
   between an XML string / buffer and a structured Go `map[string]any`, using

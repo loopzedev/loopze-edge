@@ -7,6 +7,139 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-19
+
+### Added
+
+- **CSV Parser node** (`csv`). Converts a message property bidirectionally
+  between a CSV string / buffer and a structured Go value, paralleling the
+  JSON and XML parsers (same `property` / `action` / status semantics).
+  Built on `encoding/csv` so quoting, escaping, embedded newlines, and
+  CRLF endings are RFC-4180 compliant.
+  - **Two output modes**: `rows` fans out one message per record (with
+    `isFirst` / `isLast` / `index` / `total` for end-of-batch detection,
+    same convention as the Split node) and `array` emits the whole CSV
+    as a single message.
+  - **Header handling**: `header=true` consumes the first row as column
+    names; combined with an explicit `columns` config the file's header
+    is dropped and the configured names supply the keys (override mode
+    — useful when the source uses ugly column names).
+  - **Type coercion** via `cast=true` — empty cells become `nil`, `"true"`
+    / `"false"` become bool, integers become `int64`, decimals `float64`.
+    Conservative on purpose; date / numeric-with-separators parsing is
+    out of scope.
+  - **Format options**: configurable `delimiter` (presets `,` `;` `\t` `|`
+    plus custom), `quoteChar` (Phase 1 restricted to `"`), `comment` char
+    (lines prefixed with it are skipped on parse), `trimSpaces` (leading
+    + trailing whitespace), `skipEmptyLines`, `forceQuote` (on stringify),
+    and `newline` (`\n` / `\r\n`). UTF-8 only; BOM stripped on parse.
+  - **Streaming / partial-row safety**: when used after `file-read` in
+    incremental mode, the parser persists `{Offset, Residue, Columns}` per
+    `(nodeID, filename)` in `flowPers` (NATS KV). A chunk that ends mid-row
+    (because file-read raced with an in-progress write) is buffered as
+    `Residue` and combined with the next chunk before parsing — no
+    truncated record reaches downstream. The header row from the first
+    chunk is persisted in `state.Columns` so subsequent chunks do not
+    re-consume it. `msg.reset=true` (signalled by file-read on truncation)
+    clears the state for the affected filename.
+  - **Streaming activation is tightly gated**: engages only when BOTH
+    `msg.filename` AND `msg.position` are set — i.e. exclusively when
+    file-read incremental delivers the chunk. Full-file reads,
+    file-watch events, HTTP uploads with a filename header, and manual
+    injection all take the one-shot path so headers are consumed
+    normally and no stale per-file state is loaded.
+  - **Stringify** accepts `map[string]any` (single row), `[]map[string]any`
+    (rows), `[][]any` (positional), and the `[]any`-of-elements shapes that
+    JSON round-trips produce. Optional `headerOnce` keeps the header
+    suppressed on subsequent stringify calls within a node lifetime —
+    useful for non-file destinations (HTTP body, MQTT payload). For file
+    destinations, prefer the new `csv-out` node which is file-state aware
+    and survives redeploys cleanly.
+
+- **CSV Out node** (`csv-out`). New write-side node that bundles CSV
+  serialization and file writing into one box, removing the architectural
+  friction of the `csv (stringify) → file-out (append)` chain. The node
+  stats the target file before each write and decides whether to prepend
+  the header based on on-disk state — **no `headerOnce` workaround needed,
+  redeploy-safe by construction**.
+  - **Header-decision algorithm**: in `append` mode the header is written
+    only when the file is missing or empty; in `overwrite` it is always
+    written (file starts empty after `O_TRUNC`); in `create` (`O_EXCL`)
+    it is always written and the call errors if the file already exists.
+  - **Path templating** (`{{mustache}}` over `msg`), **`msg.filename`
+    override**, **`createDirs`**, and **`rootJail`** containment — all
+    sharing the same `filesystem` package helpers (`ResolvePath`,
+    `WriteFile`, `Mode*`, `ErrFileExists`, `FileWriteErrorLabel`) so the
+    write path behaves identically to `file-out`.
+  - **Pass-through with metadata**: emits the original message on the
+    output port and tags it with `msg.filename` (resolved path),
+    `msg.bytesWritten`, `msg.fileSize` (post-write), and
+    `msg.headerWritten` (whether the header row was prepended this call).
+  - **Format options** mirror the `csv` node: `delimiter`, `quoteChar`,
+    `forceQuote`, `newline`, `columns`, `header`, `property`.
+
+### Internal
+
+- `internal/nodes/core/parser_csv.go` — `CSVParserNode` implementation
+  with the streaming path, the per-file `csvFileState` struct
+  (`{Offset, Residue, Columns}`), SHA-prefixed state keys (matches
+  file-read's `cursorKey` scheme), JSON round-trip in `loadCSVState` so
+  test and NATS paths reconcile uniformly. Extracts `stringifyCSVRaw`
+  as a pure serializer reused by `csv-out`.
+- `internal/nodes/core/parser_csv_test.go` — 54 tests covering all parse
+  branches (header / no-header / explicit columns / quoting / BOM / CRLF
+  / tab / comment / trim / cast variants), output modes (fan-out with
+  isFirst/isLast/index/total, array mode, empty CSV), stringify shapes
+  (single object, array of objects, positional), and the full streaming
+  state machine (complete chunks, partial last row, partial-then-complete
+  across calls, multi-chunk fan-out, state persistence + restart-survival,
+  header-only-in-first-chunk, reset clears state, two-file independence,
+  filename-without-position one-shot fallback).
+- `internal/nodes/core/csv_out.go` — `CSVOutNode` implementation, header
+  decision via `decideHeader`, single-syscall write through `filesystem.WriteFile`,
+  pass-through metadata emission.
+- `internal/nodes/core/csv_out_test.go` — 19 tests covering the full
+  header lifecycle (first message writes header, second does not, redeploy
+  against existing file does not duplicate header, empty existing file
+  triggers header, overwrite always writes header, create fails on
+  existing, header=false suppresses), input shapes (single object, array
+  of objects, array of arrays), format options (CRLF, force-quote, custom
+  delimiter, columns pin order), path handling (mustache, msg.filename
+  override, createDirs on / off), and pass-through metadata (bytesWritten,
+  fileSize, headerWritten).
+- `internal/nodes/core/init.go` — registers `csv` and `csv-out` in the
+  core group.
+- `internal/nodes/filesystem/api.go` — new file exporting the minimal
+  in-tree public surface (`ResolvePath`, `WriteFile`, `FileWriteErrorLabel`,
+  `HumanSize`, `Mode{Append,Overwrite,Create}`, `ErrFileExists`) used by
+  `csv-out`. Keeps the file-write conventions (path templating, jail,
+  status labels) consistent across nodes.
+- `frontend/src/nodes/core/CSVParserConfig.vue` — property panel with
+  property, action, header, columns, delimiter preset + custom input,
+  quote character, comment character, trim, skip empty lines, force quote,
+  newline, output mode, cast.
+- `frontend/src/nodes/core/CSVOutConfig.vue` — property panel with path,
+  mode (append / overwrite / create), createDirs, property, header,
+  columns, delimiter preset, quote character, force quote, newline.
+- `frontend/src/components/nodes/CSVParserNode.vue` — canvas node body
+  showing `<property> · <action>` / `<property> · <action> (<output>)`.
+- `frontend/src/components/nodes/CSVOutNode.vue` — canvas node body
+  showing `<mode> · <filename>` (file name only, not full path).
+- `frontend/src/components/nodes/NodeIcon.vue` — `csv` (grid/table) and
+  `csv-out` (grid/table + arrow out) icons.
+- `frontend/src/nodes/core/index.ts` — registers `csv` and `csv-out`
+  in the manifest (`process` palette).
+- `frontend/src/types/flow.ts` — adds `csv` and `csv-out` to the type
+  union.
+- `frontend/src/views/FlowEditor.vue` — slot templates + imports for
+  both nodes.
+- `specifications/issues/PARSER_CSV_NODE.md` — full design specification
+  for Phase 1 (`csv` node) and Phase 2 (`csv-out` node), including the
+  gap analysis that motivated the `csv-out` integration and the
+  header-decision algorithm (§8 of Phase 2).
+
+## [0.1.1] - 2026-05-11
+
 ### Added
 - **Filesystem nodes** — three new node types with single-purpose semantics
   (read, watch, write) that compose cleanly. Registered as the `filesystem` group:

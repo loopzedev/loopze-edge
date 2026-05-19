@@ -165,6 +165,21 @@ const summaries: Record<string, NodeSummaryFn> = {
     return `auto-detect on msg.${property}`
   },
 
+  csv(cfg) {
+    const property = (cfg.property as string) || 'payload'
+    const action = (cfg.action as string) || 'auto'
+    const output = (cfg.output as string) || 'rows'
+    if (action === 'parse') return `parse msg.${property} (${output})`
+    if (action === 'stringify') return `stringify msg.${property}`
+    return `auto-detect on msg.${property}`
+  },
+
+  'csv-out'(cfg) {
+    const mode = (cfg.mode as string) || 'append'
+    const path = (cfg.path as string) || '(no path)'
+    return `${mode} → ${path}`
+  },
+
   's7-plc'(cfg) {
     const host = (cfg.host as string) || '?'
     const port = Number(cfg.port ?? 102)

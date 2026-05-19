@@ -57,6 +57,7 @@ Cross-cutting reference:
 |-------------------------------|-------------------------------------------|
 | Parser JSON                   | Encode / decode JSON.                     |
 | [Parser XML](xml-parser.md)   | Encode / decode XML.                      |
+| [Parser CSV](csv-parser.md)   | Parse CSV streams (with tail-mode partial-row safety) and stringify objects back to CSV. |
 | Parser Modbus                 | Decode Modbus register frames.            |
 | [Parser S7](s7-parser.md)     | Decode raw S7 byte blocks into structured objects (and back). |
 
@@ -76,6 +77,7 @@ Cross-cutting reference:
 | [File Read](file-read.md)       | Read file content on trigger; supports incremental byte-cursor tailing. |
 | [File Watch](file-watch.md)     | Watch a file or directory for FS events; emits metadata only. |
 | [File Out](file-out.md)         | Write message payloads to a file (overwrite / append / create). |
+| [CSV Out](csv-out.md)           | Serialise a payload as CSV and write to a file in one node. File-state aware: header is written only when the file is missing or empty in append mode — redeploy-safe by construction. |
 
 ## Diagnostics
 

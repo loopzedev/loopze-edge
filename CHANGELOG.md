@@ -137,6 +137,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for Phase 1 (`csv` node) and Phase 2 (`csv-out` node), including the
   gap analysis that motivated the `csv-out` integration and the
   header-decision algorithm (§8 of Phase 2).
+- `docs/nodes/csv-parser.md` — full node reference for `csv` including
+  output modes, streaming activation gate, cast behavior, error labels,
+  and migration recommendation toward `csv-out` for file destinations.
+- `docs/nodes/csv-out.md` — full node reference for `csv-out` including
+  the header-decision matrix, mode semantics, output message fields, and
+  migration recipe from the `csv stringify + file-out` chain.
+- `docs/nodes/index.md` — adds Parser CSV to the Parsing catalog and
+  CSV Out to the Filesystem catalog.
+- `mkdocs.yml` — adds the two new pages to the Parsing nav section, and
+  promotes the previously catalog-only Filesystem nodes
+  (`file-read`, `file-watch`, `file-out`) into the nav as well.
+- `frontend/src/components/help/docs.ts` — sidebar help entries for `csv`
+  and `csv-out` covering overview, inputs/outputs, properties, examples,
+  and tips.
+- `frontend/src/components/help/index.ts` — live summary functions for
+  `csv` (`parse msg.payload (rows)` / `stringify msg.payload` / `auto-detect`)
+  and `csv-out` (`<mode> → <path>`).
 
 ## [0.1.1] - 2026-05-11
 

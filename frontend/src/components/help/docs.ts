@@ -782,6 +782,122 @@ export const nodeHelpDocs: Record<string, NodeHelpDoc> = {
     ],
   },
 
+  csv: {
+    overview:
+      'Converts msg.payload (or any message property) between a CSV string / buffer and structured rows, and back. ' +
+      'Auto mode detects the direction (string/buffer input is parsed, everything else is serialised). ' +
+      'Built on encoding/csv for RFC-4180 compliance (quoting, escaping, embedded newlines, CRLF). ' +
+      'When chained after file-read incremental, partial trailing rows are buffered as per-file state — no truncated record reaches downstream.',
+    inputs: ['Any message. The value at the configured property is read and replaced (parse) or read and replaced with a CSV string (stringify).'],
+    outputs: [
+      'Parse, output=rows: one message per data row with isFirst/isLast/index/total and msg.columns.',
+      'Parse, output=array: single message with msg.payload as []map[string]any (or [][]any).',
+      'Stringify: single message with msg.payload as a CSV string.',
+      'Parse + file-read incremental: streaming path adds msg.csvPosition and persists per-file state.',
+    ],
+    properties: [
+      { key: 'property',       desc: 'Dot-path of the message field to convert (default: payload).' },
+      { key: 'action',         desc: '"auto" (detect direction) | "parse" (string → rows) | "stringify" (rows → string).' },
+      { key: 'header',         desc: 'Parse: consume the first row as the column header. Stringify: emit a header row before data.' },
+      { key: 'columns',        desc: 'Comma-separated column list. Parse + header=true: overrides the parsed names. Parse + header=false: supplies keys. Stringify: pins column order.' },
+      { key: 'delimiter',      desc: 'Field separator. Presets: , ; \\t | custom.' },
+      { key: 'quoteChar',      desc: 'Quote character. Phase 1 supports only ".' },
+      { key: 'comment',        desc: '(parse) Lines starting with this character are skipped. Leave blank to disable.' },
+      { key: 'trimSpaces',     desc: '(parse) Strip leading + trailing whitespace from each cell.' },
+      { key: 'skipEmptyLines', desc: '(parse) Drop blank records.' },
+      { key: 'forceQuote',     desc: '(stringify) Quote every field, even when not required.' },
+      { key: 'newline',        desc: '(stringify) Line terminator: \\n (LF) or \\r\\n (CRLF).' },
+      { key: 'output',         desc: '(parse) "rows" (one message per row, fan-out) or "array" (single message with full slice).' },
+      { key: 'cast',           desc: '(parse) Coerce cells: empty→nil, "true"/"false"→bool, int-like→int64, decimal→float64.' },
+      { key: 'headerOnce',     desc: '(stringify) Suppress the header on every call after the first within a node lifetime. Use for HTTP/MQTT bodies; for files prefer csv-out.' },
+    ],
+    examples: [
+      {
+        title: 'Parse HTTP CSV body, one msg per row',
+        config: 'action=parse · header=true · output=rows',
+        result: '"sensor,value\\nT-101,25.4\\nT-102,31.2\\n" → 2 messages: {sensor:"T-101", value:"25.4"} then {sensor:"T-102", value:"31.2"} with msg.columns=["sensor","value"]',
+      },
+      {
+        title: 'Tail a growing log file',
+        config: 'action=parse · header=true · cast=true (after file-read incremental=true)',
+        result: 'Each tick emits only newly-appended rows. Partial last row buffered; header consumed once and persisted in state.',
+      },
+      {
+        title: 'Override column names from header',
+        config: 'action=parse · header=true · columns="ts,val"',
+        result: '"time,value\\n2026-05-19,0.20\\n" → {ts:"2026-05-19", val:"0.20"} (file header dropped, configured columns used).',
+      },
+      {
+        title: 'Stringify for an HTTP response body',
+        config: 'action=stringify · header=true · columns="name,val"',
+        result: '[{name:"A",val:1},{name:"B",val:2}] → "name,val\\nA,1\\nB,2\\n"',
+      },
+    ],
+    tips: [
+      'For writing CSV to files, use csv-out — it is file-state aware and survives redeploys without duplicate headers.',
+      'Streaming mode activates only when both msg.filename AND msg.position are set (file-read incremental). Full-file reads take the one-shot path.',
+      'With header=true + columns set, the file\'s header is dropped and the configured columns supply the keys (override mode).',
+      'cast=true is conservative — no date / number-with-separators parsing. Use a Change node for richer coercion.',
+      'Empty CSV in output=rows mode emits zero messages (Split-like). Use output=array if you need a sentinel.',
+      'Go map iteration is unordered — for []map[string]any stringify input, set columns explicitly to pin column order.',
+    ],
+  },
+
+  'csv-out': {
+    overview:
+      'Serialises msg.payload (or any property) as CSV and writes it to a file in one step. ' +
+      'File-state aware: stats the target file before each write and decides whether to prepend the header based on disk state. ' +
+      'Redeploy-safe by construction — replaces the csv-stringify + file-out + headerOnce workaround.',
+    inputs: ['Any message with a serialisable payload (map[string]any, []map[string]any, [][]any, or []any of those).'],
+    outputs: [
+      'Pass-through: the original message is forwarded after a successful write with these added fields:',
+      'msg.filename (resolved path), msg.bytesWritten, msg.fileSize (post-write), msg.headerWritten (whether header was prepended).',
+    ],
+    properties: [
+      { key: 'path',       desc: 'Absolute file path. Supports {{mustache}} templates over msg. msg.filename overrides.' },
+      { key: 'mode',       desc: '"append" (write header only on empty/missing file) | "overwrite" (always writes header) | "create" (fail if file exists).' },
+      { key: 'createDirs', desc: 'Run MkdirAll for parent directories before writing.' },
+      { key: 'rootJail',   desc: 'Resolved paths must stay inside this directory. Empty = no restriction.' },
+      { key: 'property',   desc: 'Dot-path of the message field to serialise (default: payload).' },
+      { key: 'header',     desc: 'Whether to ever emit a header row. Decision combines this with mode + on-disk state.' },
+      { key: 'columns',    desc: 'Comma-separated column list. Pins column order. Required for [][]any input when header=true.' },
+      { key: 'delimiter',  desc: 'Field separator. Presets: , ; \\t | custom.' },
+      { key: 'quoteChar',  desc: 'Quote character. Phase 1 supports only ".' },
+      { key: 'forceQuote', desc: 'Quote every field, even when not required.' },
+      { key: 'newline',    desc: 'Line terminator: \\n (LF) or \\r\\n (CRLF). Applied after every row.' },
+    ],
+    examples: [
+      {
+        title: 'Continuous sensor logging',
+        config: 'mode=append · columns="ts,sensor,value" · path=/var/log/sensors.csv',
+        result: 'First tick: file missing → header + row. Every subsequent tick: file size > 0 → row only. Redeploys: still no duplicate header.',
+      },
+      {
+        title: 'Per-day file with mustache',
+        config: 'mode=append · path=/var/log/{{date}}.csv · createDirs=true',
+        result: 'First write of each day creates the file with header; subsequent writes that day append rows only.',
+      },
+      {
+        title: 'Snapshot (overwrite each message)',
+        config: 'mode=overwrite · columns="id,name,state" · path=/var/cache/state.csv',
+        result: 'Every message replaces the file. Header always written.',
+      },
+      {
+        title: 'Strict create per batch',
+        config: 'mode=create · path=/var/run/{{batchId}}.csv',
+        result: 'Each batch gets a fresh file. Duplicate batch IDs → catchable "file exists" error.',
+      },
+    ],
+    tips: [
+      'Use csv-out for any csv → file pipeline — it replaces the csv stringify + file-out + headerOnce workaround.',
+      'Single-writer assumption: the stat-then-write window is non-atomic. Use external locking if multiple processes write to the same file.',
+      'Atomic write window is ≈4 KB (PIPE_BUF on Linux). Typical CSV rows are well below this; large batches may be split by the kernel.',
+      'msg.filename always wins over the configured path — use it for per-message fan-out to many files.',
+      'msg.headerWritten on the output port tells downstream nodes whether this call created / initialised the file.',
+      'Wire a Catch node downstream to handle "file exists" (create mode), "permission denied", and "disk full" errors.',
+    ],
+  },
+
   xml: {
     overview:
       'Converts msg.payload (or any message property) between an XML string / buffer and a structured Go map. ' +

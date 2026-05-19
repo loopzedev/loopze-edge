@@ -100,6 +100,12 @@ nav:
           - nodes/udp-out.md
       - Parsing:
           - nodes/xml-parser.md
+          - nodes/csv-parser.md
+          - nodes/csv-out.md
+      - Filesystem:
+          - nodes/file-read.md
+          - nodes/file-watch.md
+          - nodes/file-out.md
       - Industrial — SIEMENS S7:
           - nodes/s7-plc.md
           - nodes/s7-read.md

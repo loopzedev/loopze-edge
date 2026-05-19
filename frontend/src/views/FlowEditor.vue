@@ -25,6 +25,8 @@ import CatchNode from "@/components/nodes/CatchNode.vue";
 import TemplateNode from "@/components/nodes/TemplateNode.vue";
 import JSONParserNode from "@/components/nodes/JSONParserNode.vue";
 import XMLParserNode from "@/components/nodes/XMLParserNode.vue";
+import CSVParserNode from "@/components/nodes/CSVParserNode.vue";
+import CSVOutNode from "@/components/nodes/CSVOutNode.vue";
 import FileReadNode from "@/components/nodes/FileReadNode.vue";
 import FileOutNode from "@/components/nodes/FileOutNode.vue";
 import FileWatchNode from "@/components/nodes/FileWatchNode.vue";
@@ -771,7 +773,11 @@ onMounted(async () => {
             </template>
 
             <template #node-csv="nodeProps">
-                <BaseNode v-bind="nodeProps as any" />
+                <CSVParserNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-csv-out="nodeProps">
+                <CSVOutNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-comment="nodeProps">

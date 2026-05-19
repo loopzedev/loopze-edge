@@ -901,3 +901,495 @@ All fields via `useNodeProperty`. Body of the canvas node displays e.g.
   even when the content is unchanged. Document this as a known
   property; `forceQuote=true` produces a deterministic output for
   diff-friendly round trips.
+
+---
+
+# Phase 2 — CSV Out Node (`csv-out`)
+
+## Status: Proposed
+
+## Context
+
+Phase 1 ships the bidirectional CSV parser (`csv`). It works in isolation
+but exposes architectural friction when chained with `file-out` for the
+common "log to CSV file" pattern. This phase adds a dedicated **`csv-out`**
+node that bundles CSV serialization with file writing into a single node
+that owns the destination-file lifecycle.
+
+The gap analysis identified the following problems with the
+`csv (stringify) → file-out (append)` chain:
+
+1. **Header duplication on append**: `csv` does not know whether the
+   target file already has a header on disk. The `headerOnce` workaround
+   solves this only within a single node lifetime — a redeploy or restart
+   re-emits the header, producing duplicates inside the existing file.
+2. **Two-step config**: users must configure both nodes consistently
+   (newline behavior, encoding, path), and a misconfiguration on either
+   side produces broken CSV.
+3. **Trailing-newline collision**: `csv` writes `\n` after every row;
+   `file-out appendNewline=true` adds another. Easy to misconfigure into
+   blank lines between records.
+4. **No file-state feedback**: the stringify direction can never adapt
+   to what is already on disk (existing header, file size, rotation).
+
+`csv-out` solves all four by owning both serialization and the file
+handle: it stats the file before each write, decides whether a header is
+needed, and writes the result atomically.
+
+## Problem description
+
+A flow that appends sensor readings to a CSV file every tick needs:
+
+- The header to be written **exactly once**, on the very first write to
+  this file.
+- Every subsequent write to **only contain data rows**, regardless of
+  node lifetime, redeploys, or restarts.
+- Line termination to be **exactly one `\n` per row**.
+- A clean failure mode when the file disappears or is truncated mid-flow.
+
+The `csv-out` node delivers this as one drop-in node, no second config to
+keep in sync.
+
+## View / rationale
+
+- **One node, one job**: write structured data as CSV to a file. No chain
+  to maintain.
+- **File-state-aware header logic**: the disk decides whether the header
+  is needed, not a lifetime flag. Works across redeploys.
+- **Single point of truth for line endings**: `csv-out` owns both the
+  CSV writer and the file handle, so the trailing-newline question
+  collapses to one config field.
+- **Same UX as `csv stringify`**: the stringify-relevant fields (header,
+  columns, delimiter, quoteChar, forceQuote) keep their names so users
+  familiar with `csv` can switch over without re-learning.
+
+## Requirements
+
+### 1. Property (input)
+
+| Field | Description | Default |
+|---|---|---|
+| `property` | Property on `msg` to serialize as CSV rows. Same shapes as `csv stringify` (object, array of objects, array of arrays). | `payload` |
+
+### 2. Path
+
+| Field | Description | Default |
+|---|---|---|
+| `path` | Absolute file path. Supports `{{mustache}}` over `msg`. | _(required)_ |
+| `rootJail` | Optional containment directory. Resolved path must stay inside. | `""` |
+| `createDirs` | Create parent directories if they do not exist. | `false` |
+
+`path` follows the same template semantics as `file-out`: per-message
+mustache interpolation lets users route writes by topic, date, tenant,
+etc.
+
+### 3. Mode
+
+| Mode | Behavior on each message |
+|---|---|
+| `append` | **Default.** Open with `O_APPEND`. Header is written **iff the file is empty or missing** at write time. |
+| `overwrite` | Open with `O_TRUNC`. Header is **always** written (file starts empty after truncation). |
+| `create` | Open with `O_EXCL`. Header is always written. Error if the file already exists. |
+
+The header-writing decision is fully determined by mode + on-disk state.
+There is no `headerOnce` flag — the node always does the right thing for
+the configured mode.
+
+### 4. Header policy (advanced)
+
+| Field | Description | Default |
+|---|---|---|
+| `header` | When true, emit a header row according to the mode rules above. | `true` |
+| `columns` | Explicit column order. Same semantics as `csv stringify`. | `[]` |
+
+For object inputs, `columns` is the only deterministic way to pin
+column order across messages (Go map iteration is unordered).
+
+### 5. CSV format
+
+| Field | Description | Default |
+|---|---|---|
+| `delimiter` | Field separator. Presets `,` `;` `\t` `|` `custom`. | `,` |
+| `quoteChar` | RFC-4180 quote char. Phase 1 of `csv` restricts this to `"`; same restriction applies here. | `"` |
+| `forceQuote` | Quote every field, not only those that need it. | `false` |
+| `newline` | `\n` or `\r\n`. The line terminator after each row, **including the last**. | `\n` |
+
+There is no `appendNewline` option — every row is line-terminated by
+construction. Chaining `csv-out` with anything else is not the intent.
+
+### 6. Encoding
+
+| Field | Description | Default |
+|---|---|---|
+| `encoding` | `auto` / `utf-8`. Other encodings out of scope (same as `csv` Phase 1). | `auto` |
+
+`auto` resolves to UTF-8 for `.csv`/`.txt`/`.log`/`.tsv` extensions (and
+the file gets a BOM-less UTF-8 write). Other extensions error at `Init`.
+
+### 7. Inputs / outputs
+
+- **1 input**, **1 output**.
+- The output is **pass-through**: the original message is forwarded
+  unchanged after a successful write so downstream nodes can chain
+  (typical use: a Debug node confirming the write).
+- The output message gains:
+  - `msg.filename` — resolved absolute path that was written.
+  - `msg.bytesWritten` — bytes appended in this call.
+  - `msg.fileSize` — total size of the file on disk after the write.
+  - `msg.headerWritten` — `true` if this call emitted the header row.
+
+### 8. Header-decision algorithm
+
+For each incoming message, in order:
+
+1. Resolve `path` (mustache + jail + `msg.filename` override).
+2. `os.MkdirAll` parent if `createDirs=true`.
+3. **Stat the resolved path**. Three outcomes:
+   - **Missing**: needHeader = `header && true`. Open with the
+     mode-appropriate flags (`O_CREATE`).
+   - **Exists, size == 0**: needHeader = `header && true`. Open per mode.
+   - **Exists, size > 0**:
+     - `append`: needHeader = `false`.
+     - `overwrite`: needHeader = `header && true` (truncation happens
+       on `O_TRUNC`).
+     - `create`: error `"file already exists"`.
+4. Serialize the payload to CSV bytes using the same writer as `csv
+   stringify`. Prepend the header row if `needHeader`.
+5. Write to disk in one syscall. Close.
+6. Re-stat for `fileSize`. Emit pass-through message with metadata.
+
+The stat-then-write window is **not** atomic — a concurrent writer
+between steps 3 and 5 can leave the file with a duplicate header (rare,
+benign) or with no header (impossible — only `csv-out` writes via this
+node). For single-writer scenarios (the dominant use case) the algorithm
+is correct.
+
+### 9. Status / error handling
+
+| Outcome | Status | Catchable |
+|---|---|---|
+| Successful write | `blue` / `wrote N B` | — |
+| Header written (this call) | `blue` / `wrote N B · header` | — |
+| Path resolves outside jail | `red` / `path escapes jail` | yes |
+| Encode error (unsupported payload shape) | `red` / `csv encode error` | yes |
+| Mkdir error | `red` / `mkdir error` | yes |
+| `create` mode + file exists | `red` / `file exists` | yes |
+| Write error (permission, disk full) | `red` / `write error` | yes |
+
+Errors propagate via the catch pipeline (same pattern as `file-out` and
+`csv`).
+
+## Examples
+
+### Example 1 — Continuous sensor logging
+
+```
+[inject every 1s, payload={ts, sensor, value}]
+  →  [csv-out: append, columns="ts,sensor,value", path="/var/log/sensors.csv"]
+  →  [debug]
+```
+
+Behavior:
+- First tick: file is missing → header written, then first row appended.
+- Every subsequent tick: file size > 0 → only the data row appended.
+- After a redeploy: file still has data on disk → still no header. The
+  problem `headerOnce` partially solved is fully solved here.
+
+### Example 2 — Per-day file with mustache path
+
+```
+[inject hourly]  →  [csv-out: path="/var/log/{{date}}.csv", createDirs=true]
+```
+
+`msg.date = "2026-05-18"` → writes to `/var/log/2026-05-18.csv`.
+First hour of a new day: header is written (new file). Subsequent hours
+of the same day: only data rows. Day rolls over → new file, header
+again. No special logic needed beyond mustache + the algorithm in §8.
+
+### Example 3 — Overwrite full file per message (snapshot)
+
+```
+[change: build full snapshot array]  →  [csv-out: overwrite, path="/var/cache/state.csv"]
+```
+
+Every message replaces the file. Header is always written (mode is
+`overwrite`).
+
+### Example 4 — Strict create (fail on existing)
+
+```
+[csv-out: create, path="/var/run/{{batchId}}.csv"]
+```
+
+Each batch produces a fresh file. Duplicate batch IDs error out with a
+catchable `"file exists"` error.
+
+### Example 5 — Filename override per message
+
+```
+[change: msg.filename = "/var/log/{{tenant}}.csv"]
+  →  [csv-out: append, createDirs=true]
+```
+
+`msg.filename` overrides the configured `path` (same precedence rule as
+`file-out`).
+
+## Technical sketch
+
+### Backend — `internal/nodes/core/csv_out.go` (new)
+
+```go
+type CSVOutNode struct {
+    config flow.NodeConfig
+    nodes.BaseNode
+
+    // CSV format (mirrors CSVParserNode where applicable)
+    property   string
+    header     bool
+    columns    []string
+    delimiter  rune
+    quoteChar  rune
+    forceQuote bool
+    newline    string
+
+    // File destination
+    path       string
+    mode       string // "append" | "overwrite" | "create"
+    encoding   string
+    createDirs bool
+    rootJail   string
+
+    inErrorState bool
+}
+```
+
+- **Inputs:** 1, **Outputs:** 1
+- Implements `flow.NodeInstance`.
+- No `ContextProvider` needed — header decision comes from disk state,
+  not from persistent context.
+- Re-uses `stringifyCSV()` / `normalizeStringifyInput()` /
+  `writeCSVRow()` from `parser_csv.go`. Shared helpers refactored out
+  into `csv_format.go` if needed.
+
+#### Handle-message flow (pseudocode)
+
+```go
+func (n *CSVOutNode) HandleMessage(msg *flow.Message) ([][]*flow.Message, error) {
+    if msg == nil { return nil, nil }
+
+    resolved, err := resolvePath(n.path, msg, n.rootJail)
+    if err != nil { return n.fail("path error", err) }
+
+    if n.createDirs {
+        if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
+            return n.fail("mkdir error", err)
+        }
+    }
+
+    needHeader, mode, err := n.decideHeader(resolved)
+    if err != nil { return n.fail(fileWriteErrorLabel(err), err) }
+
+    payload := msg.Get(n.property)
+    body, err := n.serialize(payload, needHeader)
+    if err != nil { return n.fail("csv encode error", err) }
+
+    if err := writeFile(resolved, body, mode); err != nil {
+        return n.fail(fileWriteErrorLabel(err), err)
+    }
+
+    n.clearError()
+    info, _ := os.Stat(resolved)
+    msg.Set("filename", resolved)
+    msg.Set("bytesWritten", len(body))
+    msg.Set("fileSize", info.Size())
+    msg.Set("headerWritten", needHeader)
+    return [][]*flow.Message{{msg}}, nil
+}
+
+func (n *CSVOutNode) decideHeader(path string) (needHeader bool, mode string, err error) {
+    info, statErr := os.Stat(path)
+    switch {
+    case os.IsNotExist(statErr):
+        return n.header, n.mode, nil
+    case statErr != nil:
+        return false, "", statErr
+    }
+    switch n.mode {
+    case "append":
+        return n.header && info.Size() == 0, "append", nil
+    case "overwrite":
+        return n.header, "overwrite", nil
+    case "create":
+        return false, "", fmt.Errorf("%w: %s", errFileExists, path)
+    }
+    return false, "", fmt.Errorf("unknown mode %q", n.mode)
+}
+
+func (n *CSVOutNode) serialize(payload any, withHeader bool) ([]byte, error) {
+    // Reuse stringifyCSV but with the header decision controlled by us
+    // rather than n.header. Internally, the CSV writer is the same path
+    // as parser_csv.go's writeCSVRow + quoting rules.
+    return stringifyCSVFor(payload, n.columns, withHeader, n.delimiter,
+        n.quoteChar, n.forceQuote, n.newline)
+}
+```
+
+`writeFile` is the same helper from `file_out.go`; consider moving it
+to a shared `filesystem` or `nodes` package if cross-package import is
+desirable, or duplicate three lines.
+
+### Frontend — `frontend/src/nodes/core/CSVOutConfig.vue` (new)
+
+Field layout (top to bottom):
+
+- Path (text input, mustache hint)
+- Mode (append / overwrite / create dropdown)
+- Property (dot-path)
+- Header (toggle)
+- Columns (comma-separated)
+- Delimiter (preset + custom char input)
+- Force quote (toggle)
+- Newline (`\n` / `\r\n` dropdown)
+- Create parent directories (toggle)
+
+### Frontend — Canvas node — `frontend/src/components/nodes/CSVOutNode.vue` (new)
+
+Body line shows e.g. `append → /var/log/sensors.csv` or
+`overwrite · {{date}}.csv`.
+
+### Registration
+
+- `internal/nodes/core/init.go` — add
+  `{Type: "csv-out", Factory: NewCSVOutNode, Info: CSVOutTypeInfo()}`.
+- `frontend/src/nodes/core/index.ts` — add `'csv-out': 'process'` and
+  the dynamic import.
+- `frontend/src/views/FlowEditor.vue` — add `<template #node-csv-out>`
+  slot + import.
+- `frontend/src/components/nodes/NodeIcon.vue` — add `csv-out` icon
+  (variant of `csv` with a small "→" overlay, or reuse `file-out` icon).
+
+## Affected files
+
+### Backend
+- `internal/nodes/core/csv_out.go` (new)
+- `internal/nodes/core/csv_out_test.go` (new)
+- `internal/nodes/core/init.go` — registration
+- `internal/nodes/core/parser_csv.go` — extract shared serializer if
+  needed; mark `headerOnce` as deprecated for file-destined flows (doc
+  comment only, no behavior change).
+
+### Frontend
+- `frontend/src/nodes/core/CSVOutConfig.vue` (new)
+- `frontend/src/components/nodes/CSVOutNode.vue` (new)
+- `frontend/src/nodes/core/index.ts` — register `csv-out`
+- `frontend/src/views/FlowEditor.vue` — slot + import
+- `frontend/src/components/nodes/NodeIcon.vue` — icon
+
+## Tests
+
+| Test | Verifies |
+|---|---|
+| `TestCSVOut_Append_FirstMessage_WritesHeader` | New file → header + data row on disk |
+| `TestCSVOut_Append_SecondMessage_NoHeader` | Existing non-empty file → only data row appended |
+| `TestCSVOut_Append_AcrossRestart_NoDuplicateHeader` | New node instance against existing file → no duplicate header |
+| `TestCSVOut_Append_EmptyFileExists_WritesHeader` | Zero-byte file present → header written |
+| `TestCSVOut_Overwrite_AlwaysWritesHeader` | Mode=overwrite → header on every message |
+| `TestCSVOut_Create_FailsIfExists` | Mode=create + existing file → catchable error |
+| `TestCSVOut_Create_WritesHeaderOnNewFile` | Mode=create + missing file → header written |
+| `TestCSVOut_HeaderFalse_NeverWritesHeader` | `header=false` → no header regardless of mode/state |
+| `TestCSVOut_ColumnsPin_Order` | `columns="b,a"` → output preserves that order |
+| `TestCSVOut_SingleObjectInput` | `map[string]any` payload → one row written |
+| `TestCSVOut_ArrayObjectInput` | `[]map[string]any` payload → multiple rows written |
+| `TestCSVOut_ArrayArrayInput_NoHeader` | `[][]any` payload + `header=false` → positional rows |
+| `TestCSVOut_CRLFNewline` | `newline="\r\n"` → CRLF line endings on disk |
+| `TestCSVOut_ForceQuote` | Every field quoted, embedded quotes doubled |
+| `TestCSVOut_CustomDelimiter` | `delimiter=";"` honored on disk |
+| `TestCSVOut_Path_MustacheTemplate` | `{{date}}` resolves from msg, file written at resolved path |
+| `TestCSVOut_Path_MsgFilenameOverride` | `msg.filename` wins over configured path |
+| `TestCSVOut_CreateDirs_True` | Non-existent parent dir created |
+| `TestCSVOut_CreateDirs_False_NotFound_Error` | Non-existent parent → catchable error |
+| `TestCSVOut_JailViolation` | Path outside `rootJail` → catchable error |
+| `TestCSVOut_Passthrough_PreservesMsg` | Output message contains original fields plus filename/bytesWritten/fileSize/headerWritten |
+| `TestCSVOut_StatusOnSuccess` | Status updates to `blue` with byte count |
+| `TestCSVOut_StatusOnError_RecoverOnSuccess` | Red status on error, cleared on next success |
+| `TestCSVOut_EncodeError_UnsupportedPayload` | Scalar payload → catchable "csv encode error" |
+| `TestCSVOut_HeaderWrittenField` | `msg.headerWritten` is `true` on first message, `false` on subsequent |
+| `TestCSVOut_AtomicSingleWrite` | Header + rows hit disk in a single syscall (no torn read possible for typical batches) |
+
+## Dependencies
+
+- `flow.Message` with `Get`/`Set` (exists)
+- Catch node for error forwarding (exists)
+- `csv` node's stringify helpers (refactor candidate: move
+  `stringifyCSV`, `normalizeStringifyInput`, `writeCSVRow`,
+  `formatCell` into `internal/nodes/core/csv_format.go`, used by both
+  `parser_csv.go` and `csv_out.go`)
+- `file-out`'s helpers: `resolvePath`, `writeFile`, `fileWriteErrorLabel`,
+  `errFileExists` (refactor candidate: move to a shared
+  `internal/nodes/filesystem/exports.go` or duplicate the small bits)
+- Standard library: `encoding/csv`, `os`, `path/filepath`, `strings`,
+  `fmt`. No new modules.
+
+## Migration & deprecation
+
+After `csv-out` lands:
+
+- The `csv` node's `headerOnce` config field is marked **deprecated for
+  file destinations**. The frontend tooltip recommends `csv-out` for any
+  `csv → file-out` chain.
+- `headerOnce` remains supported for non-file destinations (HTTP body,
+  MQTT payload, etc.) where lifetime semantics are acceptable. No
+  behavior change.
+- A migration note in the release changelog: existing flows using
+  `csv stringify + file-out append + headerOnce=true` should switch to
+  `csv-out append` to gain redeploy-safety. The old chain continues to
+  work for backwards compatibility.
+
+## Out of scope for Phase 2
+
+- **File rotation** (size limits, daily rotation) — same as `file-out`,
+  use external tooling or a future `csv-out` extension.
+- **Concurrent writers** — single-writer flows only. Multi-writer setups
+  need an external lock; `csv-out` does not coordinate.
+- **Per-row atomic guarantees** — single `write()` syscall is atomic up
+  to `PIPE_BUF` (~4 KB on Linux); for larger batches the kernel may
+  split. Document as a known limitation.
+- **Non-UTF-8 encodings** — same as Phase 1.
+- **Streaming write of huge batches** — the whole serialized buffer
+  must fit in memory before the syscall. A streamed writer is a future
+  follow-up.
+- **Encryption / compression at rest** — orthogonal feature.
+
+## Open questions
+
+- **Header on truncation in `append` mode**: if an external process
+  truncates the file between two messages, `csv-out` will see
+  `size == 0` on the next stat and re-emit the header. This is correct
+  behavior (a truncated file needs a fresh header), but the lack of a
+  signal upstream may surprise downstream consumers that already
+  parsed the previous content. Suggestion: surface `msg.fileRotated =
+  true` when size dropped between consecutive writes from this node.
+  Defer to a follow-up if needed.
+- **Node type name**: `csv-out` (consistent with `file-out`) vs
+  `csv-write` (more explicit) vs `csv-file` (groups by domain).
+  Suggestion: `csv-out` — symmetric with `file-out` which it pairs
+  with conceptually.
+- **Category**: `parser` (consistent with `csv` / `json` / `xml`) or
+  `filesystem` (consistent with `file-out`)? Suggestion: `parser` —
+  the user's mental model is "I want CSV-shaped output", and the file
+  destination is the implementation detail.
+- **Stat-then-write race**: the algorithm in §8 is non-atomic between
+  stat and write. For a single-writer flow this is fine. Should we
+  document an `O_EXCL` first-write strategy that probes empty-file
+  status via "try to create exclusively, fall back to append" instead?
+  Suggestion: stick with stat-then-write for clarity; the race window
+  is single-writer-only, where it cannot fire.
+- **Reuse vs duplication of `file-out` helpers**: refactor into a
+  shared package, or duplicate the ~30 lines? Suggestion: refactor —
+  the helpers (`resolvePath`, `writeFile`, encoding switch) are about
+  to have a third consumer (`csv-out`), and the abstraction earns its
+  keep.
+- **`headerWritten` field semantics on no-header configs**: when
+  `header=false`, `msg.headerWritten` is always `false`. Should the
+  field be omitted entirely instead? Suggestion: always present so
+  downstream Switch nodes can rely on its presence.

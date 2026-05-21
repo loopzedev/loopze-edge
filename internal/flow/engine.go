@@ -136,6 +136,18 @@ type Engine struct {
 	// engine-only unit tests.
 	certStore *credentials.CertStore
 
+	// Dashboard hub. Injected via SetDashboardHub before Deploy and
+	// propagated to every node implementing DashboardHubProvider in
+	// wireAllNodes. Nil in engine-only unit tests — widget nodes that
+	// require the hub will fail gracefully (their Start can return an
+	// error or no-op).
+	dashboardHub DashboardHub
+
+	// deployListener is invoked after every successful Deploy with the
+	// workspace that was just deployed. The server wires this to the
+	// dashboard hub's layout rebuild. May be nil.
+	deployListener DeployListener
+
 	running bool
 }
 
@@ -191,6 +203,24 @@ func (e *Engine) SetFlowContextFactory(fn FlowContextFactory) {
 // previously set store.
 func (e *Engine) SetCertStore(store *credentials.CertStore) {
 	e.certStore = store
+}
+
+// SetDashboardHub wires the dashboard runtime hub into the engine. The
+// hub is propagated to every node implementing DashboardHubProvider in
+// wireAllNodes — before Start — so input widgets can register their
+// emit callbacks without racing with incoming WS events. Must be called
+// before Deploy. Passing nil clears the previously set hub.
+func (e *Engine) SetDashboardHub(hub DashboardHub) {
+	e.dashboardHub = hub
+}
+
+// SetDeployListener registers a callback invoked after every successful
+// Deploy with the just-deployed workspace. The server uses this to
+// trigger a dashboard layout rebuild (and, with PR 5, a hot-deploy
+// signal to connected dashboard clients). Passing nil clears the
+// previously set listener.
+func (e *Engine) SetDeployListener(fn DeployListener) {
+	e.deployListener = fn
 }
 
 // Registry returns the node type registry associated with this engine.
@@ -361,6 +391,7 @@ func (e *Engine) deployFull(flows []Flow, configs []ConfigNode) error {
 
 	e.flows = flows
 	e.configs = configs
+	e.notifyDeploy()
 
 	slog.Info("flows deployed successfully",
 		"flow_count", len(flows),
@@ -444,6 +475,7 @@ func (e *Engine) deployModifiedFlows(flows []Flow, configs []ConfigNode) error {
 
 	e.flows = flows
 	e.configs = configs
+	e.notifyDeploy()
 
 	slog.Info("modified-flows deploy completed",
 		"affected_flows", len(affectedFlows),
@@ -538,6 +570,7 @@ func (e *Engine) deployModifiedNodes(flows []Flow, configs []ConfigNode) error {
 
 	e.flows = flows
 	e.configs = configs
+	e.notifyDeploy()
 
 	slog.Info("modified-nodes deploy completed",
 		"restarted_nodes", len(restartSet),
@@ -723,6 +756,15 @@ func (e *Engine) wireAllNodes() {
 			sp.SetSessionRegistry(e.sessionRegistry)
 		}
 	}
+
+	// Inject the dashboard hub into widget nodes. Re-wire is safe:
+	// input widgets are expected to drop their previous registration
+	// before installing a new one (see UIButtonNode.Start/Stop).
+	for _, rn := range e.nodes {
+		if dp, ok := rn.instance.(DashboardHubProvider); ok {
+			dp.SetDashboardHub(e.dashboardHub)
+		}
+	}
 }
 
 // rebuildHTTPMux collects the HTTP route specs from every HTTPInProvider
@@ -768,6 +810,21 @@ func (e *Engine) rebuildHTTPMux() {
 			reporter.OnHTTPRouteConflict(c.Reason)
 		}
 	}
+}
+
+// notifyDeploy invokes the registered DeployListener with the current
+// workspace snapshot. Called at the tail of every successful deploy
+// path. No-op when no listener is installed (engine-only unit tests
+// and any deployment without a dashboard hub).
+func (e *Engine) notifyDeploy() {
+	if e.deployListener == nil {
+		return
+	}
+	flowsCopy := make([]Flow, len(e.flows))
+	copy(flowsCopy, e.flows)
+	configsCopy := make([]ConfigNode, len(e.configs))
+	copy(configsCopy, e.configs)
+	e.deployListener(Workspace{Flows: flowsCopy, Configs: configsCopy})
 }
 
 // startAllNodeLoops starts a goroutine for every node whose goroutine

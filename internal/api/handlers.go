@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/loopzedev/loopze-edge/internal/credentials"
+	"github.com/loopzedev/loopze-edge/internal/dashboard"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 	"github.com/loopzedev/loopze-edge/internal/logbuffer"
 	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
@@ -28,6 +29,7 @@ type Deps struct {
 	Storage   storage.Storage
 	Broker    *loopzenats.Broker
 	Hub       *ws.Hub
+	Dashboard *dashboard.Hub
 	LogBuffer *logbuffer.Buffer
 	Certs     *credentials.CertStore
 

@@ -60,6 +60,13 @@ func newUpgrader(allowed []string) websocket.Upgrader {
 	}
 }
 
+// NewUpgrader is the exported form of newUpgrader. The dashboard hub
+// reuses the same origin allowlist as the editor hub; sharing the
+// constructor keeps the CSWSH policy consistent across hubs.
+func NewUpgrader(allowed []string) websocket.Upgrader {
+	return newUpgrader(allowed)
+}
+
 // buildOriginChecker returns the CheckOrigin func for the upgrader.
 // Compiled once at startup; the closure is hot path on every WS upgrade.
 //

@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "dev:dashboard": "vite --config vite.dashboard.config.ts",
+    "build:editor": "vue-tsc --noEmit && vite build",
+    "build:dashboard": "vite build --config vite.dashboard.config.ts",
+    "build": "npm run build:editor && npm run build:dashboard",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts,.tsx",
     "type-check": "vue-tsc --noEmit"

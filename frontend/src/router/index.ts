@@ -31,6 +31,11 @@ const routes: RouteRecordRaw[] = [
     name: 'DesignPreview',
     component: () => import('@/views/DesignPreview.vue'),
   },
+  {
+    path: '/layout',
+    name: 'DashboardLayout',
+    component: () => import('@/views/DashboardLayoutView.vue'),
+  },
 ]
 
 const router = createRouter({

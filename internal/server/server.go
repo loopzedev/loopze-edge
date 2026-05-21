@@ -26,6 +26,7 @@ import (
 	"github.com/loopzedev/loopze-edge/internal/auth"
 	"github.com/loopzedev/loopze-edge/internal/config"
 	"github.com/loopzedev/loopze-edge/internal/credentials"
+	"github.com/loopzedev/loopze-edge/internal/dashboard"
 	"github.com/loopzedev/loopze-edge/internal/flow"
 	"github.com/loopzedev/loopze-edge/internal/logbuffer"
 	loopzenats "github.com/loopzedev/loopze-edge/internal/nats"
@@ -58,6 +59,11 @@ type Server struct {
 
 	// hub is the WebSocket hub for real-time communication with connected clients.
 	hub *ws.Hub
+
+	// dashboard is the separate WebSocket hub for the dashboard SPA.
+	// It owns the per-widget last-value cache and the layout snapshot
+	// computed on every successful engine Deploy.
+	dashboard *dashboard.Hub
 
 	// broker is the embedded NATS server with JetStream for persistence and messaging.
 	broker *loopzenats.Broker
@@ -190,6 +196,7 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 		cfg:             cfg,
 		engine:          engine,
 		hub:             ws.NewHub(cfg.TrustedOrigins),
+		dashboard:       dashboard.NewHub(cfg.TrustedOrigins),
 		broker:          broker,
 		store:           store,
 		certs:           certs,
@@ -209,6 +216,15 @@ func New(cfg *config.Config, logBuffer *logbuffer.Buffer) (*Server, error) {
 	engine.SetHTTPMuxBuilder(func(specs []flow.HTTPRouteSpec) []flow.HTTPRouteConflict {
 		return s.swapFlowEndpointRoutes(specs)
 	}, cfg.HTTPNodeRoot)
+
+	// Wire the dashboard hub into the engine so widget nodes get the
+	// hub via DashboardHubProvider, and so every successful Deploy
+	// rebuilds the dashboard layout snapshot. The DeployListener path
+	// is also where PR 5's hot-deploy notification will hook in.
+	engine.SetDashboardHub(s.dashboard)
+	engine.SetDeployListener(func(workspace flow.Workspace) {
+		s.dashboard.RebuildLayout(workspace)
+	})
 
 	s.setupMiddleware()
 	s.setupRoutes()
@@ -306,6 +322,7 @@ func (s *Server) setupRoutes() {
 		Storage:   s.store,
 		Broker:    s.broker,
 		Hub:       s.hub,
+		Dashboard: s.dashboard,
 		LogBuffer: s.logBuffer,
 		Certs:     s.certs,
 	}
@@ -326,12 +343,55 @@ func (s *Server) setupRoutes() {
 	// auth middleware to validate the session cookie before upgrading.
 	s.router.Get("/ws", s.hub.ServeWSAuthed(s.wsAuthFunc()))
 
+	// Dashboard WebSocket. Auth is gated by dashboard.BuildAuthFunc
+	// which honours the live ui-base.auth setting (session vs none).
+	// Sibling of /ws — outside /api/v1 because it does not need CSRF
+	// (WS upgrades are protected by the Origin allowlist + session
+	// cookie) and outside the SPA mount under /dashboard/* to avoid
+	// path collision.
+	s.router.Get("/api/dashboard/ws",
+		s.dashboard.ServeWSAuthed(dashboard.BuildAuthFunc(s.dashboard, s.wsAuthFunc())))
+
+	// Dashboard REST endpoints. Same auth gate as the WS — when
+	// ui-base.auth == "none" (kiosk mode) the layout/theme fetch must
+	// also be anonymous so the SPA can bootstrap without a session.
+	// Outside /api/v1 because the editor's API-v1 routes always
+	// require auth, which kiosk mode must bypass.
+	dashAuth := dashboard.BuildAuthFunc(s.dashboard, s.wsAuthFunc())
+	api.RegisterDashboardRoutes(s.router, deps, func(next http.HandlerFunc) http.HandlerFunc {
+		return dashboardAuthMiddleware(dashAuth, next)
+	})
+
 	// Tear down open WS connections immediately when their session is
 	// invalidated (logout, disable, password reset).
 	s.sessions.SetOnDeleted(s.hub.DisconnectUser)
 
+	// Mount the dashboard SPA at /dashboard/* BEFORE the editor's
+	// catch-all so the dashboard prefix isn't swallowed by the editor's
+	// SPA fallback.
+	s.serveDashboard()
+
 	// Serve the embedded Vue 3 frontend as a single-page application.
 	s.serveFrontend()
+}
+
+// dashboardAuthMiddleware wraps a handler so it is reachable only when
+// the dashboard's current ui-base.auth setting permits the caller. Same
+// semantics as the dashboard WS upgrade: "none" → always allowed (kiosk
+// mode), "session" (or unset) → requires a valid session cookie.
+//
+// Failed auth returns 401 with a plain text body so the SPA can surface
+// "session required" without parsing JSON. CORS / CSRF concerns are
+// nil for GET-only endpoints behind the same-origin upgrader checks.
+func dashboardAuthMiddleware(authFn ws.AuthFunc, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, _ := authFn(r)
+		if userID == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 // wsAuthFunc returns the AuthFunc the WebSocket hub uses to validate
@@ -424,6 +484,7 @@ func (s *Server) serveFrontend() {
 func (s *Server) Start() error {
 	// Start the WebSocket hub in a background goroutine.
 	go s.hub.Run()
+	go s.dashboard.Run()
 
 	// Setup NATS streams and KV buckets.
 	ctx := context.Background()
@@ -550,6 +611,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Stop the flow engine first to prevent new messages.
 	if err := s.engine.Stop(); err != nil {
 		slog.Error("error stopping flow engine", "error", err)
+	}
+
+	// Stop the dashboard hub so its Run goroutine exits cleanly.
+	if s.dashboard != nil {
+		s.dashboard.Stop()
 	}
 
 	// Gracefully shut down the HTTP server.

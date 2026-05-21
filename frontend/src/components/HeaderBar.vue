@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -8,9 +9,26 @@ import type { DeployModeType } from '@/types/flow'
 const flowStore = useFlowStore()
 const uiStore = useUiStore()
 const auth = useAuthStore()
+const router = useRouter()
 
 async function handleLogout(): Promise<void> {
   await auth.logout()
+}
+
+// Dashboard button:
+//   - Plain click → navigate to the editor's Layout View at /layout
+//     (drag/resize/reorder widgets on the deployed dashboard).
+//   - Shift-click → open the live dashboard SPA in a new tab.
+// The ui-base config itself is reachable via double-click on the
+// dashboard title inside the Layout View, so the launcher behaviour
+// stays focused on "give me a dashboard view" rather than "give me
+// a config form".
+function handleDashboardClick(event: MouseEvent): void {
+  if (event.shiftKey) {
+    window.open('/dashboard/', '_blank')
+    return
+  }
+  router.push('/layout')
 }
 
 const connectionDotColor = computed(() => uiStore.connectionStatusColor)
@@ -143,6 +161,23 @@ function selectMode(mode: DeployModeType): void {
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
       </router-link>
+
+      <!-- Dashboard launcher: opens the singleton ui-base config in the
+           property panel (creates one if none exists). The icon also
+           links to /dashboard/ in a new tab via shift-click. -->
+      <button
+        v-if="auth.can('deploy')"
+        class="p-1.5 rounded text-terminal-text-dim hover:text-terminal-text hover:bg-terminal-surface-alt transition-all duration-100"
+        title="Dashboard config (shift-click: open dashboard in a new tab)"
+        @click="handleDashboardClick"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <rect x="3" y="3" width="7" height="9" rx="1" stroke-linecap="round" stroke-linejoin="round" />
+          <rect x="14" y="3" width="7" height="5" rx="1" stroke-linecap="round" stroke-linejoin="round" />
+          <rect x="14" y="12" width="7" height="9" rx="1" stroke-linecap="round" stroke-linejoin="round" />
+          <rect x="3" y="16" width="7" height="5" rx="1" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
 
       <!-- Settings link -->
       <router-link

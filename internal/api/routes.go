@@ -8,6 +8,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/loopzedev/loopze-edge/internal/auth"
@@ -98,4 +100,18 @@ func RegisterRoutes(r chi.Router, deps *Deps) {
 			r.Post("/users/{id}/password", deps.handleSetPassword)
 		})
 	})
+}
+
+// RegisterDashboardRoutes mounts the dashboard REST endpoints at
+// /api/dashboard/* (outside the editor's /api/v1 auth group so the
+// caller-supplied authMiddleware can honour ui-base.auth=none for
+// kiosk deployments). authMiddleware is a Chi-compatible per-handler
+// wrapper that gates each call against the live dashboard auth mode.
+func RegisterDashboardRoutes(
+	r chi.Router,
+	deps *Deps,
+	authMiddleware func(http.HandlerFunc) http.HandlerFunc,
+) {
+	r.Get("/api/dashboard/layout", authMiddleware(deps.handleGetDashboardLayout))
+	r.Get("/api/dashboard/theme", authMiddleware(deps.handleGetDashboardTheme))
 }

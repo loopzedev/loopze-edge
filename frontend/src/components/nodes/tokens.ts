@@ -249,6 +249,32 @@ export const TOKENS: Record<string, NodeTokens> = {
     border:     '#4a2818',
     textSub:    '#b88a5a',
   },
+  // Dashboard input widgets (button, switch, slider, …): bright violet —
+  // distinct from context's softer purple and mqtt's magenta.
+  'dashboard-input': {
+    accent:     '#a855f7',
+    accentDim:  '#a855f712',
+    accentBdr:  '#a855f72a',
+    accentGlow: '#a855f714',
+    bg:         '#0a0612',
+    bgHdr:      '#170c24',
+    bgIcon:     '#1d1030',
+    border:     '#3e1d6a',
+    textSub:    '#a07cd6',
+  },
+  // Dashboard display widgets (text, led, gauge, chart): soft pink —
+  // distinct from output orange and template peach.
+  'dashboard-display': {
+    accent:     '#ec4899',
+    accentDim:  '#ec489912',
+    accentBdr:  '#ec48992a',
+    accentGlow: '#ec489914',
+    bg:         '#10060b',
+    bgHdr:      '#1f0c16',
+    bgIcon:     '#26101b',
+    border:     '#5a1f3a',
+    textSub:    '#cd6a96',
+  },
 }
 
 // Node type → category mapping is sourced from the per-group manifests in

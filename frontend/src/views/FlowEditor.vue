@@ -27,6 +27,10 @@ import JSONParserNode from "@/components/nodes/JSONParserNode.vue";
 import XMLParserNode from "@/components/nodes/XMLParserNode.vue";
 import CSVParserNode from "@/components/nodes/CSVParserNode.vue";
 import CSVOutNode from "@/components/nodes/CSVOutNode.vue";
+import UIButtonNode from "@/components/nodes/UIButtonNode.vue";
+import UITextNode from "@/components/nodes/UITextNode.vue";
+import UILedNode from "@/components/nodes/UILedNode.vue";
+import UIGaugeNode from "@/components/nodes/UIGaugeNode.vue";
 import FileReadNode from "@/components/nodes/FileReadNode.vue";
 import FileOutNode from "@/components/nodes/FileOutNode.vue";
 import FileWatchNode from "@/components/nodes/FileWatchNode.vue";
@@ -778,6 +782,22 @@ onMounted(async () => {
 
             <template #node-csv-out="nodeProps">
                 <CSVOutNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-ui-button="nodeProps">
+                <UIButtonNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-ui-text="nodeProps">
+                <UITextNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-ui-led="nodeProps">
+                <UILedNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-ui-gauge="nodeProps">
+                <UIGaugeNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-comment="nodeProps">

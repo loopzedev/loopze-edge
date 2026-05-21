@@ -83,6 +83,12 @@ const icons: Record<string, string[]> = {
   'link-call':   ['M10 13a5 5 0 0 1 0-6h4a5 5 0 0 1 0 6h-4z', 'M3 10h7', 'M14 10h7', 'M6 7l-3 3 3 3', 'M18 7l3 3-3 3'],  // chain + arrows both
   catch:         ['M13 2L3 14h8l-1 8 10-12h-8l1-8z'],                                  // lightning bolt
   status:        ['M3 12h3l3-8 4 16 3-8h5'],                                           // heartbeat/pulse
+
+  // ── Dashboard widgets ─────────────────────
+  'ui-button':   ['M4 9h16v6H4z', 'M8 12h8'],                                          // button outline + label bar
+  'ui-text':     ['M4 6h16', 'M12 6v14', 'M9 20h6'],                                   // capital T
+  'ui-led':      ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M5 12H3', 'M21 12h-2', 'M12 5V3', 'M12 21v-2'], // glowing dot
+  'ui-gauge':    ['M4 17a8 8 0 0 1 16 0', 'M12 17l4-5'],                               // gauge arc + needle
 }
 </script>
 

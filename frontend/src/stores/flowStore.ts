@@ -314,6 +314,44 @@ export const useFlowStore = defineStore("flow", () => {
     markDirty();
   }
 
+  /**
+   * Update a node's data fields regardless of which flow owns it.
+   *
+   * `updateNodeData` only touches `nodes.value` — the canvas-mirror of
+   * the currently active flow. The Layout View needs to edit widgets
+   * that live in other flows (a single dashboard can fan out across
+   * many flow tabs). This helper writes to the canvas mirror when the
+   * node is there, AND walks `flows[].nodes[]` to mutate the LOOPZE
+   * source-of-truth record, then marks the owning flow dirty.
+   *
+   * Same fallback shape as updateNodeStatus.
+   */
+  function updateNodeDataAcrossFlows(
+    nodeId: string,
+    config: Record<string, unknown>,
+  ): void {
+    // Active-canvas path: reuse the existing function so wires stay
+    // pruned when output counts change.
+    const canvasNode = nodes.value.find((n) => n.id === nodeId);
+    if (canvasNode) {
+      const existing = (canvasNode.data?.config ?? {}) as Record<string, unknown>;
+      updateNodeData(nodeId, { config: { ...existing, ...config } });
+    }
+
+    // Source-of-truth path: mutate the LOOPZE node inside flows[] so
+    // a later setActiveFlow() picks up the change. Always runs — even
+    // when the canvas-mirror was hit — so the persisted workspace
+    // stays consistent with the canvas after a flow switch.
+    for (const flow of flows.value) {
+      const loopzeNode = flow.nodes.find((n) => n.id === nodeId);
+      if (loopzeNode) {
+        loopzeNode.config = { ...(loopzeNode.config ?? {}), ...config };
+        markNodeDirty(nodeId);
+        return;
+      }
+    }
+  }
+
   function updateNodeStatus(nodeId: string, status: { fill: string; text: string }): void {
     // Search active flow nodes first
     let node = nodes.value.find((n) => n.id === nodeId);
@@ -774,6 +812,7 @@ export const useFlowStore = defineStore("flow", () => {
     addNode,
     removeNode,
     updateNodeData,
+    updateNodeDataAcrossFlows,
     remapOutputEdges,
     updateNodeStatus,
     updateNodePosition,

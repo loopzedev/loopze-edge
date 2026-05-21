@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      Base href is absolute /dashboard/ so loading the SPA via
+      /dashboard (no trailing slash) still resolves assets correctly.
+      Phase 1 hard-codes the mount path; making this configurable lives
+      with the dynamic ui-base.path follow-up.
+    -->
+    <base href="/dashboard/" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LOOPZE Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #1a1a0e;
+        --fg: #FFBF00;
+        --muted: #8a8a6a;
+        --accent: #58a6ff;
+        --surface: #25251a;
+        --border: #3a3a2a;
+      }
+      * { box-sizing: border-box; }
+      html, body, #app { height: 100%; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: 'Space Mono', 'IBM Plex Mono', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

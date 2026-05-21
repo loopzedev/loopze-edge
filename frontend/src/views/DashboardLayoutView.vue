@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDashboardLayout } from '@/composables/useDashboardLayout'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -8,6 +9,7 @@ import LayoutBanner from '@/components/layout/LayoutBanner.vue'
 
 const flowStore = useFlowStore()
 const ui = useUiStore()
+const router = useRouter()
 const { tree } = useDashboardLayout()
 
 // Edit gating: any unsaved workspace change disables layout edits so
@@ -19,6 +21,42 @@ const hasBase = computed(() => Boolean(tree.value.base))
 
 const orphanCount = computed(() => tree.value.orphans.length)
 
+// Single-page view: the dropdown picks which page to edit. Defaults
+// to the first page; falls back to the first available page if the
+// selected one is removed.
+const activePageId = ref<string | null>(null)
+
+const pageOptions = computed(() =>
+  tree.value.pages.map((p) => ({
+    value: p.page.id,
+    label: p.page.name || p.page.id.slice(0, 8),
+  })),
+)
+
+const activePage = computed(() => {
+  if (!activePageId.value) return tree.value.pages[0] ?? null
+  return (
+    tree.value.pages.find((p) => p.page.id === activePageId.value)
+      ?? tree.value.pages[0]
+      ?? null
+  )
+})
+
+// Keep the dropdown selection in sync with what's actually available.
+watch(
+  () => tree.value.pages.map((p) => p.page.id),
+  (ids) => {
+    if (ids.length === 0) {
+      activePageId.value = null
+      return
+    }
+    if (!activePageId.value || !ids.includes(activePageId.value)) {
+      activePageId.value = ids[0]
+    }
+  },
+  { immediate: true },
+)
+
 function openBaseConfig() {
   const base = tree.value.base
   ui.openConfigEditor('ui-base', base?.id)
@@ -27,6 +65,10 @@ function openBaseConfig() {
 
 function openDashboardTab() {
   window.open('/dashboard/', '_blank')
+}
+
+function closeLayoutView() {
+  router.push('/')
 }
 
 onMounted(() => {
@@ -58,6 +100,16 @@ onMounted(() => {
         </div>
       </div>
       <div class="actions">
+        <label v-if="pageOptions.length > 1" class="page-picker">
+          <span class="page-picker-label">Page</span>
+          <select v-model="activePageId" class="page-select">
+            <option
+              v-for="opt in pageOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >{{ opt.label }}</option>
+          </select>
+        </label>
         <button
           type="button"
           class="action-btn"
@@ -65,6 +117,14 @@ onMounted(() => {
           @click="openDashboardTab"
         >
           Open dashboard ↗
+        </button>
+        <button
+          type="button"
+          class="action-btn close-btn"
+          title="Close layout view and return to the flow editor"
+          @click="closeLayoutView"
+        >
+          ← Back to flows
         </button>
       </div>
     </header>
@@ -94,9 +154,9 @@ onMounted(() => {
       </section>
 
       <LayoutPage
-        v-for="page in tree.pages"
-        :key="page.page.id"
-        :layout-page="page"
+        v-if="activePage"
+        :key="activePage.page.id"
+        :layout-page="activePage"
         :disabled="isLocked"
       />
 
@@ -159,7 +219,33 @@ onMounted(() => {
   margin-top: 0.25rem;
   max-width: 65ch;
 }
-.actions { display: flex; gap: 0.5rem; }
+.actions { display: flex; gap: 0.5rem; align-items: stretch; }
+.page-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-terminal-border, #30363d);
+  border-radius: 3px;
+  background: var(--color-terminal-surface, #161b22);
+}
+.page-picker-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-terminal-text-dim, #7d8590);
+}
+.page-select {
+  background: transparent;
+  border: none;
+  color: var(--color-terminal-text, #e6edf3);
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.25rem;
+  cursor: pointer;
+}
+.page-select:focus { outline: 1px solid var(--color-accent, #58a6ff); border-radius: 2px; }
+.close-btn:hover { color: var(--color-status-warning, #d29922); border-color: var(--color-status-warning, #d29922); }
 .action-btn,
 .primary-btn {
   background: none;

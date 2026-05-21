@@ -16,6 +16,7 @@ const theme = ref('dark')
 const accentColor = ref('#58a6ff')
 const auth = ref('session')
 const showNav = ref(true)
+const navStyle = ref('tabs')
 const density = ref('default')
 
 const isEditing = ref(false)
@@ -33,6 +34,10 @@ const densities = [
   { value: 'default',     label: 'Default' },
   { value: 'comfortable', label: 'Comfortable' },
 ]
+const navStyles = [
+  { value: 'tabs',    label: 'Tabs (top bar)' },
+  { value: 'sidebar', label: 'Sidebar (collapsible left rail)' },
+]
 
 onMounted(() => {
   if (!props.configId) return
@@ -45,6 +50,7 @@ onMounted(() => {
   if (typeof cfg.accentColor === 'string') accentColor.value = cfg.accentColor
   if (typeof cfg.auth === 'string') auth.value = cfg.auth
   if (typeof cfg.showNav === 'boolean') showNav.value = cfg.showNav
+  if (typeof cfg.navStyle === 'string') navStyle.value = cfg.navStyle
   if (typeof cfg.density === 'string') density.value = cfg.density
 })
 
@@ -56,6 +62,7 @@ function save() {
     accentColor: accentColor.value,
     auth: auth.value,
     showNav: showNav.value,
+    navStyle: navStyle.value,
     density: density.value,
   }
   if (isEditing.value && props.configId) {
@@ -103,7 +110,14 @@ function cancel() {
         </div>
       </FormField>
 
-      <FormCheckbox v-model="showNav" label="Show side navigation" />
+      <FormCheckbox
+        v-model="showNav"
+        label="Show page navigation (hide when only one page is needed)"
+      />
+
+      <FormField v-if="showNav" label="Navigation style">
+        <FormSelect v-model="navStyle" :options="navStyles" />
+      </FormField>
 
       <FormField label="Density">
         <FormSelect v-model="density" :options="densities" />

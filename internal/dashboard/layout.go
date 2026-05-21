@@ -39,7 +39,12 @@ type LayoutBase struct {
 	AccentColor string `json:"accentColor"`
 	Auth        string `json:"auth"`
 	ShowNav     bool   `json:"showNav"`
-	Density     string `json:"density"`
+	// NavStyle determines how multi-page dashboards expose pages to
+	// the operator: "tabs" (top bar) or "sidebar" (collapsible left
+	// rail). Default "tabs" preserves the existing layout for
+	// workspaces that never set this field.
+	NavStyle string `json:"navStyle"`
+	Density  string `json:"density"`
 }
 
 // LayoutPage mirrors a ui-page config.
@@ -254,6 +259,7 @@ func BuildLayout(ws flow.Workspace) *Snapshot {
 		AccentColor: stringProp(base.Config, "accentColor", "#58a6ff"),
 		Auth:        stringProp(base.Config, "auth", "session"),
 		ShowNav:     boolProp(base.Config, "showNav", true),
+		NavStyle:    stringProp(base.Config, "navStyle", "tabs"),
 		Density:     stringProp(base.Config, "density", "default"),
 	}
 

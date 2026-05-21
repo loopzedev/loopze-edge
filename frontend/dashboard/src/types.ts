@@ -8,6 +8,8 @@ export interface LayoutBase {
   accentColor: string
   auth: string
   showNav: boolean
+  /** 'tabs' (default top bar) or 'sidebar' (collapsible left rail). */
+  navStyle: string
   density: string
 }
 

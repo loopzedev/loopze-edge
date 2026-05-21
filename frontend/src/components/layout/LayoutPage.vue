@@ -186,6 +186,7 @@ function onTitleDoubleClick() {
         :key="g.group.id"
         :layout-group="g"
         :page-id="layoutPage.page.id"
+        :page-cols="layoutPage.cols"
         :disabled="disabled"
       />
     </div>

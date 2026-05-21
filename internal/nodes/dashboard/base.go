@@ -43,6 +43,7 @@ func UIBaseTypeInfo() flow.ConfigTypeInfo {
 			"accentColor": "#58a6ff",
 			"auth":        "session",
 			"showNav":     true,
+			"navStyle":    "tabs",
 			"density":     "default",
 		},
 	}

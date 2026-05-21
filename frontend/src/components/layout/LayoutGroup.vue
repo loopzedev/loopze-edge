@@ -2,7 +2,13 @@
 import { computed, ref } from 'vue'
 import type { LayoutGroup as LayoutGroupT } from '@/composables/useDashboardLayout'
 import { useDashboardLayout } from '@/composables/useDashboardLayout'
-import { computeDropCell, readWidgetDragPayload, setWidgetDragPayload } from '@/composables/useDragResize'
+import {
+  computeDropCell,
+  readWidgetDragPayload,
+  setWidgetDragPayload,
+  useResizeGesture,
+  type ResizeDelta,
+} from '@/composables/useDragResize'
 import { useUiStore } from '@/stores/uiStore'
 import LayoutWidgetCard from './LayoutWidgetCard.vue'
 
@@ -12,10 +18,13 @@ const props = defineProps<{
   /** Page id — surfaced on the drag payload so LayoutPage can place
    *  the group at the dropped (x, y) coordinate. */
   pageId: string
+  /** Parent page's column count — needed for the pointer-resize math
+   *  so the group snaps to page-grid columns. */
+  pageCols: number
 }>()
 
 const ui = useUiStore()
-const { moveWidget } = useDashboardLayout()
+const { moveWidget, resizeGroup } = useDashboardLayout()
 
 const dropActive = ref(false)
 const groupGridEl = ref<HTMLElement | null>(null)
@@ -31,13 +40,16 @@ interface HoverPreview {
 }
 const hoverPreview = ref<HoverPreview | null>(null)
 
-// The number of row tracks the grid renders during a drag. Stays at
-// the group's persisted height most of the time, but expands while
-// the user hovers below the bottom edge so they can drop into
-// "new space" (the group auto-grows to fit on actual drop).
+// The number of row tracks the grid renders. Sources, in priority:
+//   - previewH (during resize gesture) so the inner grid shrinks
+//     in lockstep with the outer cell preview, otherwise minmax-auto
+//     would balloon the cell back to the persisted content height.
+//   - persisted height
+//   - dragRowsOverride bumps it during a widget drag so the user can
+//     drop into "fresh territory" past the current bottom edge.
 const dragRowsOverride = ref<number | null>(null)
 const gridRowCount = computed(() => {
-  const base = Math.max(1, props.layoutGroup.height)
+  const base = Math.max(1, previewH.value ?? props.layoutGroup.height)
   if (dragRowsOverride.value !== null) {
     return Math.max(base, dragRowsOverride.value)
   }
@@ -61,13 +73,17 @@ const backgroundCells = computed(() => {
 
 // Position/size from the migrated LayoutTree — these come from the
 // composable already clamped against the parent page's cols, so we
-// can render them as-is without further clamping here. The previous
-// Math.min(12, …) was a leftover from when the page was hardcoded
-// to 12 cols and broke any page configured with cols > 12.
+// can render them as-is without further clamping here.
+//
+// Resize live-preview: while the SE handle is being dragged,
+// previewW/previewH override the persisted values so the user gets
+// immediate visual feedback. Commit happens on pointerup.
+const previewW = ref<number | null>(null)
+const previewH = ref<number | null>(null)
 const groupStyle = computed(() => {
-  const w = Math.max(1, props.layoutGroup.width)
+  const w = Math.max(1, previewW.value ?? props.layoutGroup.width)
   const x = Math.max(0, props.layoutGroup.x)
-  const h = Math.max(1, props.layoutGroup.height)
+  const h = Math.max(1, previewH.value ?? props.layoutGroup.height)
   return {
     gridColumn: `${x + 1} / span ${w}`,
     gridRow: `${props.layoutGroup.y + 1} / span ${h}`,
@@ -196,6 +212,43 @@ function onHeaderDoubleClick() {
   if (!ui.propertiesPanelOpen) ui.togglePropertiesPanel()
 }
 
+// ─── Pointer-resize (SE handle) ──────────────────────────────────────────
+
+const { active: resizing, start: startResize } = useResizeGesture({
+  onPreview(delta: ResizeDelta) {
+    previewW.value = delta.width
+    previewH.value = delta.height
+  },
+  onCommit(delta: ResizeDelta) {
+    previewW.value = null
+    previewH.value = null
+    resizeGroup(props.layoutGroup.group.id, delta.width, delta.height)
+  },
+  onCancel() {
+    previewW.value = null
+    previewH.value = null
+  },
+})
+
+function onResizeStart(e: PointerEvent) {
+  if (props.disabled) return
+  const groupEl = (e.currentTarget as HTMLElement).closest<HTMLElement>('.layout-group')
+  const pageEl = groupEl?.closest<HTMLElement>('.layout-page-grid')
+  if (!groupEl || !pageEl) return
+  startResize(
+    {
+      // Use the page-grid as the metric source so the column width
+      // matches the page-level grid the group occupies.
+      groupEl: pageEl,
+      widgetEl: groupEl,
+      startWidth: props.layoutGroup.width,
+      startHeight: props.layoutGroup.height,
+      cols: props.pageCols,
+    },
+    e,
+  )
+}
+
 // We accidentally use setWidgetDragPayload nowhere here, but keep the
 // import to surface it via the LSP if you add widget-drag affordances
 // to the header later. Trimming the import keeps tree-shaking happy.
@@ -205,6 +258,7 @@ void setWidgetDragPayload
 <template>
   <section
     class="layout-group"
+    :class="{ resizing }"
     :style="groupStyle"
   >
     <header
@@ -285,6 +339,16 @@ void setWidgetDragPayload
         Drop widgets here, or drag them in from another group.
       </p>
     </div>
+
+    <!-- Resize handle (SE corner of the group). Sits on top of the
+         widget grid so it's reachable even when a widget fills the
+         bottom-right corner. -->
+    <div
+      v-if="!disabled"
+      class="group-resize-handle"
+      title="Drag to resize group"
+      @pointerdown="onResizeStart"
+    />
   </section>
 </template>
 
@@ -296,6 +360,40 @@ void setWidgetDragPayload
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Anchor for the absolutely-positioned SE resize handle. */
+  position: relative;
+}
+.layout-group.resizing {
+  outline: 1px dashed var(--color-accent, #58a6ff);
+  outline-offset: 1px;
+}
+.layout-group.resizing .layout-group-grid {
+  /* During a resize gesture, clip any widgets that fall outside the
+     preview height. Without this, items in implicit tracks past the
+     preview would extend the grid back to its persisted height via
+     the minmax(50px, auto) row sizing — the user would never see
+     the group shrink until release. The handle is a sibling of the
+     grid, so it isn't clipped. */
+  overflow: hidden;
+}
+.group-resize-handle {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  border-right: 2px solid var(--color-terminal-text-dim, #7d8590);
+  border-bottom: 2px solid var(--color-terminal-text-dim, #7d8590);
+  opacity: 0.6;
+  touch-action: none;
+  /* Sits above the widget grid so it's reachable even when a widget
+     fills the bottom-right corner. */
+  z-index: 5;
+}
+.group-resize-handle:hover {
+  opacity: 1;
+  border-color: var(--color-accent, #58a6ff);
 }
 .layout-group-header {
   display: flex;

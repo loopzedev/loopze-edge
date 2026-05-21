@@ -49,12 +49,18 @@ type LayoutPage struct {
 	Path   string `json:"path"`
 	Icon   string `json:"icon"`
 	Layout string `json:"layout"`
-	Order  int    `json:"order"`
+	// Cols is the number of columns in this page's grid. Default 12.
+	// Each group's `width` is measured in these page-columns; the
+	// group's own internal grid then uses `width` as its own column
+	// count, so a group at width=6 has 6 internal columns regardless
+	// of page cols.
+	Cols  int `json:"cols"`
+	Order int `json:"order"`
 }
 
 // LayoutGroup mirrors a ui-group config and references its parent page.
 // X/Y are explicit grid coordinates (0-based) inside the page's
-// 12-col grid. Height is in 50 px row units.
+// configured column grid. Height is in 50 px row units.
 type LayoutGroup struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -67,6 +73,11 @@ type LayoutGroup struct {
 	// Order is legacy; the renderer uses x/y. Kept on the JSON for
 	// debugging and during the deprecation window.
 	Order int `json:"order"`
+	// Config carries the raw ui-group config so migrateGroupPositions
+	// can read explicit x/y values the same way widgets do. Not
+	// serialised to JSON because it would duplicate fields the
+	// dashboard SPA doesn't need.
+	Config map[string]any `json:"-"`
 }
 
 // LayoutWidget describes one widget instance on the dashboard. Config
@@ -136,7 +147,10 @@ var groupSizeDefault = sizeDefault{Width: 12, Height: 6}
 
 func effectiveWidth(widgetType string, cfg map[string]any) int {
 	if v, ok := readInt(cfg, "width"); ok && v > 0 {
-		return clampInt(v, 1, 12)
+		// Upper bound 48 covers the largest page.cols we allow. The
+		// frontend render layer clamps further to the actual parent
+		// group's column count, so we don't need a tighter bound here.
+		return clampInt(v, 1, 48)
 	}
 	if d, ok := widgetSizeDefault[widgetType]; ok {
 		return d.Width
@@ -146,7 +160,7 @@ func effectiveWidth(widgetType string, cfg map[string]any) int {
 
 func effectiveHeight(widgetType string, cfg map[string]any) int {
 	if v, ok := readInt(cfg, "height"); ok && v > 0 {
-		return clampInt(v, 1, 12)
+		return clampInt(v, 1, 100)
 	}
 	if d, ok := widgetSizeDefault[widgetType]; ok {
 		return d.Height
@@ -252,8 +266,15 @@ func BuildLayout(ws flow.Workspace) *Snapshot {
 			Path:   stringProp(p.Config, "path", ""),
 			Icon:   stringProp(p.Config, "icon", ""),
 			Layout: stringProp(p.Config, "layout", "grid"),
+			Cols:   clampInt(intProp(p.Config, "cols", 12), 1, 48),
 			Order:  intProp(p.Config, "order", 0),
 		})
+	}
+
+	// Index pages by ID so we can resolve each group's page-cols cap.
+	pageColsByID := make(map[string]int, len(snap.Pages))
+	for _, p := range snap.Pages {
+		pageColsByID[p.ID] = p.Cols
 	}
 
 	groupIDs := make(map[string]struct{}, len(groupConfigs))
@@ -267,17 +288,24 @@ func BuildLayout(ws flow.Workspace) *Snapshot {
 			continue
 		}
 		groupIDs[g.ID] = struct{}{}
+		// Clamp group width to the parent page's cols so a group with
+		// width=20 on a 12-col page renders at width=12.
+		maxCols := pageColsByID[pageRef]
+		if maxCols < 1 {
+			maxCols = 12
+		}
 		snap.Groups = append(snap.Groups, LayoutGroup{
 			ID:     g.ID,
 			Name:   stringProp(g.Config, "name", "Group"),
 			PageID: pageRef,
-			// x/y/width/height filled by the migration pass below
-			// so we can derive missing y from cumulative heights of
-			// lower-order siblings.
-			Width:       clampInt(intProp(g.Config, "width", groupSizeDefault.Width), 1, 12),
+			// x/y filled by the migration pass below — it reads
+			// explicit values from g.Config (via the Config field)
+			// and falls back to (0, cumulative) for legacy entries.
+			Width:       clampInt(intProp(g.Config, "width", groupSizeDefault.Width), 1, maxCols),
 			Height:      clampInt(intProp(g.Config, "height", groupSizeDefault.Height), 1, 100),
 			Collapsible: boolProp(g.Config, "collapsible", false),
 			Order:       intProp(g.Config, "order", 0),
+			Config:      g.Config,
 		})
 	}
 
@@ -351,7 +379,9 @@ func migrateWidgetPositions(widgets []LayoutWidget) {
 			h:     w.Height,
 		}
 		if v, ok := readInt(w.Config, "x"); ok {
-			s.x = clampInt(v, 0, 11)
+			// Upper bound 47 fits any reasonable page.cols. Frontend
+			// renderer clamps further to the actual parent's columns.
+			s.x = clampInt(v, 0, 47)
 			s.hasX = true
 		}
 		if v, ok := readInt(w.Config, "y"); ok {
@@ -378,29 +408,42 @@ func migrateWidgetPositions(widgets []LayoutWidget) {
 	}
 }
 
-// migrateGroupPositions does the same per page. Group x/y aren't
-// read from the group config in Phase 1 (the editor doesn't expose
-// them yet); migration just stacks groups vertically by their order.
-// When the editor adds x/y for groups, this function will read from
-// config the same way migrateWidgetPositions does — for now group
-// x/y default to (0, cumulative).
+// migrateGroupPositions reads explicit x/y from each group's config
+// and falls back to (x=0, y=cumulative) for legacy groups without
+// positions. Mirrors migrateWidgetPositions so the dashboard SPA
+// and the editor's Layout View agree on positions.
 func migrateGroupPositions(groups []LayoutGroup) {
 	byPage := map[string][]*posSlot{}
 	for i := range groups {
 		g := &groups[i]
-		byPage[g.PageID] = append(byPage[g.PageID], &posSlot{
+		s := &posSlot{
 			idx:   i,
 			order: g.Order,
 			id:    g.ID,
 			h:     g.Height,
-		})
+		}
+		if v, ok := readInt(g.Config, "x"); ok {
+			s.x = clampInt(v, 0, 47)
+			s.hasX = true
+		}
+		if v, ok := readInt(g.Config, "y"); ok {
+			s.y = clampInt(v, 0, 10000)
+			s.hasY = true
+		}
+		byPage[g.PageID] = append(byPage[g.PageID], s)
 	}
 	for _, slots := range byPage {
 		sortSlots(slots)
 		cumY := 0
 		for _, s := range slots {
-			s.y = cumY
-			cumY += s.h
+			if s.hasY {
+				if s.y+s.h > cumY {
+					cumY = s.y + s.h
+				}
+			} else {
+				s.y = cumY
+				cumY += s.h
+			}
 			groups[s.idx].X = s.x
 			groups[s.idx].Y = s.y
 		}

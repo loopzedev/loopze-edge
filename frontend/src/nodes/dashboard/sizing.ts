@@ -32,6 +32,45 @@ const FALLBACK: WidgetSizeDefault = { width: 0, height: 1 }
  *  to it. */
 export const ROW_UNIT_PX = 50
 
+/** Default column count for a page when not configured. */
+export const DEFAULT_PAGE_COLS = 12
+
+/** Read the column count from a page or group config, clamped to a
+ *  sensible range. `0` and missing both fall back to `defaultCols`. */
+export function effectiveCols(
+  cfg: Record<string, unknown> | undefined,
+  defaultCols: number,
+): number {
+  const raw = cfg?.cols
+  if (typeof raw === 'number' && raw > 0) {
+    return clamp(Math.round(raw), 1, 48)
+  }
+  return clamp(defaultCols, 1, 48)
+}
+
+/** Clamp a widget's width to its parent group's column count. Honors
+ *  the `0 = full row` semantic by returning groupCols when raw width
+ *  is 0 or missing. */
+export function clampWidthToParent(
+  rawWidth: number,
+  parentCols: number,
+): number {
+  if (!Number.isFinite(rawWidth) || rawWidth <= 0) return parentCols
+  return Math.min(parentCols, Math.max(1, Math.round(rawWidth)))
+}
+
+/** Clamp x so a widget of width `w` still fits horizontally in a
+ *  container of `parentCols` columns. */
+export function clampXToParent(
+  rawX: number,
+  width: number,
+  parentCols: number,
+): number {
+  const maxX = Math.max(0, parentCols - width)
+  if (!Number.isFinite(rawX) || rawX < 0) return 0
+  return Math.min(maxX, Math.round(rawX))
+}
+
 export function defaultSize(widgetType: string): WidgetSizeDefault {
   return DEFAULTS[widgetType] ?? FALLBACK
 }

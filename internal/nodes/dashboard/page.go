@@ -33,6 +33,7 @@ func UIPageTypeInfo() flow.ConfigTypeInfo {
 			"path":   "",
 			"icon":   "",
 			"layout": "grid",
+			"cols":   12,
 			"order":  0,
 		},
 	}

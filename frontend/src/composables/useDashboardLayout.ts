@@ -16,6 +16,10 @@ import { useFlowStore } from '@/stores/flowStore'
 import type { ConfigNode, Node as LoopzeNode } from '@/types/flow'
 import { getCategory } from '@/nodes'
 import {
+  DEFAULT_PAGE_COLS,
+  clampWidthToParent,
+  clampXToParent,
+  effectiveCols,
   effectiveHeight,
   effectiveWidth,
   effectiveX,
@@ -43,11 +47,17 @@ export interface LayoutGroup {
   y: number
   width: number
   height: number
+  /** Internal column count of this group's grid. Equals `width` when
+   *  width > 0; otherwise falls back to the parent page's cols (a
+   *  "full row" group inherits the page's column granularity). */
+  cols: number
   widgets: LayoutWidget[]
 }
 
 export interface LayoutPage {
   page: ConfigNode
+  /** Column count of this page's grid. */
+  cols: number
   groups: LayoutGroup[]
 }
 
@@ -123,23 +133,44 @@ export function useDashboardLayout() {
       }
     }
 
-    // Migrate per-group: widgets without explicit y get stacked.
+    // Compute each group's internal column count first so we can
+    // clamp widget width/x to it before resolving positions.
+    const groupColsById = new Map<string, number>()
+    for (const g of groups) {
+      const pageRef = stringProp(g.config, 'page')
+      const ownerPage = pages.find((p) => p.id === pageRef)
+      const pageCols = effectiveCols(ownerPage?.config, DEFAULT_PAGE_COLS)
+      const rawW = intProp(g.config, 'width', 0)
+      // width=0 (full row) → group internal cols = page cols
+      groupColsById.set(g.id, rawW > 0 ? Math.min(pageCols, rawW) : pageCols)
+    }
+
+    // Migrate per-group: widgets without explicit y get stacked, and
+    // their x/width get clamped to the group's column count.
     const migratedByGroup = new Map<string, LayoutWidget[]>()
     for (const [gid, list] of rawByGroup) {
-      const positioned: PositionedItem[] = list.map((w) => ({
-        id: w.node.id,
-        hasY: hasExplicitY(w.node.config),
-        x: w.x,
-        y: w.y,
-        width: w.width,
-        height: w.height,
-        order: intProp(w.node.config, 'order', 0),
-      }))
+      const cols = groupColsById.get(gid) ?? DEFAULT_PAGE_COLS
+      const positioned: PositionedItem[] = list.map((w) => {
+        const cw = clampWidthToParent(w.width, cols)
+        const cx = clampXToParent(w.x, cw, cols)
+        return {
+          id: w.node.id,
+          hasY: hasExplicitY(w.node.config),
+          x: cx,
+          y: w.y,
+          width: cw,
+          height: w.height,
+          order: intProp(w.node.config, 'order', 0),
+        }
+      })
       const migrated = migratePositions(positioned)
       const byId = new Map(migrated.map((m) => [m.id, m]))
       migratedByGroup.set(
         gid,
-        list.map((w) => ({ ...w, y: byId.get(w.node.id)!.y })),
+        list.map((w) => {
+          const m = byId.get(w.node.id)!
+          return { ...w, x: m.x, y: m.y, width: m.width }
+        }),
       )
     }
 
@@ -164,16 +195,22 @@ export function useDashboardLayout() {
     })
 
     const pagesOut: LayoutPage[] = orderedPages.map((page) => {
+      const pageCols = effectiveCols(page.config, DEFAULT_PAGE_COLS)
       const pageGroups = groupsByPage.get(page.id) ?? []
-      const groupPositions: PositionedItem[] = pageGroups.map((g) => ({
-        id: g.id,
-        hasY: hasExplicitY(g.config),
-        x: effectiveX(g.config),
-        y: effectiveY(g.config),
-        width: Math.max(1, Math.min(12, intProp(g.config, 'width', 12))),
-        height: Math.max(1, Math.min(100, intProp(g.config, 'height', 6))),
-        order: intProp(g.config, 'order', 0),
-      }))
+      const groupPositions: PositionedItem[] = pageGroups.map((g) => {
+        const rawW = intProp(g.config, 'width', 0)
+        const w = rawW > 0 ? Math.min(pageCols, rawW) : pageCols
+        const x = clampXToParent(effectiveX(g.config), w, pageCols)
+        return {
+          id: g.id,
+          hasY: hasExplicitY(g.config),
+          x,
+          y: effectiveY(g.config),
+          width: w,
+          height: Math.max(1, Math.min(100, intProp(g.config, 'height', 6))),
+          order: intProp(g.config, 'order', 0),
+        }
+      })
       const migratedGroups = migratePositions(groupPositions)
       const byId = new Map(migratedGroups.map((m) => [m.id, m]))
       const groupsOut: LayoutGroup[] = pageGroups.map((g) => {
@@ -184,12 +221,12 @@ export function useDashboardLayout() {
           y: m.y,
           width: m.width,
           height: m.height,
+          cols: groupColsById.get(g.id) ?? pageCols,
           widgets: migratedByGroup.get(g.id) ?? [],
         }
       })
-      // Render order by migrated y then x (stable)
       groupsOut.sort((a, b) => (a.y - b.y) || (a.x - b.x))
-      return { page, groups: groupsOut }
+      return { page, cols: pageCols, groups: groupsOut }
     })
 
     return { base, pages: pagesOut, orphans }
@@ -214,8 +251,9 @@ export function useDashboardLayout() {
     if (!targetGroup) return
 
     // Build the post-move set of widgets in the target group.
-    const w = Math.max(1, Math.min(12, widget.width))
-    const x = Math.max(0, Math.min(12 - w, targetX))
+    const cols = targetGroup.cols
+    const w = clampWidthToParent(widget.width, cols)
+    const x = clampXToParent(targetX, w, cols)
     const y = Math.max(0, targetY)
 
     const sourceGroupId = stringProp(widget.node.config, 'group')
@@ -254,6 +292,8 @@ export function useDashboardLayout() {
       flowStore.updateNodeDataAcrossFlows(r.id, patch)
     }
 
+    growGroupIfNeeded(targetGroup.group, resolved)
+
     // If we left a group, the source-group siblings keep their
     // positions — push-down only runs in the destination. The gap
     // left behind is fine for v1; the user can drag to close it.
@@ -271,10 +311,11 @@ export function useDashboardLayout() {
       .find((g) => g.group.id === groupId)
     if (!group) return
 
-    const w = Math.max(1, Math.min(12, Math.round(width)))
-    const h = Math.max(1, Math.min(12, Math.round(height)))
-    // Clamp x so the resized widget stays within the 12-col grid.
-    const x = Math.max(0, Math.min(12 - w, widget.x))
+    const cols = group.cols
+    const w = clampWidthToParent(Math.round(width), cols)
+    const h = Math.max(1, Math.min(48, Math.round(height)))
+    // Clamp x so the resized widget stays within the group's grid.
+    const x = clampXToParent(widget.x, w, cols)
 
     const others = group.widgets.filter((gw) => gw.node.id !== nodeId)
     const positioned: PositionedItem[] = [
@@ -309,6 +350,8 @@ export function useDashboardLayout() {
         flowStore.updateNodeDataAcrossFlows(r.id, { x: r.x, y: r.y })
       }
     }
+
+    growGroupIfNeeded(group.group, resolved)
   }
 
   /** Move a group to a new (x, y) within its page. Push-down on the
@@ -321,8 +364,9 @@ export function useDashboardLayout() {
     const g = page.groups.find((g) => g.group.id === groupId)
     if (!g) return
 
-    const targetW = g.width
-    const clampedX = Math.max(0, Math.min(12 - targetW, x))
+    const pageCols = page.cols
+    const targetW = clampWidthToParent(g.width, pageCols)
+    const clampedX = clampXToParent(x, targetW, pageCols)
     const clampedY = Math.max(0, y)
 
     const others = page.groups.filter((sib) => sib.group.id !== groupId)
@@ -365,9 +409,10 @@ export function useDashboardLayout() {
     const g = page.groups.find((g) => g.group.id === groupId)
     if (!g) return
 
-    const w = Math.max(1, Math.min(12, Math.round(width)))
+    const pageCols = page.cols
+    const w = clampWidthToParent(Math.round(width), pageCols)
     const h = Math.max(1, Math.min(100, Math.round(height)))
-    const clampedX = Math.max(0, Math.min(12 - w, g.x))
+    const clampedX = clampXToParent(g.x, w, pageCols)
 
     const others = page.groups.filter((sib) => sib.group.id !== groupId)
     const positioned: PositionedItem[] = [
@@ -400,6 +445,21 @@ export function useDashboardLayout() {
         patch.height = r.height
       }
       flowStore.updateConfig(r.id, { config: { ...(cfg.config ?? {}), ...patch } })
+    }
+  }
+
+  /** Grow the group's height to fit the bottom-most widget. Never
+   *  shrinks — the user authored the group height explicitly, only
+   *  growing avoids "this gap disappeared when I moved a widget out"
+   *  surprises. Called after every widget mutation. */
+  function growGroupIfNeeded(group: ConfigNode, widgets: PositionedItem[]) {
+    if (widgets.length === 0) return
+    const requiredHeight = Math.max(...widgets.map((w) => w.y + w.height))
+    const currentHeight = intProp(group.config, 'height', 6)
+    if (requiredHeight > currentHeight) {
+      flowStore.updateConfig(group.id, {
+        config: { ...(group.config ?? {}), height: requiredHeight },
+      })
     }
   }
 

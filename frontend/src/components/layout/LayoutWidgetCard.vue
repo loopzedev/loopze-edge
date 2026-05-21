@@ -7,7 +7,7 @@ import { setWidgetDragPayload, useResizeGesture, type ResizeDelta } from '@/comp
 import { useDashboardLayout } from '@/composables/useDashboardLayout'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
-import { effectiveHeight, effectiveWidth, effectiveX } from '@/nodes/dashboard/sizing'
+import { clampWidthToParent, clampXToParent, effectiveHeight, effectiveWidth, effectiveX } from '@/nodes/dashboard/sizing'
 
 const props = defineProps<{
   node: LoopzeNode
@@ -17,6 +17,9 @@ const props = defineProps<{
    *  may still carry the legacy value of 0 for unmigrated widgets,
    *  but the layout composable has computed the proper stacked y. */
   y: number
+  /** Parent group's column count, needed to clamp width/x during
+   *  render and pass to the resize-gesture math. */
+  parentCols: number
   disabled?: boolean
 }>()
 
@@ -28,10 +31,14 @@ const tokens = computed(() => getTokens(props.node.type))
 
 // Persisted size — resolved through the shared sizing helper so we
 // pick up per-type defaults for old workspaces and never see "0" at
-// the render layer.
-const persistedW = computed(() => effectiveWidth(props.node.type, props.node.config))
+// the render layer, then clamped to the parent group's column count.
+const persistedW = computed(() =>
+  clampWidthToParent(effectiveWidth(props.node.type, props.node.config), props.parentCols),
+)
 const persistedH = computed(() => effectiveHeight(props.node.type, props.node.config))
-const persistedX = computed(() => effectiveX(props.node.config))
+const persistedX = computed(() =>
+  clampXToParent(effectiveX(props.node.config), persistedW.value, props.parentCols),
+)
 // y is provided by the parent because it may be migrated from order.
 
 // Live preview overrides the persisted size while a resize gesture
@@ -45,7 +52,7 @@ const effectiveH = computed(() => previewH.value ?? persistedH.value)
 
 const cellStyle = computed(() => {
   const w = effectiveW.value
-  const x = Math.max(0, Math.min(12 - w, persistedX.value))
+  const x = clampXToParent(persistedX.value, w, props.parentCols)
   return {
     gridColumn: `${x + 1} / span ${w}`,
     gridRow: `${props.y + 1} / span ${effectiveH.value}`,
@@ -65,14 +72,25 @@ const sizeBadge = computed(() => `${effectiveW.value} × ${effectiveH.value || '
 
 function onDragStart(e: DragEvent) {
   if (props.disabled) return
-  setWidgetDragPayload(e, { nodeId: props.node.id, fromGroupId: props.fromGroupId })
-  // Add a body class so empty drop zones can light up without each
-  // group having to track its own drag state.
+  setWidgetDragPayload(e, {
+    nodeId: props.node.id,
+    fromGroupId: props.fromGroupId,
+    width: persistedW.value,
+    height: persistedH.value,
+  })
+  // Body-level state so groups can render an accurate footprint
+  // preview during dragover. dataTransfer.getData() returns ''
+  // during dragover for security reasons; this dataset is the
+  // workaround used by gridstack and react-grid-layout too.
   document.body.classList.add('layout-dragging')
+  document.body.dataset.loopzeDragW = String(persistedW.value)
+  document.body.dataset.loopzeDragH = String(persistedH.value)
 }
 
 function onDragEnd() {
   document.body.classList.remove('layout-dragging')
+  delete document.body.dataset.loopzeDragW
+  delete document.body.dataset.loopzeDragH
 }
 
 // ─── Resize (SE handle) ──────────────────────────────────────────────────
@@ -104,6 +122,7 @@ function onResizeStart(e: PointerEvent) {
       widgetEl: cardEl,
       startWidth: persistedW.value,
       startHeight: persistedH.value,
+      cols: props.parentCols,
     },
     e,
   )

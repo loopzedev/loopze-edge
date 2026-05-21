@@ -15,6 +15,7 @@ const name = ref('Page 1')
 const path = ref('')
 const icon = ref('')
 const layout = ref('grid')
+const cols = ref(12)
 const order = ref(0)
 
 const isEditing = ref(false)
@@ -35,6 +36,7 @@ onMounted(() => {
   if (typeof cfg.path === 'string') path.value = cfg.path
   if (typeof cfg.icon === 'string') icon.value = cfg.icon
   if (typeof cfg.layout === 'string') layout.value = cfg.layout
+  if (typeof cfg.cols === 'number' && cfg.cols > 0) cols.value = cfg.cols
   if (typeof cfg.order === 'number') order.value = cfg.order
 })
 
@@ -44,6 +46,7 @@ function save() {
     path: path.value,
     icon: icon.value,
     layout: layout.value,
+    cols: cols.value,
     order: order.value,
   }
   if (isEditing.value && props.configId) {
@@ -85,6 +88,15 @@ function cancel() {
 
       <FormField label="Layout">
         <FormSelect v-model="layout" :options="layouts" />
+      </FormField>
+
+      <FormField label="Columns (1–48)">
+        <NumberInput v-model="cols" :min="1" :max="48" />
+        <div class="text-[10px] text-terminal-text-dim leading-tight">
+          Total horizontal subdivisions of this page. Groups span a
+          number of these columns; each group's internal grid uses
+          its own width as its column count.
+        </div>
       </FormField>
 
       <FormField label="Sort order">

@@ -17,6 +17,8 @@ export interface LayoutPage {
   path: string
   icon: string
   layout: string
+  /** Column count of the page's grid. Default 12. */
+  cols: number
   order: number
 }
 

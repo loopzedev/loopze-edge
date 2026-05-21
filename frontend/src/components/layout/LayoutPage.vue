@@ -20,6 +20,55 @@ const groupCount = computed(() => props.layoutPage.groups.length)
 const pageGridEl = ref<HTMLElement | null>(null)
 const dropActive = ref(false)
 
+interface HoverPreview {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+const hoverPreview = ref<HoverPreview | null>(null)
+const dragRowsOverride = ref<number | null>(null)
+
+// Visible row count for the page grid:
+//   - normally the bottom of the last group + a 2-row buffer so the
+//     user can always drag below to extend
+//   - while dragging, expand further if the hover preview reaches
+//     past the current visible bottom
+const baseRowCount = computed(() => {
+  if (props.layoutPage.groups.length === 0) return 6
+  const maxBottom = Math.max(
+    ...props.layoutPage.groups.map((g) => g.y + g.height),
+  )
+  return Math.max(6, maxBottom + 2)
+})
+
+const gridRowCount = computed(() => {
+  if (dragRowsOverride.value !== null) {
+    return Math.max(baseRowCount.value, dragRowsOverride.value)
+  }
+  return baseRowCount.value
+})
+
+const backgroundCells = computed(() => {
+  if (!dropActive.value) return []
+  const cells: { x: number; y: number }[] = []
+  for (let y = 0; y < gridRowCount.value; y++) {
+    for (let x = 0; x < props.layoutPage.cols; x++) {
+      cells.push({ x, y })
+    }
+  }
+  return cells
+})
+
+function readDraggedGroupWidth(): number {
+  const v = parseInt(document.body.dataset.loopzeGroupDragW ?? '0', 10)
+  return v > 0 ? Math.min(props.layoutPage.cols, v) : Math.min(props.layoutPage.cols, 6)
+}
+function readDraggedGroupHeight(): number {
+  const v = parseInt(document.body.dataset.loopzeGroupDragH ?? '0', 10)
+  return v > 0 ? v : 6
+}
+
 function onPageDragOver(e: DragEvent) {
   if (props.disabled) return
   const types = e.dataTransfer?.types
@@ -27,17 +76,35 @@ function onPageDragOver(e: DragEvent) {
   e.preventDefault()
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dropActive.value = true
+
+  if (!pageGridEl.value) return
+  const cols = props.layoutPage.cols
+  const { x, y } = computeDropCell(pageGridEl.value, e.clientX, e.clientY, cols)
+  const w = readDraggedGroupWidth()
+  const h = readDraggedGroupHeight()
+  hoverPreview.value = {
+    x: Math.max(0, Math.min(cols - w, x)),
+    y,
+    width: w,
+    height: h,
+  }
+  const neededRows = y + h
+  dragRowsOverride.value = neededRows > baseRowCount.value ? neededRows + 1 : null
 }
 
 function onPageDragLeave(e: DragEvent) {
   const next = e.relatedTarget as HTMLElement | null
   if (!pageGridEl.value || !next || !pageGridEl.value.contains(next)) {
     dropActive.value = false
+    hoverPreview.value = null
+    dragRowsOverride.value = null
   }
 }
 
 function onPageDrop(e: DragEvent) {
   dropActive.value = false
+  hoverPreview.value = null
+  dragRowsOverride.value = null
   if (props.disabled) return
   const raw = e.dataTransfer?.getData('application/loopze-group')
   if (!raw) return
@@ -46,8 +113,12 @@ function onPageDrop(e: DragEvent) {
     if (payload.pageId !== props.layoutPage.page.id) return
     if (!pageGridEl.value) return
     e.preventDefault()
-    const { x, y } = computeDropCell(pageGridEl.value, e.clientX, e.clientY)
-    moveGroup(payload.groupId, x, y)
+    const cols = props.layoutPage.cols
+    const cell = computeDropCell(pageGridEl.value, e.clientX, e.clientY, cols)
+    // Clamp x so the group still fits horizontally.
+    const w = Math.min(cols, readDraggedGroupWidth())
+    const x = Math.max(0, Math.min(cols - w, cell.x))
+    moveGroup(payload.groupId, x, cell.y)
   } catch {
     // ignore malformed
   }
@@ -76,10 +147,40 @@ function onTitleDoubleClick() {
       ref="pageGridEl"
       class="layout-page-grid"
       :class="{ 'drop-active': dropActive }"
+      :style="{
+        gridTemplateColumns: `repeat(${layoutPage.cols}, 1fr)`,
+        /* minmax(50px, auto) so a group whose rendered height (header
+           + padding + widget tracks) exceeds 50 * height can grow its
+           cell instead of overflowing the page border. The minimum of
+           50 px keeps the drop affordance visible when the group is
+           sparse. */
+        gridTemplateRows: `repeat(${gridRowCount}, minmax(50px, auto))`,
+      }"
       @dragover="onPageDragOver"
       @dragleave="onPageDragLeave"
       @drop="onPageDrop"
     >
+      <!-- Drop-affordance grid (only during drag). -->
+      <div
+        v-for="cell in backgroundCells"
+        :key="`cell-${cell.x}-${cell.y}`"
+        class="drop-cell"
+        :style="{
+          gridColumn: `${cell.x + 1} / span 1`,
+          gridRow: `${cell.y + 1} / span 1`,
+        }"
+      />
+
+      <!-- Footprint preview at the pointer. -->
+      <div
+        v-if="hoverPreview"
+        class="drop-preview"
+        :style="{
+          gridColumn: `${hoverPreview.x + 1} / span ${hoverPreview.width}`,
+          gridRow: `${hoverPreview.y + 1} / span ${hoverPreview.height}`,
+        }"
+      />
+
       <LayoutGroup
         v-for="g in layoutPage.groups"
         :key="g.group.id"
@@ -121,15 +222,32 @@ function onTitleDoubleClick() {
 }
 .layout-page-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  /* Columns and rows are bound inline because both are data-driven
+     (page.cols + dynamic row count during drag). 50 px row unit
+     matches the dashboard SPA. */
   grid-auto-rows: 50px;
   gap: 0.5rem;
   position: relative;
 }
 .layout-page-grid.drop-active {
-  background: rgba(88, 166, 255, 0.05);
-  outline: 1px dashed rgba(88, 166, 255, 0.35);
-  outline-offset: -2px;
+  background: rgba(88, 166, 255, 0.03);
+}
+.drop-cell {
+  border: 1px dashed rgba(88, 166, 255, 0.22);
+  border-radius: 3px;
+  background: rgba(88, 166, 255, 0.015);
+  pointer-events: none;
+  z-index: 0;
+}
+.drop-preview {
+  border: 2px solid var(--color-accent, #58a6ff);
+  border-radius: 4px;
+  background: rgba(88, 166, 255, 0.18);
+  pointer-events: none;
+  z-index: 1;
+}
+.layout-group {
+  z-index: 2;
 }
 .empty {
   padding: 1rem;

@@ -18,10 +18,13 @@ import { ROW_UNIT_PX } from '@/nodes/dashboard/sizing'
 
 // ─── DnD payload helpers ────────────────────────────────────────────────────
 
-/** Serialised on dragstart, deserialised on drop. */
+/** Serialised on dragstart, deserialised on drop. w/h let the drop
+ *  target draw an accurate footprint preview while the user hovers. */
 export interface WidgetDragPayload {
   nodeId: string
   fromGroupId: string
+  width: number
+  height: number
 }
 
 const DRAG_MIME = 'application/loopze-widget'
@@ -51,18 +54,21 @@ export function readWidgetDragPayload(e: DragEvent): WidgetDragPayload | null {
 // ─── Grid-cell drop math ────────────────────────────────────────────────────
 
 /** Compute the (x, y) grid coordinate of a pointer position relative
- *  to a 12-column grid container with 50 px row units. Used by both
- *  widget-into-group drops and group-into-page drops. */
+ *  to a `cols`-column grid container with 50 px row units. Used by
+ *  both widget-into-group drops (cols = group's internal cols, i.e.
+ *  group.width) and group-into-page drops (cols = page.cols). */
 export function computeDropCell(
   gridEl: HTMLElement,
   clientX: number,
   clientY: number,
+  cols: number,
 ): { x: number; y: number } {
+  const safeCols = Math.max(1, Math.round(cols))
   const rect = gridEl.getBoundingClientRect()
-  const colWidth = rect.width / 12
+  const colWidth = rect.width / safeCols
   const relX = Math.max(0, clientX - rect.left)
   const relY = Math.max(0, clientY - rect.top)
-  const x = Math.max(0, Math.min(11, Math.floor(relX / Math.max(1, colWidth))))
+  const x = Math.max(0, Math.min(safeCols - 1, Math.floor(relX / Math.max(1, colWidth))))
   const y = Math.max(0, Math.floor(relY / ROW_UNIT_PX))
   return { x, y }
 }
@@ -77,6 +83,8 @@ export interface ResizeStart {
   /** Widget's initial width/height (in grid units). */
   startWidth: number
   startHeight: number
+  /** Number of columns in the grid the widget belongs to. */
+  cols: number
 }
 
 export interface ResizeDelta {
@@ -92,8 +100,9 @@ export function computeResize(
   dx: number,
   dy: number,
 ): ResizeDelta {
+  const safeCols = Math.max(1, Math.round(start.cols))
   const groupRect = start.groupEl.getBoundingClientRect()
-  const colWidth = groupRect.width / 12
+  const colWidth = groupRect.width / safeCols
   // Single source of truth for the row unit — same value used by the
   // CSS grid-auto-rows declaration in both the Layout View and the
   // Dashboard SPA. See frontend/src/nodes/dashboard/sizing.ts.
@@ -102,11 +111,8 @@ export function computeResize(
   const widthDelta = Math.round(dx / colWidth)
   const heightDelta = Math.round(dy / rowHeight)
 
-  const w = Math.max(1, Math.min(12, start.startWidth + widthDelta))
-  // height=0 in the data model means "content-driven" — during a
-  // resize gesture we treat the user's intent as explicit, so the
-  // floor is 1.
-  const h = Math.max(1, Math.min(12, start.startHeight + heightDelta))
+  const w = Math.max(1, Math.min(safeCols, start.startWidth + widthDelta))
+  const h = Math.max(1, Math.min(48, start.startHeight + heightDelta))
   return { width: w, height: h }
 }
 

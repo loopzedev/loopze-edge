@@ -122,30 +122,40 @@ const accent = computed(() => layout.value?.base?.accentColor ?? '#58a6ff')
 const reconnecting = computed(() => wsState.value !== 'open' && wsDownMs.value > 2000)
 const hasBase = computed(() => Boolean(layout.value?.base))
 
-// Per-widget grid-area style — explicit (x, y, w, h) coordinates.
-// The backend layout builder already migrated legacy widgets without
-// x/y to stacked positions (see internal/dashboard/layout.go
-// migrateWidgetPositions), so by the time we render here every
-// widget has a valid x/y/w/h tuple.
-function widgetStyle(widget: LayoutWidget): Record<string, string> {
-  const w = widget.width > 0 ? Math.min(12, widget.width) : 12
-  const h = widget.height > 0 ? Math.min(12, widget.height) : 1
-  const x = Math.max(0, Math.min(12 - w, widget.x))
+// Per-widget grid-area style — explicit (x, y, w, h) coordinates,
+// clamped to the parent group's column count so a widget that was
+// authored wide and then placed into a narrow group still renders
+// sensibly.
+function widgetStyle(widget: LayoutWidget, groupCols: number): Record<string, string> {
+  const cols = Math.max(1, groupCols)
+  const w = widget.width > 0 ? Math.min(cols, widget.width) : cols
+  const h = widget.height > 0 ? Math.min(48, widget.height) : 1
+  const x = Math.max(0, Math.min(cols - w, widget.x))
   return {
     gridColumn: `${x + 1} / span ${w}`,
     gridRow: `${widget.y + 1} / span ${h}`,
   }
 }
 
-// Per-group style on the page grid — same idea, explicit (x, y, w, h).
-function groupStyle(group: { x: number; y: number; width: number; height: number }): Record<string, string> {
-  const w = Math.max(1, Math.min(12, group.width || 12))
-  const x = Math.max(0, Math.min(12 - w, group.x))
+// Per-group style on the page grid — same idea but in page-cols.
+function groupStyle(
+  group: { x: number; y: number; width: number; height: number },
+  pageCols: number,
+): Record<string, string> {
+  const cols = Math.max(1, pageCols)
+  const w = Math.max(1, Math.min(cols, group.width || cols))
+  const x = Math.max(0, Math.min(cols - w, group.x))
   const h = Math.max(1, group.height || 6)
   return {
     gridColumn: `${x + 1} / span ${w}`,
     gridRow: `${group.y + 1} / span ${h}`,
   }
+}
+
+// A group's internal column count: explicit width when set, else
+// inherits the page's column count (mirrors backend logic).
+function groupInternalCols(group: { width: number }, pageCols: number): number {
+  return group.width > 0 ? Math.min(pageCols, group.width) : pageCols
 }
 </script>
 
@@ -181,7 +191,10 @@ function groupStyle(group: { x: number; y: number; width: number; height: number
       <template v-else>
         <section v-for="page in pagesSorted" :key="page.id" class="page">
           <h2 class="page-title">{{ page.name }}</h2>
-          <div class="groups">
+          <div
+            class="groups"
+            :style="{ gridTemplateColumns: `repeat(${page.cols || 12}, 1fr)` }"
+          >
             <template v-if="groupsForPage(page.id).length === 0">
               <p class="muted">(no groups on this page)</p>
             </template>
@@ -189,12 +202,18 @@ function groupStyle(group: { x: number; y: number; width: number; height: number
               v-for="group in groupsForPage(page.id)"
               :key="group.id"
               class="group"
-              :style="groupStyle(group)"
+              :style="groupStyle(group, page.cols || 12)"
             >
               <h3 class="group-title">{{ group.name }}</h3>
-              <div class="widgets">
+              <div
+                class="widgets"
+                :style="{ gridTemplateColumns: `repeat(${groupInternalCols(group, page.cols || 12)}, 1fr)` }"
+              >
                 <template v-for="widget in widgetsForGroup(group.id)" :key="widget.id">
-                  <div class="widget-cell" :style="widgetStyle(widget)">
+                  <div
+                    class="widget-cell"
+                    :style="widgetStyle(widget, groupInternalCols(group, page.cols || 12))"
+                  >
                     <component
                       v-if="componentFor(widget.type)"
                       :is="componentFor(widget.type)"
@@ -289,8 +308,11 @@ function groupStyle(group: { x: number; y: number; width: number; height: number
 }
 .groups {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  grid-auto-rows: 50px;
+  /* grid-template-columns is bound inline because page.cols is
+     data-driven. minmax(50px, auto) for implicit rows so group cells
+     grow to fit their content (header + padding + inner widget grid)
+     instead of forcing the group to overflow the cell border. */
+  grid-auto-rows: minmax(50px, auto);
   gap: 0.5rem;
 }
 .group {
@@ -309,12 +331,11 @@ function groupStyle(group: { x: number; y: number; width: number; height: number
 }
 .widgets {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  /* 50 px fixed row units — single source of truth shared with the
-     editor's Layout View (frontend/src/nodes/dashboard/sizing.ts).
-     Auto / minmax was tempting for "let content decide" but produces
-     surprising heights when items span multiple tracks. */
-  grid-auto-rows: 50px;
+  /* grid-template-columns is bound inline because the group's
+     internal column count is data-driven. minmax(50px, auto) for
+     implicit rows so widget tracks grow to fit content (e.g. long
+     text or JSON) instead of clipping. */
+  grid-auto-rows: minmax(50px, auto);
   gap: 0.5rem;
 }
 .widget-cell {

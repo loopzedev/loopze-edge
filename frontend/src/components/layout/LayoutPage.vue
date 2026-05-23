@@ -19,6 +19,13 @@ const groupCount = computed(() => props.layoutPage.groups.length)
 
 const pageGridEl = ref<HTMLElement | null>(null)
 const dropActive = ref(false)
+// Counts the groups whose resize gesture is currently active. Lets
+// the page show its drop-cell scaffolding during a resize too — the
+// user gets the same visual reference grid as during a group move.
+const resizingGroupsCount = ref(0)
+const gridScaffoldVisible = computed(
+  () => dropActive.value || resizingGroupsCount.value > 0,
+)
 
 interface HoverPreview {
   x: number
@@ -49,12 +56,14 @@ const gridRowCount = computed(() => {
   return baseRowCount.value
 })
 
-// Always visible — faint when idle so the operator sees the grid as
-// authoring scaffolding, stronger during drag (via .drop-active on
-// the parent). Empty if the editor is locked (e.g. dirty workspace)
-// so the read-only view stays clean.
+// Drop-affordance cells: rendered while either a group is being
+// dragged across the page or a group is being resized — both
+// gestures benefit from seeing the reference grid. Idle keeps the
+// surface clean to match LayoutGroup's behaviour and avoid
+// row-track ballooning with the minmax(50px, auto) sizing.
 const backgroundCells = computed(() => {
   if (props.disabled) return []
+  if (!gridScaffoldVisible.value) return []
   const cells: { x: number; y: number }[] = []
   for (let y = 0; y < gridRowCount.value; y++) {
     for (let x = 0; x < props.layoutPage.cols; x++) {
@@ -63,6 +72,13 @@ const backgroundCells = computed(() => {
   }
   return cells
 })
+
+function onGroupResizeActive(active: boolean) {
+  resizingGroupsCount.value = Math.max(
+    0,
+    resizingGroupsCount.value + (active ? 1 : -1),
+  )
+}
 
 function readDraggedGroupWidth(): number {
   const v = parseInt(document.body.dataset.loopzeGroupDragW ?? '0', 10)
@@ -150,15 +166,14 @@ function onTitleDoubleClick() {
       v-else
       ref="pageGridEl"
       class="layout-page-grid"
-      :class="{ 'drop-active': dropActive }"
+      :class="{ 'drop-active': gridScaffoldVisible }"
       :style="{
         gridTemplateColumns: `repeat(${layoutPage.cols}, 1fr)`,
-        /* Fixed 50 px row units. Earlier minmax(50px, auto) variant
-           let a single tall group balloon its row tracks and dragged
-           the empty neighbouring drop-cells along with it — visually
-           the whole grid scaled up during drag. The group's own
-           overflow is handled inside <LayoutGroup>. */
-        gridTemplateRows: `repeat(${gridRowCount}, 50px)`,
+        /* minmax(50px, auto) matches the dashboard SPA (single
+           source of truth for WYSIWYG). Idle drop-cells are gone,
+           so the ballooning-during-drag issue that motivated the
+           earlier fix-50px variant no longer applies. */
+        gridTemplateRows: `repeat(${gridRowCount}, minmax(50px, auto))`,
       }"
       @dragover="onPageDragOver"
       @dragleave="onPageDragLeave"
@@ -192,6 +207,7 @@ function onTitleDoubleClick() {
         :page-id="layoutPage.page.id"
         :page-cols="layoutPage.cols"
         :disabled="disabled"
+        @resize-active="onGroupResizeActive"
       />
     </div>
   </section>
@@ -227,10 +243,11 @@ function onTitleDoubleClick() {
 }
 .layout-page-grid {
   display: grid;
-  /* Columns and rows are bound inline because both are data-driven
-     (page.cols + dynamic row count during drag). 50 px row unit
-     matches the dashboard SPA. */
-  grid-auto-rows: 50px;
+  /* Columns and explicit rows are bound inline because both are
+     data-driven (page.cols + dynamic row count during drag). The
+     implicit row size below catches items placed past the explicit
+     range; minmax(50px, auto) matches the dashboard SPA. */
+  grid-auto-rows: minmax(50px, auto);
   gap: 0.5rem;
   position: relative;
 }
@@ -238,19 +255,14 @@ function onTitleDoubleClick() {
   background: rgba(88, 166, 255, 0.03);
 }
 .drop-cell {
-  /* Idle: very subtle border in the neutral terminal-border tone so
-     the grid reads as faint authoring scaffolding rather than a
-     drop affordance. Stronger accent appearance gets applied when
-     a drag is active via .drop-active below. */
-  border: 1px dashed rgba(125, 133, 144, 0.18);
+  /* Rendered only while a group drag is active (see
+     backgroundCells computed). Same accent treatment as the
+     group-level drop cells in LayoutGroup. */
+  border: 1px dashed rgba(88, 166, 255, 0.25);
   border-radius: 3px;
+  background: rgba(88, 166, 255, 0.02);
   pointer-events: none;
   z-index: 0;
-  transition: border-color 0.1s, background-color 0.1s;
-}
-.layout-page-grid.drop-active .drop-cell {
-  border-color: rgba(88, 166, 255, 0.25);
-  background: rgba(88, 166, 255, 0.02);
 }
 .drop-preview {
   border: 2px solid var(--color-accent, #58a6ff);

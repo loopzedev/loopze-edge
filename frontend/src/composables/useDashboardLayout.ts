@@ -17,6 +17,7 @@ import type { ConfigNode, Node as LoopzeNode } from '@/types/flow'
 import { getCategory } from '@/nodes'
 import {
   DEFAULT_PAGE_COLS,
+  MAX_ROW_SPAN,
   clampWidthToParent,
   clampXToParent,
   effectiveCols,
@@ -207,7 +208,7 @@ export function useDashboardLayout() {
           x,
           y: effectiveY(g.config),
           width: w,
-          height: Math.max(1, Math.min(100, intProp(g.config, 'height', 6))),
+          height: Math.max(1, Math.min(MAX_ROW_SPAN, intProp(g.config, 'height', 6))),
           order: intProp(g.config, 'order', 0),
         }
       })
@@ -313,7 +314,7 @@ export function useDashboardLayout() {
 
     const cols = group.cols
     const w = clampWidthToParent(Math.round(width), cols)
-    const h = Math.max(1, Math.min(48, Math.round(height)))
+    const h = Math.max(1, Math.min(MAX_ROW_SPAN, Math.round(height)))
     // Clamp x so the resized widget stays within the group's grid.
     const x = clampXToParent(widget.x, w, cols)
 
@@ -400,7 +401,11 @@ export function useDashboardLayout() {
     }
   }
 
-  /** Resize a group. Same push-down rules as moveGroup. */
+  /** Resize a group. Same push-down rules as moveGroup. The width
+   *  and height are floored to the bounding box of the group's
+   *  widgets so the group can never shrink past its own contents —
+   *  the resize gesture mirrors the same rule, this is just the
+   *  defense-in-depth equivalent for programmatic callers. */
   function resizeGroup(groupId: string, width: number, height: number): void {
     const page = tree.value.pages.find((p) =>
       p.groups.some((g) => g.group.id === groupId),
@@ -409,9 +414,13 @@ export function useDashboardLayout() {
     const g = page.groups.find((g) => g.group.id === groupId)
     if (!g) return
 
+    const minWidth = g.widgets.reduce((m, w) => Math.max(m, w.x + w.width), 1)
+    const minHeight = g.widgets.reduce((m, w) => Math.max(m, w.y + w.height), 1)
+
     const pageCols = page.cols
-    const w = clampWidthToParent(Math.round(width), pageCols)
-    const h = Math.max(1, Math.min(100, Math.round(height)))
+    const requestedW = clampWidthToParent(Math.round(width), pageCols)
+    const w = Math.max(minWidth, requestedW)
+    const h = Math.max(minHeight, Math.min(MAX_ROW_SPAN, Math.round(height)))
     const clampedX = clampXToParent(g.x, w, pageCols)
 
     const others = page.groups.filter((sib) => sib.group.id !== groupId)
@@ -445,68 +454,6 @@ export function useDashboardLayout() {
         patch.height = r.height
       }
       flowStore.updateConfig(r.id, { config: { ...(cfg.config ?? {}), ...patch } })
-    }
-
-    // Auto-fit the resized group's child widgets to the new internal
-    // column count. Widgets that still fit are untouched; widgets
-    // that overflow get their x/width clamped, then a push-down pass
-    // resolves any overlap the clamping introduced.
-    fitWidgetsToGroup(g, w)
-  }
-
-  /** Iterate a group's child widgets and clamp width/x to fit the
-   *  group's (possibly new) internal column count. Untouched widgets
-   *  pay no cost. When at least one widget had to change, run a
-   *  push-down pass to fix the overlaps the clamp may have created.
-   *  Picks the lowest (smallest y, then smallest x) untouched widget
-   *  as the anchor — it stays put, the rest re-pack around it.
-   */
-  function fitWidgetsToGroup(
-    g: LayoutGroup,
-    newCols: number,
-  ): void {
-    if (g.widgets.length === 0) return
-    let anyChanged = false
-    const clamped: PositionedItem[] = g.widgets.map((w) => {
-      const newW = clampWidthToParent(w.width, newCols)
-      const newX = clampXToParent(w.x, newW, newCols)
-      const changed = newW !== w.width || newX !== w.x
-      if (changed) anyChanged = true
-      return {
-        id: w.node.id,
-        hasY: true,
-        x: newX,
-        y: w.y,
-        width: newW,
-        height: w.height,
-        order: intProp(w.node.config, 'order', 0),
-      }
-    })
-    if (!anyChanged) return
-
-    // Pick the topmost-leftmost widget that did NOT get clamped as
-    // the anchor — it deserves to stay put. If everything was
-    // clamped (rare), just pick the topmost-leftmost overall.
-    const original = new Map(g.widgets.map((w) => [w.node.id, w]))
-    const untouched = clamped.filter((c) => {
-      const o = original.get(c.id)!
-      return o.width === c.width && o.x === c.x
-    })
-    const anchorPool = untouched.length > 0 ? untouched : clamped
-    const anchor = [...anchorPool].sort(
-      (a, b) => (a.y - b.y) || (a.x - b.x) || a.id.localeCompare(b.id),
-    )[0]
-
-    const resolved = resolveCollisions(clamped, anchor.id)
-
-    for (const r of resolved) {
-      const o = original.get(r.id)!
-      if (r.x === o.x && r.y === o.y && r.width === o.width) continue
-      flowStore.updateNodeDataAcrossFlows(r.id, {
-        x: r.x,
-        y: r.y,
-        width: r.width,
-      })
     }
   }
 

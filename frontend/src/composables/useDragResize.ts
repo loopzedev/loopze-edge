@@ -14,7 +14,7 @@
 // Grid math is encapsulated so the components stay declarative.
 
 import { onBeforeUnmount, ref } from 'vue'
-import { ROW_UNIT_PX } from '@/nodes/dashboard/sizing'
+import { MAX_ROW_SPAN, ROW_UNIT_PX } from '@/nodes/dashboard/sizing'
 
 // ─── DnD payload helpers ────────────────────────────────────────────────────
 
@@ -85,6 +85,13 @@ export interface ResizeStart {
   startHeight: number
   /** Number of columns in the grid the widget belongs to. */
   cols: number
+  /** Lower bound for the resized item, in grid units. Defaults to 1
+   *  for both axes. The group-resize gesture passes the bounding box
+   *  of the group's widgets so the user cannot shrink a group below
+   *  the footprint actually occupied — the gesture feels "blocked"
+   *  symmetrically on both axes. */
+  minWidth?: number
+  minHeight?: number
 }
 
 export interface ResizeDelta {
@@ -101,6 +108,8 @@ export function computeResize(
   dy: number,
 ): ResizeDelta {
   const safeCols = Math.max(1, Math.round(start.cols))
+  const minW = Math.max(1, start.minWidth ?? 1)
+  const minH = Math.max(1, start.minHeight ?? 1)
   const groupRect = start.groupEl.getBoundingClientRect()
   const colWidth = groupRect.width / safeCols
   // Single source of truth for the row unit — same value used by the
@@ -111,8 +120,8 @@ export function computeResize(
   const widthDelta = Math.round(dx / colWidth)
   const heightDelta = Math.round(dy / rowHeight)
 
-  const w = Math.max(1, Math.min(safeCols, start.startWidth + widthDelta))
-  const h = Math.max(1, Math.min(48, start.startHeight + heightDelta))
+  const w = Math.max(minW, Math.min(safeCols, start.startWidth + widthDelta))
+  const h = Math.max(minH, Math.min(MAX_ROW_SPAN, start.startHeight + heightDelta))
   return { width: w, height: h }
 }
 

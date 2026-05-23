@@ -35,6 +35,15 @@ export const ROW_UNIT_PX = 50
 /** Default column count for a page when not configured. */
 export const DEFAULT_PAGE_COLS = 12
 
+/** Maximum row-unit span for any item (widget or group). Single
+ *  source of truth shared by the read-path clamps in `sizing.ts`,
+ *  the resize gesture in `useDragResize.ts`, and the mutation clamps
+ *  in `useDashboardLayout.ts`. Mismatching caps caused a silent
+ *  height-truncation bug where a widget resized to >12 would render
+ *  back at 12 because effectiveHeight clamped tighter than the
+ *  resize gesture did. */
+export const MAX_ROW_SPAN = 48
+
 /** Read the column count from a page or group config, clamped to a
  *  sensible range. `0` and missing both fall back to `defaultCols`. */
 export function effectiveCols(
@@ -89,17 +98,19 @@ export function effectiveWidth(
   return def === 0 ? 12 : clamp(def, 1, 12)
 }
 
-/** Resolve the effective row-unit span (1..12) for a widget. Old
- *  height=0 values fall back to the type default. */
+/** Resolve the effective row-unit span for a widget. Old height=0
+ *  values fall back to the type default. Upper bound matches
+ *  MAX_ROW_SPAN so a widget the user resized large reads back at the
+ *  same height it was persisted at. */
 export function effectiveHeight(
   widgetType: string,
   cfg: Record<string, unknown> | undefined,
 ): number {
   const raw = cfg?.height
   if (typeof raw === 'number' && raw > 0) {
-    return clamp(Math.round(raw), 1, 12)
+    return clamp(Math.round(raw), 1, MAX_ROW_SPAN)
   }
-  return clamp(defaultSize(widgetType).height, 1, 12)
+  return clamp(defaultSize(widgetType).height, 1, MAX_ROW_SPAN)
 }
 
 function clamp(v: number, lo: number, hi: number): number {

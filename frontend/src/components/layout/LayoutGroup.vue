@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { LayoutGroup as LayoutGroupT } from '@/composables/useDashboardLayout'
 import { useDashboardLayout } from '@/composables/useDashboardLayout'
 import {
@@ -10,6 +10,7 @@ import {
   type ResizeDelta,
 } from '@/composables/useDragResize'
 import { useUiStore } from '@/stores/uiStore'
+import { MAX_ROW_SPAN } from '@/nodes/dashboard/sizing'
 import LayoutWidgetCard from './LayoutWidgetCard.vue'
 
 const props = defineProps<{
@@ -21,6 +22,13 @@ const props = defineProps<{
   /** Parent page's column count — needed for the pointer-resize math
    *  so the group snaps to page-grid columns. */
   pageCols: number
+}>()
+
+// Surface the resize-gesture state so the parent page can mirror the
+// drop-cell scaffolding it already shows during group moves. The
+// gesture's own `active` ref drives this — no manual book-keeping.
+const emit = defineEmits<{
+  'resize-active': [active: boolean]
 }>()
 
 const ui = useUiStore()
@@ -80,6 +88,18 @@ const backgroundCells = computed(() => {
 // immediate visual feedback. Commit happens on pointerup.
 const previewW = ref<number | null>(null)
 const previewH = ref<number | null>(null)
+
+// Frozen pixel-width track template captured at gesture start. The
+// inner grid normally uses 1fr tracks, which would compress as the
+// outer cell shrinks during the drag and visually scale the widgets
+// with it. Freezing the computed pixel widths keeps each widget's
+// visible size constant while the gesture is active; overflow:hidden
+// on .layout-group.resizing clips anything that extends past the
+// preview footprint. Mirrors the height-axis behaviour.
+const previewTrackTemplate = ref<string | null>(null)
+const gridTemplateColumns = computed(() =>
+  previewTrackTemplate.value ?? `repeat(${props.layoutGroup.cols}, 1fr)`,
+)
 const groupStyle = computed(() => {
   const w = Math.max(1, previewW.value ?? props.layoutGroup.width)
   const x = Math.max(0, props.layoutGroup.x)
@@ -143,7 +163,7 @@ function readDraggedWidth(): number {
 }
 function readDraggedHeight(): number {
   const v = parseInt(document.body.dataset.loopzeDragH ?? '0', 10)
-  return v > 0 ? Math.min(48, v) : 1
+  return v > 0 ? Math.min(MAX_ROW_SPAN, v) : 1
 }
 
 function onDragLeave(e: DragEvent) {
@@ -222,19 +242,43 @@ const { active: resizing, start: startResize } = useResizeGesture({
   onCommit(delta: ResizeDelta) {
     previewW.value = null
     previewH.value = null
+    previewTrackTemplate.value = null
     resizeGroup(props.layoutGroup.group.id, delta.width, delta.height)
   },
   onCancel() {
     previewW.value = null
     previewH.value = null
+    previewTrackTemplate.value = null
   },
 })
+
+watch(resizing, (active) => emit('resize-active', active))
 
 function onResizeStart(e: PointerEvent) {
   if (props.disabled) return
   const groupEl = (e.currentTarget as HTMLElement).closest<HTMLElement>('.layout-group')
   const pageEl = groupEl?.closest<HTMLElement>('.layout-page-grid')
   if (!groupEl || !pageEl) return
+
+  // Snapshot the inner grid's resolved column tracks (in pixels) so
+  // they don't compress as the outer cell shrinks during the drag.
+  // Without this, the 1fr tracks would re-flow with the preview
+  // width and visually scale every widget along with the group.
+  if (groupGridEl.value) {
+    previewTrackTemplate.value = window.getComputedStyle(groupGridEl.value).gridTemplateColumns
+  }
+
+  // Bounding box of every widget inside this group. Used as the
+  // gesture's lower bound so a user can shrink the group only down
+  // to the footprint actually occupied — feels symmetric on both
+  // axes (the height block was already implicit; width matches now).
+  const minWidth = props.layoutGroup.widgets.reduce(
+    (m, w) => Math.max(m, w.x + w.width), 1,
+  )
+  const minHeight = props.layoutGroup.widgets.reduce(
+    (m, w) => Math.max(m, w.y + w.height), 1,
+  )
+
   startResize(
     {
       // Use the page-grid as the metric source so the column width
@@ -244,6 +288,8 @@ function onResizeStart(e: PointerEvent) {
       startWidth: props.layoutGroup.width,
       startHeight: props.layoutGroup.height,
       cols: props.pageCols,
+      minWidth,
+      minHeight,
     },
     e,
   )
@@ -285,7 +331,7 @@ void setWidgetDragPayload
       class="layout-group-grid"
       :class="{ 'drop-active': dropActive }"
       :style="{
-        gridTemplateColumns: `repeat(${layoutGroup.cols}, 1fr)`,
+        gridTemplateColumns,
         /* minmax(50px, auto) so a row track grows when a widget's
            natural content exceeds 50 px (long text, json view).
            Without this the widget visually overflows the group. */
@@ -430,12 +476,11 @@ void setWidgetDragPayload
   flex: 1 1 auto;
   padding: 0.65rem;
   display: grid;
-  /* grid-template-columns and grid-template-rows are bound inline
-     because both depend on the group's data (cols field + dynamic
-     row count during drag). 50 px row unit matches the dashboard
-     SPA + the ROW_UNIT_PX export in
+  /* Explicit tracks are bound inline (data-driven). The implicit
+     row size matches the dashboard SPA (`minmax(50px, auto)`). The
+     50px figure is the ROW_UNIT_PX export in
      frontend/src/nodes/dashboard/sizing.ts. */
-  grid-auto-rows: 50px;
+  grid-auto-rows: minmax(50px, auto);
   gap: 0.5rem;
   transition: background-color 0.1s;
   position: relative;

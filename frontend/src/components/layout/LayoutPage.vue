@@ -56,14 +56,14 @@ const gridRowCount = computed(() => {
   return baseRowCount.value
 })
 
-// Drop-affordance cells: rendered while either a group is being
-// dragged across the page or a group is being resized — both
-// gestures benefit from seeing the reference grid. Idle keeps the
-// surface clean to match LayoutGroup's behaviour and avoid
-// row-track ballooning with the minmax(50px, auto) sizing.
+// Drop-affordance cells: always rendered (except when disabled).
+// Faint in idle so the operator sees the authoring grid as
+// persistent scaffolding; accented during drag/resize via the
+// .drop-active class on the parent. Requires fixed 50px row tracks
+// (see gridTemplateRows below) so a tall group can't balloon empty
+// cells in its row alongside it.
 const backgroundCells = computed(() => {
   if (props.disabled) return []
-  if (!gridScaffoldVisible.value) return []
   const cells: { x: number; y: number }[] = []
   for (let y = 0; y < gridRowCount.value; y++) {
     for (let x = 0; x < props.layoutPage.cols; x++) {
@@ -169,10 +169,14 @@ function onTitleDoubleClick() {
       :class="{ 'drop-active': gridScaffoldVisible }"
       :style="{
         gridTemplateColumns: `repeat(${layoutPage.cols}, 1fr)`,
-        /* minmax(50px, auto) matches the dashboard SPA (single
-           source of truth for WYSIWYG). Idle drop-cells are gone,
-           so the ballooning-during-drag issue that motivated the
-           earlier fix-50px variant no longer applies. */
+        /* minmax(50px, auto) matches the dashboard SPA. Required so
+           each group cell can absorb its own header + padding on
+           top of h*50px for the widget rows; otherwise the inner
+           content overflows the cell by exactly that overhead
+           (~1 row) and the bottom-most widget escapes the group.
+           Drop-cells in a row shared with a content-tall group
+           grow with it — acceptable since the row genuinely is
+           that tall. */
         gridTemplateRows: `repeat(${gridRowCount}, minmax(50px, auto))`,
       }"
       @dragover="onPageDragOver"
@@ -245,8 +249,9 @@ function onTitleDoubleClick() {
   display: grid;
   /* Columns and explicit rows are bound inline because both are
      data-driven (page.cols + dynamic row count during drag). The
-     implicit row size below catches items placed past the explicit
-     range; minmax(50px, auto) matches the dashboard SPA. */
+     implicit row size matches the explicit minmax(50px, auto)
+     tracks so an item dropped past the explicit range stays on the
+     same scale. */
   grid-auto-rows: minmax(50px, auto);
   gap: 0.5rem;
   position: relative;
@@ -255,14 +260,19 @@ function onTitleDoubleClick() {
   background: rgba(88, 166, 255, 0.03);
 }
 .drop-cell {
-  /* Rendered only while a group drag is active (see
-     backgroundCells computed). Same accent treatment as the
-     group-level drop cells in LayoutGroup. */
-  border: 1px dashed rgba(88, 166, 255, 0.25);
+  /* Always rendered. Idle = very faint neutral border so the grid
+     reads as authoring scaffolding without competing with the
+     widgets. Accent + tinted background kicks in under .drop-active
+     while a group is being dragged or resized. */
+  border: 1px dashed rgba(125, 133, 144, 0.18);
   border-radius: 3px;
-  background: rgba(88, 166, 255, 0.02);
   pointer-events: none;
   z-index: 0;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.layout-page-grid.drop-active .drop-cell {
+  border-color: rgba(88, 166, 255, 0.25);
+  background: rgba(88, 166, 255, 0.02);
 }
 .drop-preview {
   border: 2px solid var(--color-accent, #58a6ff);

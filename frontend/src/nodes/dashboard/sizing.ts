@@ -39,10 +39,19 @@ export const DEFAULT_PAGE_COLS = 12
  *  source of truth shared by the read-path clamps in `sizing.ts`,
  *  the resize gesture in `useDragResize.ts`, and the mutation clamps
  *  in `useDashboardLayout.ts`. Mismatching caps caused a silent
- *  height-truncation bug where a widget resized to >12 would render
- *  back at 12 because effectiveHeight clamped tighter than the
- *  resize gesture did. */
+ *  height-truncation bug where a widget resized large would render
+ *  back at the lower cap because effectiveHeight clamped tighter
+ *  than the resize gesture did. */
 export const MAX_ROW_SPAN = 48
+
+/** Maximum column span for any item — used as the safety ceiling
+ *  in the read-path clamps (`effectiveCols`, `effectiveWidth`,
+ *  `effectiveX`). The actual usable width per item is narrowed by
+ *  the caller's `clampWidthToParent` / `clampXToParent` to the
+ *  parent's `cols`. Keeping this generous lets pages with >12 cols
+ *  (the previous hardcoded limit) work without losing config
+ *  values on read. */
+export const MAX_COL_SPAN = 48
 
 /** Read the column count from a page or group config, clamped to a
  *  sensible range. `0` and missing both fall back to `defaultCols`. */
@@ -52,9 +61,9 @@ export function effectiveCols(
 ): number {
   const raw = cfg?.cols
   if (typeof raw === 'number' && raw > 0) {
-    return clamp(Math.round(raw), 1, 48)
+    return clamp(Math.round(raw), 1, MAX_COL_SPAN)
   }
-  return clamp(defaultCols, 1, 48)
+  return clamp(defaultCols, 1, MAX_COL_SPAN)
 }
 
 /** Clamp a widget's width to its parent group's column count. Honors
@@ -84,18 +93,21 @@ export function defaultSize(widgetType: string): WidgetSizeDefault {
   return DEFAULTS[widgetType] ?? FALLBACK
 }
 
-/** Resolve the effective column span (1..12) for a widget. width=0
- *  in the config means "full row" → returns 12. */
+/** Resolve the effective column span for a widget. width=0 in the
+ *  config (or as the type default) means "full row" — represented
+ *  here as MAX_COL_SPAN so the caller's `clampWidthToParent` can
+ *  narrow it to the actual parent.cols. The cap is intentionally
+ *  generous so pages configured with cols>12 don't truncate. */
 export function effectiveWidth(
   widgetType: string,
   cfg: Record<string, unknown> | undefined,
 ): number {
   const raw = cfg?.width
   if (typeof raw === 'number' && raw > 0) {
-    return clamp(Math.round(raw), 1, 12)
+    return clamp(Math.round(raw), 1, MAX_COL_SPAN)
   }
   const def = defaultSize(widgetType).width
-  return def === 0 ? 12 : clamp(def, 1, 12)
+  return def === 0 ? MAX_COL_SPAN : clamp(def, 1, MAX_COL_SPAN)
 }
 
 /** Resolve the effective row-unit span for a widget. Old height=0
@@ -119,10 +131,12 @@ function clamp(v: number, lo: number, hi: number): number {
   return v
 }
 
-/** Resolve the effective x (0–11). Defaults to 0 if missing. */
+/** Resolve the effective x. Defaults to 0 if missing. The upper
+ *  bound is MAX_COL_SPAN-1; the caller's `clampXToParent` enforces
+ *  the actual per-parent column boundary. */
 export function effectiveX(cfg: Record<string, unknown> | undefined): number {
   const raw = cfg?.x
-  if (typeof raw === 'number' && raw >= 0) return clamp(Math.round(raw), 0, 11)
+  if (typeof raw === 'number' && raw >= 0) return clamp(Math.round(raw), 0, MAX_COL_SPAN - 1)
   return 0
 }
 

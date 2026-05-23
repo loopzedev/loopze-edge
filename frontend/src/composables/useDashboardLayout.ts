@@ -216,14 +216,25 @@ export function useDashboardLayout() {
       const byId = new Map(migratedGroups.map((m) => [m.id, m]))
       const groupsOut: LayoutGroup[] = pageGroups.map((g) => {
         const m = byId.get(g.id)!
+        const widgets = migratedByGroup.get(g.id) ?? []
+        // Display height auto-grows to cover the widget footprint.
+        // growGroupIfNeeded keeps the persisted value in sync for
+        // moveWidget/resizeWidget calls, but a property-panel edit
+        // to a widget's y/height bypasses that path and would leave
+        // a widget hanging out of the group. Correcting here at the
+        // tree-compute layer means the renderer always sees a group
+        // tall enough for its contents, with no mutation involved.
+        const widgetExtent = widgets.reduce(
+          (maxY, w) => Math.max(maxY, w.y + w.height), 0,
+        )
         return {
           group: g,
           x: m.x,
           y: m.y,
           width: m.width,
-          height: m.height,
+          height: Math.max(m.height, widgetExtent),
           cols: groupColsById.get(g.id) ?? pageCols,
-          widgets: migratedByGroup.get(g.id) ?? [],
+          widgets,
         }
       })
       groupsOut.sort((a, b) => (a.y - b.y) || (a.x - b.x))

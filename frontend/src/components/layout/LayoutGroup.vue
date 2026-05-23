@@ -512,7 +512,8 @@ void setWidgetDragPayload
   z-index: 2;
 }
 .empty-hint {
-  grid-column: 1 / span 12;
+  /* grid-column is bound inline so it spans the group's actual
+     internal cols (which can be >12). */
   grid-row: 1 / span 1;
   margin: 0;
   padding: 1.5rem;

@@ -97,22 +97,27 @@ func Apply(r *flow.NodeRegistry, sel GroupSelection) []string {
 		disableSet[n] = true
 	}
 
-	applied := make([]string, 0, len(groups))
-	for name, g := range groups {
+	// collect eligible group names first, then sort for deterministic registration order
+	eligible := make([]string, 0, len(groups))
+	for name := range groups {
 		if enableSet != nil && !enableSet[name] {
 			continue
 		}
 		if disableSet[name] {
 			continue
 		}
+		eligible = append(eligible, name)
+	}
+	sort.Strings(eligible)
+
+	for _, name := range eligible {
+		g := groups[name]
 		for _, n := range g.Nodes {
 			r.Register(n.Type, n.Factory, n.Info)
 		}
 		for _, c := range g.ConfigNodes {
 			r.RegisterConfig(c.Type, c.Factory, c.Info)
 		}
-		applied = append(applied, name)
 	}
-	sort.Strings(applied)
-	return applied
+	return eligible
 }

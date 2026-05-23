@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDashboardLayout } from '@/composables/useDashboardLayout'
+import { useApi } from '@/composables/useApi'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
 import LayoutPage from '@/components/layout/LayoutPage.vue'
@@ -10,6 +11,7 @@ import LayoutBanner from '@/components/layout/LayoutBanner.vue'
 const flowStore = useFlowStore()
 const ui = useUiStore()
 const router = useRouter()
+const api = useApi()
 const { tree } = useDashboardLayout()
 
 // Dirty-state indicator only — NOT a lock. The layout view stays
@@ -73,12 +75,20 @@ function closeLayoutView() {
   router.push('/')
 }
 
-onMounted(() => {
-  // Keep the workspace from looking unfocused; the property panel
-  // stays where it is, but the canvas should release any selection
-  // so the property panel does not flash a stale node config when
-  // entering the layout view.
+onMounted(async () => {
   ui.clearFlowProperties()
+  // When navigating here directly (page reload on /layout), flowStore
+  // may not have been hydrated because FlowEditor never mounted.
+  if (flowStore.flows.length === 0) {
+    try {
+      const response = await api.getFlows()
+      if (response.flows && response.flows.length > 0) {
+        flowStore.loadFlows(response.flows, response.rev, response.configs)
+      }
+    } catch (err) {
+      console.error('[DashboardLayoutView] Failed to load flows:', err)
+    }
+  }
 })
 </script>
 

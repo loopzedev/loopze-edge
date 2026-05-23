@@ -42,9 +42,7 @@ const categories = computed(() => {
     if (!map.has(cat)) map.set(cat, [])
     map.get(cat)!.push(node)
   }
-  for (const [, catNodes] of map) {
-    catNodes.sort((a, b) => a.label.localeCompare(b.label))
-  }
+
   const ordered: { name: string; nodes: NodeCatalogEntry[] }[] = []
   for (const cat of CATEGORY_ORDER) {
     if (map.has(cat)) {

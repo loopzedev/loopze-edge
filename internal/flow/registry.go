@@ -318,6 +318,7 @@ type NodeRegistry struct {
 	mu              sync.RWMutex
 	factories       map[string]NodeFactory
 	typeInfos       map[string]NodeTypeInfo
+	typeOrder       []string // preserves registration order for stable palette ordering
 	configFactories map[string]ConfigNodeFactory
 	configTypeInfos map[string]ConfigTypeInfo
 }
@@ -341,6 +342,9 @@ func (r *NodeRegistry) Register(nodeType string, factory NodeFactory, info NodeT
 	defer r.mu.Unlock()
 
 	info.Type = nodeType
+	if _, exists := r.typeInfos[nodeType]; !exists {
+		r.typeOrder = append(r.typeOrder, nodeType)
+	}
 	r.factories[nodeType] = factory
 	r.typeInfos[nodeType] = info
 }
@@ -364,15 +368,15 @@ func (r *NodeRegistry) GetTypeInfo(nodeType string) (NodeTypeInfo, bool) {
 	return info, ok
 }
 
-// List returns metadata for all registered node types, suitable for
-// sending to the frontend to populate the node palette.
+// List returns metadata for all registered node types in registration order,
+// suitable for sending to the frontend to populate the node palette.
 func (r *NodeRegistry) List() []NodeTypeInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	types := make([]NodeTypeInfo, 0, len(r.typeInfos))
-	for _, info := range r.typeInfos {
-		types = append(types, info)
+	types := make([]NodeTypeInfo, 0, len(r.typeOrder))
+	for _, t := range r.typeOrder {
+		types = append(types, r.typeInfos[t])
 	}
 	return types
 }

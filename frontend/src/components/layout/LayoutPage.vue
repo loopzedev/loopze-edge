@@ -49,8 +49,12 @@ const gridRowCount = computed(() => {
   return baseRowCount.value
 })
 
+// Always visible — faint when idle so the operator sees the grid as
+// authoring scaffolding, stronger during drag (via .drop-active on
+// the parent). Empty if the editor is locked (e.g. dirty workspace)
+// so the read-only view stays clean.
 const backgroundCells = computed(() => {
-  if (!dropActive.value) return []
+  if (props.disabled) return []
   const cells: { x: number; y: number }[] = []
   for (let y = 0; y < gridRowCount.value; y++) {
     for (let x = 0; x < props.layoutPage.cols; x++) {
@@ -149,12 +153,12 @@ function onTitleDoubleClick() {
       :class="{ 'drop-active': dropActive }"
       :style="{
         gridTemplateColumns: `repeat(${layoutPage.cols}, 1fr)`,
-        /* minmax(50px, auto) so a group whose rendered height (header
-           + padding + widget tracks) exceeds 50 * height can grow its
-           cell instead of overflowing the page border. The minimum of
-           50 px keeps the drop affordance visible when the group is
-           sparse. */
-        gridTemplateRows: `repeat(${gridRowCount}, minmax(50px, auto))`,
+        /* Fixed 50 px row units. Earlier minmax(50px, auto) variant
+           let a single tall group balloon its row tracks and dragged
+           the empty neighbouring drop-cells along with it — visually
+           the whole grid scaled up during drag. The group's own
+           overflow is handled inside <LayoutGroup>. */
+        gridTemplateRows: `repeat(${gridRowCount}, 50px)`,
       }"
       @dragover="onPageDragOver"
       @dragleave="onPageDragLeave"
@@ -234,11 +238,19 @@ function onTitleDoubleClick() {
   background: rgba(88, 166, 255, 0.03);
 }
 .drop-cell {
-  border: 1px dashed rgba(88, 166, 255, 0.22);
+  /* Idle: very subtle border in the neutral terminal-border tone so
+     the grid reads as faint authoring scaffolding rather than a
+     drop affordance. Stronger accent appearance gets applied when
+     a drag is active via .drop-active below. */
+  border: 1px dashed rgba(125, 133, 144, 0.18);
   border-radius: 3px;
-  background: rgba(88, 166, 255, 0.015);
   pointer-events: none;
   z-index: 0;
+  transition: border-color 0.1s, background-color 0.1s;
+}
+.layout-page-grid.drop-active .drop-cell {
+  border-color: rgba(88, 166, 255, 0.25);
+  background: rgba(88, 166, 255, 0.02);
 }
 .drop-preview {
   border: 2px solid var(--color-accent, #58a6ff);

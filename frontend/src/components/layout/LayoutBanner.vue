@@ -1,14 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useFlowStore } from '@/stores/flowStore'
+import { useUiStore } from '@/stores/uiStore'
 
 const flowStore = useFlowStore()
+const ui = useUiStore()
 
 defineProps<{
-  /** When true, the banner is shown and edit interactions are
-   *  expected to be disabled by the parent (the banner does not
-   *  enforce; it just narrates). */
+  /** When true the banner appears as an informational hint that
+   *  pending changes haven't reached the live dashboard yet. It is
+   *  NOT a lock — the layout view stays fully editable so multiple
+   *  edits can be batched before a single deploy. */
   visible: boolean
 }>()
+
+const isDeploying = computed(() => ui.deployStatus === 'deploying')
 
 async function handleDeploy() {
   await flowStore.deploy()
@@ -19,11 +25,16 @@ async function handleDeploy() {
   <div v-if="visible" class="layout-banner">
     <span class="dot" />
     <div class="msg">
-      Workspace has unsaved changes. Layout edits are disabled until you
-      deploy so the live dashboard cannot drift.
+      Pending changes — the live dashboard still shows the last deployed
+      layout. Batch edits and click <strong>Deploy</strong> when ready.
     </div>
-    <button class="deploy-btn" type="button" @click="handleDeploy">
-      Deploy now
+    <button
+      class="deploy-btn"
+      type="button"
+      :disabled="isDeploying"
+      @click="handleDeploy"
+    >
+      {{ isDeploying ? 'Deploying…' : 'Deploy now' }}
     </button>
   </div>
 </template>

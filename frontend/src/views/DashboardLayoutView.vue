@@ -12,10 +12,12 @@ const ui = useUiStore()
 const router = useRouter()
 const { tree } = useDashboardLayout()
 
-// Edit gating: any unsaved workspace change disables layout edits so
-// the live dashboard cannot drift from what the user is rearranging.
-// Matches the deploy contract the rest of the editor already uses.
-const isLocked = computed(() => flowStore.dirty)
+// Dirty-state indicator only — NOT a lock. The layout view stays
+// fully editable while changes are pending; deploy is one explicit
+// action that commits everything. Blocking edits on dirty was the
+// original (overly cautious) design but it forced the user to deploy
+// after every single drag.
+const hasPendingChanges = computed(() => flowStore.dirty)
 
 const hasBase = computed(() => Boolean(tree.value.base))
 
@@ -129,7 +131,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <LayoutBanner :visible="isLocked" />
+    <LayoutBanner :visible="hasPendingChanges" />
 
     <section v-if="!hasBase" class="empty-state">
       <h2>No dashboard configured</h2>
@@ -157,7 +159,6 @@ onMounted(() => {
         v-if="activePage"
         :key="activePage.page.id"
         :layout-page="activePage"
-        :disabled="isLocked"
       />
 
       <section v-if="orphanCount > 0" class="orphans">
@@ -183,7 +184,12 @@ onMounted(() => {
 
 <style scoped>
 .layout-view {
-  flex: 1 1 auto;
+  /* The parent <main> in App.vue is a flex-1 block (not a flex
+     container), so flex: 1 on this element does nothing — instead
+     we anchor to the parent's own constrained height. Without this,
+     a tall page would grow the layout-view past <main>'s overflow:
+     hidden boundary and the user couldn't scroll. */
+  height: 100%;
   overflow: auto;
   padding: 1.25rem 1.5rem 2rem;
   background: var(--color-terminal-bg, #0d1117);

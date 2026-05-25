@@ -5,6 +5,7 @@
 package dashboard
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -66,6 +67,14 @@ type Hub struct {
 	// handshake and Snapshot() accessor. atomic.Pointer keeps the
 	// read path lock-free.
 	snapshot atomic.Pointer[Snapshot]
+
+	// lastLayoutHash is the SHA-256 of the most recently broadcast
+	// layout snapshot. Used by RebuildLayout to set the
+	// `layoutChanged` flag on the deploy frame. snapMu serialises
+	// RebuildLayout calls so concurrent deploys can't interleave the
+	// hash compare-and-swap with the broadcast.
+	lastLayoutHash [32]byte
+	snapMu         sync.Mutex
 
 	// inputRegistry maps widget node IDs to the callback installed by
 	// the corresponding input widget node in its Start method. Guarded
@@ -193,13 +202,60 @@ func (h *Hub) ClientCount() int {
 // ─── Snapshot / deploy hook ─────────────────────────────────────────────────
 
 // RebuildLayout replaces the stored layout snapshot, prunes the cache
-// of widgets that are no longer present, and (in PR 5) signals
-// connected clients about the deploy. Called by the engine's
-// DeployListener after every successful Deploy.
+// of widgets that are no longer present, and broadcasts a deploy frame
+// to every connected client. Called by the engine's DeployListener
+// after every successful Deploy.
+//
+// Layout-change detection: a SHA-256 of the JSON-serialized snapshot
+// is compared against the previous deploy's hash. The deploy frame is
+// broadcast either way (so clients can confirm "deploy fired"), but
+// the inline layout payload is only attached when the hash changed —
+// see DASHBOARD_HOT_RELOAD.md for the locked rationale.
 func (h *Hub) RebuildLayout(ws flow.Workspace) {
 	snap := BuildLayout(ws)
 	h.snapshot.Store(snap)
 	h.cache.Retain(snap.WidgetIDs())
+
+	h.snapMu.Lock()
+	defer h.snapMu.Unlock()
+	hash := snapshotHash(snap)
+	changed := hash != h.lastLayoutHash
+	h.lastLayoutHash = hash
+	h.broadcastDeploy(snap, changed)
+}
+
+// snapshotHash returns a stable SHA-256 over the JSON-serialized
+// snapshot. Determinism notes:
+//   - encoding/json walks struct fields in declaration order.
+//   - Map keys are emitted sorted (Go std library guarantee).
+//   - Map[string]any values inside LayoutWidget.Config inherit the
+//     same sort guarantee.
+//
+// A marshal error is impossible in practice (Snapshot contains no
+// channels/funcs); on the off-chance one slips in, we return the zero
+// hash, which compares equal to the previous zero hash and suppresses
+// the layout payload — fail-safe behaviour.
+func snapshotHash(s *Snapshot) [32]byte {
+	buf, err := json.Marshal(s)
+	if err != nil {
+		slog.Error("dashboard: snapshot hash marshal failed", "error", err)
+		return [32]byte{}
+	}
+	return sha256.Sum256(buf)
+}
+
+// broadcastDeploy sends a deploy frame to every connected client. The
+// layout payload is attached only when changed=true (see L-1 / L-7 in
+// DASHBOARD_HOT_RELOAD.md).
+func (h *Hub) broadcastDeploy(snap *Snapshot, changed bool) {
+	frame := deployFrame{
+		Type:          msgTypeDeploy,
+		LayoutChanged: changed,
+	}
+	if changed {
+		frame.Layout = snap
+	}
+	h.broadcastJSON(frame)
 }
 
 // Snapshot returns the current layout snapshot. Always non-nil; before
@@ -513,6 +569,12 @@ type snapshotFrame struct {
 type errorFrame struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+}
+
+type deployFrame struct {
+	Type          string    `json:"type"`
+	LayoutChanged bool      `json:"layoutChanged"`
+	Layout        *Snapshot `json:"layout,omitempty"`
 }
 
 type clientFrame struct {

@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>loopze — 10 Dashboard Design Proposals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --logo-path: "M13 2L3 14h8l-1 8 10-12h-8l1-8z"; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0f;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  /* ─── NAV ─── */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10,10,15,.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 1.1rem; letter-spacing: -.02em;
+  }
+  .nav-brand svg { width: 22px; height: 22px; }
+  .nav-pills {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  }
+  .pill {
+    padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    border: 1px solid rgba(255,255,255,.12); background: transparent;
+    color: #94a3b8; cursor: pointer; transition: all .2s;
+    font-family: inherit;
+  }
+  .pill:hover { border-color: rgba(255,255,255,.3); color: #e2e8f0; }
+  .pill.active { color: #0a0a0f; border-color: transparent; font-weight: 600; }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 120px 2rem 60px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800; letter-spacing: -.04em; line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, #58a6ff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 1rem;
+  }
+  .hero p {
+    color: #64748b; font-size: 1.05rem; max-width: 560px; margin: 0 auto 2.5rem;
+  }
+
+  /* ─── GRID ─── */
+  .designs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 2rem;
+    padding: 0 2rem 6rem;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  /* ─── DESIGN CARD ─── */
+  .design-card {
+    border-radius: 16px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.06);
+    transition: transform .3s, box-shadow .3s;
+    cursor: pointer;
+  }
+  .design-card:hover {
+    transform: translateY(-4px);
+  }
+  .design-badge {
+    position: absolute; top: 14px; left: 14px;
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    padding: 3px 10px; border-radius: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+    backdrop-filter: blur(8px);
+  }
+  .design-preview {
+    position: relative;
+    height: 320px;
+    overflow: hidden;
+  }
+  .design-info {
+    padding: 1.25rem 1.5rem;
+    background: rgba(255,255,255,.025);
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .design-info h3 {
+    font-size: 1rem; font-weight: 700; margin-bottom: .25rem;
+    letter-spacing: -.02em;
+  }
+  .design-info p {
+    font-size: .8rem; color: #64748b; margin-bottom: .75rem; line-height: 1.5;
+  }
+  .palette {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .swatch {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,.1);
+    position: relative;
+    cursor: default;
+  }
+  .swatch:hover::after {
+    content: attr(data-color);
+    position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #e2e8f0;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    padding: 3px 6px; border-radius: 4px; white-space: nowrap;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* ─── SHARED DASHBOARD ELEMENTS ─── */
+  .db-shell {
+    width: 100%; height: 100%; display: flex; font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    position: relative; overflow: hidden;
+  }
+  .db-sidebar {
+    width: 52px; height: 100%; display: flex; flex-direction: column;
+    align-items: center; padding: 12px 0; gap: 4px;
+    flex-shrink: 0;
+  }
+  .db-logo {
+    width: 28px; height: 28px; display: flex; align-items: center;
+    justify-content: center; border-radius: 8px; margin-bottom: 8px;
+  }
+  .db-logo svg { width: 16px; height: 16px; }
+  .db-nav-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: .45; transition: all .15s;
+  }
+  .db-nav-icon.active { opacity: 1; }
+  .db-nav-icon svg { width: 15px; height: 15px; }
+  .db-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .db-topbar {
+    height: 40px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px; flex-shrink: 0; border-bottom: 1px solid;
+  }
+  .db-title { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; }
+  .db-topbar-right { display: flex; gap: 6px; align-items: center; }
+  .db-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .db-content { flex: 1; padding: 12px; display: grid; gap: 8px;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+  }
+  .db-widget {
+    border-radius: 8px; padding: 10px; border: 1px solid;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow: hidden;
+  }
+  .db-widget.span2 { grid-column: span 2; }
+  .db-widget.span3 { grid-column: span 3; }
+  .db-widget-label { font-size: 9px; opacity: .5; text-transform: uppercase; letter-spacing: .08em; }
+  .db-widget-value { font-size: 18px; font-weight: 700; font-family: 'Inter', sans-serif; letter-spacing: -.04em; }
+  .db-widget-sub { font-size: 9px; opacity: .45; }
+  .db-chart { flex: 1; position: relative; overflow: hidden; border-radius: 4px; }
+  /* mini sparkline via SVG inline */
+  .db-bar-row {
+    display: flex; align-items: flex-end; gap: 3px; height: 40px;
+    padding-top: 4px;
+  }
+  .db-bar {
+    flex: 1; border-radius: 2px 2px 0 0;
+    min-height: 4px;
+  }
+  .db-line-chart { width: 100%; height: 100%; }
+  .db-table-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0; border-bottom: 1px solid; opacity: .85;
+    font-size: 9px;
+  }
+  .db-table-row:last-child { border-bottom: none; }
+  .db-status-dot { width: 5px; height: 5px; border-radius: 50%; margin-right: 5px; display: inline-block; }
+  .db-avatar {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <svg viewBox="1.5 2 20 20" fill="#58a6ff"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+    loopze designs
+  </div>
+  <div class="nav-pills" id="pills"></div>
+</nav>
+
+<div class="hero">
+  <h1>10 Dashboard Design Proposals</h1>
+  <p>Klicke eine Karte an, um die volle Vorschau zu öffnen. Hover über die Swatches für Hex-Codes.</p>
+</div>
+
+<div class="designs-grid" id="grid"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA: 10 DESIGNS
+// ─────────────────────────────────────────────────────────────────────────────
+const DESIGNS = [
+  // ──────────────────────────────────────────────────────────────────────────
+  // 1. NEON PULSE
+  {
+    id: 'neon-pulse',
+    name: 'Neon Pulse',
+    tagline: 'Cyberpunk / Electric Blue',
+    desc: 'Tiefes Schwarz trifft auf knalliges Elektrisch-Blau. Neon-Glows auf Karten und Interaktionselementen erzeugen einen eindringlichen Wow-Moment.',
+    palette: ['#080811','#0e0e1a','#1a1a2e','#58a6ff','#38d9f5','#a259ff','#e2e8f0','#4a5568'],
+    accent: '#58a6ff',
+    pill: '#58a6ff',
+    renderPreview(el) {
+      el.style.background = '#080811';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#0e0e1a;border-right:1px solid #1a1a2e;">
+          <div class="db-logo" style="background:linear-gradient(135deg,#58a6ff22,#38d9f522);box-shadow:0 0 12px #58a6ff44;">
+            <svg viewBox="1.5 2 20 20" fill="#58a6ff"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#58a6ff',true)}${icon('activity','#38d9f5')}${icon('database','#a259ff')}${icon('settings','#4a5568')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0e0e1a;border-color:#1a1a2e;color:#e2e8f0;">
+            <span class="db-title" style="color:#58a6ff;text-shadow:0 0 8px #58a6ff88;">Production Dashboard</span>
+            <div class="db-topbar-right">
+              <div class="db-dot" style="background:#3fb950;box-shadow:0 0 6px #3fb950;"></div>
+              <div class="db-dot" style="background:#58a6ff;box-shadow:0 0 6px #58a6ff;"></div>
+              <div class="db-dot" style="background:#a259ff;box-shadow:0 0 6px #a259ff;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('REQUESTS/S','48.2k','+12.4%','#58a6ff','#0e0e1a','#1a1a2e')}
+            ${kpi('LATENCY','142ms','p99: 380ms','#38d9f5','#0e0e1a','#1a1a2e')}
+            ${kpi('ERROR RATE','0.03%','— nominal','#a259ff','#0e0e1a','#1a1a2e')}
+            <div class="db-widget span2" style="background:#0e0e1a;border-color:#1a1a2e;">
+              <div class="db-widget-label" style="color:#38d9f5;">Throughput</div>
+              ${bars(['#58a6ff','#38d9f5','#58a6ff','#a259ff','#58a6ff','#38d9f5','#58a6ff','#a259ff','#58a6ff','#38d9f5','#58a6ff','#58a6ff'],[30,55,40,70,50,80,65,75,58,90,72,85],'#58a6ff22')}
+            </div>
+            <div class="db-widget" style="background:#0e0e1a;border-color:#1a1a2e;">
+              <div class="db-widget-label" style="color:#a259ff;">Nodes</div>
+              ${tableRows([['edge-01','ok','#3fb950'],['edge-02','ok','#3fb950'],['edge-03','warn','#d29922'],['edge-04','ok','#3fb950']],'#1a1a2e','#e2e8f0')}
+            </div>
+            <div class="db-widget span3" style="background:#0e0e1a;border-color:#58a6ff33;box-shadow:0 0 20px #58a6ff11;">
+              <div class="db-widget-label" style="color:#58a6ff;">Live Events</div>
+              ${lineChartSVG('#58a6ff','#38d9f5')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+    fullBg: '#080811',
+    fullAccent: '#58a6ff',
+    fullSec: '#38d9f5',
+    fullTer: '#a259ff',
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2. AURORA NIGHTS
+  {
+    id: 'aurora-nights',
+    name: 'Aurora Nights',
+    tagline: 'Nordic / Borealis Gradient',
+    desc: 'Dunkles Nordlicht-Feeling mit fließenden Aurora-Gradienten. Tiefes Marineblau trifft auf Smaragdgrün und leuchtendes Violett.',
+    palette: ['#060d1f','#0a1628','#112240','#00d4aa','#4361ee','#7b2fff','#e2e8f0','#3a4a6b'],
+    accent: '#00d4aa',
+    pill: '#00d4aa',
+    renderPreview(el) {
+      el.style.background = '#060d1f';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:linear-gradient(180deg,#0a1628 0%,#112240 100%);border-right:1px solid #1a2f50;">
+          <div class="db-logo" style="background:linear-gradient(135deg,#00d4aa22,#4361ee22);box-shadow:0 0 14px #00d4aa33;">
+            <svg viewBox="1.5 2 20 20" fill="#00d4aa"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#00d4aa',true)}${icon('activity','#4361ee')}${icon('database','#7b2fff')}${icon('settings','#3a4a6b')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0a1628;border-color:#1a2f50;color:#e2e8f0;">
+            <span class="db-title" style="background:linear-gradient(90deg,#00d4aa,#4361ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Aurora Dashboard</span>
+            <div class="db-topbar-right">
+              ${avatar('AK','#00d4aa','#060d1f')}${avatar('MB','#4361ee','#060d1f')}
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('PIPELINE','12.8k/s','+8.1%','#00d4aa','#0a1628','#1a2f50')}
+            ${kpi('NODES ONLINE','47/48','99.8% UP','#4361ee','#0a1628','#1a2f50')}
+            ${kpi('DATA VOL','3.4 TB','today','#7b2fff','#0a1628','#1a2f50')}
+            <div class="db-widget span2" style="background:linear-gradient(135deg,#0a1628,#112240);border-color:#1a2f50;">
+              <div class="db-widget-label" style="color:#00d4aa;">Flow Rate</div>
+              ${bars(['#00d4aa','#4361ee','#00d4aa','#7b2fff','#4361ee','#00d4aa','#4361ee','#7b2fff','#00d4aa','#4361ee','#00d4aa','#4361ee'],[45,60,50,80,55,85,70,78,62,92,75,88],'#00d4aa22')}
+            </div>
+            <div class="db-widget" style="background:linear-gradient(135deg,#0a1628,#112240);border-color:#1a2f50;">
+              <div class="db-widget-label" style="color:#7b2fff;">Activity</div>
+              ${tableRows([['Stream A','active','#00d4aa'],['Stream B','active','#00d4aa'],['Stream C','paused','#d29922'],['Stream D','active','#00d4aa']],'#1a2f50','#c8d8e8')}
+            </div>
+            <div class="db-widget span3" style="background:linear-gradient(135deg,#060d1f,#0a1628);border-color:#00d4aa33;">
+              <div class="db-widget-label" style="color:#4361ee;">Event Timeline</div>
+              ${lineChartSVG('#00d4aa','#4361ee')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 3. TERMINAL GOLD (Evolution des aktuellen Stils)
+  {
+    id: 'terminal-gold',
+    name: 'Terminal Gold',
+    tagline: 'Evolved Brand / Warm Dark',
+    desc: 'Die konsequente Weiterentwicklung des aktuellen Loopze-Looks. Warmes Dunkel-Olivgrün trifft auf sattem Bernstein-Gold — vertraut, aber veredelt.',
+    palette: ['#0f0f08','#1a1a0e','#252518','#FFBF00','#ffd740','#58a6ff','#c8c8a0','#5a5a40'],
+    accent: '#FFBF00',
+    pill: '#FFBF00',
+    renderPreview(el) {
+      el.style.background = '#0f0f08';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#1a1a0e;border-right:1px solid #2a2a18;">
+          <div class="db-logo" style="background:#252518;border:1px solid #FFBF0033;">
+            <svg viewBox="1.5 2 20 20" fill="#FFBF00"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#FFBF00',true)}${icon('activity','#ffd740')}${icon('database','#58a6ff')}${icon('settings','#5a5a40')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#1a1a0e;border-color:#2a2a18;color:#c8c8a0;">
+            <span class="db-title" style="color:#FFBF00;font-family:'Space Mono',monospace;">loopze / edge</span>
+            <div class="db-topbar-right">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#5a5a40;">sys:ok</span>
+              <div class="db-dot" style="background:#FFBF00;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('MSG/SEC','24,891','+3.2%','#FFBF00','#1a1a0e','#2a2a18')}
+            ${kpi('AVG LAT','89ms','p99: 210ms','#ffd740','#1a1a0e','#2a2a18')}
+            ${kpi('UPTIME','99.97%','31d stable','#58a6ff','#1a1a0e','#2a2a18')}
+            <div class="db-widget span2" style="background:#1a1a0e;border-color:#2a2a18;">
+              <div class="db-widget-label" style="color:#FFBF00;">Message Throughput</div>
+              ${bars(['#FFBF00','#ffd740','#FFBF00','#ffd740','#FFBF00','#ffd740','#FFBF00','#ffd740','#FFBF00','#ffd740','#FFBF00','#FFBF00'],[38,52,44,68,48,76,60,72,54,88,66,82],'#FFBF0015')}
+            </div>
+            <div class="db-widget" style="background:#1a1a0e;border-color:#2a2a18;">
+              <div class="db-widget-label" style="color:#58a6ff;">Edge Nodes</div>
+              ${tableRows([['n-01','ok','#FFBF00'],['n-02','ok','#FFBF00'],['n-03','warn','#d29922'],['n-04','ok','#FFBF00']],'#2a2a18','#c8c8a0')}
+            </div>
+            <div class="db-widget span3" style="background:#1a1a0e;border-color:#FFBF0022;">
+              <div class="db-widget-label" style="color:#ffd740;">Live Signal</div>
+              ${lineChartSVG('#FFBF00','#ffd740')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 4. MIDNIGHT OCEAN
+  {
+    id: 'midnight-ocean',
+    name: 'Midnight Ocean',
+    tagline: 'Deep Sea / Bioluminescence',
+    desc: 'Tiefes Ozean-Dunkel mit Biolumineszenz-Akzenten. Cyan und Türkis leuchten wie in der Tiefsee gegen das Dunkelblau.',
+    palette: ['#020b18','#061526','#0c2040','#00f5d4','#0094c6','#00b4d8','#b0cfe8','#1e3a5f'],
+    accent: '#00f5d4',
+    pill: '#00b4d8',
+    renderPreview(el) {
+      el.style.background = 'linear-gradient(180deg,#020b18 0%,#061526 100%)';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#061526;border-right:1px solid #0c2040;">
+          <div class="db-logo" style="background:radial-gradient(circle,#00f5d422,#0094c622);box-shadow:0 0 16px #00f5d433;">
+            <svg viewBox="1.5 2 20 20" fill="#00f5d4"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#00f5d4',true)}${icon('activity','#00b4d8')}${icon('database','#0094c6')}${icon('settings','#1e3a5f')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#061526;border-color:#0c2040;color:#b0cfe8;">
+            <span class="db-title" style="color:#00f5d4;text-shadow:0 0 10px #00f5d466;">Midnight Ocean</span>
+            <div class="db-topbar-right">
+              <div class="db-dot" style="background:#00f5d4;box-shadow:0 0 8px #00f5d4;"></div>
+              <div class="db-dot" style="background:#00b4d8;box-shadow:0 0 8px #00b4d8;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('DEPTH','4,821m','abyssal','#00f5d4','#061526','#0c2040')}
+            ${kpi('STREAMS','2.1M/h','+14.7%','#00b4d8','#061526','#0c2040')}
+            ${kpi('PRESSURE','98.4%','nominal','#0094c6','#061526','#0c2040')}
+            <div class="db-widget span2" style="background:#061526;border-color:#0c2040;">
+              <div class="db-widget-label" style="color:#00f5d4;">Signal Depth</div>
+              ${bars(['#00f5d4','#00b4d8','#0094c6','#00f5d4','#00b4d8','#00f5d4','#0094c6','#00b4d8','#00f5d4','#00b4d8','#00f5d4','#0094c6'],[50,65,45,78,58,88,68,80,62,92,74,85],'#00f5d422')}
+            </div>
+            <div class="db-widget" style="background:#061526;border-color:#0c2040;">
+              <div class="db-widget-label" style="color:#0094c6;">Sonar</div>
+              ${tableRows([['zone-A','clear','#00f5d4'],['zone-B','clear','#00f5d4'],['zone-C','dim','#0094c6'],['zone-D','clear','#00f5d4']],'#0c2040','#b0cfe8')}
+            </div>
+            <div class="db-widget span3" style="background:#020b18;border-color:#00f5d422;box-shadow:0 0 24px #00f5d40a;">
+              <div class="db-widget-label" style="color:#00b4d8;">Current Flow</div>
+              ${lineChartSVG('#00f5d4','#00b4d8')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 5. CARBON & CHROME
+  {
+    id: 'carbon-chrome',
+    name: 'Carbon & Chrome',
+    tagline: 'Industrial / Metallic Precision',
+    desc: 'Anthrazit-Schwarz wie Carbon-Fibre, Akzente in kaltem Chromsilber und leuchtendem Weiß. Minimalistisch, präzise, premiumwertig.',
+    palette: ['#0c0c0c','#141414','#1e1e1e','#e8e8e8','#a0a0a0','#58a6ff','#3d3d3d','#ffffff'],
+    accent: '#e8e8e8',
+    pill: '#a0a0a0',
+    renderPreview(el) {
+      el.style.background = '#0c0c0c';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#0c0c0c;border-right:1px solid #1e1e1e;">
+          <div class="db-logo" style="background:#1e1e1e;border:1px solid #3d3d3d;">
+            <svg viewBox="1.5 2 20 20" fill="#e8e8e8"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#ffffff',true)}${icon('activity','#a0a0a0')}${icon('database','#58a6ff')}${icon('settings','#3d3d3d')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0c0c0c;border-color:#1e1e1e;color:#a0a0a0;">
+            <span class="db-title" style="color:#e8e8e8;font-weight:300;letter-spacing:.05em;text-transform:uppercase;font-size:10px;">LOOPZE EDGE</span>
+            <div class="db-topbar-right">
+              <span style="font-size:9px;color:#3d3d3d;font-family:'IBM Plex Mono',monospace;">v2.4.1</span>
+              <div class="db-dot" style="background:#58a6ff;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('THROUGHPUT','91.3k','/second','#e8e8e8','#141414','#1e1e1e')}
+            ${kpi('LATENCY P50','38ms','P99: 120ms','#a0a0a0','#141414','#1e1e1e')}
+            ${kpi('SLA','100%','7d streak','#58a6ff','#141414','#1e1e1e')}
+            <div class="db-widget span2" style="background:#141414;border-color:#1e1e1e;">
+              <div class="db-widget-label" style="color:#a0a0a0;">Performance</div>
+              ${bars(['#e8e8e8','#a0a0a0','#e8e8e8','#58a6ff','#e8e8e8','#a0a0a0','#e8e8e8','#58a6ff','#e8e8e8','#a0a0a0','#e8e8e8','#58a6ff'],[40,58,48,72,52,80,62,74,56,90,70,84],'#ffffff08')}
+            </div>
+            <div class="db-widget" style="background:#141414;border-color:#1e1e1e;">
+              <div class="db-widget-label" style="color:#58a6ff;">Systems</div>
+              ${tableRows([['core-1','nominal','#e8e8e8'],['core-2','nominal','#e8e8e8'],['core-3','degraded','#a0a0a0'],['core-4','nominal','#e8e8e8']],'#1e1e1e','#a0a0a0')}
+            </div>
+            <div class="db-widget span3" style="background:#0c0c0c;border-color:#1e1e1e;">
+              <div class="db-widget-label" style="color:#e8e8e8;">Precision Trace</div>
+              ${lineChartSVG('#e8e8e8','#58a6ff')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 6. COSMIC VIOLET
+  {
+    id: 'cosmic-violet',
+    name: 'Cosmic Violet',
+    tagline: 'Deep Space / Nebula',
+    desc: 'Tiefer Weltraum trifft auf Nebula-Farben. Violett, Magenta und kosmisches Blau schaffen ein dramatisches, unvergessliches Erscheinungsbild.',
+    palette: ['#06010f','#0e0520','#1a0a35','#c084fc','#e879f9','#818cf8','#e2d9f3','#3b1d6b'],
+    accent: '#c084fc',
+    pill: '#c084fc',
+    renderPreview(el) {
+      el.style.background = 'radial-gradient(ellipse at 50% 0%,#1a0a35 0%,#06010f 70%)';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#0e0520;border-right:1px solid #1a0a35;">
+          <div class="db-logo" style="background:linear-gradient(135deg,#c084fc22,#e879f922);box-shadow:0 0 16px #c084fc44;">
+            <svg viewBox="1.5 2 20 20" fill="#c084fc"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#c084fc',true)}${icon('activity','#e879f9')}${icon('database','#818cf8')}${icon('settings','#3b1d6b')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0e0520;border-color:#1a0a35;color:#e2d9f3;">
+            <span class="db-title" style="background:linear-gradient(90deg,#c084fc,#e879f9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Cosmic / loopze</span>
+            <div class="db-topbar-right">
+              <div class="db-dot" style="background:#c084fc;box-shadow:0 0 8px #c084fc;"></div>
+              <div class="db-dot" style="background:#e879f9;box-shadow:0 0 8px #e879f9;"></div>
+              <div class="db-dot" style="background:#818cf8;box-shadow:0 0 8px #818cf8;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('SIGNALS','8.9M','+22%','#c084fc','#0e0520','#1a0a35')}
+            ${kpi('NODES','128','active','#e879f9','#0e0520','#1a0a35')}
+            ${kpi('VELOCITY','4.2x','baseline','#818cf8','#0e0520','#1a0a35')}
+            <div class="db-widget span2" style="background:#0e0520;border-color:#1a0a35;">
+              <div class="db-widget-label" style="color:#c084fc;">Nebula Flow</div>
+              ${bars(['#c084fc','#e879f9','#818cf8','#c084fc','#e879f9','#c084fc','#818cf8','#e879f9','#c084fc','#818cf8','#e879f9','#c084fc'],[42,62,52,76,56,84,64,76,60,88,70,82],'#c084fc22')}
+            </div>
+            <div class="db-widget" style="background:#0e0520;border-color:#1a0a35;">
+              <div class="db-widget-label" style="color:#818cf8;">Pulsars</div>
+              ${tableRows([['PSR-α','nominal','#c084fc'],['PSR-β','nominal','#e879f9'],['PSR-γ','dim','#818cf8'],['PSR-δ','nominal','#c084fc']],'#1a0a35','#e2d9f3')}
+            </div>
+            <div class="db-widget span3" style="background:radial-gradient(ellipse at 50% 100%,#1a0a3544,#0e052000);border-color:#c084fc33;">
+              <div class="db-widget-label" style="color:#e879f9;">Stellar Stream</div>
+              ${lineChartSVG('#c084fc','#e879f9')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 7. EMBER & ICE
+  {
+    id: 'ember-ice',
+    name: 'Ember & Ice',
+    tagline: 'Fire meets Frost / High Contrast',
+    desc: 'Warme Ember-Orange gegen eiskaltes Nordblau. Dieses Spannungsfeld zwischen Wärme und Kälte erzeugt maximale visuelle Energie.',
+    palette: ['#0a0a14','#0f0f1e','#141428','#ff6b35','#ff9a3c','#40a9ff','#e8e0ff','#2a2a44'],
+    accent: '#ff6b35',
+    pill: '#ff6b35',
+    renderPreview(el) {
+      el.style.background = '#0a0a14';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#0f0f1e;border-right:1px solid #1e1e36;">
+          <div class="db-logo" style="background:linear-gradient(135deg,#ff6b3522,#40a9ff22);">
+            <svg viewBox="1.5 2 20 20" fill="url(#emb)">
+              <defs><linearGradient id="emb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff6b35"/><stop offset="100%" stop-color="#40a9ff"/></linearGradient></defs>
+              <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/>
+            </svg>
+          </div>
+          ${icon('grid','#ff6b35',true)}${icon('activity','#ff9a3c')}${icon('database','#40a9ff')}${icon('settings','#2a2a44')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0f0f1e;border-color:#1e1e36;color:#e8e0ff;">
+            <span class="db-title" style="background:linear-gradient(90deg,#ff6b35,#40a9ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Ember / loopze</span>
+            <div class="db-topbar-right">
+              <div class="db-dot" style="background:#ff6b35;box-shadow:0 0 6px #ff6b35;"></div>
+              <div class="db-dot" style="background:#40a9ff;box-shadow:0 0 6px #40a9ff;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('HOT PATH','33k/s','+18%','#ff6b35','#0f0f1e','#1e1e36')}
+            ${kpi('COLD PATH','8.2k/s','+4%','#40a9ff','#0f0f1e','#1e1e36')}
+            ${kpi('BLEND','82%','efficiency','#ff9a3c','#0f0f1e','#1e1e36')}
+            <div class="db-widget span2" style="background:#0f0f1e;border-color:#1e1e36;">
+              <div class="db-widget-label" style="color:#ff6b35;">Temperature</div>
+              ${bars(['#ff6b35','#ff9a3c','#ff6b35','#40a9ff','#ff6b35','#ff9a3c','#40a9ff','#ff6b35','#ff9a3c','#40a9ff','#ff6b35','#ff9a3c'],[36,55,42,70,48,78,62,72,54,86,68,80],'#ff6b3515')}
+            </div>
+            <div class="db-widget" style="background:#0f0f1e;border-color:#1e1e36;">
+              <div class="db-widget-label" style="color:#40a9ff;">Frost Nodes</div>
+              ${tableRows([['ice-1','frozen','#40a9ff'],['ice-2','frozen','#40a9ff'],['ember-1','hot','#ff6b35'],['ember-2','hot','#ff9a3c']],'#1e1e36','#e8e0ff')}
+            </div>
+            <div class="db-widget span3" style="background:#0a0a14;border-color:#ff6b3522;">
+              <div class="db-widget-label" style="background:linear-gradient(90deg,#ff6b35,#40a9ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Thermal Stream</div>
+              ${lineChartSVG('#ff6b35','#40a9ff')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 8. OBSIDIAN & GOLD
+  {
+    id: 'obsidian-gold',
+    name: 'Obsidian & Gold',
+    tagline: 'Premium / Luxury Dark',
+    desc: 'Volles Obsidian-Schwarz mit reichhaltigem Gold. Kein Blau, keine Ablenkung — nur maximale Eleganz und Exklusivität. Für den Enterprise-First-Eindruck.',
+    palette: ['#050505','#0f0f0f','#1a1a1a','#d4af37','#f0d060','#c8a000','#d4c89a','#3a3a2a'],
+    accent: '#d4af37',
+    pill: '#d4af37',
+    renderPreview(el) {
+      el.style.background = '#050505';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#0a0a0a;border-right:1px solid #1a1a1a;">
+          <div class="db-logo" style="background:linear-gradient(135deg,#d4af3720,#f0d06010);border:1px solid #d4af3730;">
+            <svg viewBox="1.5 2 20 20" fill="#d4af37"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#d4af37',true)}${icon('activity','#f0d060')}${icon('database','#c8a000')}${icon('settings','#3a3a2a')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#0a0a0a;border-color:#1a1a1a;color:#d4c89a;">
+            <span class="db-title" style="color:#d4af37;letter-spacing:.06em;text-transform:uppercase;font-size:9px;font-weight:700;">loopze · enterprise</span>
+            <div class="db-topbar-right">
+              <span style="font-size:9px;color:#3a3a2a;font-family:'IBM Plex Mono',monospace;">SECURE</span>
+              <div class="db-dot" style="background:#d4af37;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('REVENUE','$2.8M','+31% MoM','#d4af37','#0a0a0a','#1a1a1a')}
+            ${kpi('EVENTS','892M','this month','#f0d060','#0a0a0a','#1a1a1a')}
+            ${kpi('CLIENTS','1,240','enterprise','#c8a000','#0a0a0a','#1a1a1a')}
+            <div class="db-widget span2" style="background:#0a0a0a;border-color:#1a1a1a;">
+              <div class="db-widget-label" style="color:#d4af37;">Revenue Flow</div>
+              ${bars(['#d4af37','#f0d060','#d4af37','#c8a000','#d4af37','#f0d060','#d4af37','#c8a000','#d4af37','#f0d060','#d4af37','#f0d060'],[38,52,44,68,48,76,60,72,54,88,66,82],'#d4af3715')}
+            </div>
+            <div class="db-widget" style="background:#0a0a0a;border-color:#1a1a1a;">
+              <div class="db-widget-label" style="color:#c8a000;">Accounts</div>
+              ${tableRows([['Apex Corp','active','#d4af37'],['Nexus Ltd','active','#f0d060'],['Orbit AG','trial','#c8a000'],['Vertex Inc','active','#d4af37']],'#1a1a1a','#d4c89a')}
+            </div>
+            <div class="db-widget span3" style="background:#050505;border-color:#d4af3720;">
+              <div class="db-widget-label" style="color:#f0d060;">Gold Signal</div>
+              ${lineChartSVG('#d4af37','#f0d060')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 9. MATRIX SIGNAL
+  {
+    id: 'matrix-signal',
+    name: 'Matrix Signal',
+    tagline: 'Terminal Green / Hacker Aesthetic',
+    desc: 'Das ikonische Grün auf Schwarz — aber modern, rein und mit hohem Wiedererkennungswert. Für Developer-First-Audience, die den Hacker-Chic lieben.',
+    palette: ['#000800','#001200','#001e00','#00ff41','#00cc33','#39ff14','#00ff4188','#004400'],
+    accent: '#00ff41',
+    pill: '#00ff41',
+    renderPreview(el) {
+      el.style.background = '#000800';
+      el.innerHTML = `
+      <div class="db-shell">
+        <div class="db-sidebar" style="background:#001200;border-right:1px solid #004400;">
+          <div class="db-logo" style="background:#001e00;box-shadow:0 0 10px #00ff4133;">
+            <svg viewBox="1.5 2 20 20" fill="#00ff41"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#00ff41',true)}${icon('activity','#39ff14')}${icon('database','#00cc33')}${icon('settings','#004400')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar" style="background:#001200;border-color:#004400;color:#00cc33;">
+            <span class="db-title" style="color:#00ff41;font-family:'IBM Plex Mono',monospace;text-shadow:0 0 8px #00ff41;">root@loopze:~$</span>
+            <div class="db-topbar-right">
+              <div class="db-dot" style="background:#00ff41;box-shadow:0 0 8px #00ff41;animation:pulse 2s infinite;"></div>
+            </div>
+          </div>
+          <div class="db-content">
+            ${kpi('PKT/SEC','112,480','TX+RX','#00ff41','#001200','#004400')}
+            ${kpi('JITTER','0.2ms','±0.01ms','#39ff14','#001200','#004400')}
+            ${kpi('DROP','0.001%','negligible','#00cc33','#001200','#004400')}
+            <div class="db-widget span2" style="background:#001200;border-color:#004400;">
+              <div class="db-widget-label" style="color:#00ff41;">Signal Matrix</div>
+              ${bars(['#00ff41','#39ff14','#00cc33','#00ff41','#39ff14','#00ff41','#00cc33','#39ff14','#00ff41','#39ff14','#00ff41','#00cc33'],[44,60,50,74,54,82,64,76,58,90,72,86],'#00ff4115')}
+            </div>
+            <div class="db-widget" style="background:#001200;border-color:#004400;">
+              <div class="db-widget-label" style="color:#39ff14;">Processes</div>
+              ${tableRows([['loop::core','run','#00ff41'],['loop::edge','run','#39ff14'],['loop::sync','run','#00cc33'],['loop::mon','idle','#004400']],'#004400','#00cc33')}
+            </div>
+            <div class="db-widget span3" style="background:#000800;border-color:#00ff4122;box-shadow:0 0 20px #00ff4108;">
+              <div class="db-widget-label" style="color:#39ff14;">Packet Flow</div>
+              ${lineChartSVG('#00ff41','#39ff14')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 10. FROST & VOID (Light Mode Glassmorphism)
+  {
+    id: 'frost-void',
+    name: 'Frost & Void',
+    tagline: 'Glassmorphism / Frosted Light',
+    desc: 'Als einziges Design mit einem hellen Hintergrund — milchiges Glas auf tiefem Violett. Maximale Modernität durch Glassmorphismus und Unschärfeeffekte.',
+    palette: ['#1a0a35','#2d1b69','#4c3398','#ffffff','#f0ebff','#818cf8','#c084fc','#a78bfa'],
+    accent: '#818cf8',
+    pill: '#818cf8',
+    renderPreview(el) {
+      el.style.background = 'linear-gradient(135deg,#1a0a35 0%,#2d1b69 50%,#1a0a35 100%)';
+      el.innerHTML = `
+      <style>
+        .glass { background: rgba(255,255,255,.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.15); }
+        .glass-strong { background: rgba(255,255,255,.12); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,.2); }
+      </style>
+      <div class="db-shell" style="position:relative;">
+        <div style="position:absolute;width:200px;height:200px;background:radial-gradient(circle,#4c339844,transparent 70%);top:-60px;left:20px;pointer-events:none;"></div>
+        <div style="position:absolute;width:150px;height:150px;background:radial-gradient(circle,#818cf844,transparent 70%);bottom:0;right:40px;pointer-events:none;"></div>
+        <div class="db-sidebar glass" style="border-right-color:rgba(255,255,255,.1);">
+          <div class="db-logo glass-strong" style="border-radius:10px;">
+            <svg viewBox="1.5 2 20 20" fill="#c084fc"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          ${icon('grid','#c084fc',true)}${icon('activity','#818cf8')}${icon('database','#a78bfa')}${icon('settings','rgba(255,255,255,.3)')}
+        </div>
+        <div class="db-main">
+          <div class="db-topbar glass" style="border-bottom-color:rgba(255,255,255,.1);color:rgba(255,255,255,.9);">
+            <span class="db-title" style="color:#fff;font-weight:600;">Frost / loopze</span>
+            <div class="db-topbar-right">
+              ${avatar('DL','#c084fc','rgba(255,255,255,.1)')}
+            </div>
+          </div>
+          <div class="db-content">
+            <div class="db-widget glass" style="border-color:rgba(255,255,255,.15);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">EVENTS</div>
+              <div class="db-widget-value" style="color:#fff;">28.4k</div>
+              <div class="db-widget-sub" style="color:rgba(255,255,255,.4);">+9.8%</div>
+            </div>
+            <div class="db-widget glass" style="border-color:rgba(255,255,255,.15);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">SPEED</div>
+              <div class="db-widget-value" style="color:#c084fc;">210ms</div>
+              <div class="db-widget-sub" style="color:rgba(255,255,255,.4);">avg</div>
+            </div>
+            <div class="db-widget glass" style="border-color:rgba(255,255,255,.15);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">HEALTH</div>
+              <div class="db-widget-value" style="color:#818cf8;">99.9%</div>
+              <div class="db-widget-sub" style="color:rgba(255,255,255,.4);">SLA</div>
+            </div>
+            <div class="db-widget span2 glass" style="border-color:rgba(255,255,255,.15);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">THROUGHPUT</div>
+              ${bars(['#c084fc','#818cf8','#a78bfa','#c084fc','#818cf8','#c084fc','#a78bfa','#818cf8','#c084fc','#818cf8','#c084fc','#a78bfa'],[40,58,46,72,50,80,62,74,56,88,68,82],'rgba(255,255,255,.1)')}
+            </div>
+            <div class="db-widget glass" style="border-color:rgba(255,255,255,.15);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">SERVICES</div>
+              ${tableRows([['api','ok','#c084fc'],['ws','ok','#818cf8'],['cache','warn','#a78bfa'],['db','ok','#c084fc']],'rgba(255,255,255,.08)','rgba(255,255,255,.7)')}
+            </div>
+            <div class="db-widget span3 glass-strong" style="border-color:rgba(255,255,255,.2);">
+              <div class="db-widget-label" style="color:rgba(255,255,255,.5);">LIVE FLOW</div>
+              ${lineChartSVG('#c084fc','#818cf8')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    },
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+function icon(type, color, active=false) {
+  const icons = {
+    grid: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`,
+    activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    database: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+    settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  };
+  const bg = active ? color + '22' : 'transparent';
+  return `<div class="db-nav-icon ${active?'active':''}" style="background:${bg};color:${color};">${icons[type]}</div>`;
+}
+
+function kpi(label, value, sub, accent, bg, border) {
+  return `<div class="db-widget" style="background:${bg};border-color:${border};">
+    <div class="db-widget-label" style="color:${accent};">${label}</div>
+    <div class="db-widget-value" style="color:${accent};">${value}</div>
+    <div class="db-widget-sub">${sub}</div>
+  </div>`;
+}
+
+function bars(colors, heights, bgColor) {
+  const maxH = Math.max(...heights);
+  return `<div class="db-bar-row">
+    ${heights.map((h,i)=>`<div class="db-bar" style="height:${(h/maxH)*36}px;background:${colors[i%colors.length]};opacity:.85;"></div>`).join('')}
+  </div>`;
+}
+
+function tableRows(rows, borderColor, textColor) {
+  return rows.map(([name, status, color]) => `
+    <div class="db-table-row" style="border-color:${borderColor};color:${textColor};">
+      <span><span class="db-status-dot" style="background:${color};"></span>${name}</span>
+      <span style="color:${color};font-size:9px;">${status}</span>
+    </div>`).join('');
+}
+
+function avatar(initials, bg, border) {
+  return `<div class="db-avatar" style="background:${bg}22;border:1px solid ${border};color:${bg};">${initials}</div>`;
+}
+
+function lineChartSVG(color1, color2) {
+  const pts = [30,45,35,60,50,70,55,75,60,85,70,80,75,90,82];
+  const pts2 = [55,40,58,35,50,45,60,40,55,50,65,45,70,60,68];
+  const w=240, h=48, xStep=w/(pts.length-1);
+  const toPath=(arr)=>arr.map((v,i)=>`${i===0?'M':'L'}${i*xStep},${h-v*h/100}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:40px;">
+    <defs>
+      <linearGradient id="g1-${color1.replace('#','')}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color1}" stop-opacity=".3"/>
+        <stop offset="100%" stop-color="${color1}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${toPath(pts)} L${w},${h} L0,${h} Z" fill="url(#g1-${color1.replace('#','')})" />
+    <path d="${toPath(pts)}" fill="none" stroke="${color1}" stroke-width="1.5"/>
+    <path d="${toPath(pts2)}" fill="none" stroke="${color2}" stroke-width="1" stroke-dasharray="3,2" opacity=".6"/>
+  </svg>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+const grid = document.getElementById('grid');
+const pillContainer = document.getElementById('pills');
+
+function renderAll() {
+  pillContainer.innerHTML = '';
+  grid.innerHTML = '';
+
+  DESIGNS.forEach((d, i) => {
+    // Pill
+    const pill = document.createElement('button');
+    pill.className = 'pill';
+    pill.textContent = `${i+1}. ${d.name}`;
+    pill.style.setProperty('--a', d.accent || '#58a6ff');
+    pill.onclick = () => openFullscreen(d);
+    pillContainer.appendChild(pill);
+
+    // Card
+    const card = document.createElement('div');
+    card.className = 'design-card';
+    card.style.boxShadow = `0 0 0 1px rgba(255,255,255,.04), 0 20px 40px rgba(0,0,0,.5)`;
+
+    const preview = document.createElement('div');
+    preview.className = 'design-preview';
+    d.renderPreview(preview);
+
+    const badge = document.createElement('div');
+    badge.className = 'design-badge';
+    badge.textContent = `#${String(i+1).padStart(2,'0')}`;
+    badge.style.background = (d.accent||'#58a6ff') + '22';
+    badge.style.color = d.accent || '#58a6ff';
+    badge.style.border = `1px solid ${(d.accent||'#58a6ff')}44`;
+    preview.appendChild(badge);
+
+    const info = document.createElement('div');
+    info.className = 'design-info';
+    info.innerHTML = `
+      <h3 style="color:${d.accent||'#e2e8f0'};">${d.name}</h3>
+      <p>${d.tagline}</p>
+      <p style="font-size:.78rem;color:#4a5568;margin-bottom:.75rem;">${d.desc}</p>
+      <div class="palette">
+        ${d.palette.map(c=>`<div class="swatch" style="background:${c};" data-color="${c}" title="${c}"></div>`).join('')}
+      </div>`;
+
+    card.appendChild(preview);
+    card.appendChild(info);
+    card.onclick = (e) => { if (!e.target.classList.contains('swatch')) openFullscreen(d); };
+    grid.appendChild(card);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FULLSCREEN MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function openFullscreen(d) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:1000;
+    background:rgba(0,0,0,.85);backdrop-filter:blur(8px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:1rem;
+  `;
+
+  const header = document.createElement('div');
+  header.style.cssText = `
+    width:100%;max-width:1200px;display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:1rem;padding:0 .5rem;
+  `;
+  header.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;">
+      <svg style="width:20px;height:20px;" viewBox="1.5 2 20 20" fill="${d.accent||'#58a6ff'}"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+      <span style="font-weight:700;font-size:1.1rem;color:#e2e8f0;">${d.name}</span>
+      <span style="font-size:.85rem;color:#64748b;">${d.tagline}</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div style="display:flex;gap:6px;">
+        ${d.palette.map(c=>`<div style="width:24px;height:24px;border-radius:6px;background:${c};border:1px solid rgba(255,255,255,.1);" title="${c}"></div>`).join('')}
+      </div>
+      <button id="closeBtn" style="
+        background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+        color:#e2e8f0;padding:6px 16px;border-radius:8px;cursor:pointer;
+        font-family:inherit;font-size:13px;margin-left:12px;
+      ">✕ Schließen</button>
+    </div>`;
+
+  const previewFull = document.createElement('div');
+  previewFull.style.cssText = `
+    width:100%;max-width:1200px;height:min(70vh,700px);
+    border-radius:16px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 40px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04);
+  `;
+  d.renderPreview(previewFull);
+
+  const desc = document.createElement('div');
+  desc.style.cssText = `
+    width:100%;max-width:1200px;margin-top:.75rem;padding:0 .5rem;
+    color:#64748b;font-size:.85rem;
+  `;
+  desc.textContent = d.desc;
+
+  overlay.appendChild(header);
+  overlay.appendChild(previewFull);
+  overlay.appendChild(desc);
+  document.body.appendChild(overlay);
+
+  document.getElementById('closeBtn').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); }
+  });
+}
+
+renderAll();
+</script>
+
+<style>
+@keyframes pulse {
+  0%,100% { opacity:1; }
+  50% { opacity:.4; }
+}
+</style>
+</body>
+</html>

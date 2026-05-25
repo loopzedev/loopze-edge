@@ -45,6 +45,19 @@ const timeStr = computed(() =>
   now.value.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
 )
 
+// ─── Hot-reload pulse ────────────────────────────────────────────────────────
+// A 600 ms visual cue on the connection pill whenever a hot-reload
+// frame arrives. Subtle by design — see DASHBOARD_HOT_RELOAD.md L-4.
+
+const connPulse = ref(false)
+let pulseTimer: ReturnType<typeof setTimeout> | null = null
+
+function pulseConnection() {
+  connPulse.value = true
+  if (pulseTimer) clearTimeout(pulseTimer)
+  pulseTimer = setTimeout(() => { connPulse.value = false }, 600)
+}
+
 // ─── WS handlers ──────────────────────────────────────────────────────────────
 
 function onFrame(frame: ServerFrame) {
@@ -60,6 +73,17 @@ function onFrame(frame: ServerFrame) {
       }
       break
     case 'deploy':
+      if (!frame.layoutChanged) break
+      if (frame.layout) {
+        layout.value = frame.layout
+      } else {
+        // Fallback: server didn't ship the layout inline (older
+        // backend, proxy stripping large frames, …). Refetch via REST.
+        fetchLayout()
+          .then((next) => { layout.value = next })
+          .catch((err) => console.warn('dashboard: layout refetch failed', err))
+      }
+      pulseConnection()
       break
     case 'error':
       console.warn('dashboard ws error frame:', frame.message)
@@ -99,6 +123,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (clockInterval !== null) clearInterval(clockInterval)
+  if (pulseTimer !== null) clearTimeout(pulseTimer)
   wsClient?.close()
   wsClient = null
 })
@@ -309,7 +334,11 @@ const connColor = computed(() =>
 
       <!-- Right: pill + clock -->
       <div class="dash-header-right">
-        <span class="dash-pill" :style="{ '--pill-color': connColor }">
+        <span
+          class="dash-pill"
+          :class="{ pulse: connPulse }"
+          :style="{ '--pill-color': connColor }"
+        >
           <span class="pill-dot"></span>{{ connLabel }}
         </span>
         <span class="dash-clock">{{ timeStr }}</span>
@@ -614,6 +643,14 @@ const connColor = computed(() =>
   background: currentColor;
   flex-shrink: 0;
 }
+.dash-pill.pulse {
+  animation: pill-pulse 600ms ease-out;
+}
+@keyframes pill-pulse {
+  0%   { box-shadow: 0 0 0 0   color-mix(in srgb, var(--pill-color) 60%, transparent); }
+  50%  { box-shadow: 0 0 0 6px color-mix(in srgb, var(--pill-color) 25%, transparent); }
+  100% { box-shadow: 0 0 0 0   transparent; }
+}
 
 .dash-clock {
   font-family: 'IBM Plex Mono', monospace;
@@ -662,6 +699,12 @@ const connColor = computed(() =>
 
 .dash-groups {
   display: grid;
+  /* minmax(50px, auto): groups span `group.height` rows of 50 px
+     MINIMUM, but the row can grow taller to accommodate the group's
+     header + padding overhead. group.height counts WIDGET ROWS only
+     (locked decision in DASHBOARD_NODES.md) — the row stretch is
+     what gives the header its space without forcing the user to
+     account for it manually. */
   grid-auto-rows: minmax(50px, auto);
   gap: 0.625rem;
 }
@@ -785,17 +828,29 @@ const connColor = computed(() =>
 /* ── Widgets grid ────────────────────────────────────────────────────────── */
 .dash-widgets {
   display: grid;
-  grid-auto-rows: minmax(50px, auto);
+  /* Fixed 50 px rows — widgets render at their natural grid size,
+     never scale, never auto-grow. Page-level scroll (.dash-main)
+     handles overflow when the projected layout is taller than the
+     viewport. */
+  grid-auto-rows: 50px;
+  align-content: start;
   gap: 0.5rem;
   padding: 0.75rem;
   flex: 1;
+  min-height: 0; /* see widget-cell comment */
 }
 
 .widget-cell {
+  /* Sized by the parent grid track (fixed 50 px × span-h tall).
+     align-items: stretch makes the widget fill the cell so gauges
+     and similar grow to their assigned area. min-height: 0 is the
+     standard flex/grid escape hatch — without it, an inline-flex
+     widget child can push the cell taller than the grid track. */
   display: flex;
   align-items: stretch;
   min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
 }
 .widget-cell > * { width: 100%; min-width: 0; }
 

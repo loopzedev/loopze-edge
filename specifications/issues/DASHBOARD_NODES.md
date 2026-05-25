@@ -772,16 +772,22 @@ red-status mechanism plus a deploy-blocking entry in the deploy log.
 
 When a flow is re-deployed:
 
-- The dashboard SPA receives a `{type: "deploy", layoutChanged: bool}`
-  message.
+- The dashboard SPA receives a `{type: "deploy", layoutChanged: bool,
+  layout?: Snapshot}` message.
 - If layout did not change (only flow logic), connected browsers keep
   their current view and continue receiving updates.
-- If layout did change, the SPA reloads its layout from
-  `/api/dashboard/layout` (a small JSON describing pages/groups/widgets)
-  and re-renders without dropping the WebSocket.
+- If layout did change, the SPA applies `frame.layout` directly (sent
+  inline by the server to avoid a round-trip) and re-renders without
+  dropping the WebSocket. Fallback: refetch via
+  `/api/dashboard/layout` if `frame.layout` is missing.
 
 This avoids the "full page refresh on every deploy" experience and
 makes iterative dashboard authoring tolerable.
+
+Implementation plan: see
+[DASHBOARD_HOT_RELOAD.md](./DASHBOARD_HOT_RELOAD.md) for locked
+decisions, wire protocol, backend/frontend changes, edge cases,
+and tests.
 
 ### Removal
 

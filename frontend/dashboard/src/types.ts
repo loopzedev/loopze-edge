@@ -110,6 +110,9 @@ export interface WidgetFrame {
 export interface DeployFrame {
   type: 'deploy'
   layoutChanged: boolean
+  /** Present when layoutChanged is true. Applied directly by the
+   *  client to avoid a REST round-trip. */
+  layout?: Snapshot
 }
 
 export interface ErrorFrame {

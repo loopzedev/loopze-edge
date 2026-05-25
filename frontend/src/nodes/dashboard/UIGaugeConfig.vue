@@ -4,6 +4,7 @@ import FormField from '@/components/ui/FormField.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
+import FormColorInput from '@/components/ui/FormColorInput.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 import { useConfigSelector } from '@/composables/useConfigSelector'
@@ -125,10 +126,9 @@ function removeThreshold(idx: number) {
             :model-value="t.value"
             @update:model-value="(v) => updateThreshold(idx, { value: Number(v) })"
           />
-          <FormInput
+          <FormColorInput
             :model-value="t.color"
             placeholder="#color"
-            mono
             @update:model-value="(v: string) => updateThreshold(idx, { color: v })"
           />
           <button

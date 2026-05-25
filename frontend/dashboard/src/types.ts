@@ -27,6 +27,8 @@ export interface LayoutPage {
 export interface LayoutGroup {
   id: string
   name: string
+  /** Optional short identifier shown above the group name (e.g. "LINE 01"). */
+  label?: string
   pageId: string
   /** 0-based column index within the page's 12-col grid. */
   x: number
@@ -36,9 +38,19 @@ export interface LayoutGroup {
   width: number
   /** Grid rows to span. */
   height: number
-  collapsible: boolean
+  showHeader: boolean
   /** Legacy ordering field; renderer uses x/y. */
   order: number
+  /** Configured hex color for left border, label, and pill. Empty = no indicator. */
+  statusColor?: string
+  /** Configured pill label text (e.g. "RUNNING"). */
+  statusText?: string
+  /** When true, a radial color glow radiates from the left border. */
+  glow?: boolean
+  /** When true, the glow flickers like a flame. Requires glow=true. */
+  glowFlame?: boolean
+  /** Runtime status set via ui-group-status node. Not persisted. */
+  status?: 'running' | 'idle' | 'warning' | 'fault' | 'ok' | 'off'
 }
 
 export interface LayoutWidget {

@@ -12,26 +12,38 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LOOPZE Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
       :root {
         color-scheme: dark;
-        --bg: #1a1a0e;
-        --fg: #FFBF00;
-        --muted: #8a8a6a;
-        --accent: #58a6ff;
-        --surface: #25251a;
-        --border: #3a3a2a;
+        --bg:       #0a0a10;
+        --fg:       #e2e8f0;
+        --muted:    #4e5272;
+        --accent:   #58a6ff;
+        --surface:  #0e0e16;
+        --surface2: #1a1a24;
+        --border:   #222230;
+        --border2:  #2a2a3a;
+        /* semantic status colors */
+        --s-running: #3fb950;
+        --s-idle:    #d29922;
+        --s-warning: #f0883e;
+        --s-fault:   #f85149;
+        --s-ok:      #39d3b0;
+        --s-off:     #4a5568;
       }
       * { box-sizing: border-box; }
       html, body, #app { height: 100%; margin: 0; }
       body {
         background: var(--bg);
         color: var(--fg);
-        font-family: 'Space Mono', 'IBM Plex Mono', monospace;
+        font-family: 'Inter', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
     </style>
-    <script type="module" crossorigin src="/dashboard/assets/index-DU8mW8Ys.js"></script>
-    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-DEfdLMUV.css">
+    <script type="module" crossorigin src="/dashboard/assets/index-D-d8Kwgz.js"></script>
+    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-BxjH_P7k.css">
   </head>
   <body>
     <div id="app"></div>

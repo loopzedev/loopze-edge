@@ -4,6 +4,7 @@ import FormField from '@/components/ui/FormField.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
+import FormColorInput from '@/components/ui/FormColorInput.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 import { useConfigSelector } from '@/composables/useConfigSelector'
@@ -136,10 +137,9 @@ const whenTypes = [
             mono
             @update:model-value="(v: string) => updateRule(idx, { when: parseWhen(v, whenTypeOf(rule.when)) })"
           />
-          <FormInput
+          <FormColorInput
             :model-value="rule.color ?? ''"
-            placeholder="#color"
-            mono
+            swatch-only
             @update:model-value="(v: string) => updateRule(idx, { color: v })"
           />
           <FormInput
@@ -166,7 +166,7 @@ const whenTypes = [
     </FormField>
 
     <FormField label="Off color (no rule matched)">
-      <FormInput v-model="offColor" mono placeholder="#444" />
+      <FormColorInput v-model="offColor" placeholder="#444" />
     </FormField>
 
     <FormCheckbox v-model="glow" label="Glow halo around the indicator" />

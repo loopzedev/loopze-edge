@@ -110,9 +110,7 @@ const groupStyle = computed(() => {
   }
 })
 
-const collapsible = computed(() => Boolean(props.layoutGroup.group.config?.collapsible))
-const collapsed = ref(false)
-
+const showHeader = computed(() => props.layoutGroup.group.config?.showHeader !== false)
 const widgetCount = computed(() => props.layoutGroup.widgets.length)
 
 // ─── Widget drop ─────────────────────────────────────────────────────────
@@ -309,24 +307,18 @@ void setWidgetDragPayload
   >
     <header
       class="layout-group-header"
+      :class="{ 'header-hidden': !showHeader }"
       :draggable="!disabled"
       :title="disabled ? '' : 'Drag to reorder groups · double-click to edit'"
       @dragstart="onHeaderDragStart"
       @dragend="onHeaderDragEnd"
       @dblclick="onHeaderDoubleClick"
     >
-      <button
-        v-if="collapsible"
-        class="caret"
-        type="button"
-        @click="collapsed = !collapsed"
-      >{{ collapsed ? '▸' : '▾' }}</button>
       <span class="name">{{ layoutGroup.group.name || 'Group' }}</span>
       <span class="count">{{ widgetCount }} widget{{ widgetCount === 1 ? '' : 's' }}</span>
     </header>
 
     <div
-      v-show="!collapsed"
       ref="groupGridEl"
       class="layout-group-grid"
       :class="{ 'drop-active': dropActive }"
@@ -450,14 +442,9 @@ void setWidgetDragPayload
   cursor: grab;
   user-select: none;
 }
-.layout-group-header .caret {
-  background: none;
-  border: none;
-  color: inherit;
-  font-size: 0.7rem;
-  cursor: pointer;
-  width: 14px;
-  text-align: left;
+.layout-group-header.header-hidden {
+  opacity: 0.35;
+  border-bottom-style: dashed;
 }
 .layout-group-header .name {
   font-size: 0.85rem;

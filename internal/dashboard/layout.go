@@ -67,17 +67,28 @@ type LayoutPage struct {
 // X/Y are explicit grid coordinates (0-based) inside the page's
 // configured column grid. Height is in 50 px row units.
 type LayoutGroup struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	PageID      string `json:"pageId"`
-	X           int    `json:"x"`
-	Y           int    `json:"y"`
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	Collapsible bool   `json:"collapsible"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	// Label is the short identifier shown above the group name (e.g. "LINE 01").
+	Label      string `json:"label,omitempty"`
+	PageID     string `json:"pageId"`
+	X          int    `json:"x"`
+	Y          int    `json:"y"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	ShowHeader bool   `json:"showHeader"`
 	// Order is legacy; the renderer uses x/y. Kept on the JSON for
 	// debugging and during the deprecation window.
 	Order int `json:"order"`
+	// StatusColor is the hex color for the left border, label, and
+	// status pill. Empty means no status indicator is shown.
+	StatusColor string `json:"statusColor,omitempty"`
+	// StatusText is the text shown in the status pill (e.g. "RUNNING").
+	StatusText string `json:"statusText,omitempty"`
+	// Glow adds a radial color glow emanating from the status border.
+	Glow bool `json:"glow,omitempty"`
+	// GlowFlame makes the glow flicker like a flame (animated).
+	GlowFlame bool `json:"glowFlame,omitempty"`
 	// Config carries the raw ui-group config so migrateGroupPositions
 	// can read explicit x/y values the same way widgets do. Not
 	// serialised to JSON because it would duplicate fields the
@@ -303,14 +314,19 @@ func BuildLayout(ws flow.Workspace) *Snapshot {
 		snap.Groups = append(snap.Groups, LayoutGroup{
 			ID:     g.ID,
 			Name:   stringProp(g.Config, "name", "Group"),
+			Label:  stringProp(g.Config, "label", ""),
 			PageID: pageRef,
 			// x/y filled by the migration pass below — it reads
 			// explicit values from g.Config (via the Config field)
 			// and falls back to (0, cumulative) for legacy entries.
 			Width:       clampInt(intProp(g.Config, "width", groupSizeDefault.Width), 1, maxCols),
 			Height:      clampInt(intProp(g.Config, "height", groupSizeDefault.Height), 1, 100),
-			Collapsible: boolProp(g.Config, "collapsible", false),
+			ShowHeader:  boolProp(g.Config, "showHeader", true),
 			Order:       intProp(g.Config, "order", 0),
+			StatusColor: stringProp(g.Config, "statusColor", ""),
+			StatusText:  stringProp(g.Config, "statusText", ""),
+			Glow:        boolProp(g.Config, "glow", false),
+			GlowFlame:   boolProp(g.Config, "glowFlame", false),
 			Config:      g.Config,
 		})
 	}

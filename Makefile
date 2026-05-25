@@ -42,6 +42,17 @@ build-frontend:
 		echo "⚠ No frontend project found at frontend/package.json – skipping."; \
 	fi
 
+## build-dashboard: Build only the dashboard SPA (requires Node.js / npm)
+.PHONY: build-dashboard
+build-dashboard:
+	@echo "▸ Building dashboard…"
+	@if [ -f frontend/package.json ]; then \
+		cd frontend && npm install && npm run build:dashboard; \
+		echo "▸ Dashboard build complete."; \
+	else \
+		echo "⚠ No frontend project found at frontend/package.json – skipping."; \
+	fi
+
 ## build-all: Build frontend first, then the Go binary (single binary with embedded frontend)
 .PHONY: build-all
 build-all: build-frontend build

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import FormField from '@/components/ui/FormField.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
+import FormColorInput from '@/components/ui/FormColorInput.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import { useNodeProperty } from '@/composables/useNodeProperty'
 import { useConfigSelector } from '@/composables/useConfigSelector'
@@ -114,8 +115,8 @@ const formats = [
       </div>
     </FormField>
 
-    <FormField label="Color (hex)">
-      <FormInput v-model="color" mono placeholder="defaults to terminal fg" />
+    <FormField label="Color">
+      <FormColorInput v-model="color" placeholder="defaults to terminal fg" clearable />
     </FormField>
   </div>
 </template>

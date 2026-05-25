@@ -30,13 +30,18 @@ func UIGroupTypeInfo() flow.ConfigTypeInfo {
 		Description: "A group of widgets inside a dashboard page.",
 		Defaults: map[string]any{
 			"name":        "Group 1",
+			"label":       "",
 			"page":        "",
 			"x":           0,
 			"y":           0,
 			"width":       12,
 			"height":      6,
-			"collapsible": false,
+			"showHeader":  true,
 			"order":       0,
+			"statusColor": "",
+			"statusText":  "",
+			"glow":        false,
+			"glowFlame":   false,
 		},
 	}
 }

@@ -4,6 +4,7 @@ import FormField from '@/components/ui/FormField.vue'
 import FormInput from '@/components/ui/FormInput.vue'
 import FormSelect from '@/components/ui/FormSelect.vue'
 import FormCheckbox from '@/components/ui/FormCheckbox.vue'
+import FormColorInput from '@/components/ui/FormColorInput.vue'
 import { useFlowStore } from '@/stores/flowStore'
 import { useUiStore } from '@/stores/uiStore'
 
@@ -99,7 +100,7 @@ function cancel() {
       </FormField>
 
       <FormField label="Accent color">
-        <FormInput v-model="accentColor" mono placeholder="#58a6ff" />
+        <FormColorInput v-model="accentColor" placeholder="#58a6ff" />
       </FormField>
 
       <FormField label="Auth">

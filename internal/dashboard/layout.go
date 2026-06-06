@@ -138,6 +138,7 @@ var dashboardWidgetTypes = map[string]bool{
 	"ui-text":   true,
 	"ui-led":    true,
 	"ui-gauge":  true,
+	"ui-stat":   true,
 }
 
 // widgetSizeDefault is the per-type fallback used by the layout
@@ -154,6 +155,7 @@ var widgetSizeDefault = map[string]sizeDefault{
 	"ui-text":   {Width: 0, Height: 1},
 	"ui-led":    {Width: 0, Height: 1},
 	"ui-gauge":  {Width: 6, Height: 4},
+	"ui-stat":   {Width: 3, Height: 4},
 }
 
 // groupSizeDefault provides defaults for a ui-group's grid box on

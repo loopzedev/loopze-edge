@@ -23,6 +23,7 @@ const DEFAULTS: Record<string, WidgetSizeDefault> = {
   'ui-text':   { width: 0, height: 1 },
   'ui-led':    { width: 0, height: 1 },
   'ui-gauge':  { width: 6, height: 4 },
+  'ui-stat':   { width: 3, height: 4 },
   // PR 4 adds 'ui-chart': { width: 6, height: 4 }
 }
 

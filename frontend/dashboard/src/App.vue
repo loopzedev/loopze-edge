@@ -6,6 +6,7 @@ import type {
   CacheEntry,
   LayoutGroup,
   LayoutWidget,
+  Sample,
   ServerFrame,
   Snapshot,
 } from './types'
@@ -13,12 +14,14 @@ import ButtonWidget from './widgets/ButtonWidget.vue'
 import TextWidget from './widgets/TextWidget.vue'
 import LedWidget from './widgets/LedWidget.vue'
 import GaugeWidget from './widgets/GaugeWidget.vue'
+import StatWidget from './widgets/StatWidget.vue'
 
 const WIDGET_COMPONENTS: Record<string, unknown> = {
   'ui-button': ButtonWidget,
   'ui-text':   TextWidget,
   'ui-led':    LedWidget,
   'ui-gauge':  GaugeWidget,
+  'ui-stat':   StatWidget,
 }
 
 function componentFor(type: string): unknown | null {
@@ -30,6 +33,7 @@ function componentFor(type: string): unknown | null {
 const layout        = ref<Snapshot | null>(null)
 const loadError     = ref<string | null>(null)
 const widgetValues  = ref<Record<string, CacheEntry>>({})
+const statSamples   = ref<Record<string, Sample[]>>({})
 
 let wsClient: WsClient | null = null
 const wsState  = ref<'connecting' | 'open' | 'closed'>('connecting')
@@ -64,6 +68,7 @@ function onFrame(frame: ServerFrame) {
   switch (frame.type) {
     case 'snapshot':
       widgetValues.value = { ...frame.widgets }
+      statSamples.value = { ...(frame.statSamples ?? {}) }
       if (frame.layout) layout.value = frame.layout
       break
     case 'widget':
@@ -72,6 +77,20 @@ function onFrame(frame: ServerFrame) {
         [frame.id]: { value: frame.value, ts: frame.ts },
       }
       break
+    case 'stat-sample': {
+      // Append + trim to the widget's configured window. We look up the
+      // window from the layout so client-side truncation matches the
+      // server's ring buffer cap — keeps the in-memory footprint bounded
+      // when many samples arrive between reloads.
+      const id = frame.id
+      const existing = statSamples.value[id] ?? []
+      const next = existing.concat(frame.sample)
+      const widget = layout.value?.widgets.find((w) => w.id === id)
+      const win = (widget?.config?.sparklineWindow as number) || 60
+      const trimmed = next.length > win ? next.slice(next.length - win) : next
+      statSamples.value = { ...statSamples.value, [id]: trimmed }
+      break
+    }
     case 'deploy':
       if (!frame.layoutChanged) break
       if (frame.layout) {
@@ -417,6 +436,7 @@ const connColor = computed(() =>
                       :is="componentFor(widget.type)"
                       :widget="widget"
                       :value="widgetValues[widget.id]?.value"
+                      :samples="statSamples[widget.id]"
                       :emit-event="emitEvent"
                     />
                     <div v-else class="unknown-widget">{{ widget.type }}</div>

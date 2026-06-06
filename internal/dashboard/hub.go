@@ -29,10 +29,11 @@ const (
 // Message types exchanged over the dashboard WebSocket.
 const (
 	// Server → client.
-	msgTypeSnapshot = "snapshot"
-	msgTypeWidget   = "widget"
-	msgTypeDeploy   = "deploy" // PR 5
-	msgTypeError    = "error"
+	msgTypeSnapshot   = "snapshot"
+	msgTypeWidget     = "widget"
+	msgTypeDeploy     = "deploy" // PR 5
+	msgTypeStatSample = "stat-sample"
+	msgTypeError      = "error"
 
 	// Client → server.
 	msgTypeHello = "hello"
@@ -61,6 +62,11 @@ type Hub struct {
 	// cache stores the last value per widget. Replayed in the snapshot
 	// handshake so freshly connected clients are never blank.
 	cache *Cache
+
+	// samples stores per-stat-widget sparkline ring buffers. Separate
+	// from cache because the access pattern differs (append-with-trim
+	// vs overwrite-last). Retained via the same Retain hook on deploy.
+	samples *StatSampleStore
 
 	// snapshot holds the latest dashboard layout. Written by
 	// RebuildLayout (engine deploy callback) and read by the snapshot
@@ -124,6 +130,7 @@ func NewHub(allowedOrigins []string) *Hub {
 		unregister:    make(chan *client),
 		done:          make(chan struct{}),
 		cache:         NewCache(),
+		samples:       NewStatSampleStore(),
 		inputRegistry: make(map[string]inputReg),
 	}
 }
@@ -214,7 +221,9 @@ func (h *Hub) ClientCount() int {
 func (h *Hub) RebuildLayout(ws flow.Workspace) {
 	snap := BuildLayout(ws)
 	h.snapshot.Store(snap)
-	h.cache.Retain(snap.WidgetIDs())
+	keep := snap.WidgetIDs()
+	h.cache.Retain(keep)
+	h.samples.Retain(keep)
 
 	h.snapMu.Lock()
 	defer h.snapMu.Unlock()
@@ -299,6 +308,31 @@ func (h *Hub) PushWidgetValue(nodeID string, value any, ts time.Time) {
 		ID:    nodeID,
 		Value: value,
 		TS:    ts.UnixMilli(),
+	}
+	h.broadcastJSON(frame)
+}
+
+// AppendStatSample appends a sparkline point to the stat widget's ring
+// buffer and broadcasts the new point to every connected client.
+// windowSize is enforced per call so a redeploy with a new value takes
+// effect at the next sample.
+//
+// Note: this is intentionally separate from PushWidgetValue — the
+// widget frame carries the atomic display state (value + delta) while
+// stat-sample carries the incremental history append. Mixing them
+// would force the snapshot replay to distinguish "value updates that
+// happen to be samples" from "value updates that are not samples".
+func (h *Hub) AppendStatSample(nodeID string, value float64, ts time.Time, windowSize int) {
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	sample := h.samples.Append(nodeID, value, ts, windowSize)
+
+	frame := statSampleFrame{
+		Type:   msgTypeStatSample,
+		ID:     nodeID,
+		Sample: sample,
+		TS:     ts.UnixMilli(),
 	}
 	h.broadcastJSON(frame)
 }
@@ -414,11 +448,13 @@ func jsonNumber(n uint64) string {
 func (h *Hub) sendSnapshotTo(c *client) {
 	snap := h.Snapshot()
 	cache := h.cache.Snapshot()
+	samples := h.samples.Snapshot()
 	frame := snapshotFrame{
-		Type:    msgTypeSnapshot,
-		Layout:  snap,
-		Widgets: cache,
-		TS:      time.Now().UnixMilli(),
+		Type:        msgTypeSnapshot,
+		Layout:      snap,
+		Widgets:     cache,
+		StatSamples: samples,
+		TS:          time.Now().UnixMilli(),
 	}
 	data, err := json.Marshal(frame)
 	if err != nil {
@@ -560,10 +596,18 @@ type serverFrame struct {
 }
 
 type snapshotFrame struct {
-	Type    string           `json:"type"`
-	Layout  *Snapshot        `json:"layout"`
-	Widgets map[string]Entry `json:"widgets"`
-	TS      int64            `json:"ts"`
+	Type        string              `json:"type"`
+	Layout      *Snapshot           `json:"layout"`
+	Widgets     map[string]Entry    `json:"widgets"`
+	StatSamples map[string][]Sample `json:"statSamples,omitempty"`
+	TS          int64               `json:"ts"`
+}
+
+type statSampleFrame struct {
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	Sample Sample `json:"sample"`
+	TS     int64  `json:"ts"`
 }
 
 type errorFrame struct {

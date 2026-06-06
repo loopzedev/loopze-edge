@@ -24,6 +24,7 @@ func init() {
 			{Type: "ui-text", Factory: NewUITextNode, Info: UITextTypeInfo()},
 			{Type: "ui-led", Factory: NewUILedNode, Info: UILedTypeInfo()},
 			{Type: "ui-gauge", Factory: NewUIGaugeNode, Info: UIGaugeTypeInfo()},
+			{Type: "ui-stat", Factory: NewUIStatNode, Info: UIStatTypeInfo()},
 		},
 		ConfigNodes: []nodes.ConfigNodeRegistration{
 			{Type: "ui-base", Factory: NewUIBase, Info: UIBaseTypeInfo()},

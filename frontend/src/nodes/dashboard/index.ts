@@ -17,12 +17,14 @@ export const manifest: NodeGroupManifest = {
     'ui-text':   'dashboard-display',
     'ui-led':    'dashboard-display',
     'ui-gauge':  'dashboard-display',
+    'ui-stat':   'dashboard-display',
   },
   flowEditors: {
     'ui-button': () => import('./UIButtonConfig.vue') as Promise<Component>,
     'ui-text':   () => import('./UITextConfig.vue') as Promise<Component>,
     'ui-led':    () => import('./UILedConfig.vue') as Promise<Component>,
     'ui-gauge':  () => import('./UIGaugeConfig.vue') as Promise<Component>,
+    'ui-stat':   () => import('./UIStatConfig.vue') as Promise<Component>,
   },
   configEditors: {
     'ui-base':  () => import('./UIBaseConfig.vue') as Promise<Component>,

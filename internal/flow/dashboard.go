@@ -19,6 +19,11 @@ type DashboardHub interface {
 	// broadcasts it to every connected dashboard client.
 	PushWidgetValue(nodeID string, value any, ts time.Time)
 
+	// AppendStatSample appends a sparkline point to a ui-stat widget's
+	// server-side ring buffer and broadcasts it. windowSize caps the
+	// buffer; entries beyond it are dropped from the front.
+	AppendStatSample(nodeID string, value float64, ts time.Time, windowSize int)
+
 	// RegisterInputWidget connects an input widget's emit callback to
 	// the hub so user interactions in the browser reach the flow. The
 	// returned unregister func must be called on widget Stop.

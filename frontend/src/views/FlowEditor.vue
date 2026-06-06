@@ -31,6 +31,7 @@ import UIButtonNode from "@/components/nodes/UIButtonNode.vue";
 import UITextNode from "@/components/nodes/UITextNode.vue";
 import UILedNode from "@/components/nodes/UILedNode.vue";
 import UIGaugeNode from "@/components/nodes/UIGaugeNode.vue";
+import UIStatNode from "@/components/nodes/UIStatNode.vue";
 import FileReadNode from "@/components/nodes/FileReadNode.vue";
 import FileOutNode from "@/components/nodes/FileOutNode.vue";
 import FileWatchNode from "@/components/nodes/FileWatchNode.vue";
@@ -798,6 +799,10 @@ onMounted(async () => {
 
             <template #node-ui-gauge="nodeProps">
                 <UIGaugeNode v-bind="nodeProps as any" />
+            </template>
+
+            <template #node-ui-stat="nodeProps">
+                <UIStatNode v-bind="nodeProps as any" />
             </template>
 
             <template #node-comment="nodeProps">

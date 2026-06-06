@@ -89,6 +89,7 @@ const icons: Record<string, string[]> = {
   'ui-text':     ['M4 6h16', 'M12 6v14', 'M9 20h6'],                                   // capital T
   'ui-led':      ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M5 12H3', 'M21 12h-2', 'M12 5V3', 'M12 21v-2'], // glowing dot
   'ui-gauge':    ['M4 17a8 8 0 0 1 16 0', 'M12 17l4-5'],                               // gauge arc + needle
+  'ui-stat':     ['M3 20h18', 'M3 16l4-5 4 3 5-7 5 4'],                                // baseline + sparkline trend
 }
 </script>
 

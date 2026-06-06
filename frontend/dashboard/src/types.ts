@@ -93,10 +93,16 @@ export interface CacheEntry {
 
 // ─── WS frames ────────────────────────────────────────────────────────────
 
+export interface Sample {
+  v: number
+  t: number // unix milliseconds
+}
+
 export interface SnapshotFrame {
   type: 'snapshot'
   layout: Snapshot
   widgets: Record<string, CacheEntry>
+  statSamples?: Record<string, Sample[]>
   ts: number
 }
 
@@ -104,6 +110,13 @@ export interface WidgetFrame {
   type: 'widget'
   id: string
   value: unknown
+  ts: number
+}
+
+export interface StatSampleFrame {
+  type: 'stat-sample'
+  id: string
+  sample: Sample
   ts: number
 }
 
@@ -120,7 +133,7 @@ export interface ErrorFrame {
   message: string
 }
 
-export type ServerFrame = SnapshotFrame | WidgetFrame | DeployFrame | ErrorFrame
+export type ServerFrame = SnapshotFrame | WidgetFrame | StatSampleFrame | DeployFrame | ErrorFrame
 
 export interface HelloFrame {
   type: 'hello'
